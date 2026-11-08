@@ -1,5 +1,6 @@
 import { inArray } from "drizzle-orm";
 import Link from "next/link";
+import { isLeaveKind, LEAVE_KINDS } from "@/modules/staff/leave-rules";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { appUser } from "@/db/schema";
@@ -27,11 +28,23 @@ const FIELD_LABEL: Record<string, string> = {
   targetDocNo: "취소할 문서",
   kind: "구분",
   body: "내용",
+  leaveKind: "근태 종류",
+  fromDate: "날짜(시작)",
+  toDate: "끝나는 날",
+  fromTime: "시작 시각",
+  toTime: "끝 시각",
+  days: "일수(영업일)",
+  hours: "시간",
+  deduct: "연차에서 빼는 일수",
+  purpose: "용도",
+  submitTo: "제출처",
+  copies: "부수",
 };
 /** 저장된 키·숫자를 사람이 읽는 말로 */
 function show(k: string, v: unknown): string {
   if (k === "policyKey" && typeof v === "string" && isPolicyKey(v)) return DEFAULT_POLICY[v].label;
   if (k === "delegationTask" && typeof v === "string" && isDelegationTask(v)) return DEFAULT_DELEGATION[v].label;
+  if (k === "leaveKind" && typeof v === "string" && isLeaveKind(v)) return LEAVE_KINDS[v].label;
   if (typeof v === "number") return v.toLocaleString("ko-KR");
   return String(v ?? "");
 }
@@ -146,6 +159,12 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
             </Link>
           )}
         </div>
+      )}
+
+      {doc.formCode === "HR-CERT" && (doc.status === "confirmed" || doc.status === "checked") && !doc.cancelsId && (
+        <Link href={`/certificates/${doc.id}/print`} className={buttonClass()}>
+          재직증명서 인쇄
+        </Link>
       )}
 
       {applyLink && (

@@ -52,7 +52,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                   const strong = (Object.entries(r.levels) as [Skill, number][]).filter(([, lv]) => lv >= 2);
                   return (
                     <tr key={r.id} className={r.leftOn || !r.active ? "opacity-60" : ""}>
-                      <td className="py-1.5 pr-2">
+                      <td className="py-1.5 pr-2 whitespace-nowrap">
                         {full || r.id === user.id ? (
                           <Link href={`/staff/${r.id}`} className="font-medium text-[var(--accent)]">
                             {r.name}
@@ -66,10 +66,10 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                       <td className="py-1.5 pr-2">{r.job ?? <span className="text-[var(--muted)]">—</span>}</td>
                       <td className="py-1.5 pr-2">
                         {r.hiredOn ? (
-                          <>
+                          <span className="whitespace-nowrap">
                             {r.hiredOn}
                             <span className="block text-xs text-[var(--muted)]">{tenureText(r.hiredOn, r.leftOn ?? today)}</span>
-                          </>
+                          </span>
                         ) : (
                           <Badge tone="warn">명부 없음</Badge>
                         )}

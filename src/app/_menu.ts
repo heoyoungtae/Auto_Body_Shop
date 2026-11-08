@@ -97,7 +97,8 @@ export const MENU: MenuGroup[] = [
     label: "인사·급여",
     items: [
       { label: "직원 명부·역량표", href: "/staff", std: "STD-11.2" },
-      { label: "근태·휴가", phase: "3차", std: "STD-11.4" },
+      { label: "근태·휴가", href: "/attendance", std: "STD-11.4" },
+      { label: "재직증명서", href: "/certificates", std: "STD-11" },
       { label: "급여", phase: "3차", std: "STD-11.5", roles: ["owner", "accounting"] },
     ],
   },

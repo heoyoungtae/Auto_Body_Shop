@@ -4,7 +4,7 @@ import type { Db } from "@/db/client";
 import { docSequence } from "@/db/schema";
 import { seoulPeriod } from "./time";
 
-export const DOC_PREFIXES = ["CS", "RO", "ES", "WO", "IV", "CP", "PO", "OS", "EX", "NC", "R", "L", "CH"] as const;
+export const DOC_PREFIXES = ["CS", "RO", "ES", "WO", "IV", "CP", "PO", "OS", "EX", "NC", "R", "L", "CH", "LV", "EC"] as const;
 export type DocPrefix = (typeof DOC_PREFIXES)[number];
 
 export async function nextDocNo(db: Db, prefix: DocPrefix, now = new Date()): Promise<string> {
