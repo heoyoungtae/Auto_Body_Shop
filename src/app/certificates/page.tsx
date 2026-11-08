@@ -26,7 +26,7 @@ export default async function CertificatesPage({ searchParams }: { searchParams:
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
         <Card title="발급 신청" help={{ kind: "panel", id: "cert.new" }}>
           <AssistForm id="cert-new" action={requestCertificateAction} className="space-y-3">
-            <TextField help="cert.purpose" name="purpose" required defaultValue={last?.purpose ?? ""} suggestions={CERT_PURPOSES.map((v) => ({ value: v }))} from={last?.purpose ? "지난 신청에서 불러옴" : undefined} />
+            <TextField help="cert.purpose" name="purpose" required defaultValue={last?.purpose ?? ""} suggestions={CERT_PURPOSES.map((v) => ({ value: v }))} from={last?.purpose ? "지난 신청" : undefined} />
             <TextField help="cert.submitTo" name="submitTo" defaultValue={last?.submitTo ?? ""} />
             <NumberField help="cert.copies" name="copies" unit="부" min={1} max={5} defaultValue={1} />
             <SubmitButton>신청(상신)</SubmitButton>

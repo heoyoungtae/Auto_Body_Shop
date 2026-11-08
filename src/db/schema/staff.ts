@@ -51,3 +51,40 @@ export const competency = pgTable(
   },
   (t) => [index("competency_user_skill_idx").on(t.userId, t.skill)],
 );
+
+/**
+ * 직원 서류: 근로계약서(F-11-01)·정보보호 서약서(F-13-02)·퇴직 비밀유지 확인서(F-13-03).
+ * 서명하면 내용(terms)·당사자 인적 사항(partyEnc, 암호화)·사업장 정보(shop)를 그때 값으로 고정한다.
+ * 상태: draft(작성 중) → ready(대표 확인, 서명 대기) → signed / cancelled. 지우지 않는다.
+ */
+export const staffDocument = pgTable(
+  "staff_document",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    docNo: text("doc_no").notNull().unique(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    kind: text("kind").notNull(),
+    status: text("status").notNull().default("draft"),
+    terms: jsonb("terms").$type<Record<string, unknown>>().notNull(),
+    partyEnc: text("party_enc"),
+    shop: jsonb("shop").$type<Record<string, string>>(),
+    signPath: text("sign_path"),
+    /** self=본인 로그인 서명, in_person=담당자 앞에서 대면 서명 */
+    signedVia: text("signed_via"),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    signedBy: uuid("signed_by").references(() => appUser.id),
+    approvedBy: uuid("approved_by").references(() => appUser.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    deliveredHow: text("delivered_how"),
+    deliveredBy: uuid("delivered_by").references(() => appUser.id),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("staff_document_user_idx").on(t.userId, t.kind)],
+);

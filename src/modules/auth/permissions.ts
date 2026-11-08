@@ -20,6 +20,7 @@ export const PERMS = {
   "claim.desk": { area: "보험", label: "보험 접수·손해사정 요청·청구", std: "STD-03 6절", roles: ["advisor", "plant_manager", "owner"] },
   "claim.money": { area: "보험", label: "보험금 입금 확인·독촉", std: "STD-12", roles: ["accounting", "owner"] },
   "staff.roster": { area: "인사", label: "직원 등록·근로자 명부 보기·쓰기", std: "STD-11", roles: ["owner", "accounting"], note: "본인은 자기 명부만 봄" },
+  "contract.approve": { area: "인사", label: "근로계약서 확인(직인)", std: "STD-11·F-11-01", roles: ["owner"], note: "회계 담당이 쓴 계약서는 대표가 확인해야 직원이 서명할 수 있음" },
   "staff.assess": { area: "인사", label: "역량 평가", std: "STD-11 6절", roles: ["owner", "plant_manager"] },
   "staff.confirm": { area: "인사", label: "역량 평가 확인", std: "STD-11 6절", roles: ["owner"] },
   "leave.approve": { area: "인사", label: "근태·휴가·연장근로 승인", std: "부록 B", roles: ["plant_manager", "owner"], note: "공장장 본인 건은 대표" },

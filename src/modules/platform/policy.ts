@@ -51,6 +51,7 @@ export const DEFAULT_POLICY = {
   "asset.register_min": { value: 500_000, unit: "원 이상", label: "자산 비품 기준 금액", clause: "7.5" },
   "payroll.attendance_close_day": { value: 3, unit: "일(매월)", label: "근태 확정일", clause: "11.4", min: 1, max: 28 },
   "payroll.pay_day": { value: 10, unit: "일(매월)", label: "급여 지급일", clause: "11.5", min: 1, max: 28 },
+  "wage.minimum_hourly": { value: 10_320, unit: "원(시간당)", label: "최저임금(시급)", clause: "11.5", min: 1 },
   "work.weekly_hours_warn": { value: 48, unit: "시간", label: "주간 근로시간 경고", clause: "11.4" },
   "hr.headcount_5plus": { value: 1, unit: "(1=5명 이상, 0=5명 미만)", label: "상시 근로자 5명 이상", clause: "11.4", min: 0, max: 1 },
   "leave.small_annual_days": { value: 15, unit: "일(5명 미만일 때)", label: "사내 연차 일수", clause: "11.4", min: 0, max: 25 },

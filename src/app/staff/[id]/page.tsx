@@ -6,10 +6,12 @@ import { appUser } from "@/db/schema";
 import { seoulDate } from "@/modules/platform/time";
 import { CONTRACT_KIND, LEVELS, SKILLS, tenureText } from "@/modules/staff/rules";
 import { canSeeRoster, competencyHistory, getProfile } from "@/modules/staff/service";
+import { DOC_KINDS, DOC_STATUS, type DocKind } from "@/modules/staff/contract-rules";
+import { listDocuments } from "@/modules/staff/documents";
 import { AssistForm } from "../../_assist";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
-import { Badge, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
+import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { saveProfileAction } from "../actions";
 import { ProfileFields } from "../profile-fields";
 
@@ -31,7 +33,8 @@ export default async function StaffProfilePage({ params, searchParams }: { param
       </>
     );
   }
-  const [p, hist] = await Promise.all([getProfile(db, user, id), competencyHistory(db, id)]);
+  const [p, hist, docs] = await Promise.all([getProfile(db, user, id), competencyHistory(db, id), listDocuments(db, user, id)]);
+  const has = (k: DocKind) => docs.some((r) => r.d.kind === k && r.d.status !== "cancelled");
   const today = seoulDate();
   const lic = p?.licenses ?? [];
   return (
@@ -75,6 +78,43 @@ export default async function StaffProfilePage({ params, searchParams }: { param
             <p className="text-sm text-[var(--muted)]">아직 명부가 없습니다. 회계 담당이나 대표에게 요청하세요.</p>
           )}
           {!full && <p className="mt-3 text-xs text-[var(--muted)]">틀린 곳이 있으면 회계 담당에게 고쳐 달라고 하세요. 명부는 대표·회계 담당이 적습니다.</p>}
+        </Card>
+
+        <Card title="계약서·서약서" help={{ kind: "panel", id: "staff.docs" }}>
+          {docs.length ? (
+            <ul className="divide-y divide-[var(--line)] text-sm">
+              {docs.map(({ d }) => (
+                <li key={d.id} className="flex flex-wrap items-center gap-2 py-2">
+                  <Link href={`/staff/docs/${d.id}`} className="font-semibold text-[var(--accent)]">
+                    {DOC_KINDS[d.kind as DocKind]?.label}
+                  </Link>
+                  <span className="text-xs text-[var(--muted)]">{d.docNo}</span>
+                  <Badge tone={d.status === "signed" ? "ok" : d.status === "cancelled" ? "neutral" : "warn"}>{DOC_STATUS[d.status as keyof typeof DOC_STATUS]}</Badge>
+                  {d.kind === "contract" && d.status === "signed" && !d.deliveredAt && <Badge tone="warn">교부 필요</Badge>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">아직 서류가 없습니다.</p>
+          )}
+          {full && (
+            <>
+              {(!has("contract") || !has("pledge_join")) && <p className="mt-2 text-sm text-[var(--warn)]">{[!has("contract") && "근로계약서", !has("pledge_join") && "정보보호 서약서"].filter(Boolean).join("·")}를 아직 받지 않았습니다.</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link href={`/staff/${id}/docs/new?kind=contract`} className={buttonClass("secondary")}>
+                  근로계약서 쓰기
+                </Link>
+                <Link href={`/staff/${id}/docs/new?kind=pledge_join`} className={buttonClass("secondary")}>
+                  정보보호 서약서
+                </Link>
+                {p?.leftOn && (
+                  <Link href={`/staff/${id}/docs/new?kind=pledge_leave`} className={buttonClass("secondary")}>
+                    퇴직 확인서
+                  </Link>
+                )}
+              </div>
+            </>
+          )}
         </Card>
 
         <Card title="역량 평가 이력" help={{ kind: "panel", id: "staff.history" }}>
