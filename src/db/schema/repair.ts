@@ -155,10 +155,21 @@ export const estimate = pgTable(
     createdBy: uuid("created_by").references(() => appUser.id),
     reviewedBy: uuid("reviewed_by").references(() => appUser.id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /** 고객 승인 링크(문자·알림톡). 토큰은 해시만 둔다 */
+    approvalTokenHash: text("approval_token_hash"),
+    approvalSentAt: timestamp("approval_sent_at", { withTimezone: true }),
+    approvalSentOk: boolean("approval_sent_ok"),
+    /** 고객(보험사) 승인 기록(STD-03 5절): 언제·누가·어떤 방법(link 링크, store 매장 서명, insurer 보험사 회신)·본인 확인 */
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvalMethod: text("approval_method"),
+    approverName: text("approver_name"),
+    approvalRef: text("approval_ref"),
+    approvalSignature: text("approval_signature"),
+    approvalRecordedBy: uuid("approval_recorded_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("estimate_no_uq").on(t.docNo), index("estimate_ro_idx").on(t.repairOrderId)],
+  (t) => [uniqueIndex("estimate_no_uq").on(t.docNo), index("estimate_ro_idx").on(t.repairOrderId), index("estimate_approval_token_idx").on(t.approvalTokenHash)],
 );
 
 /** 견적 항목. 부품이면 코드(A 신품·B 재제조·C 중고·D 인증대체·F 수입)·수량·단가, 공임이면 표준 시간과 금액 */

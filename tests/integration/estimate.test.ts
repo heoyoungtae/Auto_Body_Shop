@@ -12,6 +12,10 @@ import { buildLines, totals } from "@/modules/repair/estimate-rules";
 import { defaultLaborTable } from "@/modules/repair/labor";
 import { changeLabor, loadLabor } from "@/modules/repair/labor-store";
 import { saveShopInfo, validBizNo } from "@/modules/platform/shop";
+import { approvalTodos, approvalView, approveByLink, approveInStore, recordInsurerApproval, sendApprovalLink } from "@/modules/repair/estimate-approval";
+import { approvalGroups } from "@/modules/repair/estimate-rules";
+import { repairOrder } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { seedShop, testDb } from "./db";
 
 beforeAll(() => {
@@ -96,5 +100,50 @@ describe("견적(STD-03)", () => {
     expect((await loadLabor(db, "2026-11-30")).RATE).toBe(38_000);
     expect((await loadLabor(db, "2026-12-01")).RATE).toBe(40_000);
     expect(validBizNo("220-81-62517")).toBe(true);
+  });
+
+  it("고객 승인: 링크로 묶음별 승인(일부), 매장 서명은 서명이 있어야, 보험사 회신은 보험 견적만, 재연락 할 일", async () => {
+    const roId = await estimating();
+    const { id } = await createEstimate(db, advisor(), roId, now);
+    let e = await getEstimate(db, id);
+    const part = e.lines.find((l) => l.category === "part")!;
+    await saveLine(db, advisor(), id, { id: part.id, payer: "general", category: "part", name: part.name, partCode: "D", partNo: "", qty: 1, unitWon: 180_000, laborMinutes: null, laborWon: null, note: "" }, now);
+    await saveEstimateHeader(db, advisor(), id, { kind: "general", paintGrade: "metallic", dueDate: "", note: "", registeredOn: "2021-03-15" }, now);
+    await submitEstimate(db, advisor(), id, now);
+    await reviewEstimate(db, boss(), id, true, "", now);
+    await saveShopInfo(db, ids.owner, { name: "외관수리", ceo: "김대표", bizNo: "220-81-62517", repairRegNo: "제2026-1호", address: "경기도", phone: "031-000-0000" });
+    await expect(sendApprovalLink(db, advisor(), id, now)).rejects.toThrow(/발급한 뒤/);
+    await issueEstimate(db, advisor(), id, now);
+    expect((await approvalTodos(db, now)).map((t) => t.kind)).toEqual(["ask"]);
+
+    const { token } = await sendApprovalLink(db, advisor(), id, now);
+    const day1 = new Date(now.getTime() + 864e5);
+    expect((await approvalTodos(db, now)).map((t) => t.kind)).toEqual([null]);
+    expect((await approvalTodos(db, day1)).map((t) => t.kind)).toEqual(["followup"]);
+    const view = await approvalView(db, token, now);
+    if (view.state !== "open") throw new Error(view.state);
+    expect(view.name).toBe("홍**");
+    e = await getEstimate(db, id);
+    const groups = approvalGroups(e.lines);
+    expect(groups.length).toBe(2); // 앞범퍼 묶음, 앞문 덴트
+    const bumper = groups.find((g) => g.names.some((n) => n.includes("부품")))!;
+
+    await expect(approveByLink(db, token, { groups: [bumper.key], name: "홍길동", agree: true, signaturePng: null }, {}, now)).rejects.toThrow(/서명/);
+    await expect(approveByLink(db, token, { groups: [bumper.key], name: "홍길동", agree: false, signaturePng: PNG }, {}, now)).rejects.toThrow(/체크/);
+    await expect(recordInsurerApproval(db, advisor(), id, { groups: [], name: "보험사", ref: "1" }, now)).rejects.toThrow(/보험 견적/);
+    const r = await approveByLink(db, token, { groups: [bumper.key], name: "홍길동", agree: true, signaturePng: PNG }, { ip: "1.2.3.4" }, day1);
+    expect(r.outcome).toBe("partial");
+    e = await getEstimate(db, id);
+    expect(e.status).toBe("partial");
+    expect(e.approvalMethod).toBe("link");
+    expect(e.approvalRef).toMatch(/IP 1\.2\.3\.4/);
+    expect(e.lines.filter((l) => l.approved).length).toBe(bumper.lineIds.length);
+    expect(r.approvedTotal).toBe(totals(e.lines, true).total);
+    expect(r.approvedTotal).toBe(bumper.sum + Math.round(bumper.sum / 10));
+    const [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
+    expect(ro.status).toBe("working");
+    expect((await approvalView(db, token, day1)).state).toBe("done");
+    await expect(approveInStore(db, advisor(), id, { groups: [], name: "홍길동", signaturePng: PNG }, day1)).rejects.toThrow(/이미/);
+    expect(await approvalTodos(db, day1)).toEqual([]);
   });
 });

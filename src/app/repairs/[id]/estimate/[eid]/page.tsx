@@ -14,6 +14,89 @@ import { SubmitButton } from "../../../../_submit";
 import { requireUser } from "../../../../_lib/session";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../../../_ui";
 import { estimateAction } from "../../../actions";
+import { SignaturePad } from "../../../signature-pad";
+import { approvalMethodLabel } from "@/modules/repair/estimate-approval";
+import { approvalGroups } from "@/modules/repair/estimate-rules";
+import { seoulDate } from "@/modules/platform/time";
+import { AmountChecklist } from "../../../../_input";
+
+type Est = Awaited<ReturnType<typeof getEstimate>>;
+
+function groupOptions(lines: Est["lines"]) {
+  return approvalGroups(lines).map((g) => ({ value: g.key, label: g.names.length > 1 ? `${g.names[0]} 외 ${g.names.length - 1}건` : g.names[0], sub: g.names.length > 1 ? g.names.join(" · ") : undefined, amount: g.sum }));
+}
+
+/** 고객 승인(STD-03 5절): 링크 보내기·매장 서명·보험사 회신, 받은 뒤에는 기록 */
+function Approval({ e, roId, canWrite, today }: { e: Est; roId: string; canWrite: boolean; today: string }) {
+  const answered = e.status === "accepted" || e.status === "partial" || e.status === "declined";
+  if (answered) {
+    const ok = totals(e.lines, true);
+    return (
+      <div className="space-y-2 text-sm">
+        <p>
+          <Badge tone={e.status === "declined" ? "danger" : e.status === "partial" ? "warn" : "ok"}>{ESTIMATE_STATUS_LABEL[e.status]}</Badge> {e.approvedAt && fmtTime(e.approvedAt)}
+        </p>
+        <p>
+          {approvalMethodLabel(e.approvalMethod)} · 승인자 <b>{e.approverName}</b>
+        </p>
+        <p className="text-xs text-[var(--muted)]">본인 확인: {e.approvalRef}</p>
+        <ul className="space-y-0.5">
+          {approvalGroups(e.lines).map((g) => (
+            <li key={g.key} className={g.approved ? "" : "text-[var(--muted)] line-through"}>
+              {g.approved ? "✓" : "✗"} {g.names.join(" · ")} <span className="tabular-nums">{won(g.sum)}원</span>
+            </li>
+          ))}
+        </ul>
+        <p className="font-semibold">승인 금액 {won(ok.total)}원(부가세 포함)</p>
+        {e.approvalSignature && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/files/${e.approvalSignature}`} alt="고객 서명" className="h-20 rounded border border-[var(--line)] bg-white" />
+        )}
+      </div>
+    );
+  }
+  if (e.status !== "sent") return null;
+  const expired = !!e.validUntil && e.validUntil < today;
+  if (expired) return <p className="text-sm text-[var(--danger)]">유효기간({e.validUntil})이 지나 승인을 받을 수 없습니다. 고객이 원하면 수리 건에서 새 차수로 다시 견적합니다.</p>;
+  if (!canWrite) return <p className="text-sm text-[var(--muted)]">상담원이 고객 승인을 받습니다.</p>;
+  const opts = groupOptions(e.lines);
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-[var(--muted)]">전화로만 받은 승인은 인정하지 않습니다. 링크나 서명으로 받습니다.</p>
+      <form action={estimateAction} className="space-y-1">
+        <Hidden roId={roId} id={e.id} intent="sendLink" />
+        {e.approvalSentAt && (
+          <p>
+            {e.approvalSentOk ? "링크 보냄" : "⚠ 링크 발송 실패"} {fmtTime(e.approvalSentAt)} — 다시 보내면 앞 링크는 닫힙니다
+          </p>
+        )}
+        <SubmitButton variant={e.approvalSentAt ? "secondary" : "primary"}>{e.approvalSentAt ? "승인 링크 다시 보내기" : "승인 링크 보내기(문자·알림톡)"}</SubmitButton>
+      </form>
+      <details>
+        <summary className="cursor-pointer font-semibold text-[var(--accent)]">매장에서 서명 받기</summary>
+        <AssistForm id={`est-store-${e.id}`} action={estimateAction} className="mt-2 space-y-3">
+          <Hidden roId={roId} id={e.id} intent="store" />
+          <AmountChecklist help="approve.groups" name="groups" totalLabel="고른 작업(부가세 별도)" options={opts} />
+          <TextField help="approve.name" name="approverName" required defaultValue={e.customer.name} from="고객 기록" />
+          <SignaturePad hint="고객이 이 칸에 서명합니다(태블릿을 건네 주세요)" />
+          <SubmitButton>승인 기록</SubmitButton>
+        </AssistForm>
+      </details>
+      {e.kind === "insurance" && (
+        <details>
+          <summary className="cursor-pointer font-semibold text-[var(--accent)]">보험사 회신 기록</summary>
+          <AssistForm id={`est-ins-${e.id}`} action={estimateAction} className="mt-2 space-y-3">
+            <Hidden roId={roId} id={e.id} intent="insurer" />
+            <AmountChecklist help="approve.groups" name="groups" totalLabel="보험사가 인정한 작업(부가세 별도)" options={opts} />
+            <TextField help="approve.insurerName" name="approverName" required />
+            <TextField help="approve.insurerRef" name="insurerRef" required />
+            <SubmitButton>회신 기록</SubmitButton>
+          </AssistForm>
+        </details>
+      )}
+    </div>
+  );
+}
 
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 const won = (n: number) => n.toLocaleString("ko-KR");
@@ -66,6 +149,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const canReview = e.status === "review" && (user.roles.includes(reviewer) || user.roles.includes("owner"));
   const missingShop = shopMissing(shop);
   const v = e.vehicle;
+  const today = seoulDate();
 
   return (
     <div>
@@ -278,11 +362,18 @@ export default async function EstimatePage({ params, searchParams }: { params: P
               )}
               {e.issuedOn && (
                 <p>
-                  발급 {e.issuedOn} · 유효 {e.validUntil}까지 · 고객 승인은 다음 개발(승인 링크·매장 서명)
+                  발급 {e.issuedOn} · 유효 {e.validUntil}까지
                 </p>
               )}
             </div>
           </Card>
+          {e.issuedOn && e.status !== "void" && (
+            <div id="approval">
+              <Card title="고객 승인" help={{ kind: "panel", id: "est.approval" }}>
+                <Approval e={e} roId={roId} canWrite={canWrite} today={today} />
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </div>

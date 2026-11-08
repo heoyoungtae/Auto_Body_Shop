@@ -98,3 +98,31 @@ export function estimateIssues(lines: { category: string; name: string; partCode
   if (v.mileage == null) out.push({ field: "mileage", msg: "주행거리가 없습니다(입고 점검에서 넣음)" });
   return out;
 }
+
+// ── 고객 승인(STD-03 5절). 화면과 서버가 함께 쓴다
+/** 승인 받은 방법. 전화로만 받은 승인은 인정하지 않는다(기록이 남는 방법만) */
+export const APPROVAL_METHOD = { link: "문자 링크(고객 휴대폰)", store: "매장에서 고객 서명", insurer: "보험사 회신(손해사정)" } as const;
+export type ApprovalMethod = keyof typeof APPROVAL_METHOD;
+export const isApprovalMethod = (s: string): s is ApprovalMethod => s in APPROVAL_METHOD;
+
+type GroupLine = { id: string; damageId: string | null; name: string; qty: number; unitWon: number; laborWon: number; approved?: boolean | null };
+export type ApprovalGroup = { key: string; lineIds: string[]; names: string[]; sum: number; withVat: number; approved: boolean | null };
+
+/** 승인은 작업 묶음 단위: 같은 손상에서 나온 줄(탈부착·부품·도장·보정)은 함께 하거나 함께 빼야 수리가 된다. 직접 넣은 줄은 한 줄씩 */
+export function approvalGroups(lines: GroupLine[]): ApprovalGroup[] {
+  const map = new Map<string, GroupLine[]>();
+  for (const l of lines) {
+    const k = l.damageId ?? `line:${l.id}`;
+    map.set(k, [...(map.get(k) ?? []), l]);
+  }
+  return [...map.entries()].map(([key, ls]) => {
+    const sum = ls.reduce((s, l) => s + l.qty * l.unitWon + l.laborWon, 0);
+    const a = ls.map((l) => l.approved ?? null);
+    return { key, lineIds: ls.map((l) => l.id), names: ls.map((l) => l.name), sum, withVat: sum + Math.round(sum / 10), approved: a.every((x) => x === true) ? true : a.every((x) => x === false) ? false : null };
+  });
+}
+
+/** 묶음 고른 결과 → 견적 상태 */
+export function approvalOutcome(approved: number, all: number): "accepted" | "partial" | "declined" {
+  return approved === 0 ? "declined" : approved === all ? "accepted" : "partial";
+}

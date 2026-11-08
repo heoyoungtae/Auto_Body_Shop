@@ -6,6 +6,7 @@ import type { Role } from "@/modules/auth/roles";
 import { listConsultations } from "@/modules/customer/service";
 import { listRepairs } from "@/modules/repair/service";
 import { estimateTodos } from "@/modules/repair/estimate";
+import { approvalTodos } from "@/modules/repair/estimate-approval";
 import { seoulParts } from "@/modules/customer/rules";
 import { kakaoOverview, smsOverview } from "@/modules/messaging/service";
 import { HOLIDAY_DATA_LAST_YEAR } from "@/modules/platform/business-days";
@@ -82,6 +83,15 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
       if (x.kind === "write" && user.roles.some((r) => r === "advisor" || r === "owner")) out.push({ key: `es-${x.roId}`, when: "today", what: `견적 쓰기: ${x.label}`, detail: "진단 확인됨 — 입고 후 1영업일 안에 고객에게 제시(STD-03 5절)", href: `/repairs/${x.roId}`, action: "견적 쓰기" });
       if (x.kind === "review" && x.reviewer && (user.roles.includes(x.reviewer) || user.roles.includes("owner"))) out.push({ key: `er-${x.id}`, when: "today", what: `견적 검토: ${x.label}`, detail: `${x.total.toLocaleString("ko-KR")}원`, href: `/repairs/${x.roId}/estimate/${x.id}`, action: "검토하기" });
       if (x.kind === "draft" && user.roles.some((r) => r === "advisor")) out.push({ key: `ed-${x.id}`, when: "soon", what: `작성 중인 견적: ${x.label}`, href: `/repairs/${x.roId}/estimate/${x.id}`, action: "이어 쓰기" });
+    }
+    // 고객 승인: 발급했는데 승인 링크를 안 보냈거나, 보낸 뒤 재연락할 날이 됐거나, 기한이 지난 견적(STD-03 5절)
+    if (user.roles.some((r) => r === "advisor" || r === "owner")) {
+      for (const a of await approvalTodos(db, now)) {
+        const href = `/repairs/${a.roId}/estimate/${a.id}#approval`;
+        if (a.kind === "ask") out.push({ key: `ea-${a.id}`, when: "today", what: `견적 승인 받기: ${a.label}`, detail: `${a.total.toLocaleString("ko-KR")}원 — 승인 링크를 보내거나 매장에서 서명을 받습니다`, href, action: "승인 받기" });
+        if (a.kind === "followup") out.push({ key: `ef-${a.id}`, when: "late", what: `견적 승인 재연락: ${a.label}`, detail: "링크를 보냈는데 답이 없습니다. 전화로 안내하되 승인은 링크·서명으로 받습니다", href, action: "재연락" });
+        if (a.kind === "expired") out.push({ key: `ex-${a.id}`, when: "late", what: `견적 유효기간 지남: ${a.label}`, detail: `${a.validUntil}까지였습니다. 고객이 원하면 새 차수로 다시 견적합니다`, href, action: "보기" });
+      }
     }
   }
 

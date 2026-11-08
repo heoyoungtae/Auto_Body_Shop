@@ -16,6 +16,7 @@ export const DEFAULT_POLICY = {
   "intake.min_photos": { value: 8, unit: "장", label: "입고 사진 최소(8방향)", clause: "2.1" },
   "diagnosis.repaint_um": { value: 200, unit: "μm 초과", label: "재도장 이력 판정 도막 두께", clause: "2.5" },
   "estimate.valid_days": { value: 30, unit: "일", label: "견적 유효기간", clause: "3.2" },
+  "estimate.followup_days": { value: 1, unit: "일 뒤", label: "견적 승인 재연락", clause: "3.2" },
   "estimate.overrun_pct": { value: 0, unit: "%", label: "견적 초과 허용", clause: "5.3", max: 100 },
   "warranty.paint_months": { value: 12, unit: "개월", label: "보증 기간: 도장·판금", clause: "6.1" },
   "warranty.dent_months": { value: 6, unit: "개월", label: "보증 기간: 덴트", clause: "6.1" },

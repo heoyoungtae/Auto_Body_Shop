@@ -2,7 +2,7 @@
 // 서명란: 손가락·펜·마우스로 그린 서명을 PNG 로 숨은 칸 signature 에 넣는다.
 import { useEffect, useRef, useState } from "react";
 
-export function SignaturePad({ name = "signature" }: { name?: string }) {
+export function SignaturePad({ name = "signature", hint = "이 칸에 고객(탁송이면 기사)이 서명합니다" }: { name?: string; hint?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const hidden = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
@@ -71,7 +71,7 @@ export function SignaturePad({ name = "signature" }: { name?: string }) {
         }}
       />
       <div className="mt-1 flex items-center justify-between text-xs text-[var(--muted)]">
-        <span>{has ? "서명을 받았습니다" : "이 칸에 고객(탁송이면 기사)이 서명합니다"}</span>
+        <span>{has ? "서명을 받았습니다" : hint}</span>
         <button type="button" onClick={clear} className="text-[var(--accent)] hover:underline">
           지우고 다시
         </button>

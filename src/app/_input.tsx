@@ -527,6 +527,67 @@ export function CheckGroup({ help, name, options, defaultChecked = [], label }: 
   );
 }
 
+/** 금액이 붙은 고르기 목록(견적 승인 등). 고른 것의 합계를 바로 보여 준다 */
+export function AmountChecklist({
+  help,
+  name,
+  options,
+  defaultChecked,
+  totalLabel = "고른 금액",
+}: {
+  help: FieldHelpKey;
+  name: string;
+  options: { value: string; label: string; sub?: string; amount: number }[];
+  defaultChecked?: string[];
+  totalLabel?: string;
+}) {
+  const id = useId();
+  const [on, setOn] = useState<string[]>(defaultChecked ?? options.map((o) => o.value));
+  const sum = options.filter((o) => on.includes(o.value)).reduce((s, o) => s + o.amount, 0);
+  const all = on.length === options.length;
+  const allRef = useRef<HTMLInputElement>(null);
+  useResync(allRef, (kind) => {
+    const form = allRef.current?.form;
+    if (!form) return;
+    if (kind === "reset") return setOn(defaultChecked ?? options.map((o) => o.value));
+    setOn([...form.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`)].filter((i) => i.checked).map((i) => i.value));
+  });
+  return (
+    <Shell id={id} helpKey={help}>
+      <div id={id} role="group" className="divide-y divide-[var(--line)] rounded-md border border-[var(--line)]">
+        <label className="flex min-h-10 cursor-pointer items-center gap-2 bg-[var(--surface-2,transparent)] px-3 py-2 text-xs text-[var(--muted)]">
+          <input ref={allRef} type="checkbox" checked={all} onChange={() => setOn(all ? [] : options.map((o) => o.value))} className="size-4" /> 모두 {all ? "빼기" : "고르기"}
+        </label>
+        {options.map((o) => (
+          <label key={o.value} className="flex min-h-12 cursor-pointer items-start gap-2 px-3 py-2 has-[:checked]:bg-[var(--accent-soft)]">
+            <input
+              type="checkbox"
+              name={name}
+              value={o.value}
+              checked={on.includes(o.value)}
+              onChange={(e) => setOn((p) => (e.target.checked ? [...p, o.value] : p.filter((x) => x !== o.value)))}
+              className="mt-0.5 size-4 shrink-0"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="font-medium">{o.label}</span>
+              {o.sub && <span className="block text-xs text-[var(--muted)]">{o.sub}</span>}
+            </span>
+            <span className="shrink-0 tabular-nums">{o.amount.toLocaleString("ko-KR")}원</span>
+          </label>
+        ))}
+        <div className="flex items-center justify-between px-3 py-2 font-semibold">
+          <span>
+            {totalLabel} ({on.length}/{options.length})
+          </span>
+          <span className="tabular-nums">
+            {sum.toLocaleString("ko-KR")}원<span className="block text-right text-xs font-normal text-[var(--muted)]">{koMoney(sum)}</span>
+          </span>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 /** 폼이 reset 되거나 _assist.tsx 가 값을 되살렸을 때 화면 상태를 다시 맞춘다 */
 function useResync(ref: React.RefObject<HTMLElement | null>, sync: (kind: "reset" | "restored") => void) {
   const fn = useRef(sync);

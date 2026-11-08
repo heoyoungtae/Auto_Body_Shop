@@ -5,6 +5,7 @@ import { getDb } from "@/db/runtime";
 import { addPhoto, confirmDiagnosis, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
 import { parseFilm } from "@/modules/repair/rules";
 import { createEstimate, issueEstimate, removeLine, reviewEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
+import { approveInStore, recordInsurerApproval, sendApprovalLink } from "@/modules/repair/estimate-approval";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 import { UserError } from "@/modules/platform/errors";
@@ -192,6 +193,9 @@ export async function createEstimateAction(form: FormData) {
   redirect(noticeUrl(`/repairs/${roId}/estimate/${est.id}`, "진단과 공임 기준표로 견적 항목을 채웠습니다. 부품 단가와 바뀐 것만 고치세요"));
 }
 
+const answerMsg = (o: string, total: number) =>
+  o === "declined" ? "승인 안 함으로 기록했습니다. 고객에게 사유를 묻고 차량 반출을 안내하세요" : `${o === "accepted" ? "전체" : "일부"} 승인을 기록했습니다(승인 금액 ${total.toLocaleString("ko-KR")}원). 수리 건이 작업 대기로 넘어갔습니다`;
+
 export async function estimateAction(form: FormData) {
   const user = await requireUser();
   const s = (k: string) => String(form.get(k) ?? "").trim();
@@ -220,7 +224,20 @@ export async function estimateAction(form: FormData) {
       msg = intent === "approve" ? "검토를 마쳤습니다. 발급할 수 있습니다" : "작성자에게 되돌렸습니다";
     } else if (intent === "issue") {
       await issueEstimate(db, user, id);
-      msg = "법정 견적서를 발급했습니다. '견적서 인쇄'로 2부를 뽑아 1부를 고객에게 드리세요";
+      msg = "법정 견적서를 발급했습니다. '견적서 인쇄'로 2부를 뽑아 1부를 고객에게 드리고, 아래 '고객 승인'에서 승인을 받으세요";
+    } else if (intent === "sendLink") {
+      const r = await sendApprovalLink(db, user, id);
+      msg = r.ok ? `고객에게 승인 링크를 보냈습니다(${r.channel}${r.demo ? ", 데모: 실제로 나가지 않음" : ""})` : `승인 링크를 보내지 못했습니다: ${r.error ?? "발송 실패"}. 번호를 확인하거나 매장 서명으로 받으세요`;
+    } else if (intent === "store" || intent === "insurer") {
+      const groups = form.getAll("groups").map(String);
+      if (intent === "store") {
+        const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(s("signature"));
+        const r = await approveInStore(db, user, id, { groups, name: s("approverName"), signaturePng: m ? new Uint8Array(Buffer.from(m[1], "base64")) : null });
+        msg = answerMsg(r.outcome, r.approvedTotal);
+      } else {
+        const r = await recordInsurerApproval(db, user, id, { groups, name: s("approverName"), ref: s("insurerRef") });
+        msg = answerMsg(r.outcome, r.approvedTotal);
+      }
     }
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));

@@ -543,7 +543,7 @@ export async function reservationCalendar(db: Db, days = 14, now = new Date()) {
 }
 
 // ── 고객 안내 ──
-async function phoneForNotice(db: Db, customerId: string) {
+export async function phoneForNotice(db: Db, customerId: string) {
   const [c] = await db.select({ enc: customer.phoneEnc, name: customer.name }).from(customer).where(eq(customer.id, customerId));
   if (!c?.enc) throw new CustomerError("이 고객은 연락처가 없습니다(동의 철회 등)");
   return { to: decrypt(c.enc), name: c.name };
@@ -602,7 +602,7 @@ export const resultLabel = (r: string) => RESULT_LABEL[r as keyof typeof RESULT_
 export { CONSENT_LINK_DAYS } from "./consent-const";
 import { CONSENT_LINK_DAYS } from "./consent-const";
 
-const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+export const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 /** 동의 요청 링크를 만들어 보낸다. 링크는 CONSENT_LINK_DAYS 일 동안 열린다 */
 export async function sendConsentRequest(db: Db, actorId: string | null, customerId: string, consultId: string | null, now = new Date(), f: typeof fetch = fetch) {

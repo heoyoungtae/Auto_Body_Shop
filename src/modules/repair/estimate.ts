@@ -202,6 +202,8 @@ export async function issueEstimate(db: Db, actor: Actor, id: string, now = new 
     shop,
     writer: g.writer,
   };
+  // 같은 수리 건에서 앞서 보낸 뒤 답이 없던 견적은 이 차수로 바뀐다(고객 화면 링크도 닫힘)
+  await db.update(estimate).set({ status: "void", updatedAt: now }).where(and(eq(estimate.repairOrderId, e.repairOrderId), eq(estimate.status, "sent"), ne(estimate.id, id)));
   await db.update(estimate).set({ status: "sent", issuedOn: today, validUntil: addDays(today, policy["estimate.valid_days"]), snapshot, updatedAt: now }).where(eq(estimate.id, id));
   await writeAudit(db, { actorId: actor.id, action: "estimate.issue", entityType: "estimate", entityId: e.docNo, after: { total: e.totalWon } });
 }

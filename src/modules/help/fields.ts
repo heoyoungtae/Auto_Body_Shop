@@ -361,6 +361,12 @@ export const FIELD_HELP = {
   "est.laborWon": { label: "공임 금액", hint: "직접 정할 때만(도장·보정·외주처럼 단가로 정하는 것)", detail: "비우면 표준 시간 × 시간당 공임으로 계산합니다." },
   "est.lineNote": { label: "항목 메모", maxLength: 100, hint: "고객 설명용(서식에는 안 찍힘)" },
   "est.reviewNote": { label: "검토 의견", hint: "되돌릴 때는 꼭 적습니다", templates: ["작업 범위 확인함", "부품 단가 다시 확인", "표준 시간 과다 — 기준표대로"], maxLength: 300 },
+  // ── 견적 고객 승인(STD-03 5절)
+  "approve.groups": { label: "승인할 작업", hint: "체크한 작업만 수리하고 그 금액만 받습니다", detail: "같은 부위의 탈부착·부품·도장·보정은 한 묶음입니다. 함께 해야 수리가 되므로 묶음으로 고르거나 뺍니다. 모두 빼고 보내면 '승인 안 함'으로 기록됩니다." },
+  "approve.name": { label: "승인하는 분 이름", hint: "견적을 승인하는 분의 이름(본인 확인 기록에 남음)", example: "홍길동", maxLength: 40 },
+  "approve.agree": { label: "확인", hint: "견적 내용을 읽고 고른 작업을 승인한다는 확인입니다", detail: "견적에 없는 부품·작업을 더할 때는 다시 동의를 받고, 동의한 작업만 비용을 받습니다(법정 견적서 안내 3)." },
+  "approve.insurerName": { label: "보험사 담당자", hint: "회신한 보험사와 담당자(손해사정사)", example: "○○화재 김담당", maxLength: 60 },
+  "approve.insurerRef": { label: "접수번호·회신 방법", hint: "보험 접수번호와 회신 받은 방법(팩스·전산·메일). 전화만으로는 인정하지 않습니다", example: "2026-123456 / 전산 회신 11-10", maxLength: 120 },
   // ── 영업일·휴무일
   "cal.workdays": { label: "문 여는 요일", hint: "체크한 요일만 영업일로 셉니다", detail: "처음 값은 월~금입니다. 토요일에도 입고를 받으면 토를 체크하세요. 하나 이상 골라야 저장됩니다." },
   "cal.excludeHolidays": { label: "법정 공휴일", hint: "공휴일을 영업일에서 뺄지 정합니다", detail: "'공휴일에 쉼'이면 설날·추석·대체공휴일 등을 영업일로 세지 않고 예약도 받지 않습니다. '공휴일에도 영업'이면 영업 요일인 공휴일은 평일처럼 셉니다." },
