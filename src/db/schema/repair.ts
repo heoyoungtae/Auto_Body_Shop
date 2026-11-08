@@ -16,6 +16,8 @@ export const repairOrder = pgTable(
     docNo: text("doc_no").notNull(),
     formRev: text("form_rev").notNull().default("v0.2"),
     status: text("status", { enum: RO_STATUSES }).notNull().default("intake"),
+    /** 고객에게 수리 완료(출고 대기) 안내를 보낸 때 */
+    readyNoticeAt: timestamp("ready_notice_at", { withTimezone: true }),
     consultationId: uuid("consultation_id")
       .notNull()
       .references(() => consultation.id),
@@ -251,4 +253,70 @@ export const workStep = pgTable(
     note: text("note"),
   },
   (t) => [index("work_step_wo_idx").on(t.workOrderId)],
+);
+
+/** 최종 검사(F-05-01, STD-05). 회차마다 한 줄. 검사자는 주 작업자가 아니어야 한다 */
+export const inspection = pgTable(
+  "inspection",
+  {
+    id: id(),
+    repairOrderId: uuid("repair_order_id")
+      .notNull()
+      .references(() => repairOrder.id),
+    workOrderId: uuid("work_order_id")
+      .notNull()
+      .references(() => workOrder.id),
+    round: integer("round").notNull().default(1),
+    inspector: uuid("inspector")
+      .notNull()
+      .references(() => appUser.id),
+    /** 검사 독립성 예외(인원 부족으로 작업자가 검사) 사유 */
+    independenceNote: text("independence_note"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    passed: jsonb("passed").$type<string[]>().notNull().default([]),
+    gapMm: integer("gap_mm_x10"),
+    filmUm: jsonb("film_um").$type<number[]>().notNull().default([]),
+    photos: jsonb("photos").$type<string[]>().notNull().default([]),
+    /** pass / fail, 판정 전에는 null */
+    result: text("result"),
+    fails: jsonb("fails").$type<{ key: string; why: string }[]>().notNull().default([]),
+    failNote: text("fail_note"),
+    judgedAt: timestamp("judged_at", { withTimezone: true }),
+  },
+  (t) => [index("inspection_ro_idx").on(t.repairOrderId)],
+);
+
+/** 점검·정비명세서(법정 서식 별지 제89호의2)와 인수 확인(F-05-02) */
+export const repairStatement = pgTable(
+  "repair_statement",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    repairOrderId: uuid("repair_order_id")
+      .notNull()
+      .references(() => repairOrder.id),
+    estimateId: uuid("estimate_id")
+      .notNull()
+      .references(() => estimate.id),
+    /** 발급 때 고정: 차량·사업자·일자·정비 내역(승인한 견적 줄)·보증 */
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull().default({}),
+    partsWon: integer("parts_won").notNull().default(0),
+    laborWon: integer("labor_won").notNull().default(0),
+    vatWon: integer("vat_won").notNull().default(0),
+    totalWon: integer("total_won").notNull().default(0),
+    mileageOut: integer("mileage_out"),
+    issuedOn: text("issued_on").notNull(),
+    issuedBy: uuid("issued_by").references(() => appUser.id),
+    // ── 인도·인수
+    payMethod: text("pay_method"),
+    notices: jsonb("notices").$type<string[]>().notNull().default([]),
+    receiverName: text("receiver_name"),
+    proxy: boolean("proxy").notNull().default(false),
+    proxyNote: text("proxy_note"),
+    signature: text("signature"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    deliveredBy: uuid("delivered_by").references(() => appUser.id),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("repair_statement_no_uq").on(t.docNo), index("repair_statement_ro_idx").on(t.repairOrderId)],
 );

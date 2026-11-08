@@ -8,8 +8,8 @@ import { CheckGroup, DateField, NumberField, SelectField, TextAreaField, TextFie
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
-import { workAction } from "../actions";
-import { StepPhotos } from "./step-photos";
+import { removeStepPhotoAction, uploadStepPhotoAction, workAction } from "../actions";
+import { PhotoStrip } from "../../photo-strip";
 
 function Hidden({ woId, stepId, intent }: { woId: string; stepId?: string; intent: string }) {
   return (
@@ -123,7 +123,7 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
                       </form>
                     )}
 
-                    {(s.startedAt || s.photos.length > 0) && <StepPhotos woId={w.id} stepId={s.id} photos={s.photos} editable={state === "started" && mine} label={processLabel(s.process)} />}
+                    {(s.startedAt || s.photos.length > 0) && <PhotoStrip fields={{ woId: w.id, stepId: s.id }} upload={uploadStepPhotoAction} remove={removeStepPhotoAction} photos={s.photos} editable={state === "started" && mine} label={processLabel(s.process)} />}
 
                     {state === "started" && mine && p && (
                       <AssistForm id={`wf-${s.id}`} action={workAction} className="space-y-3 rounded-md border border-[var(--line)] p-3">

@@ -382,6 +382,18 @@ export const FIELD_HELP = {
   "work.minutes": { label: "건조 시간", hint: "도료 TDS의 시간" },
   "work.weld": { label: "용접 방식", hint: "제조사 지정 방식. 용접하지 않았으면 '없음'", example: "스폿", maxLength: 40 },
   "work.stepNote": { label: "메모", hint: "교환한 클립, 발견한 것, 다음 사람에게 전할 말", maxLength: 500 },
+  // ── 검사·출고(STD-05)
+  "qc.independenceNote": { label: "직접 검사하는 사유", hint: "이 차를 작업했지만 검사하는 이유(인원 부족 등). 검사표에 남습니다", maxLength: 200 },
+  "qc.passed": { label: "합격한 항목", hint: "기준을 충족한 항목만 체크합니다. 체크하지 않은 항목은 불합격", detail: "이 차에 없던 공정(예: 덴트만 한 차의 도장 항목)은 나오지 않습니다. 검사등·자연광·측정기로 기준대로 확인합니다." },
+  "qc.gapMm": { label: "간극 좌우 차", hint: "수리한 패널 간극과 반대편 간극의 차이(mm)", example: "0.5" },
+  "qc.filmUm": { label: "도막 두께 5점", hint: "패널당 5점을 쉼표로", example: "120, 135, 128, 140, 131" },
+  "qc.failNote": { label: "결함 위치·내용", hint: "불합격이면 꼭 적습니다. 재작업 지시가 됩니다", example: "앞문 아래 손잡이 옆 굴곡, 먼지 2점", maxLength: 500 },
+  "dl.mileageOut": { label: "출고 주행거리", hint: "출고 때 계기판을 다시 읽습니다(시운전 등으로 늘었을 수 있음)", detail: "입고 때 값을 불러옵니다. 입고 때보다 작을 수 없습니다. 차량 기록의 주행거리도 이 값으로 바뀝니다." },
+  "dl.notices": { label: "안내 확인", hint: "고객에게 설명하고 함께 체크합니다. 4가지 모두 필요", detail: "작업 전후 사진·수리 부위 설명, 도장 후 세차·왁스 금지 기간, 보증 기간·범위, 키·소지품 반환(F-05-02 안내 확인란)." },
+  "dl.payMethod": { label: "수납 방법", hint: "보험 수리는 '보험사 직접 지급'. 못 받았으면 '미수'", detail: "미수로 출고하면 회계 담당에게 알림이 갑니다(STD-12). 보험 자기부담금 처리는 보험 청구 기능에서 이어집니다." },
+  "dl.receiver": { label: "인수자", hint: "고객 본인 또는 대리인" },
+  "dl.proxyNote": { label: "위임 확인 방법", hint: "고객에게 대리인 위임을 확인한 방법", example: "고객 문자로 위임 확인(11-14 10:20)", maxLength: 200 },
+  "dl.receiverName": { label: "인수하는 분 이름", hint: "서명하는 분의 이름", maxLength: 40 },
   // ── 영업일·휴무일
   "cal.workdays": { label: "문 여는 요일", hint: "체크한 요일만 영업일로 셉니다", detail: "처음 값은 월~금입니다. 토요일에도 입고를 받으면 토를 체크하세요. 하나 이상 골라야 저장됩니다." },
   "cal.excludeHolidays": { label: "법정 공휴일", hint: "공휴일을 영업일에서 뺄지 정합니다", detail: "'공휴일에 쉼'이면 설날·추석·대체공휴일 등을 영업일로 세지 않고 예약도 받지 않습니다. '공휴일에도 영업'이면 영업 요일인 공휴일은 평일처럼 셉니다." },

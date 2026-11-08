@@ -78,6 +78,13 @@
       "when": 1794133835781,
       "tag": "0010_work_order",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794134964659,
+      "tag": "0011_inspection_delivery",
+      "breakpoints": true
     }
   ]
 }

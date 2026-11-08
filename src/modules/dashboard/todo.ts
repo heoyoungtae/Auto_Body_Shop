@@ -8,6 +8,7 @@ import { listRepairs } from "@/modules/repair/service";
 import { estimateTodos } from "@/modules/repair/estimate";
 import { approvalTodos } from "@/modules/repair/estimate-approval";
 import { workTodos } from "@/modules/repair/work";
+import { inspectTodos } from "@/modules/repair/inspect";
 import { seoulParts } from "@/modules/customer/rules";
 import { kakaoOverview, smsOverview } from "@/modules/messaging/service";
 import { HOLIDAY_DATA_LAST_YEAR } from "@/modules/platform/business-days";
@@ -101,6 +102,13 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     if (t.kind === "order") out.push({ key: t.key, when: "today", what: `작업 지시서 만들기: ${t.label}`, detail: t.detail, href: t.href, action: "지시하기" });
     if (t.kind === "assign") out.push({ key: t.key, when: "today", what: `공정 담당 정하기: ${t.label}`, detail: t.detail, href: t.href, action: "배정하기" });
     if (t.kind === "mine") out.push({ key: t.key, when: t.started ? "late" : "today", what: t.label, detail: t.detail, href: t.href, action: t.started ? "이어 하기" : "시작하기" });
+  }
+
+  // 검사·출고(STD-05): 품질·공장장은 검사 대기, 상담원은 출고 대기(완료 안내·인도)
+  for (const r of await inspectTodos(db)) {
+    const who = `${r.docNo} ${r.customerName} ${r.plateNo}`;
+    if (r.status === "inspecting" && user.roles.some((x) => x === "quality" || x === "plant_manager")) out.push({ key: `qc-${r.id}`, when: "today", what: `최종 검사: ${who}`, detail: "작업이 모두 끝났습니다. 주 작업자가 아닌 사람이 검사합니다", href: `/repairs/${r.id}/inspect`, action: "검사하기" });
+    if (r.status === "ready" && user.roles.some((x) => x === "advisor" || x === "owner")) out.push({ key: `dl-${r.id}`, when: r.readyNoticeAt ? "soon" : "today", what: `${r.readyNoticeAt ? "출고" : "완료 안내·출고"}: ${who}`, detail: r.readyNoticeAt ? "인도 때 정비명세서 발급·설명·인수 서명" : "검사 합격 — 고객에게 완료 안내를 보내고 인도 일시를 정합니다", href: `/repairs/${r.id}/delivery`, action: r.readyNoticeAt ? "출고하기" : "안내 보내기" });
   }
 
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });

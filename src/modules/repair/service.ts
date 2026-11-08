@@ -240,8 +240,8 @@ export async function getRepair(db: Db, id: string) {
 }
 
 /** 수리 건 목록. open=아직 출고 안 함 */
-export async function listRepairs(db: Db, filter: "open" | "intake" | "checked" | "all" = "open", limit = 100) {
-  const where = filter === "intake" || filter === "checked" ? eq(repairOrder.status, filter) : filter === "open" ? and(ne(repairOrder.status, "delivered"), ne(repairOrder.status, "cancelled")) : undefined;
+export async function listRepairs(db: Db, filter: "open" | "intake" | "checked" | "qc" | "all" = "open", limit = 100) {
+  const where = filter === "intake" || filter === "checked" ? eq(repairOrder.status, filter) : filter === "qc" ? inArray(repairOrder.status, ["inspecting", "ready"]) : filter === "open" ? and(ne(repairOrder.status, "delivered"), ne(repairOrder.status, "cancelled")) : undefined;
   const rows = await db
     .select({
       id: repairOrder.id,

@@ -10,7 +10,7 @@ import { AssistForm } from "../../_assist";
 import { CheckGroup, NumberField, SelectField, TextAreaField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
-import { Badge, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
+import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
 import { ShowWhen } from "../../consults/show-when";
 import { intakeAction, reopenAction } from "../actions";
 import { BodyDiagram } from "../body-diagram";
@@ -189,6 +189,20 @@ export default async function RepairDetail({ params, searchParams }: { params: P
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
           <div className="space-y-4 xl:col-span-2">
+            {(r.status === "inspecting" || r.status === "ready" || r.status === "delivered") && (
+              <Card title="검사·출고" help={{ kind: "panel", id: "ro.qc" }}>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/repairs/${r.id}/inspect`} className={buttonClass(r.status === "inspecting" ? "primary" : "secondary")}>
+                    최종 검사{r.status === "inspecting" ? " 하기" : " 기록"}
+                  </Link>
+                  {r.status !== "inspecting" && (
+                    <Link href={`/repairs/${r.id}/delivery`} className={buttonClass(r.status === "ready" ? "primary" : "secondary")}>
+                      {r.status === "ready" ? "출고하기" : "출고 기록"}
+                    </Link>
+                  )}
+                </div>
+              </Card>
+            )}
             {(r.status === "working" || wos.length > 0) && (
               <div id="work">
                 <Card title="작업" help={{ kind: "panel", id: "ro.work" }}>

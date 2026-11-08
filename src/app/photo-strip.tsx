@@ -2,10 +2,12 @@
 // 공정 사진: 휴대폰에서 바로 카메라가 열리고, 줄여서 올린다(입고 사진과 같은 방식)
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { shrink } from "../../repairs/photo-slots";
-import { removeStepPhotoAction, uploadStepPhotoAction } from "../actions";
+import { shrink } from "./repairs/photo-slots";
 
-export function StepPhotos({ woId, stepId, photos, editable, label }: { woId: string; stepId: string; photos: string[]; editable: boolean; label: string }) {
+type Act = (form: FormData) => Promise<{ ok: true } | { ok: false; error: string }>;
+
+/** 사진 줄: fields 를 함께 보내 어느 기록의 사진인지 알린다(공정·검사 등) */
+export function PhotoStrip({ fields, photos, editable, label, upload: uploadAction, remove: removeAction }: { fields: Record<string, string>; photos: string[]; editable: boolean; label: string; upload: Act; remove: Act }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,10 +21,9 @@ export function StepPhotos({ woId, stepId, photos, editable, label }: { woId: st
       for (const f of Array.from(files)) {
         const { blob } = await shrink(f);
         const fd = new FormData();
-        fd.set("woId", woId);
-        fd.set("stepId", stepId);
+        for (const [k, v] of Object.entries(fields)) fd.set(k, v);
         fd.set("file", blob, `photo.${blob.type === "image/webp" ? "webp" : "jpg"}`);
-        const r = await uploadStepPhotoAction(fd);
+        const r = await uploadAction(fd);
         if (!r.ok) throw new Error(r.error);
       }
       router.refresh();
@@ -36,10 +37,9 @@ export function StepPhotos({ woId, stepId, photos, editable, label }: { woId: st
   const remove = async (path: string) => {
     if (!confirm("이 사진을 지울까요?")) return;
     const fd = new FormData();
-    fd.set("woId", woId);
-    fd.set("stepId", stepId);
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v);
     fd.set("path", path);
-    const r = await removeStepPhotoAction(fd);
+    const r = await removeAction(fd);
     if (!r.ok) setError(r.error);
     router.refresh();
   };

@@ -14,6 +14,7 @@ export const PROCESSES = {
   polish: { label: "광택", rank: 8, checks: ["클리어층 두께 안에서만 연마", "스월 마크·홀로그램·버닝 없음"], photo: true, std: "" },
   calibrate: { label: "센서·카메라 보정", rank: 9, checks: ["경고등 꺼짐", "센서·카메라 기능 확인", "보정 결과지 받음(외주면 결과지)"], photo: true, std: "결과지를 사진으로 올립니다." },
   assemble: { label: "조립·작동 확인", rank: 10, checks: ["분해 역순 조립·볼트 체결", "등화·센서·카메라 작동 확인", "커버 걷기 전 실내 확인·세차"], photo: true, std: "" },
+  rework: { label: "재작업(검사 불합격)", rank: 11, checks: ["불합격 항목을 고침", "그 작업으로 영향받은 부분 확인"], photo: true, std: "최종 검사의 불합격 내용을 고칩니다. 끝나면 다시 검사합니다." },
 } as const;
 export type Process = keyof typeof PROCESSES;
 export const isProcess = (s: string): s is Process => s in PROCESSES;

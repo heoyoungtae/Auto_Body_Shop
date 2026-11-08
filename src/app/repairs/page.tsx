@@ -21,7 +21,8 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
   const today = seoulDate(now);
   const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
   const all = q.f === "all";
-  const [panel, due, repairs, policy] = await Promise.all([intakePanel(db, now), listConsultations(db, "due", now), listRepairs(db, all ? "all" : "open"), loadPolicy(db, today)]);
+  const qc = q.f === "qc";
+  const [panel, due, repairs, policy] = await Promise.all([intakePanel(db, now), listConsultations(db, "due", now), listRepairs(db, all ? "all" : qc ? "qc" : "open"), loadPolicy(db, today)]);
   const late = due.filter((c) => c.result === "reserved");
   const arrivals = [...late.map((c) => ({ ...c, tag: "late" as const })), ...panel.todayRows.map((c) => ({ ...c, tag: "today" as const })), ...panel.nextRows.map((c) => ({ ...c, tag: "next" as const }))];
   const minPhotos = Math.min(policy["intake.min_photos"], 8);
@@ -86,9 +87,23 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
             title="수리 건"
             help={{ kind: "panel", id: "repairs.list" }}
             actions={
-              <Link href={all ? "/repairs" : "/repairs?f=all"} className="text-sm text-[var(--accent)]">
-                {all ? "진행 중만" : "출고·취소 포함"}
-              </Link>
+              <span className="flex gap-3 text-sm">
+                {(qc || all) && (
+                  <Link href="/repairs" className="text-[var(--accent)]">
+                    진행 중
+                  </Link>
+                )}
+                {!qc && (
+                  <Link href="/repairs?f=qc" className="text-[var(--accent)]">
+                    검사·출고 대기만
+                  </Link>
+                )}
+                {!all && (
+                  <Link href="/repairs?f=all" className="text-[var(--accent)]">
+                    출고·취소 포함
+                  </Link>
+                )}
+              </span>
             }
           >
             {repairs.length ? (
@@ -116,6 +131,16 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
                         </td>
                         <td className="py-2 pr-3">
                           <Badge tone={r.status === "intake" ? "warn" : r.status === "checked" ? "accent" : "neutral"}>{RO_STATUS_LABEL[r.status]}</Badge>
+                          {r.status === "inspecting" && (
+                            <Link href={`/repairs/${r.id}/inspect`} className="ml-2 text-xs text-[var(--accent)]">
+                              검사하기
+                            </Link>
+                          )}
+                          {r.status === "ready" && (
+                            <Link href={`/repairs/${r.id}/delivery`} className="ml-2 text-xs text-[var(--accent)]">
+                              출고하기
+                            </Link>
+                          )}
                         </td>
                         <td className="py-2 pr-3 whitespace-nowrap">{fmtTime(r.inAt)}</td>
                         <td className="py-2 text-xs">

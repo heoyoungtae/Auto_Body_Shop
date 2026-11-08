@@ -8,7 +8,9 @@ import type { Db } from "@/db/client";
 import { repairOrder } from "@/db/schema";
 import { addStepPhoto, assignRest, assignStep, createWorkOrder, finishStep, getWorkOrder, startStep, workTodos } from "@/modules/repair/work";
 import { PROCESSES, type Process } from "@/modules/repair/work-rules";
-import { approvedRepair, WEBP } from "./flow";
+import { approvedRepair, PNG, WEBP } from "./flow";
+import { addInspectionPhoto, deliver, inspectionContext, inspectionsOf, issueStatement, judgeInspection, startInspection, statementOf } from "@/modules/repair/inspect";
+import { itemsFor } from "@/modules/repair/inspect-rules";
 import { seedShop, testDb } from "./db";
 
 beforeAll(() => {
@@ -74,5 +76,64 @@ describe("작업(STD-04)", () => {
     expect(w.steps[1].detail).toEqual({ colorCode: "NKA", mixNo: "M-1" });
     const [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
     expect(ro.status).toBe("inspecting");
+  });
+});
+
+describe("검사·출고(STD-05)", () => {
+  async function workedRepair() {
+    const { roId } = await approvedRepair(db, ids, now, (names) => names.some((n) => n.includes("덴트")));
+    const { id } = await createWorkOrder(db, boss(), roId, now);
+    await assignRest(db, boss(), id, { assignee: ids.tech1, planDate: "" }, now);
+    await finishAll(id);
+    return { roId, woId: id };
+  }
+  async function finishAll(woId: string) {
+    const w = await getWorkOrder(db, woId);
+    for (const s of w.steps.filter((x) => !x.endedAt)) {
+      if (!s.assignee) await assignStep(db, boss(), s.id, { assignee: ids.tech1, planDate: "", stdMinutes: null }, now);
+      if (!s.startedAt) await startStep(db, tech(), s.id, now);
+      if (PROCESSES[s.process as Process].photo) await addStepPhoto(db, tech(), s.id, WEBP);
+      await finishStep(db, tech(), s.id, { checks: [...PROCESSES[s.process as Process].checks], detail: detail[s.process as Process] ?? {}, note: "" }, now);
+    }
+  }
+  const quality = () => ({ id: ids.quality, roles: ["quality" as const] });
+
+  it("작업자는 검사 못 하고, 불합격이면 재작업 뒤 다시 검사, 합격하면 정비명세서·인수 서명으로 출고", async () => {
+    const { roId, woId } = await workedRepair();
+    await expect(startInspection(db, tech(), roId, "", now)).rejects.toThrow(/품질/);
+    await expect(startInspection(db, { id: ids.tech1, roles: ["plant_manager"] }, roId, "", now)).rejects.toThrow(/사유/);
+    const { id } = await startInspection(db, quality(), roId, "", now);
+    const ctx = await inspectionContext(db, roId, now);
+    const all = itemsFor(ctx.processes).map((i) => i.key);
+    expect(all).toContain("surface");
+    expect(all).not.toContain("film"); // 덴트만 — 도장 항목 없음
+    // 사진 부족 + 메모 없이 불합격 → 막음
+    await expect(judgeInspection(db, quality(), id, { passed: all, gapMm: null, filmUm: [], failNote: "" }, now)).rejects.toThrow(/사진/);
+    const res = await judgeInspection(db, quality(), id, { passed: all.filter((k) => k !== "surface"), gapMm: null, filmUm: [], failNote: "앞문 아래 굴곡 남음" }, now);
+    expect(res.pass).toBe(false);
+    let [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
+    expect(ro.status).toBe("working");
+    expect((await getWorkOrder(db, woId)).steps.at(-1)!.process).toBe("rework");
+    await finishAll(woId);
+    const second = await startInspection(db, quality(), roId, "", now);
+    for (let k = 0; k < 4; k++) await addInspectionPhoto(db, quality(), second.id, WEBP);
+    expect((await judgeInspection(db, quality(), second.id, { passed: all, gapMm: null, filmUm: [], failNote: "" }, now)).pass).toBe(true);
+    [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
+    expect(ro.status).toBe("ready");
+    expect((await inspectionsOf(db, roId)).map((i) => i.result)).toEqual(["fail", "pass"]);
+
+    const advisor = { id: ids.advisor, roles: ["advisor" as const] };
+    await expect(issueStatement(db, advisor, roId, { mileageOut: 40000 }, now)).rejects.toThrow(/입고 때/);
+    const st = await issueStatement(db, advisor, roId, { mileageOut: 45012 }, now);
+    const s = (await statementOf(db, roId))!;
+    expect(s.docNo).toBe("IV-2611-0001");
+    expect(s.totalWon).toBe(41_800); // 덴트 38,000 + 부가세
+    expect((s.snapshot as { legalFreeDays: number }).legalFreeDays).toBe(60); // 2021년 등록·4.5만km
+    expect(st.created).toBe(true);
+    const deliverIn = { payMethod: "card", notices: ["photos", "care", "warranty"], receiverName: "홍길동", proxy: false, proxyNote: "", signaturePng: PNG };
+    await expect(deliver(db, advisor, roId, deliverIn, now)).rejects.toThrow(/안내 확인 1개/);
+    await deliver(db, advisor, roId, { ...deliverIn, notices: ["photos", "care", "warranty", "returned"] }, now);
+    [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
+    expect(ro.status).toBe("delivered");
   });
 });
