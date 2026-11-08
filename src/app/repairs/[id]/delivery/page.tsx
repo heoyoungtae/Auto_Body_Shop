@@ -14,6 +14,7 @@ import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "
 import { ShowWhen } from "../../../consults/show-when";
 import { SignaturePad } from "../../signature-pad";
 import { deliveryAction } from "../../qc-actions";
+import { claimView } from "@/modules/repair/claims";
 
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
@@ -27,6 +28,7 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
   const policy = await loadPolicy(db, seoulDate());
   const desk = user.roles.some((x) => x === "advisor" || x === "plant_manager" || x === "owner");
   const ready = r.status === "ready";
+  const cv = r.insurance !== "self" ? await claimView(db, id) : null;
   const snap = (st?.snapshot ?? {}) as { warranty?: { kind: string; until: string }[]; legalFreeDays?: number; byPayer?: { insurance: number; general: number } };
 
   return (
@@ -121,6 +123,34 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
           )}
         </div>
         <div className="space-y-4 xl:sticky xl:top-4">
+          {cv && (
+            <Card title="고객에게 받을 금액" help={{ kind: "panel", id: "dl.collect" }}>
+              {cv.claim ? (
+                <div className="space-y-1 text-sm">
+                  <p className="text-lg font-semibold tabular-nums">{cv.amounts.customerDue.toLocaleString("ko-KR")}원</p>
+                  <p className="text-xs">
+                    일반 항목 {cv.amounts.generalWon.toLocaleString("ko-KR")}원 + 자기부담금 {cv.claim.deductibleWon.toLocaleString("ko-KR")}원
+                    {cv.claim.customerExtraWon > 0 && ` + 미승인분 합의 ${cv.claim.customerExtraWon.toLocaleString("ko-KR")}원`}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    보험사 몫 {cv.amounts.insurerDue.toLocaleString("ko-KR")}원은 출고 뒤 청구합니다.{" "}
+                    <Link href={`/repairs/${id}/claim`} className="text-[var(--accent)]">
+                      보험 청구 {cv.claim.docNo}
+                    </Link>
+                  </p>
+                  {!cv.claim.scopedAt && <p className="rounded-md bg-[var(--warn-soft)] px-2 py-1 text-xs">보험사 손해사정 금액을 아직 적지 않았습니다. 미승인분이 생기면 고객 부담이 바뀔 수 있습니다.</p>}
+                </div>
+              ) : (
+                <p className="rounded-md bg-[var(--warn-soft)] px-2 py-1 text-sm">
+                  보험 수리인데 접수 정보(자기부담금)가 없습니다. 출고 전에{" "}
+                  <Link href={`/repairs/${id}/claim`} className="text-[var(--accent)]">
+                    보험 청구 화면
+                  </Link>
+                  에서 확인해 주세요.
+                </p>
+              )}
+            </Card>
+          )}
           {st && (
             <Card title="정비명세서" help={{ kind: "panel", id: "dl.summary" }}>
               <div className="space-y-1 text-sm">

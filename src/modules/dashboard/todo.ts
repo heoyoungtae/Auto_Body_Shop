@@ -9,6 +9,7 @@ import { estimateTodos } from "@/modules/repair/estimate";
 import { approvalTodos } from "@/modules/repair/estimate-approval";
 import { workTodos } from "@/modules/repair/work";
 import { inspectTodos } from "@/modules/repair/inspect";
+import { claimTodos } from "@/modules/repair/claims";
 import { seoulParts } from "@/modules/customer/rules";
 import { kakaoOverview, smsOverview } from "@/modules/messaging/service";
 import { HOLIDAY_DATA_LAST_YEAR } from "@/modules/platform/business-days";
@@ -102,6 +103,24 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     if (t.kind === "order") out.push({ key: t.key, when: "today", what: `작업 지시서 만들기: ${t.label}`, detail: t.detail, href: t.href, action: "지시하기" });
     if (t.kind === "assign") out.push({ key: t.key, when: "today", what: `공정 담당 정하기: ${t.label}`, detail: t.detail, href: t.href, action: "배정하기" });
     if (t.kind === "mine") out.push({ key: t.key, when: t.started ? "late" : "today", what: t.label, detail: t.detail, href: t.href, action: t.started ? "이어 하기" : "시작하기" });
+  }
+
+  // 보험 청구(STD-03 6절): 상담원 쪽은 접수·요청·회신·청구, 회계는 30일 미입금 독촉
+  {
+    const desk = user.roles.some((x) => x === "advisor" || x === "plant_manager" || x === "owner");
+    const money = user.roles.some((x) => x === "accounting" || x === "owner");
+    const TEXT = {
+      info: ["보험 접수 정보 확인", "보험사·사고접수번호·자기부담금·손해사정사를 입고 당일 확인합니다", "확인하기"],
+      request: ["손해사정 요청", "손상 사진·견적을 보험사에 보냅니다(입고 후 1영업일)", "요청 기록"],
+      scope: ["보험사 회신 확인", "손해사정 금액이 오면 승인 범위를 적고 미승인분을 고객과 합의합니다", "범위 적기"],
+      claim: ["보험 청구", "출고 후 3영업일 안에 서류 4가지를 갖춰 청구합니다", "청구하기"],
+      dun: ["보험 미입금 독촉", "청구 후 30일이 지났습니다", "독촉·입금 확인"],
+    } as const;
+    for (const t of await claimTodos(db, now)) {
+      if (t.kind === "dun" ? !money : !desk) continue;
+      const [what, detail, action] = TEXT[t.kind];
+      out.push({ key: `cl-${t.kind}-${t.id}`, when: t.late ? "late" : t.kind === "scope" || (t.due && t.due > today) ? "soon" : "today", what: `${what}: ${t.who}`, detail: t.due ? `${detail} · 기한 ${t.due}` : detail, href: `/repairs/${t.id}/claim`, action });
+    }
   }
 
   // 검사·출고(STD-05): 품질·공장장은 검사 대기, 상담원은 출고 대기(완료 안내·인도)

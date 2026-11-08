@@ -320,3 +320,59 @@ export const repairStatement = pgTable(
   },
   (t) => [uniqueIndex("repair_statement_no_uq").on(t.docNo), index("repair_statement_ro_idx").on(t.repairOrderId)],
 );
+
+/** 보험 청구 진행(STD-03 6절 → STD-12): info 접수 정보 → requested 손해사정 요청 → scoped 승인 범위 확인 → claimed 청구 → paid 입금 확인 */
+export const CLAIM_STATUSES = ["info", "requested", "scoped", "claimed", "paid"] as const;
+
+/** 보험 청구 기록(수리 건마다 1건). 번호 CH-연월-순번. 금액은 모두 부가세 포함 원 */
+export const insuranceClaim = pgTable(
+  "insurance_claim",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    repairOrderId: uuid("repair_order_id")
+      .notNull()
+      .references(() => repairOrder.id),
+    status: text("status", { enum: CLAIM_STATUSES }).notNull().default("info"),
+    // ── 1. 접수 확인(입고 당일)
+    insurer: text("insurer").notNull(),
+    claimNo: text("claim_no").notNull(),
+    /** own=자차, other=대물(상대 보험) */
+    coverage: text("coverage").notNull(),
+    /** 우리 고객의 과실 비율(%) */
+    faultPct: integer("fault_pct"),
+    /** 자기부담금(출고 때 고객에게 받음) */
+    deductibleWon: integer("deductible_won").notNull().default(0),
+    adjusterName: text("adjuster_name"),
+    adjusterPhone: text("adjuster_phone"),
+    // ── 2. 손해사정 요청(입고 후 1영업일)
+    requestedAt: timestamp("requested_at", { withTimezone: true }),
+    requestedBy: uuid("requested_by").references(() => appUser.id),
+    requestNote: text("request_note"),
+    // ── 3. 승인 범위 확인
+    adjustedWon: integer("adjusted_won"),
+    /** 보험사가 인정하지 않은 금액 중 고객이 내기로 합의한 금액 */
+    customerExtraWon: integer("customer_extra_won").notNull().default(0),
+    scopeNote: text("scope_note"),
+    scopedAt: timestamp("scoped_at", { withTimezone: true }),
+    scopedBy: uuid("scoped_by").references(() => appUser.id),
+    // ── 5. 청구(출고 후 3영업일)
+    claimedWon: integer("claimed_won"),
+    docs: jsonb("docs").$type<string[]>().notNull().default([]),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    claimedBy: uuid("claimed_by").references(() => appUser.id),
+    // ── 6. 입금 확인(회계)
+    paidOn: text("paid_on"),
+    paidWon: integer("paid_won"),
+    cutWon: integer("cut_won"),
+    cutReason: text("cut_reason"),
+    paidBy: uuid("paid_by").references(() => appUser.id),
+    /** 30일 미입금 독촉한 때 */
+    dunnedAt: timestamp("dunned_at", { withTimezone: true }),
+    dunNote: text("dun_note"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("insurance_claim_no_uq").on(t.docNo), uniqueIndex("insurance_claim_ro_uq").on(t.repairOrderId), index("insurance_claim_status_idx").on(t.status)],
+);

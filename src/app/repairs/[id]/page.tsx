@@ -24,6 +24,8 @@ import { WO_STATUS_LABEL } from "@/modules/repair/work-rules";
 import { createWorkOrderAction } from "../../work/actions";
 import { PhotoSlots } from "../photo-slots";
 import { SignaturePad } from "../signature-pad";
+import { claimOf } from "@/modules/repair/claims";
+import { CLAIM_STATUS_LABEL } from "@/modules/repair/claim-rules";
 
 const opts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }));
 const WARNING_LIGHTS = ["없음", "엔진 점검", "타이어 공기압", "에어백", "ABS·제동", "배터리·충전", "엔진오일 압력", "냉각수 온도"];
@@ -42,7 +44,7 @@ export default async function RepairDetail({ params, searchParams }: { params: P
   const user = await requireUser();
   const db = await getDb();
   const r = await getRepair(db, id);
-  const [estimates, wos] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id)]);
+  const [estimates, wos, claim] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id), claimOf(db, id)]);
   const policy = await loadPolicy(db, seoulDate());
   const canWrite = user.roles.some((x) => x === "owner" || x === "plant_manager" || x === "advisor");
   const canDiagnose = user.roles.some((x) => x === "technician" || x === "plant_manager" || x === "owner");
@@ -189,6 +191,21 @@ export default async function RepairDetail({ params, searchParams }: { params: P
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
           <div className="space-y-4 xl:col-span-2">
+            {r.insurance !== "self" && (
+              <Card title="보험 청구" help={{ kind: "panel", id: "ro.claim" }}>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <Badge tone={claim?.status === "paid" ? "ok" : claim ? "accent" : "warn"}>{CLAIM_STATUS_LABEL[claim?.status ?? "none"]}</Badge>
+                  {claim && (
+                    <span>
+                      {claim.docNo} · {claim.insurer} {claim.claimNo} · 자기부담금 {claim.deductibleWon.toLocaleString("ko-KR")}원
+                    </span>
+                  )}
+                  <Link href={`/repairs/${r.id}/claim`} className={buttonClass(claim ? "secondary" : "primary")}>
+                    {claim ? "청구 화면" : "접수 정보 확인하기"}
+                  </Link>
+                </div>
+              </Card>
+            )}
             {(r.status === "inspecting" || r.status === "ready" || r.status === "delivered") && (
               <Card title="검사·출고" help={{ kind: "panel", id: "ro.qc" }}>
                 <div className="flex flex-wrap gap-2">

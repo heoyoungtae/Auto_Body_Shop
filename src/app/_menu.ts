@@ -28,7 +28,7 @@ export const MENU: MenuGroup[] = [
       { label: "견적·고객 승인", href: "/estimates", std: "STD-03" },
       { label: "작업·공정", href: "/work", std: "STD-04" },
       { label: "검사·출고", href: "/repairs?f=qc", std: "STD-05" },
-      { label: "보험 청구", phase: "1차", std: "STD-12.3" },
+      { label: "보험 청구", href: "/claims", std: "STD-03.6" },
     ],
   },
   {
