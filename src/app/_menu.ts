@@ -6,12 +6,15 @@ import type { Role } from "@/modules/auth/roles";
 export type MenuItem = { label: string; href?: string; phase?: "1차" | "2차" | "3차"; std?: string; roles?: Role[] };
 export type MenuGroup = { id: string; label: string; items: MenuItem[] };
 
+/** 메뉴 맨 위에 따로 두는 화면(묶음 밖) */
+export const TOP: MenuItem[] = [{ label: "대시보드", href: "/home" }];
+
 export const MENU: MenuGroup[] = [
   {
     id: "my",
     label: "내 업무",
     items: [
-      { label: "대시보드", href: "/home" },
+      { label: "내 할 일", href: "/todo" },
       { label: "결재", href: "/approvals" },
       { label: "알림", href: "/notifications" },
     ],

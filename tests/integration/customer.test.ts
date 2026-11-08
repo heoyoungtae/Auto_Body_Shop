@@ -18,6 +18,7 @@ import {
 } from "@/modules/customer/service";
 import { addBusinessDays } from "@/modules/customer/rules";
 import { addShopDay, saveCalendarRules } from "@/modules/platform/calendar";
+import { myTodos } from "@/modules/dashboard/todo";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -190,5 +191,19 @@ describe("동의 링크·차대번호·주행거리", () => {
     const again = (await getCustomer(db, c.customerId)).vehicles[0];
     expect(again.options).toEqual(["radar_front", "bsd"]);
     expect(again.generation).toBe("MQ4");
+  });
+
+  it("내 할 일: 회신 기한 지남·예약 확인 안 보냄을 상담원에게, 설정 준비를 대표에게 모은다", async () => {
+    await createConsultation(db, ids.advisor, base({ channel: "message" }), now);
+    await createConsultation(db, ids.advisor, base({ newCustomer: { name: "김예약", phone: "010-5555-6666" }, newVehicle: { plateNo: "55다5555" }, result: "reserved", reservedDate: "2026-11-12", reservedTime: "10:00" }), now);
+    const later = new Date("2026-11-11T01:00:00Z");
+    const adv = await myTodos(db, { id: ids.advisor, roles: ["advisor"] }, later);
+    expect(adv.some((t) => t.when === "late" && t.what.startsWith("회신 기한 지남"))).toBe(true);
+    expect(adv.some((t) => t.when === "today" && t.what.startsWith("예약 확인 안 보냄"))).toBe(true);
+    expect(adv.some((t) => t.when === "setup")).toBe(false);
+    const tech = await myTodos(db, { id: ids.tech1, roles: ["technician"] }, later);
+    expect(tech.some((t) => t.what.includes("회신"))).toBe(false);
+    const own = await myTodos(db, { id: ids.owner, roles: ["owner"] }, later);
+    expect(own.some((t) => t.key === "set-sms")).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Role } from "@/modules/auth/roles";
-import { MENU, type MenuItem } from "./_menu";
+import { MENU, TOP, type MenuItem } from "./_menu";
 
 const NavCtx = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({ open: false, setOpen: () => {} });
 
@@ -47,7 +47,7 @@ const save = (k: string, v: unknown) => {
 };
 
 /** 지금 화면에 맞는 메뉴: 경로가 가장 길게 겹치는 것 하나 */
-const HREFS = MENU.flatMap((g) => g.items.map((i) => i.href).filter((h): h is string => !!h));
+const HREFS = [...TOP, ...MENU.flatMap((g) => g.items)].map((i) => i.href).filter((h): h is string => !!h);
 const activeHref = (path: string) => HREFS.filter((h) => path === h || path.startsWith(h + "/")).sort((a, b) => b.length - a.length)[0];
 const isActive = (path: string, href: string) => activeHref(path) === href;
 const groupOf = (path: string) => {
@@ -96,6 +96,19 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             ×
           </button>
         </div>
+        <ul className="space-y-0.5 px-2 pt-3">
+          {TOP.map((i) => (
+            <li key={i.label}>
+              <Link
+                href={i.href!}
+                aria-current={isActive(path, i.href!) ? "page" : undefined}
+                className="flex min-h-10 items-center rounded-md px-3 text-sm font-semibold hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:text-[var(--accent)]"
+              >
+                {i.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
         {MENU.map((g) => {
           const items = g.items.filter(visible);
           if (!items.length) return null;

@@ -6,6 +6,7 @@ import { inbox, myDrafts } from "@/modules/approval/service";
 import { CHANNEL_LABEL, seoulParts } from "@/modules/customer/rules";
 import { consentPanel, duePanel, intakePanel, monthPanel, PANELS, panelsFor, todayInfo, type PanelId } from "@/modules/dashboard/service";
 import { listNotifications } from "@/modules/platform/notify";
+import { myTodos } from "@/modules/dashboard/todo";
 import { dayLabel } from "../_format";
 import { requireUser } from "../_lib/session";
 import { Badge, buttonClass, Card, ErrorBox, fmtTime, PageTitle, StatusBadge } from "../_ui";
@@ -23,7 +24,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const db = await getDb();
   const ids = panelsFor(user.roles);
   const has = (p: PanelId) => ids.includes(p);
-  const [day, todo, mine, notes, intake, due, consents, month] = await Promise.all([
+  const [todos, day, todo, mine, notes, intake, due, consents, month] = await Promise.all([
+    myTodos(db, user),
     todayInfo(db),
     inbox(db, user.id),
     myDrafts(db, user.id),
@@ -199,11 +201,16 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </>
         }
         actions={
-          canWrite && (
-            <Link href="/consults/new" className={buttonClass()}>
-              새 상담
+          <>
+            <Link href="/todo" className={buttonClass(todos.some((t) => t.when === "late") ? "primary" : "secondary")}>
+              내 할 일 {todos.length}건{todos.some((t) => t.when === "late") && ` · 늦은 일 ${todos.filter((t) => t.when === "late").length}`}
             </Link>
-          )
+            {canWrite && (
+              <Link href="/consults/new" className={buttonClass("secondary")}>
+                새 상담
+              </Link>
+            )}
+          </>
         }
       >
         대시보드
