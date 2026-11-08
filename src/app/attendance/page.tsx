@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { loadShopCalendar } from "@/modules/platform/calendar";
+import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { canSeeTeamLeave, leaveBalance, listLeaves } from "@/modules/staff/attendance";
 import { addDaysIso, leaveSummary } from "@/modules/staff/leave-rules";
@@ -21,7 +22,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const mFrom = `${month}-01`;
   const mTo = addDaysIso(`${addDaysIso(mFrom, 32).slice(0, 7)}-01`, -1);
   const team = canSeeTeamLeave(user);
-  const [bal, mine, cal, all] = await Promise.all([leaveBalance(db, user.id, today), listLeaves(db, user), loadShopCalendar(db), team ? listLeaves(db, user, { all: true, from: mFrom, to: mTo }) : Promise.resolve([])]);
+  const [bal, mine, cal, pol, all] = await Promise.all([leaveBalance(db, user.id, today), listLeaves(db, user), loadShopCalendar(db), loadPolicy(db, today), team ? listLeaves(db, user, { all: true, from: mFrom, to: mTo }) : Promise.resolve([])]);
   const prev = addDaysIso(mFrom, -1).slice(0, 7);
   const next = addDaysIso(mTo, 1).slice(0, 7);
   return (
@@ -49,7 +50,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
                 ))}
               </div>
               <p className="mt-2 text-xs text-[var(--muted)]">
-                연차 연도 {bal.from} ~ {bal.to} (입사일 {bal.hiredOn} 기준{bal.firstYear ? ", 입사 1년 미만: 1개월 개근마다 1일" : ""}). 근로자 명부에서 불러옴.
+                연차 연도 {bal.from} ~ {bal.to} (입사일 {bal.hiredOn} 기준{bal.firstYear ? ", 입사 1년 미만: 1개월 개근마다 1일" : ""}). {bal.legal ? "근로기준법 제60조" : "상시 5명 미만 사업장 사내 연차(정책값)"} · 입사일은 근로자 명부에서 불러옴.
               </p>
             </>
           ) : (
@@ -59,7 +60,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
 
         <Card title="근태 신청서 쓰기" help={{ kind: "panel", id: "leave.new" }}>
           <AssistForm id="leave-new" action={requestLeaveAction} className="space-y-3">
-            <LeaveFields cal={cal} today={today} remain={bal?.remain ?? null} />
+            <LeaveFields cal={cal} today={today} remain={bal?.remain ?? null} overtimeCap={pol["hr.headcount_5plus"] === 1} />
             <SubmitButton>신청(상신)</SubmitButton>
           </AssistForm>
         </Card>

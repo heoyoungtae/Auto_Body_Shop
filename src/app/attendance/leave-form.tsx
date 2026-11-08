@@ -7,7 +7,7 @@ import { DateField, SelectField, TextAreaField } from "../_input";
 
 const KIND_OPTIONS = Object.entries(LEAVE_KINDS).map(([value, k]) => ({ value, label: `${k.label} — ${k.hint}` }));
 
-export function LeaveFields({ cal, today, remain }: { cal: ShopCalendar; today: string; remain: number | null }) {
+export function LeaveFields({ cal, today, remain, overtimeCap }: { cal: ShopCalendar; today: string; remain: number | null; overtimeCap: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const [kind, setKind] = useState("");
   const [vals, setVals] = useState({ fromDate: "", toDate: "", fromTime: "", toTime: "" });
@@ -28,7 +28,7 @@ export function LeaveFields({ cal, today, remain }: { cal: ShopCalendar; today: 
       preview = { text: "연차 0.5일 사용", warn: remain != null && remain < 0.5 ? `남은 연차가 ${remain}일입니다` : undefined };
     } else if (vals.fromTime && vals.toTime) {
       const h = hoursBetween(vals.fromTime, vals.toTime);
-      preview = { text: h ? `${h}시간` : "", warn: h == null ? "끝 시각이 시작보다 뒤여야 합니다" : kind === "overtime" && h > WEEKLY_OVERTIME_MAX ? `주 ${WEEKLY_OVERTIME_MAX}시간을 넘습니다` : undefined };
+      preview = { text: h ? `${h}시간` : "", warn: h == null ? "끝 시각이 시작보다 뒤여야 합니다" : kind === "overtime" && overtimeCap && h > WEEKLY_OVERTIME_MAX ? `주 ${WEEKLY_OVERTIME_MAX}시간을 넘습니다` : undefined };
     }
     if (k.ahead && vals.fromDate < today) preview = { text: preview?.text ?? "", warn: `${k.label}는 미리 신청합니다. 지난 날짜는 저장되지 않습니다` };
   }

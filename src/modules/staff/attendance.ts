@@ -8,7 +8,8 @@ import type { Role } from "@/modules/auth/roles";
 import { loadShopCalendar } from "@/modules/platform/calendar";
 import { UserError } from "@/modules/platform/errors";
 import { seoulDate } from "@/modules/platform/time";
-import { addDaysIso, annualEntitlement, businessDaysBetween, hoursBetween, isLeaveKind, LATE_REPORT_DAYS, LEAVE_KINDS, leaveSummary, SICK_PROOF_DAYS, weekStart, WEEKLY_OVERTIME_MAX } from "./leave-rules";
+import { loadPolicy } from "@/modules/platform/policy";
+import { addDaysIso, smallShopEntitlement, annualEntitlement, businessDaysBetween, hoursBetween, isLeaveKind, LATE_REPORT_DAYS, LEAVE_KINDS, leaveSummary, SICK_PROOF_DAYS, weekStart, WEEKLY_OVERTIME_MAX } from "./leave-rules";
 import { isBusinessDay } from "@/modules/platform/business-days";
 
 export class LeaveError extends UserError {}
@@ -40,7 +41,9 @@ async function liveLeaves(db: Db, userId: string) {
 export async function leaveBalance(db: Db, userId: string, on = seoulDate()) {
   const p = await hiredOnOf(db, userId);
   if (!p?.hiredOn) return null;
-  const ent = annualEntitlement(p.hiredOn, on);
+  const pol = await loadPolicy(db, on);
+  const legal = pol["hr.headcount_5plus"] === 1;
+  const ent = legal ? annualEntitlement(p.hiredOn, on) : smallShopEntitlement(p.hiredOn, on, pol["leave.small_annual_days"]);
   let used = 0;
   let pending = 0;
   for (const { doc, data } of await liveLeaves(db, userId)) {
@@ -48,7 +51,7 @@ export async function leaveBalance(db: Db, userId: string, on = seoulDate()) {
     if (DONE.includes(doc.status)) used += data.deduct;
     else pending += data.deduct;
   }
-  return { hiredOn: p.hiredOn, ...ent, used, pending, remain: ent.days - used - pending };
+  return { hiredOn: p.hiredOn, ...ent, legal, used, pending, remain: ent.days - used - pending };
 }
 
 /** 근태 신청: 검사하고 결재 문서를 만들어 바로 상신한다 */
@@ -107,7 +110,7 @@ export async function requestLeave(
     if (b.firstYear && input.fromDate > b.to) throw new LeaveError("입사 1년 안에 생긴 연차는 1년이 되기 전에 씁니다");
     if (deduct > b.remain) throw new LeaveError(`남은 연차가 ${b.remain}일입니다(생김 ${b.days} · 씀 ${b.used} · 결재 중 ${b.pending}). ${deduct}일을 쓸 수 없습니다`);
   }
-  if (input.leaveKind === "overtime") {
+  if (input.leaveKind === "overtime" && (await loadPolicy(db, input.fromDate))["hr.headcount_5plus"] === 1) {
     const ws = weekStart(input.fromDate);
     const we = addDaysIso(ws, 6);
     const sum = mine.filter(({ data }) => data.leaveKind === "overtime" && data.fromDate >= ws && data.fromDate <= we).reduce((a, { data }) => a + data.hours, 0);

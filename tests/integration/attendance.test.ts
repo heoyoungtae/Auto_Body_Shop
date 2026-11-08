@@ -6,6 +6,7 @@ import { certificateView, leaveBalance, listLeaves, requestCertificate, requestL
 import { annualEntitlement, businessDaysBetween, hoursBetween } from "@/modules/staff/leave-rules";
 import { DEFAULT_CALENDAR } from "@/modules/platform/business-days";
 import { saveProfile, type ProfileView } from "@/modules/staff/service";
+import { policySetting } from "@/db/schema";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -86,5 +87,18 @@ describe("재직증명서", () => {
     expect((await certificateView(db, tech(), d.id)).issuedOn).toBe("2026-11-09");
     expect((await certificateView(db, acct(), d.id)).data.copies).toBe(2);
     await expect(certificateView(db, { id: ids.tech2, roles: ["technician"] }, d.id)).rejects.toThrow(/본인/);
+  });
+});
+
+describe("상시 5명 미만", () => {
+  it("정책값을 0으로 두면 사내 연차 일수를 쓰고 주 12시간 한도로 막지 않는다", async () => {
+    await db.insert(policySetting).values([
+      { key: "hr.headcount_5plus", value: 0, effectiveFrom: "2026-01-01", reason: "시험", changedBy: ids.owner },
+      { key: "leave.small_annual_days", value: 6, effectiveFrom: "2026-01-01", reason: "시험", changedBy: ids.owner },
+    ]);
+    await saveProfile(db, acct(), ids.tech1, profile("2026-08-03"), now);
+    expect(await leaveBalance(db, ids.tech1, "2026-11-09")).toMatchObject({ days: 6, legal: false, from: "2026-08-03", to: "2027-08-02" });
+    await requestLeave(db, tech(), { ...base, leaveKind: "overtime", fromDate: "2026-11-10", fromTime: "17:00", toTime: "23:30" }, now);
+    await requestLeave(db, tech(), { ...base, leaveKind: "overtime", fromDate: "2026-11-11", fromTime: "17:00", toTime: "23:30" }, now);
   });
 });

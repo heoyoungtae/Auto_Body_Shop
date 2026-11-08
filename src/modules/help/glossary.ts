@@ -82,6 +82,8 @@ export const POLICY_HELP: Record<PolicyKey, string> = {
   "payroll.attendance_close_day": "매월 근태를 확정하는 날(1~28일).",
   "payroll.pay_day": "매월 급여 지급일(1~28일). 근태 확정일보다 뒤여야 합니다.",
   "work.weekly_hours_warn": "한 주 근로시간이 이 값을 넘으면 공장장에게 경고합니다(법정 한도 52시간보다 낮게 둠).",
+  "hr.headcount_5plus": "대표를 뺀 상시 근로자(단시간·기간제 포함, 직전 1개월 연인원 ÷ 가동일수)가 5명 이상이면 1. 0이면 근로기준법 시행령 별표 1에 따라 법정 연차(제60조)와 주 12시간 연장 한도(제53조)를 적용하지 않습니다.",
+  "leave.small_annual_days": "상시 5명 미만일 때 입사일 기준 1년마다 주는 사내 연차 일수입니다. 5명 이상이면 쓰지 않고 법정 일수로 계산합니다.",
   "competency.min_solo_level": "기술자에게 작업을 혼자 맡기려면 역량표에서 이 단계 이상이어야 합니다(1~4단계).",
   "auth.lock_attempts": "비밀번호를 연속으로 이만큼 틀리면 계정을 잠급니다.",
   "auth.lock_minutes": "계정이 잠긴 뒤 자동으로 풀리기까지의 시간.",

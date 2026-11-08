@@ -53,6 +53,15 @@ export function annualEntitlement(hiredOn: string, on: string): { from: string; 
   return { from: addYears(hiredOn, y), to: dayBefore(addYears(hiredOn, y + 1)), days: Math.min(25, 15 + Math.floor((y - 1) / 2)), firstYear: false };
 }
 
+/**
+ * 상시 5명 미만 사업장(근로기준법 시행령 별표 1: 제60조 미적용)의 사내 연차.
+ * 입사일 기준 1년마다 정한 일수를 준다(입사 첫해도 같은 일수).
+ */
+export function smallShopEntitlement(hiredOn: string, on: string, days: number) {
+  const y = Math.floor(fullMonths(hiredOn, on) / 12);
+  return { from: addYears(hiredOn, y), to: dayBefore(addYears(hiredOn, y + 1)), days, firstYear: false };
+}
+
 /** 기간 안의 영업일 수(쉬는 날은 연차에서 빼지 않는다) */
 export function businessDaysBetween(from: string, to: string, cal: ShopCalendar) {
   let n = 0;

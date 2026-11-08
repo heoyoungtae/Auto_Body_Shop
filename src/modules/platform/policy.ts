@@ -52,6 +52,8 @@ export const DEFAULT_POLICY = {
   "payroll.attendance_close_day": { value: 3, unit: "일(매월)", label: "근태 확정일", clause: "11.4", min: 1, max: 28 },
   "payroll.pay_day": { value: 10, unit: "일(매월)", label: "급여 지급일", clause: "11.5", min: 1, max: 28 },
   "work.weekly_hours_warn": { value: 48, unit: "시간", label: "주간 근로시간 경고", clause: "11.4" },
+  "hr.headcount_5plus": { value: 1, unit: "(1=5명 이상, 0=5명 미만)", label: "상시 근로자 5명 이상", clause: "11.4", min: 0, max: 1 },
+  "leave.small_annual_days": { value: 15, unit: "일(5명 미만일 때)", label: "사내 연차 일수", clause: "11.4", min: 0, max: 25 },
   "competency.min_solo_level": { value: 2, unit: "단계", label: "단독 배정 최소 역량", clause: "11.2", min: 1, max: 4 },
   "auth.lock_attempts": { value: 5, unit: "회", label: "로그인 실패 잠금", clause: "설계 9.1", min: 3, max: 20 },
   "auth.lock_minutes": { value: 15, unit: "분", label: "잠금 시간", clause: "설계 9.1", min: 1 },
