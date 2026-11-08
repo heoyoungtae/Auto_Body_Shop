@@ -6,6 +6,7 @@ import { unreadCount } from "@/modules/platform/notify";
 import { currentUser } from "./_lib/session";
 import { logoutAction } from "./login/actions";
 import { HelpProvider } from "./_help-drawer";
+import { MenuButton, NavProvider, Sidebar } from "./_sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,14 +16,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
-const NAV: { href: string; label: string; owner?: boolean }[] = [
-  { href: "/home", label: "내 할 일" },
-  { href: "/approvals", label: "결재" },
-  { href: "/notifications", label: "알림" },
-  { href: "/settings", label: "설정" },
-  { href: "/help", label: "도움말" },
-];
-
+/** 화면은 브라우저 폭을 다 쓴다(대표 지시 2026-11-08). 메뉴는 왼쪽, 도움말 창은 오른쪽 */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
   const unread = user ? await unreadCount(await getDb(), user.id) : 0;
@@ -30,32 +24,37 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="ko">
       <body className="min-h-screen">
         <HelpProvider>
-        <header className="border-b border-[var(--line)] bg-[var(--surface)]">
-          <div className="mx-auto flex min-h-14 max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2">
-            <Link href={user ? "/home" : "/login"} className="font-semibold">
-              외관수리 정비소
-            </Link>
-            {user && (
-              <nav className="flex flex-wrap items-center gap-1 text-sm">
-                {NAV.map((n) => (
-                  <Link key={n.href} href={n.href} className="rounded-md px-2.5 py-2 hover:bg-[var(--surface-2)]">
-                    {n.label}
-                    {n.href === "/notifications" && unread > 0 && (
-                      <span className="ml-1 rounded-full bg-[var(--danger)] px-1.5 text-xs text-white">{unread}</span>
-                    )}
-                  </Link>
-                ))}
-                <Link href="/account" className="rounded-md px-2.5 py-2 text-[var(--muted)] hover:bg-[var(--surface-2)]">
-                  {user.name} · {user.roles.map((r) => ROLE_LABEL[r]).join("·")}
+          <NavProvider>
+            <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]">
+              <div className="flex min-h-14 items-center gap-2 px-2 sm:px-4">
+                {user && <MenuButton />}
+                <Link href={user ? "/home" : "/login"} className="truncate font-semibold">
+                  외관수리 정비소
                 </Link>
-                <form action={logoutAction}>
-                  <button className="rounded-md px-2.5 py-2 text-[var(--muted)] hover:bg-[var(--surface-2)]">로그아웃</button>
-                </form>
-              </nav>
-            )}
-          </div>
-        </header>
-        <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+                {user && (
+                  <div className="ml-auto flex shrink-0 items-center gap-0.5 whitespace-nowrap text-sm">
+                    <Link href="/notifications" className="relative rounded-md px-2.5 py-2 hover:bg-[var(--surface-2)]" aria-label={`알림 ${unread}건`}>
+                      알림
+                      {unread > 0 && <span className="ml-1 rounded-full bg-[var(--danger)] px-1.5 text-xs text-white">{unread}</span>}
+                    </Link>
+                    <Link href="/help" className="hidden rounded-md px-2.5 py-2 hover:bg-[var(--surface-2)] sm:inline">
+                      도움말
+                    </Link>
+                    <Link href="/account" className="hidden rounded-md px-2.5 py-2 text-[var(--muted)] hover:bg-[var(--surface-2)] sm:inline">
+                      {user.name} · {user.roles.map((r) => ROLE_LABEL[r]).join("·")}
+                    </Link>
+                    <form action={logoutAction}>
+                      <button className="rounded-md px-2.5 py-2 text-[var(--muted)] hover:bg-[var(--surface-2)]">로그아웃</button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            </header>
+            <div className="flex">
+              {user && <Sidebar roles={user.roles} unread={unread} />}
+              <main className="min-w-0 flex-1 px-4 py-6 lg:px-6">{children}</main>
+            </div>
+          </NavProvider>
         </HelpProvider>
       </body>
     </html>

@@ -3,21 +3,9 @@ import { getDb } from "@/db/runtime";
 import { inbox, myDrafts } from "@/modules/approval/service";
 import { listNotifications } from "@/modules/platform/notify";
 import { requireUser } from "../_lib/session";
-import { Badge, Card, ErrorBox, fmtTime, PageTitle, StatusBadge } from "../_ui";
+import { Card, ErrorBox, fmtTime, PageTitle, StatusBadge } from "../_ui";
 
-/** 설계서 5.1 모듈과 단계. 화면이 생기면 링크로 바뀐다 */
-const MODULES = [
-  { name: "접수·견적", std: "STD-01~03", phase: "1차" },
-  { name: "작업·공정", std: "STD-04", phase: "1차" },
-  { name: "검사·출고", std: "STD-05", phase: "1차" },
-  { name: "설비·TPM(설비대장·일상점검·윤활·3정5S)", std: "STD-08", phase: "1차" },
-  { name: "부적합·시정조치", std: "STD-Q", phase: "1차" },
-  { name: "고객 만족·불만", std: "STD-06", phase: "2차" },
-  { name: "구매·외주·비품", std: "STD-07", phase: "2차" },
-  { name: "예방정비·치공구·운전일지", std: "STD-08", phase: "2차" },
-  { name: "안전·환경", std: "STD-09~10", phase: "2차" },
-  { name: "인사·급여·회계·품질경영", std: "STD-11·12·Q", phase: "3차" },
-];
+
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -33,7 +21,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           처음 쓰시나요? <Link href="/help" className="font-medium text-[var(--accent)]">도움말 센터</Link>에서 내 역할의 &lsquo;처음 할 일&rsquo;을 보세요. 화면 제목·패널 제목·입력 칸 이름 옆의 ? 를 누르면 오른쪽에 그 도움말이 열립니다.
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card title={`결재 대기 ${todo.length}건`} help={{ kind: "panel", id: "home.todo" }} actions={<Link href="/approvals" className="text-sm text-[var(--accent)]">결재함</Link>}>
           {todo.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">처리할 결재가 없습니다.</p>
@@ -78,18 +66,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               ))}
             </ul>
           )}
-        </Card>
-        <Card title="업무 모듈" help={{ kind: "panel", id: "home.modules" }}>
-          <ul className="space-y-1.5 text-sm">
-            {MODULES.map((m) => (
-              <li key={m.name} className="flex items-center justify-between gap-2">
-                <span>
-                  {m.name} <span className="text-xs text-[var(--muted)]">{m.std}</span>
-                </span>
-                <Badge>{m.phase} 개발 예정</Badge>
-              </li>
-            ))}
-          </ul>
         </Card>
       </div>
     </>

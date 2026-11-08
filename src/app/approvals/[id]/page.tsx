@@ -69,7 +69,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
           : null
       : null;
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="space-y-4">
       <PageTitle help="approvals.detail" sub={`${doc.formCode} · 개정 ${doc.revision}판`} actions={<StatusBadge status={doc.status} />}>
         {doc.docNo} {doc.title}
       </PageTitle>
@@ -94,6 +94,9 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
         </div>
       )}
 
+      {/* 넓은 화면: 왼쪽은 결재란·내용·처리, 오른쪽은 처리 이력 */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
+        <div className="min-w-0 space-y-4">
       <Card title="결재란" help={{ kind: "panel", id: "doc.line" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {steps.map((s) => (
@@ -164,6 +167,8 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
         </Card>
       )}
 
+        </div>
+        <div className="min-w-0 space-y-4">
       <Card title="처리 이력" help={{ kind: "panel", id: "doc.history" }}>
         <ul className="space-y-1 text-sm">
           {log.map((e) => (
@@ -175,6 +180,8 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
           ))}
         </ul>
       </Card>
+        </div>
+      </div>
     </div>
   );
 }

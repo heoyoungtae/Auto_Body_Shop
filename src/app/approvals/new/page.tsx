@@ -67,7 +67,7 @@ export default async function NewRevisionRequest({ searchParams }: { searchParam
   // 불러온 값이 있으면 임시 저장본 대신 그 값으로 시작한다
   const formId = `revision-new${q.from ? `-${q.from}` : q.policy ? `-p-${q.policy}` : q.task ? `-t-${q.task}` : ""}`;
   return (
-    <div className="max-w-2xl">
+    <div>
       <PageTitle help="approvals.new" sub="F-Q-05 · 사내 표준서 Q.5 문서 관리. 결재: 요청 → 품질 담당 검토 → 대표 승인(부록 B)">
         문서 개정 요청서
       </PageTitle>
@@ -85,9 +85,14 @@ export default async function NewRevisionRequest({ searchParams }: { searchParam
         )}
         {p.policyKey && <input type="hidden" name="policyKey" value={p.policyKey} />}
         {p.delegationTask && <input type="hidden" name="delegationTask" value={p.delegationTask} />}
+        <div className="grid gap-4 lg:grid-cols-2">
         <TextField help="revision.title" name="title" required defaultValue={p.title} from={p.source} />
         <TextField help="revision.target" name="target" required defaultValue={p.target} from={p.source} />
+        </div>
+        {/* 넓은 화면에서는 현재 내용과 바꿀 내용을 나란히 놓아 비교하기 쉽게 */}
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <TextAreaField help="revision.current" name="current" defaultValue={p.current} from={p.source} />
+        <div className="space-y-4">
         {policy && (
           <NumberField
             help="revision.proposedValue"
@@ -109,6 +114,8 @@ export default async function NewRevisionRequest({ searchParams }: { searchParam
           defaultValue={p.proposed}
           from={p.proposed ? p.source : undefined}
         />
+        </div>
+        </div>
         <TextAreaField help="revision.reason" name="reason" required defaultValue={p.reason} from={p.reason ? p.source : undefined} />
         <SubmitButton>상신</SubmitButton>
       </AssistForm>

@@ -25,17 +25,21 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const { error, notice } = await searchParams;
   const user = await requireUser();
   return (
-    <div className="max-w-sm">
+    <div>
       <PageTitle help="account" sub={`${user.loginId} · ${user.roles.map((r) => ROLE_LABEL[r]).join("·")}`}>
         {user.name}
       </PageTitle>
-      <AssistForm id="account" action={changePasswordAction} className="space-y-4">
-        <ErrorBox message={error} />
-        {notice && <Notice>{notice}</Notice>}
+      <AssistForm id="account" action={changePasswordAction} className="grid gap-4 md:grid-cols-3 md:items-start">
+        <div className="space-y-2 md:col-span-3 empty:hidden">
+          <ErrorBox message={error} />
+          {notice && <Notice>{notice}</Notice>}
+        </div>
         <PasswordField help="account.current" name="current" autoComplete="current-password" required />
         <PasswordField help="account.next" name="next" autoComplete="new-password" required rules />
         <PasswordField help="account.next2" name="next2" autoComplete="new-password" required matchName="next" />
-        <SubmitButton>비밀번호 바꾸기</SubmitButton>
+        <div className="md:col-span-3">
+          <SubmitButton>비밀번호 바꾸기</SubmitButton>
+        </div>
       </AssistForm>
     </div>
   );
