@@ -2,6 +2,8 @@
 // 정책값 목록: 이름·조항·설명으로 바로 찾기. 설명은 칸마다 한 줄씩 보인다.
 import Link from "next/link";
 import { useState } from "react";
+import type { PolicyKey } from "@/modules/platform/policy";
+import { HelpButton } from "../../_help-drawer";
 
 type Row = { key: string; label: string; unit: string; clause: string; value: number; defaultValue: number; scheduled: { effectiveFrom: string; value: number }[]; help: string };
 
@@ -26,8 +28,9 @@ export function PolicyTable({ rows, owner }: { rows: Row[]; owner: boolean }) {
         {shown.map((r) => (
           <li key={r.key} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-2.5">
             <div className="min-w-0 flex-1">
-              <div className="font-medium">
-                {r.label} <span className="text-xs font-normal text-[var(--muted)]">부록 D {r.clause}</span>
+              <div className="flex items-center gap-1.5 font-medium">
+                {r.label} <HelpButton topic={{ kind: "policy", id: r.key as PolicyKey, title: r.label, note: `부록 D ${r.clause} · 표준서 제안 ${r.defaultValue.toLocaleString("ko-KR")} ${r.unit}` }} name={r.label} />
+                <span className="text-xs font-normal text-[var(--muted)]">부록 D {r.clause}</span>
               </div>
               <p className="text-xs text-[var(--muted)]">{r.help}</p>
             </div>

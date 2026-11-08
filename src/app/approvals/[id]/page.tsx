@@ -94,7 +94,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
         </div>
       )}
 
-      <Card title="결재란">
+      <Card title="결재란" help={{ kind: "panel", id: "doc.line" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {steps.map((s) => (
             <div key={s.seq} className={`rounded-md border p-2 text-center text-sm ${s.status === "active" ? "border-[var(--accent)]" : "border-[var(--line)]"}`}>
@@ -106,7 +106,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
         </div>
       </Card>
 
-      <Card title="내용">
+      <Card title="내용" help={{ kind: "panel", id: "doc.content" }}>
         <dl className="space-y-3 text-sm">
           {Object.entries(data)
             .sort(([a], [b]) => order(a) - order(b))
@@ -126,7 +126,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
       </Card>
 
       {mine && (
-        <Card title={`${active!.label} 처리`}>
+        <Card title={`${active!.label} 처리`} help={{ kind: "panel", id: "doc.act" }}>
           <ActForm id={doc.id} kind={active!.kind} action={actAction} />
         </Card>
       )}
@@ -146,7 +146,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
       )}
 
       {applyLink && (
-        <Card title="설정에 반영">
+        <Card title="설정에 반영" help={{ kind: "panel", id: "doc.apply" }}>
           <p className="mb-2 text-sm text-[var(--muted)]">확정된 요청서입니다. 아래 단추를 누르면 값·근거 번호·사유가 채워진 변경 화면이 열립니다(대표).</p>
           <Link href={applyLink} className={buttonClass()}>
             {data.policyKey ? "정책값 바꾸기 화면 열기" : "전결 규정 바꾸기 화면 열기"}
@@ -155,7 +155,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
       )}
 
       {(doc.status === "confirmed" || doc.status === "checked") && !doc.cancelsId && (
-        <Card title="취소 요청">
+        <Card title="취소 요청" help={{ kind: "panel", id: "doc.cancel" }}>
           <AssistForm id={`cancel-${doc.id}`} action={cancelAction} className="space-y-3">
             <input type="hidden" name="id" value={doc.id} />
             <TextAreaField help="approval.cancelReason" name="reason" required rows={2} />
@@ -164,7 +164,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
         </Card>
       )}
 
-      <Card title="처리 이력">
+      <Card title="처리 이력" help={{ kind: "panel", id: "doc.history" }}>
         <ul className="space-y-1 text-sm">
           {log.map((e) => (
             <li key={e.id}>

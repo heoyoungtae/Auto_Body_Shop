@@ -5,6 +5,7 @@ import { ROLE_LABEL } from "@/modules/auth/roles";
 import { unreadCount } from "@/modules/platform/notify";
 import { currentUser } from "./_lib/session";
 import { logoutAction } from "./login/actions";
+import { HelpProvider } from "./_help-drawer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="ko">
       <body className="min-h-screen">
+        <HelpProvider>
         <header className="border-b border-[var(--line)] bg-[var(--surface)]">
           <div className="mx-auto flex min-h-14 max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2">
             <Link href={user ? "/home" : "/login"} className="font-semibold">
@@ -54,6 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         </header>
         <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+        </HelpProvider>
       </body>
     </html>
   );

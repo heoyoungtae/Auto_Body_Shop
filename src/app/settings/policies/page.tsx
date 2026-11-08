@@ -47,7 +47,7 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
       {notice && <Notice>{notice}</Notice>}
       {sel && def && cur && (
         <div className="my-4">
-          <Card title={`${def.label}`} actions={<Link href="/settings/policies" className="text-sm text-[var(--accent)]">닫기</Link>}>
+          <Card title={`${def.label}`} help={{ kind: "policy", id: sel, title: def.label, note: `부록 D ${def.clause} · 표준서 제안 ${def.value.toLocaleString("ko-KR")} ${def.unit}` }} actions={<Link href="/settings/policies" className="text-sm text-[var(--accent)]">닫기</Link>}>
             <p className="mb-1 text-sm">{POLICY_HELP[sel]}</p>
             <p className="mb-3 text-xs text-[var(--muted)]">
               지금 {cur.value.toLocaleString("ko-KR")} {def.unit} · 표준서 제안 {def.value.toLocaleString("ko-KR")} · 범위 {def.min ?? 0}~{def.max ?? "제한 없음"} · 근거 부록 D({def.clause})

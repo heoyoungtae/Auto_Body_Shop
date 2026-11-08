@@ -6,6 +6,7 @@ import { addDaysIso, dayLabel, koMoney } from "@/app/_format";
 import { FIELD_HELP } from "@/modules/help/fields";
 import { DELEGATION_HELP, GLOSSARY, POLICY_HELP, STATUS_HELP } from "@/modules/help/glossary";
 import { PAGE_HELP, ROLE_START, ROUTE_HELP } from "@/modules/help/pages";
+import { PANEL_HELP } from "@/modules/help/panels";
 import { ROLES } from "@/modules/auth/roles";
 import { DELEGATION_TASKS } from "@/modules/platform/delegation";
 import { POLICY_KEYS } from "@/modules/platform/policy";
@@ -41,6 +42,20 @@ describe("화면 도움말", () => {
     }
   });
 
+  it("제목이 있는 패널은 모두 도움말(help)을 갖는다", () => {
+    for (const f of files) {
+      const src = readFileSync(f, "utf8");
+      for (const m of src.matchAll(/<Card\b[\s\S]*?>/g)) {
+        if (!/\btitle=/.test(m[0])) continue;
+        expect(m[0], `${relative(APP, f)}: 도움말 없는 패널 ${m[0].slice(0, 60)}`).toMatch(/\bhelp=\{/);
+      }
+    }
+  });
+
+  it("패널 도움말의 용어는 용어집에 있다", () => {
+    for (const [k, h] of Object.entries(PANEL_HELP)) for (const t of (h as { terms?: string[] }).terms ?? []) expect(GLOSSARY[t], `${k}: ${t}`).toBeTruthy();
+  });
+
   it("모든 역할에 처음 할 일이 있다", () => {
     for (const r of ROLES) expect(ROLE_START[r]?.length, r).toBeGreaterThan(0);
   });
@@ -48,7 +63,7 @@ describe("화면 도움말", () => {
 
 describe("입력 칸 도움말", () => {
   it("화면에 맨 input·select·textarea 를 쓰지 않는다(숨은 칸·찾기 칸·미리 보기 칸 제외). 입력도우미 부품을 쓴다", () => {
-    const allowed = new Set(["_input.tsx", "_assist.tsx"]);
+    const allowed = new Set(["_input.tsx", "_assist.tsx", "_help-drawer.tsx"]);
     for (const f of files) {
       if (allowed.has(f.split(sep).pop()!)) continue;
       const src = readFileSync(f, "utf8");

@@ -112,3 +112,10 @@
     display: none !important;
   }
 }
+
+/* 오른쪽 도움말 창이 열리면 넓은 화면에서는 본문을 왼쪽으로 비켜서 가리지 않게 한다 */
+@media (min-width: 1100px) {
+  html[data-help="open"] body {
+    padding-right: 400px;
+  }
+}

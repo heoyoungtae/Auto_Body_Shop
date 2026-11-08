@@ -38,7 +38,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
       <div className="space-y-4">
-        <Card title={`직원 ${users.length}명`}>
+        <Card title={`직원 ${users.length}명`} help={{ kind: "panel", id: "users.list" }}>
           <ul className="divide-y divide-[var(--line)]">
             {users.map((u) => (
               <li key={u.id} className="py-3">
@@ -86,7 +86,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
         </Card>
 
         {owner && (
-          <Card title="직원 계정 만들기">
+          <Card title="직원 계정 만들기" help={{ kind: "panel", id: "users.new" }}>
             <AssistForm id="user-new" action={createUserAction} className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-3">
                 <TextField help="user.name" name="name" required />
@@ -99,7 +99,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           </Card>
         )}
 
-        <Card title="대표 부재 시 대리 승인">
+        <Card title="대표 부재 시 대리 승인" help={{ kind: "panel", id: "users.proxy" }}>
           {proxies.length > 0 ? (
             <ul className="mb-3 space-y-1 text-sm">
               {proxies.map((p) => (

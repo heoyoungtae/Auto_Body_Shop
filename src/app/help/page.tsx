@@ -36,7 +36,7 @@ export default async function HelpPage() {
         도움말 센터
       </PageTitle>
       <div className="space-y-4">
-        <Card title="처음 할 일(내 역할)">
+        <Card title="처음 할 일(내 역할)" help={{ kind: "panel", id: "help.start" }}>
           <div className="grid gap-3 md:grid-cols-2">
             {mine.map((r) => (
               <div key={r}>
@@ -67,10 +67,10 @@ export default async function HelpPage() {
             </div>
           </details>
         </Card>
-        <Card title="입력 도우미 쓰는 법">
+        <Card title="입력 도우미 쓰는 법" help={{ kind: "panel", id: "help.howto" }}>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             <li>칸 이름 옆 <b>필수</b>는 꼭 적어야 하는 칸, <b>선택</b>은 비워도 되는 칸입니다.</li>
-            <li>칸 이름 옆 <b>?</b> 를 누르면 그 칸에 무엇을 어떻게 적는지 자세히 나옵니다.</li>
+            <li>화면 제목·패널 제목·칸 이름 옆 <b>?</b> 를 누르면 오른쪽에 도움말 창이 열립니다. 창을 연 채로 계속 입력할 수 있고, 다시 누르거나 Esc 로 닫습니다.</li>
             <li><b>○○에서 불러옴</b> 표시는 앞선 문서나 설정에서 값을 끌어온 칸입니다. 바뀐 것만 고치면 됩니다.</li>
             <li><b>문구 넣기</b> 단추는 자주 쓰는 문장을 칸에 넣어 줍니다. 넣은 뒤 빈 곳만 채우세요.</li>
             <li>금액 칸은 쉼표가 저절로 들어가고 아래에 한글로 읽어 줍니다(예: 150만 원).</li>

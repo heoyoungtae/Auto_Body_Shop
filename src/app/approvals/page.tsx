@@ -45,10 +45,10 @@ export default async function ApprovalsPage() {
         결재
       </PageTitle>
       <div className="space-y-4">
-        <Card title={`내가 처리할 문서 ${todo.length}건`}>
+        <Card title={`내가 처리할 문서 ${todo.length}건`} help={{ kind: "panel", id: "approvals.todo" }}>
           <List rows={todo} empty="지금 내 차례인 결재가 없습니다. 차례가 오면 알림으로 알려 드립니다." />
         </Card>
-        <Card title="최근 문서">
+        <Card title="최근 문서" help={{ kind: "panel", id: "approvals.recent" }}>
           <List rows={all} empty={<>아직 문서가 없습니다. 오른쪽 위 &lsquo;문서 개정 요청&rsquo;으로 첫 문서를 올려 보세요.</>} />
         </Card>
       </div>

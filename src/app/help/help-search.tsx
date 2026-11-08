@@ -2,6 +2,7 @@
 // 도움말 찾기: 화면·용어·정책값·전결 설명을 한 번에 거른다.
 import Link from "next/link";
 import { useState } from "react";
+import { HelpButton } from "../_help-drawer";
 
 export type HelpItem = { kind: string; title: string; body: string; href?: string };
 
@@ -13,7 +14,9 @@ export function HelpSearch({ items }: { items: HelpItem[] }) {
   const shown = items.filter((i) => (kind === "전체" || i.kind === kind) && words.every((w) => `${i.title}\n${i.body}`.toLowerCase().includes(w)));
   return (
     <section className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow)]">
-      <h2 className="mb-3 font-semibold">찾기</h2>
+      <h2 className="mb-3 flex items-center gap-1.5 font-semibold">
+        찾기 <HelpButton topic={{ kind: "panel", id: "help.search" }} name="찾기" />
+      </h2>
       <input
         type="search"
         value={q}

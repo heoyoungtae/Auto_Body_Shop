@@ -4,6 +4,7 @@
 // 값은 브라우저 폼이 그대로 보낸다(제어하지 않음). 그래야 서버 오류로 돌아왔을 때 _assist.tsx 가 값을 되살릴 수 있다.
 import { useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { FIELD_HELP, type FieldHelpKey } from "@/modules/help/fields";
+import { HelpButton } from "./_help-drawer";
 import { addDaysIso, dayLabel, koMoney, seoulToday } from "./_format";
 
 const inputBox =
@@ -70,9 +71,7 @@ function Shell({
   children: ReactNode;
 }) {
   const h = FIELD_HELP[helpKey];
-  const [open, setOpen] = useState(false);
   const name = label ?? h.label;
-  const hasDetail = "detail" in h && h.detail;
   return (
     <div className="block text-sm" data-help={helpKey}>
       <div className="mb-1.5 flex items-center gap-1.5">
@@ -80,25 +79,9 @@ function Shell({
           {name}
         </label>
         <span className={`text-xs ${required ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>{required ? "필수" : "선택"}</span>
-        {hasDetail && (
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-expanded={open}
-            aria-controls={`${id}-detail`}
-            aria-label={`${name} 도움말`}
-            className="inline-flex size-6 items-center justify-center rounded-full border border-[var(--line-strong)] text-xs text-[var(--muted)] hover:bg-[var(--surface-2)]"
-          >
-            ?
-          </button>
-        )}
+        <HelpButton topic={{ kind: "field", id: helpKey, label }} name={name} />
         {from && <span className="ml-auto rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-xs text-[var(--accent)]">{from}에서 불러옴</span>}
       </div>
-      {hasDetail && open && (
-        <p id={`${id}-detail`} className="mb-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs leading-relaxed">
-          {h.detail}
-        </p>
-      )}
       {children}
       {error ? (
         <p id={`${id}-msg`} role="alert" className="mt-1 text-xs font-medium text-[var(--danger)]">

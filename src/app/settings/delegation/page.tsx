@@ -46,6 +46,7 @@ export default async function DelegationPage({ searchParams }: { searchParams: P
           <Card
             key={r.task}
             title={r.def.label}
+            help={{ kind: "delegation", id: r.task, title: r.def.label }}
             actions={
               <span className="flex gap-3 text-sm">
                 {owner && r.def.unit && sel?.task !== r.task && (

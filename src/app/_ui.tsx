@@ -1,7 +1,7 @@
 // 공통 화면 조각. 작업장 태블릿에서 장갑 낀 손으로도 누를 수 있게 버튼·입력 높이를 44px 이상으로 둔다(설계서 4.1).
-import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
-import { GLOSSARY, STATUS_HELP } from "@/modules/help/glossary";
+import { STATUS_HELP } from "@/modules/help/glossary";
+import { HelpButton, type HelpTopic } from "./_help-drawer";
 import { PAGE_HELP, type PageHelpKey } from "@/modules/help/pages";
 
 export function ErrorBox({ message }: { message?: string }) {
@@ -32,87 +32,19 @@ export function Button({ variant = "primary", className = "", ...props }: Compon
   return <button {...props} className={`${buttonClass(variant)} ${className}`} />;
 }
 
-/** 화면 제목. help 키가 필수라서 도움말 없는 화면은 만들 수 없다 */
+/** 화면 제목. help 키가 필수라서 도움말 없는 화면은 만들 수 없다. 제목 옆 ? 를 누르면 오른쪽 도움말 창이 열린다 */
 export function PageTitle({ children, sub, actions, help }: { children: ReactNode; sub?: ReactNode; actions?: ReactNode; help: PageHelpKey }) {
   return (
-    <div className="mb-5">
-      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{children}</h1>
-          {sub && <p className="mt-1 text-sm text-[var(--muted)]">{sub}</p>}
-        </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2" data-page-help={help}>
+      <div className="min-w-0 flex-1">
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+          <span className="min-w-0">{children}</span>
+          <HelpButton topic={{ kind: "page", id: help }} name={PAGE_HELP[help].title} />
+        </h1>
+        {sub && <p className="mt-1 text-sm text-[var(--muted)]">{sub}</p>}
       </div>
-      <PageHelp id={help} />
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
-  );
-}
-
-/** 화면 도움말: 제목 아래 접힌 상자. 자바스크립트 없이도 열린다 */
-export function PageHelp({ id }: { id: PageHelpKey }) {
-  const h = PAGE_HELP[id] as (typeof PAGE_HELP)[PageHelpKey] & { tips?: string[]; faq?: { q: string; a: string }[]; refs?: string[]; terms?: string[] };
-  return (
-    <details className="group mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] text-sm open:bg-[var(--surface)]" data-page-help={id}>
-      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 px-3 text-[var(--accent)] [&::-webkit-details-marker]:hidden">
-        <span aria-hidden className="inline-flex size-5 items-center justify-center rounded-full border border-current text-xs">?</span>
-        이 화면 도움말
-        <span className="ml-auto text-xs text-[var(--muted)] group-open:hidden">펼치기</span>
-        <span className="ml-auto hidden text-xs text-[var(--muted)] group-open:inline">접기</span>
-      </summary>
-      <div className="space-y-3 border-t border-[var(--line)] px-3 py-3">
-        <p>{h.purpose}</p>
-        <p className="text-xs text-[var(--muted)]">쓰는 사람: {h.who}</p>
-        <div>
-          <h3 className="mb-1 text-xs font-semibold">순서</h3>
-          <ol className="list-decimal space-y-0.5 pl-5">
-            {h.steps.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ol>
-        </div>
-        {h.tips && (
-          <div>
-            <h3 className="mb-1 text-xs font-semibold">요령</h3>
-            <ul className="list-disc space-y-0.5 pl-5">
-              {h.tips.map((s) => (
-                <li key={s}>{s}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {h.faq && (
-          <div>
-            <h3 className="mb-1 text-xs font-semibold">자주 묻는 질문</h3>
-            <dl className="space-y-1.5">
-              {h.faq.map((f) => (
-                <div key={f.q}>
-                  <dt className="font-medium">Q. {f.q}</dt>
-                  <dd className="text-[var(--muted)]">A. {f.a}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-        {h.terms && (
-          <div>
-            <h3 className="mb-1 text-xs font-semibold">용어</h3>
-            <dl className="grid gap-1 sm:grid-cols-2">
-              {h.terms.map((t) => (
-                <div key={t} className="text-xs">
-                  <dt className="inline font-medium">{t}</dt> <dd className="inline text-[var(--muted)]">{GLOSSARY[t]}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-        <p className="flex flex-wrap gap-x-3 text-xs text-[var(--muted)]">
-          {h.refs && <span>관련: {h.refs.join(" · ")}</span>}
-          <Link href="/help" className="text-[var(--accent)]">
-            도움말 센터 →
-          </Link>
-        </p>
-      </div>
-    </details>
   );
 }
 
@@ -135,12 +67,18 @@ export function Empty({ children, action }: { children: ReactNode; action?: Reac
   );
 }
 
-export function Card({ title, children, actions }: { title?: ReactNode; children: ReactNode; actions?: ReactNode }) {
+/** 패널. 제목이 있으면 help 도 넘긴다(제목 옆 ? → 오른쪽 도움말 창). 빠지면 테스트가 실패한다 */
+export function Card({ title, children, actions, help }: { title?: ReactNode; children: ReactNode; actions?: ReactNode; help?: HelpTopic }) {
   return (
     <section className="rounded-lg border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow)]">
       {(title || actions) && (
         <div className="mb-3 flex items-center justify-between gap-2">
-          {title && <h2 className="font-semibold">{title}</h2>}
+          {title && (
+            <h2 className="flex items-center gap-1.5 font-semibold">
+              {title}
+              {help && <HelpButton topic={help} name={typeof title === "string" ? title : "이 패널"} />}
+            </h2>
+          )}
           {actions}
         </div>
       )}
