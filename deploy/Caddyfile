@@ -1,0 +1,8 @@
+# SITE_HOST(테스트: 1-2-3-4.sslip.io, 운영: 구입한 도메인)로 Let's Encrypt 인증서를 자동으로 받는다.
+{$SITE_HOST} {
+	encode gzip
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy app:3000
+}

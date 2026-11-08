@@ -1,0 +1,51 @@
+name: 테스트 서버 배포
+# main 에 병합되면(또는 수동 실행) 테스트 서버에 올린다.
+# 저장소 변수 TEST_SERVER_HOST(공인 IP)와 비밀값 TEST_SERVER_SSH_KEY(SSH 개인 키)가 있어야 돈다. deploy/README.md 참고.
+# 선택: 비밀값 BACKUP_PAR_URL(Object Storage 사전 인증 요청 주소)을 넣으면 서버 .env 에 넣어 백업을 올린다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: deploy-test
+jobs:
+  deploy:
+    if: ${{ vars.TEST_SERVER_HOST != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      HOST: ${{ vars.TEST_SERVER_HOST }}
+      USER_NAME: ${{ vars.TEST_SERVER_USER || 'ubuntu' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH 준비
+        env:
+          KEY: ${{ secrets.TEST_SERVER_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+      - name: 코드 올리기
+        run: rsync -az --delete --exclude .git --exclude node_modules --exclude .next --exclude .data --exclude deploy/.env -e "ssh -i ~/.ssh/id_deploy" ./ "$USER_NAME@$HOST:auto-body-shop/"
+      - name: 서버 준비
+        run: ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" "bash auto-body-shop/deploy/server-setup.sh $HOST"
+      - name: 백업 업로드 주소
+        env:
+          BACKUP_PAR_URL: ${{ secrets.BACKUP_PAR_URL }}
+        if: ${{ env.BACKUP_PAR_URL != '' }}
+        run: printf 'BACKUP_PAR_URL=%s\n' "$BACKUP_PAR_URL" | ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" "bash auto-body-shop/deploy/set-env.sh"
+      - name: 앱 이미지 빌드·옮기기
+        run: |
+          docker build -f deploy/Dockerfile -t auto-body-shop-app:latest .
+          docker save auto-body-shop-app:latest | gzip | ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" "gunzip | sudo docker load"
+      - name: 실행
+        run: ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" "bash auto-body-shop/deploy/server-setup.sh $HOST"
+      - name: 접속 확인
+        run: |
+          url="https://${HOST//./-}.sslip.io/login"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+            [ "$code" = "200" ] && echo "열림: $url" && exit 0
+            sleep 10
+          done
+          echo "응답 없음: $url ($code)"; exit 1
