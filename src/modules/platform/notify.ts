@@ -26,3 +26,8 @@ export async function notifyRole(db: Db, role: Role, title: string, dedupeKey?: 
     .values(ids.map((userId) => ({ userId, title, link: link ?? null, dedupeKey: dedupeKey ?? null })))
     .onConflictDoNothing();
 }
+
+/** 한 사람에게 알림(작업 배정 등) */
+export async function notifyUser(db: Db, userId: string, title: string, dedupeKey?: string, link?: string) {
+  await db.insert(notification).values({ userId, title, link: link ?? null, dedupeKey: dedupeKey ?? null }).onConflictDoNothing();
+}

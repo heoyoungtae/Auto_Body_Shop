@@ -19,6 +19,9 @@ import { listEstimates } from "@/modules/repair/estimate";
 import { ESTIMATE_STATUS_LABEL } from "@/modules/repair/estimate-rules";
 import { createEstimateAction } from "../actions";
 import { IntakeCheck } from "../intake-check";
+import { workOrdersOfRo } from "@/modules/repair/work";
+import { WO_STATUS_LABEL } from "@/modules/repair/work-rules";
+import { createWorkOrderAction } from "../../work/actions";
 import { PhotoSlots } from "../photo-slots";
 import { SignaturePad } from "../signature-pad";
 
@@ -39,7 +42,7 @@ export default async function RepairDetail({ params, searchParams }: { params: P
   const user = await requireUser();
   const db = await getDb();
   const r = await getRepair(db, id);
-  const estimates = await listEstimates(db, id);
+  const [estimates, wos] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id)]);
   const policy = await loadPolicy(db, seoulDate());
   const canWrite = user.roles.some((x) => x === "owner" || x === "plant_manager" || x === "advisor");
   const canDiagnose = user.roles.some((x) => x === "technician" || x === "plant_manager" || x === "owner");
@@ -186,6 +189,33 @@ export default async function RepairDetail({ params, searchParams }: { params: P
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
           <div className="space-y-4 xl:col-span-2">
+            {(r.status === "working" || wos.length > 0) && (
+              <div id="work">
+                <Card title="작업" help={{ kind: "panel", id: "ro.work" }}>
+                  {wos.length ? (
+                    <ul className="divide-y divide-[var(--line)] text-sm">
+                      {wos.map((w) => (
+                        <li key={w.id} className="flex flex-wrap items-center gap-2 py-2">
+                          <Link href={`/work/${w.id}`} className="font-medium text-[var(--accent)] hover:underline">
+                            {w.docNo}
+                          </Link>
+                          <Badge tone={w.status === "done" ? "ok" : "accent"}>{WO_STATUS_LABEL[w.status]}</Badge>
+                          {w.dueDate && <span className="ml-auto">출고 약속 {w.dueDate}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[var(--muted)]">고객이 승인한 견적이 있습니다. 공장장이 승인 항목으로 작업 지시서를 만듭니다.</p>
+                  )}
+                  {r.status === "working" && canConfirm && !wos.length && (
+                    <form action={createWorkOrderAction} className="mt-3">
+                      <input type="hidden" name="roId" value={r.id} />
+                      <SubmitButton>작업 지시서 만들기</SubmitButton>
+                    </form>
+                  )}
+                </Card>
+              </div>
+            )}
             {(r.status === "estimating" || estimates.length > 0) && (
               <Card title="견적" help={{ kind: "panel", id: "ro.estimates" }}>
                 {estimates.length ? (

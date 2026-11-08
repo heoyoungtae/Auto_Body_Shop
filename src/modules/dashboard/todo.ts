@@ -7,6 +7,7 @@ import { listConsultations } from "@/modules/customer/service";
 import { listRepairs } from "@/modules/repair/service";
 import { estimateTodos } from "@/modules/repair/estimate";
 import { approvalTodos } from "@/modules/repair/estimate-approval";
+import { workTodos } from "@/modules/repair/work";
 import { seoulParts } from "@/modules/customer/rules";
 import { kakaoOverview, smsOverview } from "@/modules/messaging/service";
 import { HOLIDAY_DATA_LAST_YEAR } from "@/modules/platform/business-days";
@@ -93,6 +94,13 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
         if (a.kind === "expired") out.push({ key: `ex-${a.id}`, when: "late", what: `견적 유효기간 지남: ${a.label}`, detail: `${a.validUntil}까지였습니다. 고객이 원하면 새 차수로 다시 견적합니다`, href, action: "보기" });
       }
     }
+  }
+
+  // 작업(STD-04): 공장장은 지시서 만들기·배정, 기술자는 내 공정
+  for (const t of await workTodos(db, user, now)) {
+    if (t.kind === "order") out.push({ key: t.key, when: "today", what: `작업 지시서 만들기: ${t.label}`, detail: t.detail, href: t.href, action: "지시하기" });
+    if (t.kind === "assign") out.push({ key: t.key, when: "today", what: `공정 담당 정하기: ${t.label}`, detail: t.detail, href: t.href, action: "배정하기" });
+    if (t.kind === "mine") out.push({ key: t.key, when: t.started ? "late" : "today", what: t.label, detail: t.detail, href: t.href, action: t.started ? "이어 하기" : "시작하기" });
   }
 
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });

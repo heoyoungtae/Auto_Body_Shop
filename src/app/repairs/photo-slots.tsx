@@ -8,7 +8,7 @@ import { removePhotoAction, uploadPhotoAction } from "./actions";
 
 export type PhotoView = { id: string; slot: PhotoSlot; path: string };
 
-async function shrink(file: File): Promise<{ blob: Blob; width: number; height: number }> {
+export async function shrink(file: File): Promise<{ blob: Blob; width: number; height: number }> {
   const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
   const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
   const width = Math.round(bmp.width * scale);

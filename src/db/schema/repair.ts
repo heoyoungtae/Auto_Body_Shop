@@ -198,3 +198,57 @@ export const estimateLine = pgTable(
   },
   (t) => [index("estimate_line_est_idx").on(t.estimateId)],
 );
+
+/** 작업 지시서(F-04-01, STD-04). 승인한 견적 줄만으로 만든다 */
+export const WO_STATUSES = ["planned", "working", "done"] as const;
+
+export const workOrder = pgTable(
+  "work_order",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    repairOrderId: uuid("repair_order_id")
+      .notNull()
+      .references(() => repairOrder.id),
+    estimateId: uuid("estimate_id")
+      .notNull()
+      .references(() => estimate.id),
+    status: text("status", { enum: WO_STATUSES }).notNull().default("planned"),
+    /** 출고 약속일(견적의 출고 예정일에서 불러옴) */
+    dueDate: text("due_date"),
+    /** 제조사 수리 매뉴얼·도료 TDS 특이사항(용접 방식, 교환 불가 부품, 건조 조건) */
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("work_order_no_uq").on(t.docNo), index("work_order_ro_idx").on(t.repairOrderId)],
+);
+
+/** 공정 한 줄: 담당·예정일·표준 시간, 시작·끝, 자주 검사, 사진, 공정별 기록(배합·건조 조건·용접 방식) */
+export const workStep = pgTable(
+  "work_step",
+  {
+    id: id(),
+    workOrderId: uuid("work_order_id")
+      .notNull()
+      .references(() => workOrder.id),
+    seq: integer("seq").notNull(),
+    process: text("process").notNull(),
+    lineIds: jsonb("line_ids").$type<string[]>().notNull().default([]),
+    assignee: uuid("assignee").references(() => appUser.id),
+    planDate: text("plan_date"),
+    stdMinutes: integer("std_minutes").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    startedBy: uuid("started_by").references(() => appUser.id),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    endedBy: uuid("ended_by").references(() => appUser.id),
+    actualMinutes: integer("actual_minutes"),
+    checks: jsonb("checks").$type<string[]>().notNull().default([]),
+    photos: jsonb("photos").$type<string[]>().notNull().default([]),
+    detail: jsonb("detail").$type<Record<string, string>>().notNull().default({}),
+    note: text("note"),
+  },
+  (t) => [index("work_step_wo_idx").on(t.workOrderId)],
+);
