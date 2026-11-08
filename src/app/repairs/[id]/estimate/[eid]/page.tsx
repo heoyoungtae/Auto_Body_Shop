@@ -6,7 +6,9 @@ import { ROLE_LABEL } from "@/modules/auth/roles";
 import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
 import { getEstimate } from "@/modules/repair/estimate";
 import { ESTIMATE_KIND, ESTIMATE_STATUS_LABEL, estimateIssues, LINE_CATEGORIES, PART_CODES, totals } from "@/modules/repair/estimate-rules";
-import { fmtMinutes, PAINT_GRADES } from "@/modules/repair/labor";
+import { fmtMinutes, gradeWon, laborWon, lineNameOf, PAINT_GRADES, usesGradeCoef, type PaintGrade } from "@/modules/repair/labor";
+import { laborCatalog, loadLabor } from "@/modules/repair/labor-store";
+import { LaborPick, type PickCoef, type PickItem } from "../../../labor-pick";
 import { AssistForm } from "../../../../_assist";
 import { DateField, NumberField, SelectField, TextAreaField, TextField } from "../../../../_input";
 import { koMoney } from "../../../../_format";
@@ -112,9 +114,27 @@ function Hidden({ roId, id, intent }: { roId: string; id: string; intent: string
   );
 }
 
-function LineFields({ l, kind }: { l?: Line; kind: string }) {
+/** 견적 줄 고르기 목록: 숨긴 항목은 빼고(이미 그 항목인 줄은 보이게), 금액은 지금 도장 등급으로 */
+async function pickList(db: Awaited<ReturnType<typeof getDb>>, grade: PaintGrade): Promise<Pick> {
+  const [all, t] = await Promise.all([laborCatalog(db), loadLabor(db)]);
+  const items = all
+    .filter((d) => d.cat)
+    .map((d) => {
+      const v = t[d.code];
+      const minutes = d.kind === "hours" ? v : null;
+      const amount = d.kind === "hours" ? laborWon(v, t) : usesGradeCoef(d.code) ? gradeWon(v, grade, t) : v;
+      return { code: d.code, label: `${d.section} › ${d.name} — ${minutes != null ? `${fmtMinutes(minutes)} · ` : ""}${amount.toLocaleString("ko-KR")}원`, name: lineNameOf(d), cat: d.cat!, minutes, won: amount, hiddenOnly: d.hidden };
+    });
+  const coefs = all.filter((d) => d.kind === "pct" && d.code.startsWith("PDR-") && !d.hidden).map((d) => ({ code: d.code, name: d.name, pct: t[d.code] }));
+  return { items, coefs, rate: t.RATE };
+}
+
+type Pick = { items: PickItem[]; coefs: PickCoef[]; rate: number };
+
+function LineFields({ l, kind, pick }: { l?: Line; kind: string; pick: Pick }) {
   return (
     <div className="space-y-3">
+      {l?.category !== "part" && <LaborPick items={pick.items.filter((i) => !i.hiddenOnly || i.code === l?.laborCode)} coefs={pick.coefs} rate={pick.rate} current={l?.laborCode} />}
       <div className="grid gap-3 md:grid-cols-3">
         <SelectField help="est.payer" name="payer" defaultValue={l?.payer ?? kind} options={opts(ESTIMATE_KIND)} />
         <SelectField help="est.category" name="category" required defaultValue={l?.category ?? ""} placeholder="고르기" options={opts(LINE_CATEGORIES)} />
@@ -148,6 +168,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const reviewer = await resolveApprover(db, "estimate", e.totalWon, e.createdBy ? await rolesOf(db, e.createdBy) : []);
   const canReview = e.status === "review" && (user.roles.includes(reviewer) || user.roles.includes("owner"));
   const missingShop = shopMissing(shop);
+  const pick = draft ? await pickList(db, e.paintGrade as PaintGrade) : { items: [], coefs: [], rate: 0 };
   const v = e.vehicle;
   const today = seoulDate();
 
@@ -236,7 +257,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
                             <AssistForm id={`est-l-${l.id}`} action={estimateAction} className="mt-2 space-y-3 rounded-md border border-[var(--line)] p-3">
                               <Hidden roId={roId} id={eid} intent="line" />
                               <input type="hidden" name="lineId" value={l.id} />
-                              <LineFields l={l} kind={e.kind} />
+                              <LineFields l={l} kind={e.kind} pick={pick} />
                               <SubmitButton>이 항목 저장</SubmitButton>
                             </AssistForm>
                             <form action={estimateAction} className="mt-1">
@@ -288,10 +309,10 @@ export default async function EstimatePage({ params, searchParams }: { params: P
             </div>
             {draft && (
               <details className="mt-3">
-                <summary className="cursor-pointer text-sm font-semibold text-[var(--accent)]">+ 항목 넣기(분해 중 찾은 부품, 청소 등)</summary>
+                <summary className="cursor-pointer text-sm font-semibold text-[var(--accent)]">+ 항목 넣기(기준표에서 고르거나 직접 적기)</summary>
                 <AssistForm id={`est-new-${eid}`} action={estimateAction} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
                   <Hidden roId={roId} id={eid} intent="line" />
-                  <LineFields kind={e.kind} />
+                  <LineFields kind={e.kind} pick={pick} />
                   <SubmitButton>넣기</SubmitButton>
                 </AssistForm>
               </details>

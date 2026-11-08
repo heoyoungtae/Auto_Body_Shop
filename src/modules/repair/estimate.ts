@@ -17,7 +17,7 @@ import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
 import { userSignature } from "@/modules/auth/signature";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { buildLines, estimateIssues, isLineCategory, isPartCode, totals, type EstimateKind } from "./estimate-rules";
-import { isPaintGrade, laborWon, paintWon, partGroup, type PaintGrade } from "./labor";
+import { gradeWon, isPaintGrade, laborWon, usesGradeCoef, type PaintGrade } from "./labor";
 import { loadLabor } from "./labor-store";
 
 export class EstimateError extends UserError {}
@@ -89,15 +89,9 @@ export async function saveEstimateHeader(db: Db, actor: Actor, id: string, input
   if (input.paintGrade !== e.paintGrade) {
     const t = await loadLabor(db, seoulDate(now));
     const lines = await db.select().from(estimateLine).where(eq(estimateLine.estimateId, id));
-    const damages = await db.select({ id: roDamage.id, part: roDamage.part }).from(roDamage).where(eq(roDamage.repairOrderId, e.repairOrderId));
+    // 도장 공임·블렌딩·재료비처럼 등급 계수를 곱하는 줄은 기준표 값 × 새 계수로 다시 계산한다
     for (const l of lines) {
-      if (l.laborCode?.startsWith("PNT-")) {
-        const d = damages.find((x) => x.id === l.damageId);
-        const won = d ? paintWon(partGroup(d.part), input.paintGrade, t) : null;
-        if (won != null) await db.update(estimateLine).set({ laborWon: won }).where(eq(estimateLine.id, l.id));
-      } else if (l.laborCode === "BLEND") {
-        await db.update(estimateLine).set({ laborWon: Math.round((t.BLEND * t[`COEF-${input.paintGrade}`]) / 100 / 10) * 10 }).where(eq(estimateLine.id, l.id));
-      }
+      if (l.laborCode && usesGradeCoef(l.laborCode) && t[l.laborCode] != null) await db.update(estimateLine).set({ laborWon: gradeWon(t[l.laborCode], input.paintGrade, t) }).where(eq(estimateLine.id, l.id));
     }
   }
   if (input.kind !== e.kind) await db.update(estimateLine).set({ payer: input.kind }).where(and(eq(estimateLine.estimateId, id), eq(estimateLine.payer, e.kind)));
@@ -106,7 +100,7 @@ export async function saveEstimateHeader(db: Db, actor: Actor, id: string, input
   await writeAudit(db, { actorId: actor.id, action: "estimate.header", entityType: "estimate", entityId: e.docNo, after: { kind: input.kind, paintGrade: input.paintGrade } });
 }
 
-export type LineInput = { id?: string; payer: string; category: string; name: string; partCode: string; partNo: string; qty: number; unitWon: number; laborMinutes: number | null; laborWon: number | null; note: string };
+export type LineInput = { id?: string; payer: string; category: string; name: string; partCode: string; partNo: string; qty: number; unitWon: number; laborMinutes: number | null; laborWon: number | null; note: string; laborCode?: string };
 
 /** 항목 넣기·고치기. 공임은 표준 시간을 주면 시간당 공임으로 계산하고, 금액을 직접 주면 그 금액 */
 export async function saveLine(db: Db, actor: Actor, estimateId: string, input: LineInput, now = new Date()) {
@@ -120,6 +114,8 @@ export async function saveLine(db: Db, actor: Actor, estimateId: string, input: 
   if (isPart && !isPartCode(input.partCode)) throw new EstimateError("부품 코드(A·B·C·D·F)를 골라 주세요");
   if (input.qty < 1 || input.qty > 99) throw new EstimateError("수량은 1~99입니다");
   const t = await loadLabor(db, seoulDate(now));
+  // 기준표에서 고른 줄은 코드를 남긴다(도장 등급을 바꾸면 다시 계산, 통계). 빈 값이면 손으로 적은 줄
+  const code = input.laborCode === undefined ? undefined : !isPart && input.laborCode && t[input.laborCode] != null ? input.laborCode : null;
   const minutes = isPart ? 0 : (input.laborMinutes ?? 0);
   const won = isPart ? 0 : input.laborWon != null && input.laborWon > 0 ? input.laborWon : laborWon(minutes, t);
   const values = {
@@ -137,10 +133,10 @@ export async function saveLine(db: Db, actor: Actor, estimateId: string, input: 
   if (input.id) {
     const [old] = await db.select().from(estimateLine).where(and(eq(estimateLine.id, input.id), eq(estimateLine.estimateId, estimateId)));
     if (!old) throw new EstimateError("없는 항목입니다");
-    await db.update(estimateLine).set(values).where(eq(estimateLine.id, input.id));
+    await db.update(estimateLine).set({ ...values, ...(code !== undefined ? { laborCode: code } : {}) }).where(eq(estimateLine.id, input.id));
   } else {
     const lines = await db.select({ seq: estimateLine.seq }).from(estimateLine).where(eq(estimateLine.estimateId, estimateId));
-    await db.insert(estimateLine).values({ ...values, estimateId, seq: Math.max(0, ...lines.map((l) => l.seq)) + 1, laborCode: null, damageId: null });
+    await db.insert(estimateLine).values({ ...values, estimateId, seq: Math.max(0, ...lines.map((l) => l.seq)) + 1, laborCode: code ?? null, damageId: null });
   }
   await recalc(db, estimateId);
   await writeAudit(db, { actorId: actor.id, action: "estimate.line", entityType: "estimate", entityId: e.docNo, after: { name: values.name, parts: values.qty * values.unitWon, labor: values.laborWon } });

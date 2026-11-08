@@ -55,9 +55,16 @@ describe("견적(STD-03)", () => {
       ["part", null],
       ["paint", "PNT-bumper"],
       ["paint", "BLEND"],
+      ["paint", "MAT-bumper"],
+      ["paint", "MAT-blend"],
       ["etc", "CAL"],
       ["dent", "PDR-10"],
     ]);
+    expect(lines[4].laborWon).toBe(108_000); // 재료비 90,000 × 펄 120%
+    // 꺾임(라인) 덴트는 시간 × 라인 가산 130%
+    const [crease] = buildLines([{ id: "c", part: "hood", sizeCm: 15, method: "pdr", calibrate: false, crease: true }], t, "solid", "general");
+    expect(crease.laborMinutes).toBe(156); // 120분 × 1.3
+    expect(crease.name).toContain("라인 가산");
     expect(lines[1].partCode).toBe("D");
     expect(lines[0].laborWon).toBe(38_000); // 60분 × 38,000
     expect(lines[2].laborWon).toBe(264_000); // 220,000 × 120%
@@ -82,6 +89,11 @@ describe("견적(STD-03)", () => {
     expect(paintBefore).toBe(242_000);
     expect(e.vehicle.registeredOn).toBe("2021-03-15");
     expect(e.totalWon).toBe(totals(e.lines).total);
+    // 기준표에서 고른 줄(코드 남김)은 도장 등급을 바꾸면 다시 계산된다
+    await saveLine(db, advisor(), id, { payer: "general", category: "paint", name: "도어 도장 재료비", partCode: "", partNo: "", qty: 1, unitWon: 0, laborMinutes: null, laborWon: 126_000, note: "", laborCode: "MAT-door" }, now);
+    await saveEstimateHeader(db, advisor(), id, { kind: "general", paintGrade: "solid", dueDate: "2026-11-13", note: "", registeredOn: "2021-03-15" }, now);
+    e = await getEstimate(db, id);
+    expect(e.lines.find((l) => l.laborCode === "MAT-door")!.laborWon).toBe(90_000);
     await submitEstimate(db, advisor(), id, now);
     await expect(reviewEstimate(db, advisor(), id, true, "", now)).rejects.toThrow(/공장장/);
     await reviewEstimate(db, boss(), id, true, "", now);

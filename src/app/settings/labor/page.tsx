@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { fmtMinutes, LABOR_DEFAULTS, laborDef, type LaborDef } from "@/modules/repair/labor";
-import { laborChanges, loadLabor } from "@/modules/repair/labor-store";
+import { fmtMinutes, LABOR_CATS, LABOR_LOCKED, type LaborDef } from "@/modules/repair/labor";
+import { LINE_CATEGORIES } from "@/modules/repair/estimate-rules";
+import { laborCatalog, laborChanges, loadLabor } from "@/modules/repair/labor-store";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
-import { DateField, NumberField, TextField } from "../../_input";
+import { DateField, NumberField, SelectField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
-import { changeLaborAction } from "./actions";
+import { addLaborAction, changeLaborAction, hideLaborAction } from "./actions";
 
 const show = (d: LaborDef, v: number) => (d.kind === "hours" ? fmtMinutes(v) : d.kind === "pct" ? `${v}%` : `${v.toLocaleString("ko-KR")}원`);
 const unit = (d: LaborDef) => (d.kind === "hours" ? "분" : d.kind === "pct" ? "%" : "원");
@@ -18,10 +19,11 @@ export default async function LaborPage({ searchParams }: { searchParams: Promis
   const user = await requireUser();
   const owner = user.roles.includes("owner");
   const db = await getDb();
-  const [table, changes] = await Promise.all([loadLabor(db), laborChanges(db)]);
+  const [table, changes, catalog] = await Promise.all([loadLabor(db), laborChanges(db), laborCatalog(db)]);
   const changed = new Set(changes.map((c) => c.key.slice(6)));
-  const sel = code ? laborDef(code) : undefined;
-  const sections = [...new Set(LABOR_DEFAULTS.map((d) => d.section))];
+  const sel = code ? catalog.find((d) => d.code === code) : undefined;
+  const sections = [...new Set(catalog.map((d) => d.section))];
+  const defOf = (k: string) => catalog.find((d) => d.code === k);
   return (
     <>
       <PageTitle help="settings.labor" sub="F-03-01 · 사내 표준서 STD-03 4·7절. 견적의 공임·도장 금액이 이 표로 계산됩니다. 처음 값은 개업 전 제안값입니다.">
@@ -38,25 +40,40 @@ export default async function LaborPage({ searchParams }: { searchParams: Promis
             <Card key={sec} title={sec} help={{ kind: "panel", id: "labor.section" }}>
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-[var(--line)]">
-                  {LABOR_DEFAULTS.filter((d) => d.section === sec).map((d) => (
-                    <tr key={d.code} className={sel?.code === d.code ? "bg-[var(--accent-soft)]" : ""}>
-                      <td className="py-1.5 pr-2">
-                        {d.name}
-                        {d.hint && <span className="block text-xs text-[var(--muted)]">{d.hint}</span>}
-                      </td>
-                      <td className="py-1.5 pr-2 text-right whitespace-nowrap tabular-nums">
-                        <b>{show(d, table[d.code])}</b>
-                        {changed.has(d.code) ? <Badge tone="accent">바꿈</Badge> : <span className="ml-1 text-xs text-[var(--muted)]">제안값</span>}
-                      </td>
-                      <td className="py-1.5 text-right">
-                        {owner && (
-                          <Link href={`/settings/labor?code=${d.code}`} className="text-xs text-[var(--accent)]">
-                            바꾸기
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {catalog
+                    .filter((d) => d.section === sec)
+                    .map((d) => (
+                      <tr key={d.code} className={`${sel?.code === d.code ? "bg-[var(--accent-soft)]" : ""} ${d.hidden ? "opacity-50" : ""}`}>
+                        <td className="py-1.5 pr-2">
+                          {d.name}
+                          {d.custom && <Badge tone="ok">추가</Badge>}
+                          {d.hidden && <Badge>숨김</Badge>}
+                          {d.hint && <span className="block text-xs text-[var(--muted)]">{d.hint}</span>}
+                        </td>
+                        <td className="py-1.5 pr-2 text-right whitespace-nowrap tabular-nums">
+                          <b>{show(d, table[d.code])}</b>
+                          {changed.has(d.code) ? <Badge tone="accent">바꿈</Badge> : !d.custom && <span className="ml-1 text-xs text-[var(--muted)]">제안값</span>}
+                        </td>
+                        <td className="py-1.5 text-right whitespace-nowrap">
+                          {owner && (
+                            <>
+                              <Link href={`/settings/labor?code=${d.code}`} className="text-xs text-[var(--accent)]">
+                                바꾸기
+                              </Link>
+                              {!LABOR_LOCKED.has(d.code) && (
+                                <form action={hideLaborAction} className="ml-2 inline">
+                                  <input type="hidden" name="code" value={d.code} />
+                                  <input type="hidden" name="hidden" value={d.hidden ? "0" : "1"} />
+                                  <button type="submit" className="text-xs text-[var(--muted)] hover:text-[var(--accent)] hover:underline">
+                                    {d.hidden ? "다시 쓰기" : "숨기기"}
+                                  </button>
+                                </form>
+                              )}
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </Card>
@@ -79,11 +96,26 @@ export default async function LaborPage({ searchParams }: { searchParams: Promis
               )}
             </Card>
           )}
+          {owner && (
+            <Card title="항목 추가" help={{ kind: "panel", id: "labor.add" }}>
+              <AssistForm id="labor-add" action={addLaborAction} className="space-y-3">
+                <TextField help="labor.newSection" name="section" required suggestions={sections.map((x) => ({ value: x }))} />
+                <TextField help="labor.newName" name="name" required />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <SelectField help="labor.newKind" name="kind" required defaultValue="hours" options={[{ value: "hours", label: "표준 시간(분)" }, { value: "price", label: "고정 금액(원)" }]} />
+                  <SelectField help="labor.newCat" name="cat" required placeholder="고르기" options={LABOR_CATS.map((c) => ({ value: c, label: LINE_CATEGORIES[c] }))} />
+                </div>
+                <NumberField help="labor.newValue" name="value" required min={1} />
+                <TextField help="labor.newHint" name="hint" />
+                <SubmitButton>항목 추가</SubmitButton>
+              </AssistForm>
+            </Card>
+          )}
           <Card title="바꾼 이력" help={{ kind: "panel", id: "labor.history" }}>
             {changes.length ? (
               <ul className="space-y-1.5 text-sm">
                 {changes.slice(0, 20).map((c) => {
-                  const d = laborDef(c.key.slice(6));
+                  const d = defOf(c.key.slice(6));
                   return (
                     <li key={c.key + String(c.at)}>
                       {d ? `${d.section} › ${d.name}` : c.key} → <b>{d ? show(d, c.value as number) : String(c.value)}</b> ({c.effectiveFrom}부터) · {c.reason} <span className="text-xs text-[var(--muted)]">{c.by} {fmtTime(c.at)}</span>

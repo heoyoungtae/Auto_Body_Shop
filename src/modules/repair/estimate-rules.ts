@@ -1,5 +1,5 @@
 // 견적 규칙(STD-03 4절, 법정 서식 별지 제89호의3). 화면과 서버가 같이 쓴다(DB 없음).
-import { GROUP_LABEL, laborWon, paintWon, partGroup, pdrCode, type LaborTable, type PaintGrade } from "./labor";
+import { gradeWon, GROUP_LABEL, laborWon, paintWon, partGroup, pdrCode, type LaborTable, type PaintGrade } from "./labor";
 import { partLabel, type Issue } from "./rules";
 
 /** 법정 서식 부품 코드(서식 하단 7번) */
@@ -39,7 +39,7 @@ export type LineDraft = {
   note?: string | null;
 };
 
-type Damage = { id: string; part: string; sizeCm: number | null; method: string; calibrate: boolean };
+type Damage = { id: string; part: string; sizeCm: number | null; method: string; calibrate: boolean; crease?: boolean | null };
 
 /** 진단 줄 → 견적 항목(다시 적지 않게). 금액은 공임 기준표로 계산하고, 부품 단가만 비워 둔다 */
 export function buildLines(damages: Damage[], t: LaborTable, grade: PaintGrade, kind: EstimateKind, partsPref?: string | null): LineDraft[] {
@@ -50,17 +50,29 @@ export function buildLines(damages: Damage[], t: LaborTable, grade: PaintGrade, 
     const g = partGroup(d.part);
     const won = paintWon(g, grade, t);
     if (won == null) return [];
-    const blend = Math.round((t.BLEND * t[`COEF-${grade}`]) / 100 / 10) * 10;
-    return [
+    const out: LineDraft[] = [
       { ...base, damageId: d.id, category: "paint", laborCode: `PNT-${g}`, name: `${partLabel(d.part)} 도장`, laborWon: won },
-      { ...base, damageId: d.id, category: "paint", laborCode: "BLEND", name: `${partLabel(d.part)} 인접 패널 블렌딩`, laborWon: blend },
+      { ...base, damageId: d.id, category: "paint", laborCode: "BLEND", name: `${partLabel(d.part)} 인접 패널 블렌딩`, laborWon: gradeWon(t.BLEND, grade, t) },
     ];
+    // 도장 재료비(도료·부자재)는 공임과 따로 적는다(보험 견적 관행)
+    if (t[`MAT-${g}`] != null) out.push({ ...base, damageId: d.id, category: "paint", laborCode: `MAT-${g}`, name: `${partLabel(d.part)} 도장 재료비`, laborWon: gradeWon(t[`MAT-${g}`], grade, t) });
+    if (t["MAT-blend"] != null) out.push({ ...base, damageId: d.id, category: "paint", laborCode: "MAT-blend", name: `${partLabel(d.part)} 블렌딩 재료비`, laborWon: gradeWon(t["MAT-blend"], grade, t) });
+    return out;
   };
   for (const d of damages) {
     const g = partGroup(d.part);
     const name = partLabel(d.part);
     const push = (x: LineDraft | null | LineDraft[]) => (Array.isArray(x) ? out.push(...x) : x && out.push(x));
-    if (d.method === "pdr") push(labor(d, "dent", pdrCode(d.sizeCm), `${name} 덴트(PDR)`));
+    if (d.method === "pdr") {
+      const x = labor(d, "dent", pdrCode(d.sizeCm), `${name} 덴트(PDR)`);
+      // 프레스 라인·모서리에 걸친 덴트는 시간 × 가산 계수
+      if (x && d.crease && t["PDR-LINE"]) {
+        x.laborMinutes = Math.round((x.laborMinutes * t["PDR-LINE"]) / 100);
+        x.laborWon = laborWon(x.laborMinutes, t);
+        x.name += " · 라인 가산";
+      }
+      push(x);
+    }
     else if (d.method === "polish") push(labor(d, "polish", "POL", `${name} 광택`));
     else if (d.method === "partial") {
       push(labor(d, "sheet", `SHT-${g}`, `${name} 판금`));

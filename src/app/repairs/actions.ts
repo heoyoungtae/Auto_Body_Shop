@@ -212,7 +212,7 @@ export async function estimateAction(form: FormData) {
   try {
     if (intent === "header") await saveEstimateHeader(db, user, id, { kind: s("kind"), paintGrade: s("paintGrade"), dueDate: s("dueDate"), note: s("note"), registeredOn: s("registeredOn") });
     else if (intent === "line")
-      await saveLine(db, user, id, { id: s("lineId") || undefined, payer: s("payer"), category: s("category"), name: s("name"), partCode: s("partCode"), partNo: s("partNo"), qty: n("qty") ?? 1, unitWon: n("unitWon") ?? 0, laborMinutes: n("laborMinutes"), laborWon: n("laborWon"), note: s("lineNote") });
+      await saveLine(db, user, id, { id: s("lineId") || undefined, payer: s("payer"), category: s("category"), name: s("name"), partCode: s("partCode"), partNo: s("partNo"), qty: n("qty") ?? 1, unitWon: n("unitWon") ?? 0, laborMinutes: n("laborMinutes"), laborWon: n("laborWon"), note: s("lineNote"), laborCode: form.has("laborCode") ? s("laborCode") : undefined });
     else if (intent === "removeLine") {
       await removeLine(db, user, id, s("lineId"));
       msg = "항목을 지웠습니다";
