@@ -4,6 +4,8 @@ import { VEHICLE_OPTIONS, type VehicleOption } from "@/modules/customer/generati
 import { vehicleHints, getCustomer, pendingConsent, revealPhone } from "@/modules/customer/service";
 import { formatPhone } from "@/modules/messaging/service";
 import { CONSENT_METHOD_LABEL, RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
+import { repairsOfConsults } from "@/modules/repair/service";
+import { RO_STATUS_LABEL } from "@/modules/repair/rules";
 import { AssistForm } from "../../_assist";
 import { TextAreaField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
@@ -17,6 +19,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const user = await requireUser();
   const db = await getDb();
   const c = await getCustomer(db, id);
+  const ros = await repairsOfConsults(db, c.consults.map((x) => x.id));
   const [hints, pending] = await Promise.all([vehicleHints(db), pendingConsent(db, id)]);
   const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
   // 전체 번호는 누를 때만, 본 기록이 남는다(설계서 9.2)
@@ -114,7 +117,13 @@ export default async function CustomerDetail({ params, searchParams }: { params:
                     <Link href={`/consults/${x.id}`} className="hover:underline">
                       <b>{x.docNo}</b> {seoulParts(x.at).date} {x.plateNo ?? ""} {x.damageParts ?? ""}
                     </Link>
-                    <Badge>{RESULT_LABEL[x.result]}</Badge>
+                    {ros.get(x.id) ? (
+                      <Link href={`/repairs/${ros.get(x.id)!.id}`} className="text-[var(--accent)] hover:underline">
+                        수리 건 {ros.get(x.id)!.docNo} · {RO_STATUS_LABEL[ros.get(x.id)!.status as keyof typeof RO_STATUS_LABEL]}
+                      </Link>
+                    ) : (
+                      <Badge>{RESULT_LABEL[x.result]}</Badge>
+                    )}
                   </li>
                 ))}
               </ul>

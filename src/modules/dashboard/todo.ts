@@ -4,6 +4,7 @@ import type { Db } from "@/db/client";
 import { inbox, myDrafts } from "@/modules/approval/service";
 import type { Role } from "@/modules/auth/roles";
 import { listConsultations } from "@/modules/customer/service";
+import { listRepairs } from "@/modules/repair/service";
 import { seoulParts } from "@/modules/customer/rules";
 import { kakaoOverview, smsOverview } from "@/modules/messaging/service";
 import { HOLIDAY_DATA_LAST_YEAR } from "@/modules/platform/business-days";
@@ -38,7 +39,7 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
       const href = `/consults/${c.id}`;
       if (c.result === "reserved" && c.reservedAt) {
         const d = seoulParts(c.reservedAt).date;
-        if (d < today) out.push({ key: `rv-${c.id}`, when: "late", what: `예약일 지남: ${who}`, detail: `${d} 예약 — 입고했으면 접수로, 안 왔으면 재연락·취소로 정리`, href: `/consults/${c.id}/edit`, action: "정리하기" });
+        if (d < today) out.push({ key: `rv-${c.id}`, when: "late", what: `예약일 지남: ${who}`, detail: `${d} 예약 — 차가 왔으면 입고 시작, 안 왔으면 재연락·취소로 정리`, href, action: "입고 시작·정리" });
         else if (!c.confirmSentAt) out.push({ key: `cf-${c.id}`, when: d <= addDays(today, 1) ? "today" : "soon", what: `예약 확인 안 보냄: ${who}`, detail: `입고 ${d} ${seoulParts(c.reservedAt).time}`, href, action: "확인 보내기" });
       }
       if (c.result === "recontact" && c.recontactOn && c.recontactOn <= today)
@@ -47,6 +48,11 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
         if (c.replyDue < today) out.push({ key: `rp-${c.id}`, when: "late", what: `회신 기한 지남: ${who}`, detail: `기한 ${c.replyDue}`, href, action: "회신하고 표시" });
         else if (c.replyDue === today) out.push({ key: `rp-${c.id}`, when: "today", what: `오늘까지 회신: ${who}`, href, action: "회신하고 표시" });
       }
+    }
+    // 입고 점검을 마치지 않은 수리 건(서명 전)
+    for (const r of await listRepairs(db, "intake")) {
+      const late = seoulDate(r.inAt) < today;
+      out.push({ key: `ro-${r.id}`, when: late ? "late" : "today", what: `입고 점검 마치기: ${r.docNo} ${r.customerName} ${r.plateNo}`, detail: `사진 ${r.photos}장 · 서명 전${late ? " — 입고 당일에 끝내는 것이 원칙" : ""}`, href: `/repairs/${r.id}`, action: "점검 이어 하기" });
     }
     for (const p of await consentPanel(db, now)) {
       const hours = (p.expiresAt.getTime() - now.getTime()) / 36e5;

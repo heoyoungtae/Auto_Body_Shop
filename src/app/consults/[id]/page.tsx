@@ -9,6 +9,8 @@ import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
 import { confirmAction, repliedAction } from "../actions";
+import { startRepairAction } from "../../repairs/actions";
+import { repairsOfConsults } from "@/modules/repair/service";
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
@@ -30,6 +32,7 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
   const flags = consultFlags(c, today);
   const v = c.vehicle;
   const resv = c.reservedAt ? seoulParts(c.reservedAt) : null;
+  const ro = (await repairsOfConsults(db, [c.id])).get(c.id);
 
   return (
     <div>
@@ -48,6 +51,18 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
         actions={
           canWrite && (
             <>
+              {ro ? (
+                <Link href={`/repairs/${ro.id}`} className={buttonClass()}>
+                  수리 건 {ro.docNo}
+                </Link>
+              ) : (
+                c.result !== "declined" && (
+                  <form action={startRepairAction}>
+                    <input type="hidden" name="consultId" value={c.id} />
+                    <SubmitButton>입고 시작</SubmitButton>
+                  </form>
+                )
+              )}
               {c.result !== "converted" && (
                 <Link href={`/consults/${c.id}/edit`} className={buttonClass("secondary")}>
                   고치기·결과 바꾸기

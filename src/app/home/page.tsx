@@ -39,7 +39,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   const live: Partial<Record<PanelId, ReactNode>> = {
     intake: intake && (
-      <Card key="intake" title={`입고 예약 · 오늘 ${intake.todayRows.length}대`} help={{ kind: "panel", id: "dash.intake" }} actions={<More href="/consults?f=reservations">예약 전체</More>}>
+      <Card key="intake" title={`입고 예약 · 오늘 ${intake.todayRows.length}대`} help={{ kind: "panel", id: "dash.intake" }} actions={<More href="/repairs">입고 받기</More>}>
         {[
           { label: "오늘", date: intake.today, rows: intake.todayRows },
           { label: `다음 영업일 ${dayLabel(intake.next, intake.today)}`, date: intake.next, rows: intake.nextRows },

@@ -420,7 +420,8 @@ export async function updateConsultation(db: Db, actorId: string, id: string, in
       damageParts: clean(input.damageParts),
       cause: clean(input.cause),
       photoCount: Math.max(0, input.photoCount ?? 0),
-      mileage: input.mileage ?? null,
+      // 주행거리는 입고 점검에서 계기판으로 받는다(사용자 지시 2026-11-08). 지난 상담에 적힌 값은 그대로 둔다
+      ...(input.mileage !== undefined ? { mileage: input.mileage } : {}),
       methods: input.methods,
       structural: !!input.structural,
       insurance: input.insurance,

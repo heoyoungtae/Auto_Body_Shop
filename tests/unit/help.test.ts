@@ -62,14 +62,15 @@ describe("화면 도움말", () => {
 });
 
 describe("입력 칸 도움말", () => {
-  it("화면에 맨 input·select·textarea 를 쓰지 않는다(숨은 칸·찾기 칸·미리 보기 칸 제외). 입력도우미 부품을 쓴다", () => {
+  it("화면에 맨 input·select·textarea 를 쓰지 않는다(숨은 칸·찾기 칸·미리 보기 칸·사진 올리기 제외). 입력도우미 부품을 쓴다", () => {
     const allowed = new Set(["_input.tsx", "_assist.tsx", "_help-drawer.tsx"]);
     for (const f of files) {
       if (allowed.has(f.split(sep).pop()!)) continue;
       const src = readFileSync(f, "utf8");
       for (const m of src.matchAll(/<(input|select|textarea)\b[^>]*>/g)) {
         const tag = m[0];
-        if (/type="hidden"|type="search"|data-assist="preview"/.test(tag)) continue;
+        // 숨은 칸·찾기 칸·미리 보기 칸, 사진 올리기(data-assist="upload": 단추로 여는 숨은 파일 칸, 패널 도움말이 있음)
+        if (/type="hidden"|type="search"|data-assist="preview"|data-assist="upload"/.test(tag)) continue;
         throw new Error(`${relative(APP, f)}: 도움말 없는 입력 칸 ${tag.slice(0, 60)}… → src/app/_input.tsx 부품을 쓰세요`);
       }
     }

@@ -22,7 +22,6 @@ function readConsultForm(form: FormData) {
     damageParts: str("damageParts"),
     cause: str("cause"),
     photoCount: num("photoCount") ?? 0,
-    mileage: num("mileage"),
     methods: all("methods"),
     structural: flag("structural"),
     insurance: (str("insurance") || "self") as "self" | "own" | "other",

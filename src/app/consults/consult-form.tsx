@@ -122,7 +122,6 @@ export function ConsultFields({ p, src, today, channel = true }: { p: ConsultPre
           {channel && <SelectField help="consult.channel" name="channel" required defaultValue={p.channel ?? "phone"} options={opts(CHANNEL_LABEL)} />}
           <SelectField help="consult.cause" name="cause" defaultValue={p.cause ?? ""} placeholder="고르기" options={list(CAUSES)} from={f(p.cause)} />
         </div>
-        <NumberField help="consult.mileage" name="mileage" unit="km" min={0} max={2000000} defaultValue={p.mileage ?? null} />
         <CheckGroup help="consult.damageTypes" name="damageTypes" options={list(DAMAGE_TYPES)} defaultChecked={p.damageTypes ?? []} />
         <TextAreaField help="consult.damageParts" name="damageParts" rows={2} defaultValue={p.damageParts ?? undefined} from={f(p.damageParts)} />
         <div className="grid gap-4 lg:grid-cols-3">
