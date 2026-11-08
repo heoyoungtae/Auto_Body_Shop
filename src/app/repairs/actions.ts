@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { addPhoto, confirmDiagnosis, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
 import { parseFilm } from "@/modules/repair/rules";
+import { createEstimate, issueEstimate, removeLine, reviewEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
+import { ROLE_LABEL } from "@/modules/auth/roles";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 import { UserError } from "@/modules/platform/errors";
 
@@ -175,4 +177,53 @@ export async function confirmDiagnosisAction(form: FormData) {
     redirect(errorUrl(`/repairs/${id}#diagnosis`, userMessage(e)));
   }
   redirect(noticeUrl(`/repairs/${id}`, form.get("intent") === "reopen" ? "진단을 다시 열었습니다" : "진단을 확인했습니다. 상담원에게 견적 작성 알림을 보냈습니다"));
+}
+
+// ── 견적(STD-03)
+export async function createEstimateAction(form: FormData) {
+  const user = await requireUser(["advisor", "plant_manager", "owner"]);
+  const roId = String(form.get("id") ?? "");
+  let est: { id: string };
+  try {
+    est = await createEstimate(await getDb(), user, roId);
+  } catch (e) {
+    redirect(errorUrl(`/repairs/${roId}`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/repairs/${roId}/estimate/${est.id}`, "진단과 공임 기준표로 견적 항목을 채웠습니다. 부품 단가와 바뀐 것만 고치세요"));
+}
+
+export async function estimateAction(form: FormData) {
+  const user = await requireUser();
+  const s = (k: string) => String(form.get(k) ?? "").trim();
+  const n = (k: string) => {
+    const v = s(k).replace(/[^\d]/g, "");
+    return v ? Number(v) : null;
+  };
+  const roId = s("roId");
+  const id = s("estimateId");
+  const back = `/repairs/${roId}/estimate/${id}`;
+  const intent = s("intent");
+  const db = await getDb();
+  let msg = "저장했습니다";
+  try {
+    if (intent === "header") await saveEstimateHeader(db, user, id, { kind: s("kind"), paintGrade: s("paintGrade"), dueDate: s("dueDate"), note: s("note"), registeredOn: s("registeredOn") });
+    else if (intent === "line")
+      await saveLine(db, user, id, { id: s("lineId") || undefined, payer: s("payer"), category: s("category"), name: s("name"), partCode: s("partCode"), partNo: s("partNo"), qty: n("qty") ?? 1, unitWon: n("unitWon") ?? 0, laborMinutes: n("laborMinutes"), laborWon: n("laborWon"), note: s("lineNote") });
+    else if (intent === "removeLine") {
+      await removeLine(db, user, id, s("lineId"));
+      msg = "항목을 지웠습니다";
+    } else if (intent === "submit") {
+      const role = await submitEstimate(db, user, id);
+      msg = `검토를 요청했습니다(검토: ${ROLE_LABEL[role]})`;
+    } else if (intent === "approve" || intent === "return") {
+      await reviewEstimate(db, user, id, intent === "approve", s("reviewNote"));
+      msg = intent === "approve" ? "검토를 마쳤습니다. 발급할 수 있습니다" : "작성자에게 되돌렸습니다";
+    } else if (intent === "issue") {
+      await issueEstimate(db, user, id);
+      msg = "법정 견적서를 발급했습니다. '견적서 인쇄'로 2부를 뽑아 1부를 고객에게 드리세요";
+    }
+  } catch (e) {
+    redirect(errorUrl(back, userMessage(e)));
+  }
+  redirect(noticeUrl(back, msg));
 }

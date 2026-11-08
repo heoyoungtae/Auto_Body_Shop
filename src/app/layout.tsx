@@ -25,7 +25,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen">
         <HelpProvider>
           <NavProvider>
-            <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]">
+            <header id="site-header" className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]">
               <div className="flex min-h-14 items-center gap-2 px-2 sm:px-4">
                 {user && <MenuButton />}
                 <Link href={user ? "/home" : "/login"} className="truncate font-semibold">

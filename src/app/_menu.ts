@@ -113,6 +113,8 @@ export const MENU: MenuGroup[] = [
     id: "settings",
     label: "설정",
     items: [
+      { label: "사업장 정보", href: "/settings/shop" },
+      { label: "공임 기준표", href: "/settings/labor", std: "F-03-01" },
       { label: "정책값", href: "/settings/policies", std: "부록 D" },
       { label: "전결 규정", href: "/settings/delegation", std: "부록 B" },
       { label: "직원·역할", href: "/settings/users" },

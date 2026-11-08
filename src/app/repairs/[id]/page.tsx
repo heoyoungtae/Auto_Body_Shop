@@ -15,6 +15,9 @@ import { ShowWhen } from "../../consults/show-when";
 import { intakeAction, reopenAction } from "../actions";
 import { BodyDiagram } from "../body-diagram";
 import { Diagnosis } from "../diagnosis";
+import { listEstimates } from "@/modules/repair/estimate";
+import { ESTIMATE_STATUS_LABEL } from "@/modules/repair/estimate-rules";
+import { createEstimateAction } from "../actions";
 import { IntakeCheck } from "../intake-check";
 import { PhotoSlots } from "../photo-slots";
 import { SignaturePad } from "../signature-pad";
@@ -36,6 +39,7 @@ export default async function RepairDetail({ params, searchParams }: { params: P
   const user = await requireUser();
   const db = await getDb();
   const r = await getRepair(db, id);
+  const estimates = await listEstimates(db, id);
   const policy = await loadPolicy(db, seoulDate());
   const canWrite = user.roles.some((x) => x === "owner" || x === "plant_manager" || x === "advisor");
   const canDiagnose = user.roles.some((x) => x === "technician" || x === "plant_manager" || x === "owner");
@@ -182,6 +186,32 @@ export default async function RepairDetail({ params, searchParams }: { params: P
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
           <div className="space-y-4 xl:col-span-2">
+            {(r.status === "estimating" || estimates.length > 0) && (
+              <Card title="견적" help={{ kind: "panel", id: "ro.estimates" }}>
+                {estimates.length ? (
+                  <ul className="divide-y divide-[var(--line)] text-sm">
+                    {estimates.map((e) => (
+                      <li key={e.id} className="flex flex-wrap items-center gap-2 py-2">
+                        <Link href={`/repairs/${r.id}/estimate/${e.id}`} className="font-medium text-[var(--accent)] hover:underline">
+                          {e.docNo}
+                        </Link>
+                        <span>{e.rev}차</span>
+                        <Badge tone={e.status === "draft" ? "warn" : "accent"}>{ESTIMATE_STATUS_LABEL[e.status]}</Badge>
+                        <span className="ml-auto tabular-nums">{e.totalWon.toLocaleString("ko-KR")}원</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-[var(--muted)]">아직 견적이 없습니다. 진단과 공임 기준표로 항목을 채워 시작합니다.</p>
+                )}
+                {r.status === "estimating" && canWrite && !estimates.some((e) => e.status === "draft") && (
+                  <form action={createEstimateAction} className="mt-3">
+                    <input type="hidden" name="id" value={r.id} />
+                    <SubmitButton>{estimates.length ? "새 차수 견적 쓰기" : "견적 쓰기"}</SubmitButton>
+                  </form>
+                )}
+              </Card>
+            )}
             {r.status !== "intake" && <Diagnosis roId={r.id} status={r.status} damages={r.damages} canDiagnose={canDiagnose} canConfirm={canConfirm} repaintUm={policy["diagnosis.repaint_um"]} options={v.options ?? []} diagNote={r.diagNote} />}
             <Card title="입고 점검 결과" help={{ kind: "panel", id: "ro.done" }}>
               <dl className="grid text-sm sm:grid-cols-2 sm:gap-x-6">

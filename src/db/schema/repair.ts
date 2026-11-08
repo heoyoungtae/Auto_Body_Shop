@@ -125,3 +125,65 @@ export const roDamage = pgTable(
   },
   (t) => [index("ro_damage_ro_idx").on(t.repairOrderId)],
 );
+
+/** 견적서(F-03-02, 법정 서식 별지 제89호의3). 추가 견적은 같은 수리 건에 차수(rev)를 올려 새로 만든다 */
+export const ESTIMATE_STATUSES = ["draft", "review", "approved", "sent", "accepted", "partial", "declined", "void"] as const;
+
+export const estimate = pgTable(
+  "estimate",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    repairOrderId: uuid("repair_order_id")
+      .notNull()
+      .references(() => repairOrder.id),
+    rev: integer("rev").notNull().default(1),
+    /** 견적구분: insurance=보험, general=일반 */
+    kind: text("kind").notNull(),
+    status: text("status", { enum: ESTIMATE_STATUSES }).notNull().default("draft"),
+    paintGrade: text("paint_grade").notNull().default("solid"),
+    /** 서식의 차량 칸을 낼 때의 값으로 고정(나중에 차량 기록이 바뀌어도 낸 견적은 그대로) */
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull().default({}),
+    partsWon: integer("parts_won").notNull().default(0),
+    laborWon: integer("labor_won").notNull().default(0),
+    vatWon: integer("vat_won").notNull().default(0),
+    totalWon: integer("total_won").notNull().default(0),
+    dueDate: text("due_date"),
+    issuedOn: text("issued_on"),
+    validUntil: text("valid_until"),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    reviewedBy: uuid("reviewed_by").references(() => appUser.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("estimate_no_uq").on(t.docNo), index("estimate_ro_idx").on(t.repairOrderId)],
+);
+
+/** 견적 항목. 부품이면 코드(A 신품·B 재제조·C 중고·D 인증대체·F 수입)·수량·단가, 공임이면 표준 시간과 금액 */
+export const estimateLine = pgTable(
+  "estimate_line",
+  {
+    id: id(),
+    estimateId: uuid("estimate_id")
+      .notNull()
+      .references(() => estimate.id),
+    seq: integer("seq").notNull(),
+    payer: text("payer").notNull().default("general"),
+    category: text("category").notNull(),
+    damageId: uuid("damage_id"),
+    laborCode: text("labor_code"),
+    name: text("name").notNull(),
+    partCode: text("part_code"),
+    partNo: text("part_no"),
+    qty: integer("qty").notNull().default(1),
+    unitWon: integer("unit_won").notNull().default(0),
+    laborMinutes: integer("labor_minutes").notNull().default(0),
+    laborWon: integer("labor_won").notNull().default(0),
+    /** 고객(보험사) 승인: null=아직, true=승인, false=승인 안 함 */
+    approved: boolean("approved"),
+    note: text("note"),
+  },
+  (t) => [index("estimate_line_est_idx").on(t.estimateId)],
+);

@@ -45,6 +45,8 @@ export const vehicle = pgTable(
     /** 마지막으로 안 주행거리(km)와 그날. 상담 때는 고객 말, 입고 때는 계기판 확인 값 */
     mileage: integer("mileage"),
     mileageOn: date("mileage_on"),
+    /** 자동차등록증의 최초 등록일(법정 견적서·정비명세서의 등록년월일 칸). 처음 견적 때 한 번 받는다 */
+    registeredOn: date("registered_on"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

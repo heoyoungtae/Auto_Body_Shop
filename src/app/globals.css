@@ -108,8 +108,20 @@
 }
 
 @media print {
-  .no-print {
+  .no-print,
+  #site-header,
+  #side-menu {
     display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  body {
+    background: white !important;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
   }
 }
 

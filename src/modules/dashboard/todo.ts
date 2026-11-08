@@ -5,11 +5,13 @@ import { inbox, myDrafts } from "@/modules/approval/service";
 import type { Role } from "@/modules/auth/roles";
 import { listConsultations } from "@/modules/customer/service";
 import { listRepairs } from "@/modules/repair/service";
+import { estimateTodos } from "@/modules/repair/estimate";
 import { seoulParts } from "@/modules/customer/rules";
 import { kakaoOverview, smsOverview } from "@/modules/messaging/service";
 import { HOLIDAY_DATA_LAST_YEAR } from "@/modules/platform/business-days";
 import { unreadCount } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
+import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { consentPanel } from "./service";
 
@@ -74,6 +76,15 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     }
   }
 
+  // 견적: 진단 확인됐는데 견적이 없으면 상담원에게, 검토 요청은 전결 검토자에게
+  if (staff) {
+    for (const x of await estimateTodos(db)) {
+      if (x.kind === "write" && user.roles.some((r) => r === "advisor" || r === "owner")) out.push({ key: `es-${x.roId}`, when: "today", what: `견적 쓰기: ${x.label}`, detail: "진단 확인됨 — 입고 후 1영업일 안에 고객에게 제시(STD-03 5절)", href: `/repairs/${x.roId}`, action: "견적 쓰기" });
+      if (x.kind === "review" && x.reviewer && (user.roles.includes(x.reviewer) || user.roles.includes("owner"))) out.push({ key: `er-${x.id}`, when: "today", what: `견적 검토: ${x.label}`, detail: `${x.total.toLocaleString("ko-KR")}원`, href: `/repairs/${x.roId}/estimate/${x.id}`, action: "검토하기" });
+      if (x.kind === "draft" && user.roles.some((r) => r === "advisor")) out.push({ key: `ed-${x.id}`, when: "soon", what: `작성 중인 견적: ${x.label}`, href: `/repairs/${x.roId}/estimate/${x.id}`, action: "이어 쓰기" });
+    }
+  }
+
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });
 
   // 대표: 개업 준비·운영 설정에서 빠진 것
@@ -81,6 +92,8 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     const [sms, kakao, policy] = await Promise.all([smsOverview(db), kakaoOverview(db), loadPolicy(db, today)]);
     if (sms.current === "demo") out.push({ key: "set-sms", when: "setup", what: "문자 발송 서비스가 데모 상태입니다", detail: "대행사를 연결해야 예약 확인·동의 요청이 실제로 나갑니다", href: "/settings/messaging", action: "연결하기" });
     if (!kakao.enabled) out.push({ key: "set-kakao", when: "setup", what: "카카오 알림톡을 아직 켜지 않았습니다", detail: "켜지 않으면 같은 문구를 문자로 보냅니다", href: "/settings/kakao", action: "설정 보기" });
+    const missing = shopMissing(await loadShopInfo(db));
+    if (missing.length) out.push({ key: "set-shop", when: "setup", what: "사업장 정보가 비어 있습니다", detail: `법정 견적서에 찍힐 ${missing.slice(0, 3).join("·")}${missing.length > 3 ? " 등" : ""}`, href: "/settings/shop", action: "넣기" });
     if (policy["intake.daily_capacity"] === 0) out.push({ key: "set-cap", when: "setup", what: "일별 입고 한도가 정해지지 않았습니다", detail: "정하면 예약이 넘칠 때 경고합니다(부록 D 1.2)", href: "/settings/policies?key=intake.daily_capacity", action: "정하기" });
     if (Number(today.slice(0, 4)) >= HOLIDAY_DATA_LAST_YEAR) out.push({ key: "set-hol", when: "setup", what: `${HOLIDAY_DATA_LAST_YEAR + 1}년 공휴일을 넣어야 합니다`, href: "/settings/calendar", action: "넣기" });
   }
