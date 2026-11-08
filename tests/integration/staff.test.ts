@@ -31,6 +31,10 @@ const profile = (o: Partial<ProfileView> = {}): ProfileView => ({
   job: "판금·도장 기술자",
   gender: "m",
   birth: "1990-05-01",
+  phone: "010-1111-2222",
+  emName: "홍길순",
+  emRelation: "배우자",
+  emPhone: "01033334444",
   zip: "12345",
   address: "경기도 가나시 다라로 1",
   addressDetail: "101호",
@@ -53,9 +57,11 @@ describe("근로자 명부", () => {
     const [raw] = await db.select().from(staffProfile).where(eq(staffProfile.userId, ids.tech1));
     expect(raw.birthEnc).not.toContain("1990");
     expect(raw.addressEnc).not.toContain("가나시");
+    expect(raw.phoneEnc).not.toContain("1111");
+    await expect(saveProfile(db, acct(), ids.tech1, profile({ phone: "12345" }), now)).rejects.toThrow(/휴대폰/);
     expect(raw.licenses).toHaveLength(1);
     const mine = await getProfile(db, tech(), ids.tech1);
-    expect(mine).toMatchObject({ birth: "1990-05-01", zip: "12345", address: "경기도 가나시 다라로 1", addressDetail: "101호" });
+    expect(mine).toMatchObject({ birth: "1990-05-01", phone: "010-1111-2222", emName: "홍길순", emPhone: "010-3333-4444", zip: "12345", address: "경기도 가나시 다라로 1", addressDetail: "101호" });
     await expect(getProfile(db, tech(), ids.tech2)).rejects.toThrow(/대표·회계/);
     const seen = (await listStaff(db, tech())).find((r) => r.id === ids.tech1)!;
     expect(seen).toMatchObject({ job: "판금·도장 기술자", hiredOn: "2024-03-02", contractKind: null });

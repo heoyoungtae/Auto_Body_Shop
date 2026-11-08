@@ -62,6 +62,10 @@ export default async function StaffProfilePage({ params, searchParams }: { param
               </dd>
               <dt className="text-[var(--muted)]">생년월일</dt>
               <dd>{p.birth || "—"}</dd>
+              <dt className="text-[var(--muted)]">휴대폰</dt>
+              <dd>{p.phone || "—"}</dd>
+              <dt className="text-[var(--muted)]">비상연락처</dt>
+              <dd>{p.emName ? `${p.emName}${p.emRelation ? `(${p.emRelation})` : ""} ${p.emPhone}` : "—"}</dd>
               <dt className="text-[var(--muted)]">주소</dt>
               <dd>{p.address ? `(${p.zip}) ${p.address} ${p.addressDetail}` : "—"}</dd>
               <dt className="text-[var(--muted)]">자격증</dt>

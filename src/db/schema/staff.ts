@@ -24,6 +24,9 @@ export const staffProfile = pgTable("staff_profile", {
   /** 퇴직일·사유(퇴직 점검표 F-11-07과 연결) */
   leftOn: text("left_on"),
   leftReason: text("left_reason"),
+  /** 휴대폰·비상연락처(이름·관계·번호 JSON) — 암호화 */
+  phoneEnc: text("phone_enc"),
+  emergencyEnc: text("emergency_enc"),
   updatedBy: uuid("updated_by").references(() => appUser.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

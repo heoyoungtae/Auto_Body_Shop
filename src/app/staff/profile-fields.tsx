@@ -17,6 +17,12 @@ export function ProfileFields({ p, isNew = false }: { p: ProfileView | null; isN
         <SelectField help="staff.gender" name="gender" defaultValue={p?.gender ?? ""} placeholder="고르기" options={opts(GENDER)} />
         <DateField help="staff.birth" name="birth" defaultValue={p?.birth ?? ""} quick={[]} />
       </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <TextField help="staff.phone" name="phone" required defaultValue={p?.phone ?? ""} inputMode="tel" />
+        <TextField help="staff.emName" name="emName" defaultValue={p?.emName ?? ""} />
+        <TextField help="staff.emRelation" name="emRelation" defaultValue={p?.emRelation ?? ""} suggestions={["배우자", "부", "모", "형제", "자녀", "친척"].map((v) => ({ value: v }))} />
+        <TextField help="staff.emPhone" name="emPhone" defaultValue={p?.emPhone ?? ""} inputMode="tel" />
+      </div>
       <AddressField help={{ zip: "staff.zip", address: "staff.address", detail: "staff.addressDetail" }} defaults={{ zip: p?.zip, address: p?.address, detail: p?.addressDetail }} />
       <TextAreaField help="staff.career" name="career" defaultValue={p?.career ?? ""} rows={2} />
       <fieldset className="space-y-2">

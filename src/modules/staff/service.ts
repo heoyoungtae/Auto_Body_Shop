@@ -106,7 +106,16 @@ export async function listStaff(db: Db, actor: Actor) {
   });
 }
 
-export type ProfileView = { job: string; gender: string; birth: string; zip: string; address: string; addressDetail: string; career: string; hiredOn: string; contractKind: string; contractEnd: string; licenses: License[]; leftOn: string; leftReason: string };
+export type ProfileView = { job: string; gender: string; birth: string; phone: string; emName: string; emRelation: string; emPhone: string; zip: string; address: string; addressDetail: string; career: string; hiredOn: string; contractKind: string; contractEnd: string; licenses: License[]; leftOn: string; leftReason: string };
+
+/** 010-1234-5678 꼴로 */
+function fmtPhone(x: string) {
+  const d = x.replace(/[^\d]/g, "");
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return d.startsWith("02") ? `02-${d.slice(2, 6)}-${d.slice(6)}` : `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 9) return `02-${d.slice(2, 5)}-${d.slice(5)}`;
+  return d;
+}
 
 /** 주소는 {우편번호, 주소, 상세} JSON 으로 암호화해 둔다(예전 값은 주소 한 줄) */
 function parseAddress(raw: string) {
@@ -126,7 +135,13 @@ export async function getProfile(db: Db, actor: Actor, userId: string): Promise<
   if (!p) return null;
   const dec = (v: string | null) => (v ? decrypt(v) : "");
   const addr = parseAddress(dec(p.addressEnc));
-  return { job: p.job ?? "", gender: p.gender ?? "", birth: dec(p.birthEnc), ...addr, career: p.career ?? "", hiredOn: p.hiredOn ?? "", contractKind: p.contractKind ?? "", contractEnd: p.contractEnd ?? "", licenses: p.licenses, leftOn: p.leftOn ?? "", leftReason: p.leftReason ?? "" };
+  let em = { name: "", relation: "", phone: "" };
+  try {
+    if (p.emergencyEnc) em = { ...em, ...(JSON.parse(dec(p.emergencyEnc)) as typeof em) };
+  } catch {
+    /* 깨진 값은 비움 */
+  }
+  return { job: p.job ?? "", gender: p.gender ?? "", birth: dec(p.birthEnc), phone: dec(p.phoneEnc), emName: em.name, emRelation: em.relation, emPhone: em.phone, ...addr, career: p.career ?? "", hiredOn: p.hiredOn ?? "", contractKind: p.contractKind ?? "", contractEnd: p.contractEnd ?? "", licenses: p.licenses, leftOn: p.leftOn ?? "", leftReason: p.leftReason ?? "" };
 }
 
 /** 근로자 명부 저장(STD-11 4.5: 회계 담당, 대표) */
@@ -138,6 +153,12 @@ export async function saveProfile(db: Db, actor: Actor, userId: string, input: P
   if (!ISO.test(input.hiredOn)) throw new StaffError("입사일을 골라 주세요");
   if (input.gender && !(input.gender in GENDER)) throw new StaffError("성별을 다시 골라 주세요");
   if (input.birth && (!ISO.test(input.birth) || input.birth > seoulDate(now))) throw new StaffError("생년월일을 확인해 주세요");
+  const PHONE = /^0\d{8,10}$/;
+  const digits = (x: string) => x.replace(/[^\d]/g, "");
+  if (!input.phone.trim()) throw new StaffError("휴대폰 번호를 적어 주세요(급한 연락·근태 알림용)");
+  if (!PHONE.test(digits(input.phone))) throw new StaffError("휴대폰 번호를 확인해 주세요. 예: 010-1234-5678");
+  if (input.emPhone.trim() && !PHONE.test(digits(input.emPhone))) throw new StaffError("비상연락처 번호를 확인해 주세요");
+  if (input.emPhone.trim() && !input.emName.trim()) throw new StaffError("비상연락처의 이름을 적어 주세요");
   if (input.zip && !/^\d{5}$/.test(input.zip.trim())) throw new StaffError("우편번호는 숫자 5자리입니다");
   if (!(input.contractKind in CONTRACT_KIND)) throw new StaffError("계약 형태를 골라 주세요");
   if (input.contractKind === "fixed" && !ISO.test(input.contractEnd)) throw new StaffError("기간제는 계약 끝나는 날을 적어 주세요");
@@ -150,6 +171,8 @@ export async function saveProfile(db: Db, actor: Actor, userId: string, input: P
     gender: input.gender || null,
     birthEnc: input.birth ? encrypt(input.birth, "sensitive") : null,
     addressEnc: input.address.trim() ? encrypt(JSON.stringify({ zip: input.zip.trim(), address: input.address.trim(), addressDetail: input.addressDetail.trim() }), "sensitive") : null,
+    phoneEnc: encrypt(fmtPhone(input.phone), "sensitive"),
+    emergencyEnc: input.emName.trim() || input.emPhone.trim() ? encrypt(JSON.stringify({ name: input.emName.trim(), relation: input.emRelation.trim(), phone: input.emPhone.trim() ? fmtPhone(input.emPhone) : "" }), "sensitive") : null,
     career: input.career.trim() || null,
     hiredOn: input.hiredOn,
     contractKind: input.contractKind,

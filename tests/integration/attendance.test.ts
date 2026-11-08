@@ -18,7 +18,7 @@ beforeEach(async () => {
 const now = new Date("2026-11-09T01:00:00Z"); // 월요일
 const tech = () => ({ id: ids.tech1, roles: ["technician" as const] });
 const acct = () => ({ id: ids.account, roles: ["accounting" as const] });
-const profile = (hiredOn: string): ProfileView => ({ job: "판금 기술자", gender: "", birth: "1990-01-02", zip: "", address: "", addressDetail: "", career: "", hiredOn, contractKind: "regular", contractEnd: "", licenses: [], leftOn: "", leftReason: "" });
+const profile = (hiredOn: string): ProfileView => ({ job: "판금 기술자", gender: "", birth: "1990-01-02", phone: "01012345678", emName: "", emRelation: "", emPhone: "", zip: "", address: "", addressDetail: "", career: "", hiredOn, contractKind: "regular", contractEnd: "", licenses: [], leftOn: "", leftReason: "" });
 const base = { toDate: "", fromTime: "", toTime: "", reason: "개인 용무" };
 
 describe("근태 규칙", () => {
