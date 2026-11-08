@@ -14,7 +14,6 @@ export const MENU: MenuGroup[] = [
       { label: "내 할 일", href: "/home" },
       { label: "결재", href: "/approvals" },
       { label: "알림", href: "/notifications" },
-      { label: "도움말 센터", href: "/help" },
     ],
   },
   {
@@ -36,6 +35,17 @@ export const MENU: MenuGroup[] = [
       { label: "고객·차량", phase: "1차", std: "STD-01" },
       { label: "보증 수리", phase: "2차", std: "STD-06.2" },
       { label: "만족도·불만", phase: "2차", std: "STD-06" },
+    ],
+  },
+  {
+    id: "messages",
+    label: "문자관리",
+    items: [
+      { label: "문자 발송", phase: "1차", std: "STD-01" },
+      { label: "발송 이력", href: "/messages/log" },
+      { label: "문구 서식", phase: "1차" },
+      { label: "기프티콘 발송", phase: "2차", std: "STD-06", roles: ["owner", "plant_manager", "advisor"] },
+      { label: "기프티콘 이력", phase: "2차", roles: ["owner", "plant_manager", "advisor", "accounting"] },
     ],
   },
   {
@@ -103,6 +113,16 @@ export const MENU: MenuGroup[] = [
       { label: "정책값", href: "/settings/policies", std: "부록 D" },
       { label: "전결 규정", href: "/settings/delegation", std: "부록 B" },
       { label: "직원·역할", href: "/settings/users" },
+      { label: "문자 발송 서비스", href: "/settings/messaging" },
+      { label: "카카오 알림톡", href: "/settings/kakao" },
+      { label: "기프티콘 공급사", href: "/settings/gift" },
+    ],
+  },
+  {
+    id: "me",
+    label: "도움말·내 정보",
+    items: [
+      { label: "도움말 센터", href: "/help" },
       { label: "내 계정·비밀번호", href: "/account" },
     ],
   },
