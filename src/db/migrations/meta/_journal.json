@@ -50,6 +50,13 @@
       "when": 1794124904288,
       "tag": "0006_repair_order",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794127494013,
+      "tag": "0007_diagnosis",
+      "breakpoints": true
     }
   ]
 }

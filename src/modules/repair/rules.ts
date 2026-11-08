@@ -161,3 +161,65 @@ export function intakeHardIssues(s: Pick<IntakeSnapshot, "mileage" | "lastMileag
   if (s.keyCount != null && s.keyCount > 9) out.push({ field: "keyCount", msg: "열쇠 개수를 확인해 주세요(9개 이하)" });
   return out;
 }
+
+// ── 손상 진단(STD-02 5절)
+export const PAINT_LAYERS = { none: "도장 손상 없음", clear: "클리어층만(손톱에 안 걸림)", base: "베이스까지", primer: "프라이머까지", metal: "철판 노출" } as const;
+export type PaintLayer = keyof typeof PAINT_LAYERS;
+export const isPaintLayer = (s: string): s is PaintLayer => s in PAINT_LAYERS;
+
+export const METHODS = { pdr: "덴트(PDR)", polish: "광택", partial: "부분 판금+도장(블렌딩)", replace: "교환+도장", outsource: "외주 진단 후 결정" } as const;
+export type Method = keyof typeof METHODS;
+export const isMethod = (s: string): s is Method => s in METHODS;
+
+/** 진단 칸에서 고르는 손상 종류(도면 기호와 같은 글자) */
+export const DAMAGE_KINDS = { D: "찌그러짐", S: "긁힘", C: "깨짐·크랙", R: "부식", W: "휠 긁힘", O: "기타" } as const;
+
+export type DamageFacts = { kind: string; paintLayer: PaintLayer; crease: boolean; broken: boolean; structural: boolean; sizeCm: number | null };
+
+/**
+ * 수리 방법 판단 기준표(STD-02 5절)를 그대로 옮긴 것. 위에서부터 먼저 맞는 것을 고른다.
+ * 1 구조 의심 → 외주 진단, 2 찢어짐·파손·넓은 변형 → 교환, 3 클리어층만 긁힘 → 광택,
+ * 4 도장 균열 없고 꺾임 없는 찌그러짐 → 덴트, 5 그 밖(베이스·프라이머까지, 작은 찌그러짐) → 부분 판금+도장
+ */
+export function suggestMethod(f: DamageFacts): { method: Method; why: string } {
+  if (f.structural) return { method: "outsource", why: "보강재·프레임 손상 의심이나 간격 틀어짐은 외주 진단(STD-07) 후 결정합니다" };
+  if (f.broken) return { method: "replace", why: "찢어짐·플라스틱 파손은 교환+도장이 우선입니다" };
+  if (f.sizeCm != null && f.sizeCm >= 40 && f.kind === "D") return { method: "replace", why: "넓은 변형(40cm 이상)은 복원보다 교환이 나은지 먼저 봅니다" };
+  if (f.kind === "S" && (f.paintLayer === "clear" || f.paintLayer === "none")) return { method: "polish", why: "클리어층만 긁혔으면(손톱에 안 걸림) 광택이 우선입니다" };
+  if (f.kind === "D" && f.paintLayer === "none" && !f.crease) return { method: "pdr", why: "도장 균열이 없고 날카로운 꺾임이 없으면 덴트(PDR)가 우선입니다" };
+  if (f.kind === "W") return { method: "partial", why: "휠 긁힘은 휠 수리(외주 포함)로 처리합니다. 부분 수리로 두고 메모에 적습니다" };
+  return { method: "partial", why: "베이스·프라이머까지 손상되었거나 꺾임이 있는 작은 찌그러짐은 부분 판금+도장(블렌딩)입니다" };
+}
+
+/** 센서·카메라·레이더가 있는 부위: 수리 뒤 보정 필요(STD-02 5절). 차량 수리 사양(veh.options)으로 판단 */
+export function needsCalibration(part: string, options: string[]): string | null {
+  const has = (o: string) => options.includes(o);
+  if (part === "f_bumper" && (has("radar_front") || has("pdc_front") || has("svm"))) return "전방 레이더·센서·카메라";
+  if (part === "r_bumper" && (has("pdc_rear") || has("bsd") || has("svm"))) return "후방 센서·후측방 레이더·카메라";
+  if ((part === "l_mirror" || part === "r_mirror") && (has("svm") || has("bsd"))) return "사이드미러 카메라·경고등";
+  if ((part === "l_quarter" || part === "r_quarter") && has("bsd")) return "후측방 레이더(BSD)";
+  if (part === "windshield") return "전방 카메라(차선 유지 등) — 장착 차량이면";
+  return null;
+}
+
+/** 도막 두께 문자열("95, 102 110") → 숫자 목록 */
+export function parseFilm(s: string): number[] {
+  return (s.match(/\d+/g) ?? []).map(Number).filter((n) => n > 0 && n < 5000).slice(0, 12);
+}
+
+/** 재도장 이력: 하나라도 기준(μm)을 넘으면 */
+export const repainted = (vals: number[], limit: number) => vals.some((v) => v > limit);
+
+export type DiagLine = { part: string; method: string; filmPanel: number[]; filmAdjacent: number[]; suggested: string; methodReason: string | null };
+
+/** 진단 확인(공장장) 전에 빠진 것 */
+export function diagnosisIssues(lines: DiagLine[]): Issue[] {
+  const out: Issue[] = [];
+  if (!lines.length) out.push({ field: "lines", msg: "진단한 손상이 없습니다. 수리할 부위를 하나 이상 넣어야 합니다" });
+  for (const l of lines) {
+    const name = partLabel(l.part);
+    if (l.method !== "polish" && l.method !== "outsource" && (l.filmPanel.length < 3 || l.filmAdjacent.length < 3)) out.push({ field: "lines", msg: `${name}: 도막 두께를 손상 패널·인접 패널 각 3곳 이상 재어야 합니다` });
+    if (l.method !== l.suggested && !l.methodReason?.trim()) out.push({ field: "lines", msg: `${name}: 기준표 제안과 다른 방법을 골랐으면 사유를 적어야 합니다` });
+  }
+  return out;
+}

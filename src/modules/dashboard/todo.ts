@@ -61,6 +61,19 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     }
   }
 
+  // 손상 진단: 기술자는 진단할 것, 공장장은 확인할 것(STD-02 5절, 입고 당일 원칙)
+  const tech = user.roles.includes("technician");
+  const boss = user.roles.some((r) => r === "plant_manager" || r === "owner");
+  if (tech || boss) {
+    const waiting = await listRepairs(db, "checked");
+    for (const r of waiting) {
+      const late = seoulDate(r.inAt) < today;
+      const who = `${r.docNo} ${r.customerName} ${r.plateNo}`;
+      if (tech) out.push({ key: `dg-${r.id}`, when: late ? "late" : "today", what: `손상 진단: ${who}`, detail: `진단 ${r.damages}줄${late ? " — 입고 당일에 끝내는 것이 원칙" : ""}`, href: `/repairs/${r.id}#diagnosis`, action: "진단하기" });
+      else if (r.damages > 0) out.push({ key: `dc-${r.id}`, when: late ? "late" : "today", what: `진단 확인: ${who}`, detail: `진단 ${r.damages}줄 — 확인하면 견적으로 넘어갑니다`, href: `/repairs/${r.id}#diagnosis`, action: "확인하기" });
+    }
+  }
+
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });
 
   // 대표: 개업 준비·운영 설정에서 빠진 것

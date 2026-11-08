@@ -56,6 +56,13 @@ export const repairOrder = pgTable(
     signaturePath: text("signature_path"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
     advisorId: uuid("advisor_id").references(() => appUser.id),
+    // ── 손상 진단(STD-02 5절): 기술자가 적고 공장장이 확인하면 견적으로
+    diagnosedBy: uuid("diagnosed_by").references(() => appUser.id),
+    diagnosedAt: timestamp("diagnosed_at", { withTimezone: true }),
+    diagConfirmedBy: uuid("diag_confirmed_by").references(() => appUser.id),
+    diagConfirmedAt: timestamp("diag_confirmed_at", { withTimezone: true }),
+    /** 공장장 판단: 외주 진단 필요 여부·메모 */
+    diagNote: text("diag_note"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -79,4 +86,42 @@ export const roPhoto = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("ro_photo_ro_idx").on(t.repairOrderId)],
+);
+
+/** 손상 진단 줄: 부위마다 크기·깊이·도장 손상 범위·꺾임, 도막 두께, 수리 방법(STD-02 5절) */
+export const roDamage = pgTable(
+  "ro_damage",
+  {
+    id: id(),
+    repairOrderId: uuid("repair_order_id")
+      .notNull()
+      .references(() => repairOrder.id),
+    seq: integer("seq").notNull(),
+    /** 차체 도면 부위 id(BODY_PARTS) */
+    part: text("part").notNull(),
+    kind: text("kind").notNull(),
+    sizeCm: integer("size_cm"),
+    depthMm: integer("depth_mm"),
+    /** none·clear·base·primer·metal */
+    paintLayer: text("paint_layer").notNull().default("none"),
+    crease: boolean("crease").notNull().default(false),
+    /** 찢어짐·플라스틱 파손 */
+    broken: boolean("broken").notNull().default(false),
+    /** 보강재·프레임 손상 의심, 도어·트렁크 간격 틀어짐 */
+    structural: boolean("structural").notNull().default(false),
+    /** 도막 두께(μm): 손상 패널·인접 패널 각 3곳 이상 */
+    filmPanel: jsonb("film_panel").$type<number[]>().notNull().default([]),
+    filmAdjacent: jsonb("film_adjacent").$type<number[]>().notNull().default([]),
+    /** pdr·polish·partial·replace·outsource */
+    method: text("method").notNull(),
+    /** 앱이 기준표로 제안한 방법(다르게 고르면 사유 필요) */
+    suggested: text("suggested").notNull(),
+    methodReason: text("method_reason"),
+    calibrate: boolean("calibrate").notNull().default(false),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ro_damage_ro_idx").on(t.repairOrderId)],
 );

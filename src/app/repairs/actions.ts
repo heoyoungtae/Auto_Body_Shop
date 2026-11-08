@@ -2,7 +2,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { addPhoto, removePhoto, reopenIntake, saveIntake, signIntake, startRepair, type IntakeInput } from "@/modules/repair/service";
+import { addPhoto, confirmDiagnosis, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
+import { parseFilm } from "@/modules/repair/rules";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 import { UserError } from "@/modules/platform/errors";
 
@@ -121,4 +122,57 @@ export async function removePhotoAction(form: FormData): Promise<{ ok: true } | 
   }
   revalidatePath(`/repairs/${String(form.get("id") ?? "")}`);
   return { ok: true };
+}
+
+// ── 손상 진단
+function readDamage(form: FormData): DamageInput {
+  const str = (k: string) => String(form.get(k) ?? "").trim();
+  const num = (k: string) => {
+    const v = str(k).replace(/[^\d]/g, "");
+    return v ? Number(v) : null;
+  };
+  const flags = form.getAll("flags").map(String);
+  const cal = str("calibrate");
+  return {
+    id: str("damageId") || undefined,
+    part: str("part"),
+    kind: str("kind"),
+    sizeCm: num("sizeCm"),
+    depthMm: num("depthMm"),
+    paintLayer: str("paintLayer") || "none",
+    crease: flags.includes("crease"),
+    broken: flags.includes("broken"),
+    structural: flags.includes("structural"),
+    filmPanel: parseFilm(str("filmPanel")),
+    filmAdjacent: parseFilm(str("filmAdjacent")),
+    method: str("method") || undefined,
+    methodReason: str("methodReason"),
+    calibrate: cal === "" ? undefined : cal === "1",
+    note: str("note"),
+  };
+}
+
+export async function damageAction(form: FormData) {
+  const user = await requireUser(["technician", "plant_manager", "owner"]);
+  const id = String(form.get("id") ?? "");
+  const back = `/repairs/${id}`;
+  try {
+    if (form.get("intent") === "remove") await removeDamage(await getDb(), user, id, String(form.get("damageId") ?? ""));
+    else await saveDamage(await getDb(), user, id, readDamage(form));
+  } catch (e) {
+    redirect(errorUrl(back + "#diagnosis", userMessage(e)));
+  }
+  redirect(noticeUrl(back, form.get("intent") === "remove" ? "진단 줄을 지웠습니다" : "진단을 저장했습니다") + "#diagnosis");
+}
+
+export async function confirmDiagnosisAction(form: FormData) {
+  const user = await requireUser(["plant_manager", "owner"]);
+  const id = String(form.get("id") ?? "");
+  try {
+    if (form.get("intent") === "reopen") await reopenDiagnosis(await getDb(), user, id);
+    else await confirmDiagnosis(await getDb(), user, id, String(form.get("diagNote") ?? ""));
+  } catch (e) {
+    redirect(errorUrl(`/repairs/${id}#diagnosis`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/repairs/${id}`, form.get("intent") === "reopen" ? "진단을 다시 열었습니다" : "진단을 확인했습니다. 상담원에게 견적 작성 알림을 보냈습니다"));
 }

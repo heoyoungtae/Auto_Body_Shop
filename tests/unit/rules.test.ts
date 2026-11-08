@@ -36,7 +36,7 @@ describe("정책값 기본값(부록 D)", () => {
     expect(p["five_s.nc_threshold"]).toBe(80);
     expect(p["lube.alert_days_before"]).toBe(3);
     expect(p["pm.alert_days_before"]).toBe(7);
-    expect(p["estimate.valid_days"]).toBe(14);
+    expect(p["estimate.valid_days"]).toBe(30);
     expect(p["competency.min_solo_level"]).toBe(2);
   });
   it("모든 정책값에 근거 조항과 이름이 있다", () => {

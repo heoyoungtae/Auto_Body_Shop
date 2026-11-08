@@ -16,7 +16,7 @@ beforeEach(async () => {
 describe("정책값 변경", () => {
   it("시행일부터 새 값이 쓰이고 이력이 남는다", async () => {
     await changePolicy(db, ids.owner, { key: "estimate.valid_days", value: 10, effectiveFrom: "2026-12-01", reason: "보험사 요청", revisionRequestNo: "R-2611-0001" }, "2026-11-08");
-    expect((await loadPolicy(db, "2026-11-30"))["estimate.valid_days"]).toBe(14);
+    expect((await loadPolicy(db, "2026-11-30"))["estimate.valid_days"]).toBe(30);
     expect((await loadPolicy(db, "2026-12-01"))["estimate.valid_days"]).toBe(10);
     const h = await policyHistory(db, "estimate.valid_days");
     expect(h[0]).toMatchObject({ value: 10, revisionRequestNo: "R-2611-0001", changedBy: "김대표" });

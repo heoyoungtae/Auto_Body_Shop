@@ -9,7 +9,8 @@ import { consultation, roPhoto, vehicle } from "@/db/schema";
 import { createConsultation, consentState, type ConsultInput } from "@/modules/customer/service";
 import { myTodos } from "@/modules/dashboard/todo";
 import { DIRECTION_SLOTS } from "@/modules/repair/rules";
-import { addPhoto, getRepair, reopenIntake, saveIntake, signIntake, startRepair, type IntakeInput } from "@/modules/repair/service";
+import { addPhoto, confirmDiagnosis, getRepair, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type IntakeInput } from "@/modules/repair/service";
+import { needsCalibration, suggestMethod } from "@/modules/repair/rules";
 import { readStored, resolveStored } from "@/modules/platform/storage";
 import { seedShop, testDb } from "./db";
 
@@ -146,5 +147,51 @@ describe("접수·입고(STD-02)", () => {
     expect(todos.find((t) => t.key === `ro-${id}`)?.when).toBe("today");
     const [v] = await db.select().from(vehicle);
     expect(v.plateNo).toBe("12가3456");
+  });
+
+  it("진단: 입고 도면의 O 표시가 진단 줄로 들어오고, 기준표 제안·보정·도막 측정을 확인한 뒤 공장장이 확인한다", async () => {
+    const { id } = await opened();
+    for (const s of [...DIRECTION_SLOTS, "dash"]) await addPhoto(db, ids.advisor, id, s, WEBP);
+    const tech = { id: ids.tech1, roles: ["technician" as const] };
+    const boss = { id: ids.manager, roles: ["plant_manager" as const] };
+    await expect(saveDamage(db, tech, id, { part: "hood", kind: "D", sizeCm: 5, depthMm: 2, paintLayer: "none", crease: false, broken: false, structural: false, filmPanel: [], filmAdjacent: [] })).rejects.toThrow(/입고 점검/);
+    await signIntake(db, ids.advisor, id, { ...intake(), signaturePng: PNG, consentNow: false }, now);
+    let r = await getRepair(db, id);
+    expect(r.damages.map((d) => [d.part, d.method])).toEqual([["f_bumper", "pdr"]]);
+    const line = r.damages[0];
+    await expect(confirmDiagnosis(db, boss, id, "", now)).rejects.toThrow(/도막 두께/);
+    await expect(confirmDiagnosis(db, tech, id, "", now)).rejects.toThrow(/공장장/);
+    // 베이스까지 긁힘 + 꺾임 → 부분 판금. 교환을 고르면 사유 필요
+    const base = { id: line.id, part: "f_bumper", kind: "D", sizeCm: 15, depthMm: 4, paintLayer: "base", crease: true, broken: false, structural: false, filmPanel: [110, 250, 120], filmAdjacent: [100, 105, 98] };
+    await expect(saveDamage(db, tech, id, { ...base, method: "replace" })).rejects.toThrow(/사유/);
+    await saveDamage(db, tech, id, { ...base, method: "replace", methodReason: "고객이 교환 원함" });
+    await saveDamage(db, tech, id, { part: "l_f_door", kind: "S", sizeCm: 20, depthMm: null, paintLayer: "clear", crease: false, broken: false, structural: false, filmPanel: [], filmAdjacent: [] });
+    r = await getRepair(db, id);
+    expect(r.damages.map((d) => [d.part, d.method, d.suggested])).toEqual([
+      ["f_bumper", "replace", "partial"],
+      ["l_f_door", "polish", "polish"],
+    ]);
+    await expect(saveDamage(db, { id: ids.advisor, roles: ["advisor"] }, id, { ...base })).rejects.toThrow(/기술자/);
+    const todo = await myTodos(db, { id: ids.manager, roles: ["plant_manager"] }, now);
+    expect(todo.some((t) => t.key === `dc-${id}`)).toBe(true);
+    await confirmDiagnosis(db, boss, id, "외주 진단 필요 없음", now);
+    expect((await getRepair(db, id)).status).toBe("estimating");
+    await expect(saveDamage(db, tech, id, base)).rejects.toThrow(/다시 열기/);
+    await reopenDiagnosis(db, boss, id, now);
+    expect((await getRepair(db, id)).status).toBe("checked");
+  });
+
+  it("판단 기준표와 센서 보정", () => {
+    const f = { kind: "D", paintLayer: "none" as const, crease: false, broken: false, structural: false, sizeCm: 10 };
+    expect(suggestMethod(f).method).toBe("pdr");
+    expect(suggestMethod({ ...f, crease: true }).method).toBe("partial");
+    expect(suggestMethod({ ...f, sizeCm: 50 }).method).toBe("replace");
+    expect(suggestMethod({ ...f, broken: true }).method).toBe("replace");
+    expect(suggestMethod({ ...f, structural: true, broken: true }).method).toBe("outsource");
+    expect(suggestMethod({ ...f, kind: "S", paintLayer: "clear" }).method).toBe("polish");
+    expect(suggestMethod({ ...f, kind: "S", paintLayer: "primer" }).method).toBe("partial");
+    expect(needsCalibration("f_bumper", ["radar_front"])).toBeTruthy();
+    expect(needsCalibration("f_bumper", ["pdc_rear"])).toBeNull();
+    expect(needsCalibration("r_bumper", ["bsd"])).toBeTruthy();
   });
 });

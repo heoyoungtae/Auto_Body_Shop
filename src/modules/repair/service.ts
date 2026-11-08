@@ -3,7 +3,9 @@
 // 점검 내용은 몇 번이고 나눠 저장할 수 있고, 고객 서명으로 마치면 잠긴다('다시 점검'으로만 풀림).
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, consultation, customer, repairOrder, roPhoto, vehicle } from "@/db/schema";
+import { appUser, consultation, customer, repairOrder, roDamage, roPhoto, vehicle } from "@/db/schema";
+import type { Role } from "@/modules/auth/roles";
+import { notifyRole } from "@/modules/platform/notify";
 import { changeConsent, consentState, saveVehicle } from "@/modules/customer/service";
 import { writeAudit } from "@/modules/platform/audit";
 import { nextDocNo } from "@/modules/platform/docno";
@@ -11,7 +13,28 @@ import { UserError } from "@/modules/platform/errors";
 import { loadPolicy } from "@/modules/platform/policy";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
-import { BODY_NOTES, cleanMarks, DEVICES, intakeHardIssues, intakeIssues, isPhotoSlot, MULTI_SLOTS, type BodyMark, type PhotoSlot } from "./rules";
+import {
+  BODY_NOTES,
+  BODY_PARTS,
+  cleanMarks,
+  DAMAGE_KINDS,
+  DEVICES,
+  diagnosisIssues,
+  intakeHardIssues,
+  intakeIssues,
+  isMethod,
+  isPaintLayer,
+  isPhotoSlot,
+  METHODS,
+  MULTI_SLOTS,
+  needsCalibration,
+  partLabel,
+  suggestMethod,
+  type BodyMark,
+  type Method,
+  type PaintLayer,
+  type PhotoSlot,
+} from "./rules";
 
 export class RepairError extends UserError {}
 
@@ -149,6 +172,8 @@ export async function signIntake(db: Db, actorId: string, id: string, input: Int
   }
   const path = await storeFile(`ro/${r.docNo}`, png, "png");
   await db.update(repairOrder).set({ status: "checked", signaturePath: path, signedAt: now, updatedAt: now }).where(eq(repairOrder.id, id));
+  await seedDiagnosis(db, actorId, id);
+  await notifyRole(db, "technician", `손상 진단 대기: ${r.docNo}`, `diag-${r.docNo}`, `/repairs/${id}#diagnosis`);
   await writeAudit(db, { actorId, action: "repair.intake_signed", entityType: "repair_order", entityId: r.docNo, after: { signer: r.signerName, mileage: r.mileage, photos: photos.length, mileageNow: v?.mileage } });
 }
 
@@ -210,12 +235,13 @@ export async function getRepair(db: Db, id: string) {
     photos: photos.map((p) => ({ ...p, slot: p.slot as PhotoSlot })),
     advisor: adv?.name ?? null,
     consent: await consentState(db, r.customerId),
+    damages: await listDamage(db, id),
   };
 }
 
 /** 수리 건 목록. open=아직 출고 안 함 */
-export async function listRepairs(db: Db, filter: "open" | "intake" | "all" = "open", limit = 100) {
-  const where = filter === "intake" ? eq(repairOrder.status, "intake") : filter === "open" ? and(ne(repairOrder.status, "delivered"), ne(repairOrder.status, "cancelled")) : undefined;
+export async function listRepairs(db: Db, filter: "open" | "intake" | "checked" | "all" = "open", limit = 100) {
+  const where = filter === "intake" || filter === "checked" ? eq(repairOrder.status, filter) : filter === "open" ? and(ne(repairOrder.status, "delivered"), ne(repairOrder.status, "cancelled")) : undefined;
   const rows = await db
     .select({
       id: repairOrder.id,
@@ -229,6 +255,7 @@ export async function listRepairs(db: Db, filter: "open" | "intake" | "all" = "o
       model: vehicle.model,
       consultId: repairOrder.consultationId,
       photos: sql<number>`(select count(*)::int from ${roPhoto} where ${roPhoto.repairOrderId} = ${repairOrder.id})`,
+      damages: sql<number>`(select count(*)::int from ${roDamage} where ${roDamage.repairOrderId} = ${repairOrder.id})`,
     })
     .from(repairOrder)
     .innerJoin(customer, eq(customer.id, repairOrder.customerId))
@@ -244,4 +271,126 @@ export async function repairsOfConsults(db: Db, consultIds: string[]) {
   if (!consultIds.length) return new Map<string, { id: string; docNo: string; status: string }>();
   const rows = await db.select({ id: repairOrder.id, docNo: repairOrder.docNo, status: repairOrder.status, consultId: repairOrder.consultationId }).from(repairOrder).where(inArray(repairOrder.consultationId, consultIds));
   return new Map(rows.map((r) => [r.consultId, r]));
+}
+
+// ── 손상 진단(STD-02 5절) ──
+const DIAG_ROLES: Role[] = ["technician", "plant_manager", "owner"];
+const CONFIRM_ROLES: Role[] = ["plant_manager", "owner"];
+
+export type DamageInput = {
+  id?: string;
+  part: string;
+  kind: string;
+  sizeCm: number | null;
+  depthMm: number | null;
+  paintLayer: string;
+  crease: boolean;
+  broken: boolean;
+  structural: boolean;
+  filmPanel: number[];
+  filmAdjacent: number[];
+  /** 비우면 기준표 제안을 쓴다 */
+  method?: string;
+  methodReason?: string;
+  /** 안 주면 차량 수리 사양으로 판단 */
+  calibrate?: boolean;
+  note?: string;
+};
+
+function mustDiagnose(r: { status: string; docNo: string }) {
+  if (r.status !== "checked") throw new RepairError(r.status === "intake" ? "입고 점검(고객 서명)을 마친 뒤에 진단합니다" : `${r.docNo}는 진단을 확인해 견적으로 넘겼습니다. 고치려면 공장장이 '진단 다시 열기'를 누릅니다`);
+}
+
+/** 입고 도면의 수리 대상(O) 표시를 진단 줄로 옮긴다(다시 적지 않게). 이미 줄이 있으면 하지 않는다 */
+export async function seedDiagnosis(db: Db, actorId: string, id: string) {
+  const r = await roRow(db, id);
+  const [has] = await db.select({ id: roDamage.id }).from(roDamage).where(eq(roDamage.repairOrderId, id)).limit(1);
+  if (has) return 0;
+  const [c] = await db.select({ damageTypes: consultation.damageTypes }).from(consultation).where(eq(consultation.id, r.consultationId));
+  const [v] = await db.select({ options: vehicle.options }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
+  const kind = c?.damageTypes.includes("찌그러짐") || !c?.damageTypes.includes("긁힘") ? "D" : "S";
+  const parts = [...new Set((r.marks as BodyMark[]).filter((m) => m.kind === "O").map((m) => m.part))].filter((p) => BODY_PARTS.some((b) => b.id === p));
+  let seq = 0;
+  for (const part of parts) {
+    const s = suggestMethod({ kind, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
+    await db.insert(roDamage).values({ repairOrderId: id, seq: ++seq, part, kind, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상·도막 두께를 재어 고치세요", createdBy: actorId });
+  }
+  return parts.length;
+}
+
+export async function saveDamage(db: Db, actor: { id: string; roles: Role[] }, roId: string, input: DamageInput, now = new Date()) {
+  if (!actor.roles.some((x) => DIAG_ROLES.includes(x))) throw new RepairError("손상 진단은 기술자·공장장·대표가 합니다");
+  const r = await roRow(db, roId);
+  mustDiagnose(r);
+  if (!BODY_PARTS.some((b) => b.id === input.part)) throw new RepairError("부위를 골라 주세요");
+  if (!(input.kind in DAMAGE_KINDS)) throw new RepairError("손상 종류를 골라 주세요");
+  if (!isPaintLayer(input.paintLayer)) throw new RepairError("도장 손상 범위를 골라 주세요");
+  if (input.sizeCm != null && (input.sizeCm < 0 || input.sizeCm > 500)) throw new RepairError("크기는 0~500cm로 적어 주세요");
+  const s = suggestMethod({ kind: input.kind, paintLayer: input.paintLayer as PaintLayer, crease: input.crease, broken: input.broken, structural: input.structural, sizeCm: input.sizeCm });
+  const method: Method = input.method && isMethod(input.method) ? input.method : s.method;
+  const reason = clean(input.methodReason);
+  if (method !== s.method && !reason) throw new RepairError(`기준표 제안(${METHODS[s.method]})과 다른 방법을 골랐습니다. 사유를 적어 주세요`);
+  const [v] = await db.select({ options: vehicle.options }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
+  const values = {
+    part: input.part,
+    kind: input.kind,
+    sizeCm: input.sizeCm,
+    depthMm: input.depthMm,
+    paintLayer: input.paintLayer,
+    crease: input.crease,
+    broken: input.broken,
+    structural: input.structural,
+    filmPanel: input.filmPanel.slice(0, 12),
+    filmAdjacent: input.filmAdjacent.slice(0, 12),
+    method,
+    suggested: s.method,
+    methodReason: method === s.method ? null : reason,
+    calibrate: input.calibrate ?? !!needsCalibration(input.part, v?.options ?? []),
+    note: clean(input.note),
+    updatedAt: now,
+  };
+  if (input.id) {
+    const [old] = await db.select().from(roDamage).where(and(eq(roDamage.id, input.id), eq(roDamage.repairOrderId, roId)));
+    if (!old) throw new RepairError("없는 진단 줄입니다");
+    await db.update(roDamage).set(values).where(eq(roDamage.id, input.id));
+  } else {
+    const [{ n }] = await db.select({ n: sql<number>`coalesce(max(${roDamage.seq}), 0)::int` }).from(roDamage).where(eq(roDamage.repairOrderId, roId));
+    await db.insert(roDamage).values({ ...values, repairOrderId: roId, seq: n + 1, createdBy: actor.id });
+  }
+  await db.update(repairOrder).set({ diagnosedBy: actor.id, diagnosedAt: now, updatedAt: now }).where(eq(repairOrder.id, roId));
+  await writeAudit(db, { actorId: actor.id, action: "repair.damage_save", entityType: "repair_order", entityId: r.docNo, after: { part: input.part, method, suggested: s.method } });
+}
+
+export async function removeDamage(db: Db, actor: { id: string; roles: Role[] }, roId: string, damageId: string) {
+  if (!actor.roles.some((x) => DIAG_ROLES.includes(x))) throw new RepairError("손상 진단은 기술자·공장장·대표가 합니다");
+  const r = await roRow(db, roId);
+  mustDiagnose(r);
+  const [d] = await db.select().from(roDamage).where(and(eq(roDamage.id, damageId), eq(roDamage.repairOrderId, roId)));
+  if (!d) return;
+  await db.delete(roDamage).where(eq(roDamage.id, damageId));
+  await writeAudit(db, { actorId: actor.id, action: "repair.damage_remove", entityType: "repair_order", entityId: r.docNo, after: { part: d.part } });
+}
+
+export const listDamage = (db: Db, roId: string) => db.select().from(roDamage).where(eq(roDamage.repairOrderId, roId)).orderBy(asc(roDamage.seq));
+
+/** 공장장 확인 → 견적 대기. 빠진 것이 있으면 막는다 */
+export async function confirmDiagnosis(db: Db, actor: { id: string; roles: Role[] }, roId: string, note: string, now = new Date()) {
+  if (!actor.roles.some((x) => CONFIRM_ROLES.includes(x))) throw new RepairError("진단 확인은 공장장(또는 대표)이 합니다");
+  const r = await roRow(db, roId);
+  mustDiagnose(r);
+  const lines = await listDamage(db, roId);
+  const issues = diagnosisIssues(lines);
+  if (issues.length) throw new RepairError(issues.map((i) => i.msg).join(" / "));
+  await db.update(repairOrder).set({ status: "estimating", diagConfirmedBy: actor.id, diagConfirmedAt: now, diagNote: clean(note), updatedAt: now }).where(eq(repairOrder.id, roId));
+  await writeAudit(db, { actorId: actor.id, action: "repair.diagnosis_confirm", entityType: "repair_order", entityId: r.docNo, after: { lines: lines.map((l) => `${partLabel(l.part)}:${l.method}`) } });
+  await notifyRole(db, "advisor", `견적 작성: ${r.docNo} 진단 확인됨`, `est-${r.docNo}`, `/repairs/${roId}`);
+}
+
+/** 견적을 쓰기 전이면 진단을 다시 연다 */
+export async function reopenDiagnosis(db: Db, actor: { id: string; roles: Role[] }, roId: string, now = new Date()) {
+  if (!actor.roles.some((x) => CONFIRM_ROLES.includes(x))) throw new RepairError("진단 다시 열기는 공장장(또는 대표)이 합니다");
+  const r = await roRow(db, roId);
+  if (r.status !== "estimating") throw new RepairError("견적 대기 상태에서만 진단을 다시 열 수 있습니다");
+  await db.update(repairOrder).set({ status: "checked", diagConfirmedBy: null, diagConfirmedAt: null, updatedAt: now }).where(eq(repairOrder.id, roId));
+  await writeAudit(db, { actorId: actor.id, action: "repair.diagnosis_reopen", entityType: "repair_order", entityId: r.docNo });
 }

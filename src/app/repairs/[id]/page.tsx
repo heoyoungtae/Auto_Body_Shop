@@ -14,6 +14,7 @@ import { Badge, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
 import { ShowWhen } from "../../consults/show-when";
 import { intakeAction, reopenAction } from "../actions";
 import { BodyDiagram } from "../body-diagram";
+import { Diagnosis } from "../diagnosis";
 import { IntakeCheck } from "../intake-check";
 import { PhotoSlots } from "../photo-slots";
 import { SignaturePad } from "../signature-pad";
@@ -37,6 +38,8 @@ export default async function RepairDetail({ params, searchParams }: { params: P
   const r = await getRepair(db, id);
   const policy = await loadPolicy(db, seoulDate());
   const canWrite = user.roles.some((x) => x === "owner" || x === "plant_manager" || x === "advisor");
+  const canDiagnose = user.roles.some((x) => x === "technician" || x === "plant_manager" || x === "owner");
+  const canConfirm = user.roles.some((x) => x === "plant_manager" || x === "owner");
   const open = r.status === "intake" && canWrite;
   const v = r.vehicle;
   const c = r.consult;
@@ -179,6 +182,7 @@ export default async function RepairDetail({ params, searchParams }: { params: P
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
           <div className="space-y-4 xl:col-span-2">
+            {r.status !== "intake" && <Diagnosis roId={r.id} status={r.status} damages={r.damages} canDiagnose={canDiagnose} canConfirm={canConfirm} repaintUm={policy["diagnosis.repaint_um"]} options={v.options ?? []} diagNote={r.diagNote} />}
             <Card title="입고 점검 결과" help={{ kind: "panel", id: "ro.done" }}>
               <dl className="grid text-sm sm:grid-cols-2 sm:gap-x-6">
                 <Row k="주행거리">{r.mileage != null && `${r.mileage.toLocaleString("ko-KR")}km`}</Row>
