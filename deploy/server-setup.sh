@@ -55,5 +55,7 @@ if ! sudo docker image inspect auto-body-shop-app:latest >/dev/null 2>&1; then
   exit 0
 fi
 sudo docker compose up -d --no-build --remove-orphans
+# jobs.sh 는 시작할 때 한 번 읽히므로, 주기 작업 목록이 바뀌어도 반영되게 다시 띄운다
+sudo docker compose restart jobs
 sudo docker image prune -f >/dev/null
 echo "배포 완료: $(grep ^APP_URL= .env | cut -d= -f2)"
