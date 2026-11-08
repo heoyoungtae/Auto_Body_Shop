@@ -1,4 +1,5 @@
 // 대시보드 — 로그인하면 처음 보는 화면. 역할에 따라 패널이 달라진다(src/modules/dashboard/service.ts PANELS).
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { getDb } from "@/db/runtime";
@@ -35,7 +36,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     has("consent") ? consentPanel(db) : null,
     has("month") ? monthPanel(db) : null,
   ]);
-  const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
+  const canWrite = can(user, "repair.write");
 
   const live: Partial<Record<PanelId, ReactNode>> = {
     intake: intake && (

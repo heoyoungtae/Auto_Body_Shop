@@ -1,4 +1,5 @@
 "use server";
+import { rolesFor } from "@/modules/auth/permissions";
 import { readVehicle } from "../consults/vehicle-form";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -6,7 +7,7 @@ import { changeConsent, findByPhone, moveVehicle, saveVehicle, sendConsentReques
 import { CustomerError } from "@/modules/customer/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
-const STAFF = ["owner", "plant_manager", "advisor"] as const;
+const STAFF = rolesFor("repair.write");
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
 export async function updateCustomerAction(form: FormData) {

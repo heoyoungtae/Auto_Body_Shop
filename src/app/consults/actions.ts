@@ -1,4 +1,5 @@
 "use server";
+import { rolesFor } from "@/modules/auth/permissions";
 import { readVehicle } from "./vehicle-form";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -6,7 +7,7 @@ import { createConsultation, markReplied, sendReservationConfirm, updateConsulta
 import { MessagingError } from "@/modules/messaging/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
-const STAFF = ["owner", "plant_manager", "advisor"] as const;
+const STAFF = rolesFor("repair.write");
 
 /** 폼 → 서비스 입력(상담 내용 칸) */
 function readConsultForm(form: FormData) {

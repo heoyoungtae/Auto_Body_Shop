@@ -4,16 +4,15 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/runtime";
 import { appUser } from "@/db/schema";
 import { seoulDate } from "@/modules/platform/time";
-import { CONTRACT_KIND, GENDER, LEVELS, SKILLS, tenureText } from "@/modules/staff/rules";
+import { CONTRACT_KIND, LEVELS, SKILLS, tenureText } from "@/modules/staff/rules";
 import { canSeeRoster, competencyHistory, getProfile } from "@/modules/staff/service";
 import { AssistForm } from "../../_assist";
-import { AddressField, DateField, SelectField, TextAreaField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { saveProfileAction } from "../actions";
+import { ProfileFields } from "../profile-fields";
 
-const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
 /** 근로자 명부 한 사람(F-11-01): 대표·회계가 적고, 본인은 본다 */
 export default async function StaffProfilePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
@@ -47,33 +46,7 @@ export default async function StaffProfilePage({ params, searchParams }: { param
           {full ? (
             <AssistForm id={`profile-${id}`} action={saveProfileAction} className="space-y-4">
               <input type="hidden" name="userId" value={id} />
-              <div className="grid gap-3 md:grid-cols-3">
-                <TextField help="staff.job" name="job" required defaultValue={p?.job ?? ""} />
-                <DateField help="staff.hiredOn" name="hiredOn" required defaultValue={p?.hiredOn ?? ""} quick={["today"]} />
-                <SelectField help="staff.contractKind" name="contractKind" required defaultValue={p?.contractKind || "regular"} options={opts(CONTRACT_KIND)} />
-                <DateField help="staff.contractEnd" name="contractEnd" defaultValue={p?.contractEnd ?? ""} quick={["nextMonth"]} />
-                <SelectField help="staff.gender" name="gender" defaultValue={p?.gender ?? ""} placeholder="고르기" options={opts(GENDER)} />
-                <DateField help="staff.birth" name="birth" defaultValue={p?.birth ?? ""} quick={[]} />
-              </div>
-              <AddressField help={{ zip: "staff.zip", address: "staff.address", detail: "staff.addressDetail" }} defaults={{ zip: p?.zip, address: p?.address, detail: p?.addressDetail }} />
-              <TextAreaField help="staff.career" name="career" defaultValue={p?.career ?? ""} rows={2} />
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-semibold">자격증(최대 3개)</legend>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="grid gap-3 md:grid-cols-3">
-                    <TextField help="staff.licName" name={`licName${i}`} defaultValue={lic[i]?.name ?? ""} />
-                    <TextField help="staff.licNo" name={`licNo${i}`} defaultValue={lic[i]?.no ?? ""} />
-                    <DateField help="staff.licOn" name={`licOn${i}`} defaultValue={lic[i]?.on ?? ""} quick={[]} />
-                  </div>
-                ))}
-              </fieldset>
-              <details className="rounded-md border border-[var(--line)] p-3" open={!!p?.leftOn}>
-                <summary className="cursor-pointer text-sm font-semibold">퇴직 처리</summary>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <DateField help="staff.leftOn" name="leftOn" defaultValue={p?.leftOn ?? ""} quick={["today"]} />
-                  <TextField help="staff.leftReason" name="leftReason" defaultValue={p?.leftReason ?? ""} />
-                </div>
-              </details>
+              <ProfileFields p={p} />
               <SubmitButton>명부 저장</SubmitButton>
             </AssistForm>
           ) : p ? (

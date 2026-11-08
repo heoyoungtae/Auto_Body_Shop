@@ -5,7 +5,7 @@ import { seoulDate } from "@/modules/platform/time";
 import { CONTRACT_KIND, LEVELS, SKILLS, tenureText, type Skill } from "@/modules/staff/rules";
 import { canSeeRoster, listStaff } from "@/modules/staff/service";
 import { requireUser } from "../_lib/session";
-import { Badge, Card, ErrorBox, Notice, PageTitle } from "../_ui";
+import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle } from "../_ui";
 
 /** 직원 명부(F-11-01, STD-11): 대표·회계는 모두, 다른 직원은 이름·직무·입사일·역량만 */
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
@@ -22,9 +22,16 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
         help="staff"
         sub="근로자 명부와 역량 표입니다. 사내 표준서 STD-11."
         actions={
-          <Link href="/staff/competency" className="text-sm font-semibold text-[var(--accent)]">
-            역량 표 →
-          </Link>
+          <span className="flex items-center gap-4">
+            {full && (
+              <Link href="/staff/new" className={buttonClass()}>
+                직원 등록
+              </Link>
+            )}
+            <Link href="/staff/competency" className="text-sm font-semibold text-[var(--accent)]">
+              역량 표 →
+            </Link>
+          </span>
         }
       >
         직원 명부
@@ -61,6 +68,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                           <b>{r.name}</b>
                         )}
                         {r.leftOn && <Badge tone="neutral">퇴직 {r.leftOn}</Badge>}
+                        {!r.leftOn && !r.roles.length && <Badge tone="warn">역할 대기</Badge>}
                       </td>
                       <td className="py-1.5 pr-2">{r.roles.map((x) => ROLE_LABEL[x]).join("·")}</td>
                       <td className="py-1.5 pr-2">{r.job ?? <span className="text-[var(--muted)]">—</span>}</td>
@@ -96,7 +104,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
             </table>
           </div>
           <p className="mt-3 text-xs text-[var(--muted)]">
-            계정은 &apos;설정 → 직원·역할&apos;에서 만듭니다. 만든 뒤 여기서 이름을 눌러 명부를 적습니다.
+            새 직원은 &apos;직원 등록&apos;으로 계정과 명부를 한 번에 만듭니다. 역할·비밀번호·잠금은 &apos;설정 → 직원·역할&apos;에서 바꿉니다.
             {!full && " 생년월일·주소·계약 형태는 대표·회계 담당만 봅니다."}
           </p>
         </Card>

@@ -1,4 +1,5 @@
 "use server";
+import { rolesFor } from "@/modules/auth/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -10,7 +11,7 @@ import { ROLE_LABEL } from "@/modules/auth/roles";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 import { UserError } from "@/modules/platform/errors";
 
-const STAFF = ["owner", "plant_manager", "advisor"] as const;
+const STAFF = rolesFor("repair.write");
 
 function readIntake(form: FormData): IntakeInput {
   const str = (k: string) => String(form.get(k) ?? "").trim();
@@ -88,7 +89,7 @@ export async function intakeAction(form: FormData) {
 }
 
 export async function reopenAction(form: FormData) {
-  const user = await requireUser(["owner", "plant_manager", "advisor"]);
+  const user = await requireUser(rolesFor("repair.write"));
   const id = String(form.get("id") ?? "");
   try {
     await reopenIntake(await getDb(), user.id, id, String(form.get("reopenReason") ?? ""));
@@ -156,7 +157,7 @@ function readDamage(form: FormData): DamageInput {
 }
 
 export async function damageAction(form: FormData) {
-  const user = await requireUser(["technician", "plant_manager", "owner"]);
+  const user = await requireUser(rolesFor("diag.write"));
   const id = String(form.get("id") ?? "");
   const back = `/repairs/${id}`;
   try {
@@ -169,7 +170,7 @@ export async function damageAction(form: FormData) {
 }
 
 export async function confirmDiagnosisAction(form: FormData) {
-  const user = await requireUser(["plant_manager", "owner"]);
+  const user = await requireUser(rolesFor("diag.confirm"));
   const id = String(form.get("id") ?? "");
   try {
     if (form.get("intent") === "reopen") await reopenDiagnosis(await getDb(), user, id);
@@ -182,7 +183,7 @@ export async function confirmDiagnosisAction(form: FormData) {
 
 // ── 견적(STD-03)
 export async function createEstimateAction(form: FormData) {
-  const user = await requireUser(["advisor", "plant_manager", "owner"]);
+  const user = await requireUser(rolesFor("estimate.write"));
   const roId = String(form.get("id") ?? "");
   let est: { id: string };
   try {

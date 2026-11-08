@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { INSURANCE_LABEL } from "@/modules/customer/rules";
@@ -46,9 +47,9 @@ export default async function RepairDetail({ params, searchParams }: { params: P
   const r = await getRepair(db, id);
   const [estimates, wos, claim] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id), claimOf(db, id)]);
   const policy = await loadPolicy(db, seoulDate());
-  const canWrite = user.roles.some((x) => x === "owner" || x === "plant_manager" || x === "advisor");
-  const canDiagnose = user.roles.some((x) => x === "technician" || x === "plant_manager" || x === "owner");
-  const canConfirm = user.roles.some((x) => x === "plant_manager" || x === "owner");
+  const canWrite = can(user, "repair.write");
+  const canDiagnose = can(user, "diag.write");
+  const canConfirm = can(user, "diag.confirm");
   const open = r.status === "intake" && canWrite;
   const v = r.vehicle;
   const c = r.consult;

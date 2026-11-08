@@ -1,6 +1,7 @@
 // 작업 지시서(F-04-01, STD-04): 승인한 견적 줄만으로 공정을 만들고, 공장장이 담당·예정일을 정하고,
 // 기술자가 공정마다 시작·끝을 누르며 자주 검사·사진을 남긴다. 앞 공정이 끝나야 다음 공정을 시작한다.
 // 모든 공정이 끝나면 수리 건은 검사 대기(STD-05)로 넘어간다.
+import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, customer, estimate, estimateLine, repairOrder, vehicle, workOrder, workStep } from "@/db/schema";
@@ -17,7 +18,7 @@ import { blockers, buildSteps, finishIssues, isProcess, minutesBetween, processL
 
 export class WorkError extends UserError {}
 type Actor = { id: string; roles: Role[] };
-const BOSS: Role[] = ["plant_manager", "owner"];
+const BOSS: Role[] = rolesFor("work.assign");
 const isBoss = (a: Actor) => a.roles.some((r) => BOSS.includes(r));
 const clean = (s: string | null | undefined) => (s ?? "").trim() || null;
 

@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { VEHICLE_OPTIONS, type VehicleOption } from "@/modules/customer/generations";
@@ -21,7 +22,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const c = await getCustomer(db, id);
   const ros = await repairsOfConsults(db, c.consults.map((x) => x.id));
   const [hints, pending] = await Promise.all([vehicleHints(db), pendingConsent(db, id)]);
-  const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
+  const canWrite = can(user, "customer.write");
   // 전체 번호는 누를 때만, 본 기록이 남는다(설계서 9.2)
   const full = q.show === "phone" && canWrite ? await revealPhone(db, user.id, id) : null;
 

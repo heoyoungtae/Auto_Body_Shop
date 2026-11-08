@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { can } from "@/modules/auth/permissions";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/runtime";
 import { appUser, proxyAssignment } from "@/db/schema";
@@ -5,11 +7,11 @@ import { ROLE_LABEL, ROLES } from "@/modules/auth/roles";
 import { listUsers } from "@/modules/auth/service";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
-import { CheckGroup, DateField, PasswordField, SelectField, TextField } from "../../_input";
+import { CheckGroup, DateField, PasswordField, SelectField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
-import { addProxyAction, createUserAction, updateUserAction } from "../actions";
+import { addProxyAction, updateUserAction } from "../actions";
 
 const ROLE_OPTIONS = ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }));
 
@@ -17,7 +19,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const { error, notice } = await searchParams;
   const user = await requireUser();
   const db = await getDb();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "account.manage");
   const users = await listUsers(db);
   const proxies = await db
     .select({ id: proxyAssignment.id, fromDate: proxyAssignment.fromDate, toDate: proxyAssignment.toDate, proxy: appUser.name, proxyId: proxyAssignment.proxyId })
@@ -38,7 +40,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
       <div className="space-y-4">
-        <Card title={`직원 ${users.length}명`} help={{ kind: "panel", id: "users.list" }}>
+        <Card title={`직원 ${users.length}명`} help={{ kind: "panel", id: "users.list" }} actions={<Link href="/staff/new" className="text-sm font-semibold text-[var(--accent)]">새 직원은 직원 명부에서 등록 →</Link>}>
           <ul className="divide-y divide-[var(--line)]">
             {users.map((u) => (
               <li key={u.id} className="py-3">
@@ -49,7 +51,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                       {ROLE_LABEL[r]}
                     </Badge>
                   ))}
-                  {!u.active && <Badge tone="danger">잠김</Badge>}
+                  {!u.roles.length ? <Badge tone="warn">역할 대기(역할을 정하면 열림)</Badge> : !u.active && <Badge tone="danger">잠김</Badge>}
                 </div>
                 {owner && (
                   <details className="mt-2 text-sm">
@@ -85,19 +87,6 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           </ul>
         </Card>
 
-        {owner && (
-          <Card title="직원 계정 만들기" help={{ kind: "panel", id: "users.new" }}>
-            <AssistForm id="user-new" action={createUserAction} className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <TextField help="user.name" name="name" required />
-                <TextField help="user.loginId" name="loginId" required autoCapitalize="none" spellCheck={false} lower />
-                <PasswordField help="user.password" name="password" required rules autoComplete="new-password" />
-              </div>
-              <CheckGroup help="user.roles" name="roles" options={ROLE_OPTIONS} />
-              <SubmitButton>만들기</SubmitButton>
-            </AssistForm>
-          </Card>
-        )}
 
         <Card title="대표 부재 시 대리 승인" help={{ kind: "panel", id: "users.proxy" }}>
           {proxies.length > 0 ? (

@@ -1,6 +1,7 @@
 // 고객 승인(STD-03 5절): 발급한 견적을 고객(보험이면 보험사)이 작업 묶음별로 승인한다.
 // 방법은 기록이 남는 것만: 문자 링크(고객 휴대폰에서 서명), 매장 서명, 보험사 회신. 전화로만 받은 승인은 인정하지 않는다.
 // 승인 시각·승인자·방법·본인 확인 근거를 남기고, 승인한 줄만 작업 대상이 된다(totals(lines, true)).
+import { rolesFor } from "@/modules/auth/permissions";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, customer, estimate, estimateLine, repairOrder, vehicle } from "@/db/schema";
@@ -18,7 +19,7 @@ import { EstimateError, getEstimate } from "./estimate";
 import { APPROVAL_METHOD, approvalGroups, approvalOutcome, totals, type ApprovalMethod } from "./estimate-rules";
 
 type Actor = { id: string; roles: Role[] };
-const WRITERS: Role[] = ["advisor", "plant_manager", "owner"];
+const WRITERS: Role[] = rolesFor("estimate.write");
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
 function mustWrite(actor: Actor) {

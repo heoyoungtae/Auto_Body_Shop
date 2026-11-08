@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { proxyAssignment } from "@/db/schema";
 import { isRole, type Role } from "@/modules/auth/roles";
-import { createUser, resetPassword, setActive, setRoles } from "@/modules/auth/service";
+import { resetPassword, setActive, setRoles } from "@/modules/auth/service";
 import { changeBands, DelegationError, isDelegationTask, type Band } from "@/modules/platform/delegation";
 import { writeAudit } from "@/modules/platform/audit";
 import { changePolicy } from "@/modules/platform/policy";
@@ -49,16 +49,6 @@ export async function changeBandsAction(form: FormData) {
     redirect(errorUrl(`/settings/delegation?task=${task}`, userMessage(e)));
   }
   redirect(noticeUrl("/settings/delegation", "전결 규정을 바꿨습니다"));
-}
-
-export async function createUserAction(form: FormData) {
-  const user = await requireOwner();
-  try {
-    await createUser(await getDb(), user.id, { loginId: s(form, "loginId"), name: s(form, "name"), password: s(form, "password"), roles: form.getAll("roles").map(String) });
-  } catch (e) {
-    redirect(errorUrl("/settings/users", userMessage(e)));
-  }
-  redirect(noticeUrl("/settings/users", "계정을 만들었습니다"));
 }
 
 export async function updateUserAction(form: FormData) {

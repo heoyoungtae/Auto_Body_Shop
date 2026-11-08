@@ -1,10 +1,12 @@
 // 직원 명부(F-11-01)·역량 표(F-11-02), STD-11.
 // 명부: 대표·회계 담당이 쓰고 본다(생년월일·주소는 암호화, 다른 직원에게는 이름·직무·입사일만).
 // 역량: 공장장(또는 대표)이 매기고 대표가 확인해야 현재 단계가 된다(쌓기만, 이력 남음).
+import { can } from "@/modules/auth/permissions";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, competency, staffProfile, userRole, type License } from "@/db/schema";
 import { decrypt, encrypt } from "@/modules/auth/crypto";
+import { createUser } from "@/modules/auth/service";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
@@ -15,9 +17,8 @@ import { assignmentIssue, CONTRACT_KIND, GENDER, INSPECTOR_LEVEL, isLevel, isSki
 
 export class StaffError extends UserError {}
 type Actor = { id: string; roles: Role[] };
-const has = (a: Actor, ...r: Role[]) => a.roles.some((x) => r.includes(x));
-export const canSeeRoster = (a: Actor) => has(a, "owner", "accounting");
-export const canAssess = (a: Actor) => has(a, "owner", "plant_manager");
+export const canSeeRoster = (a: Actor) => can(a, "staff.roster");
+export const canAssess = (a: Actor) => can(a, "staff.assess");
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -61,7 +62,7 @@ export async function assessCompetency(db: Db, actor: Actor, input: { userId: st
   const [u] = await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.id, input.userId));
   if (!u) throw new StaffError("없는 직원입니다");
   if (!input.note.trim()) throw new StaffError("근거를 적어 주세요(예: 시편 작업 확인, 교육 이수, 재작업률)");
-  const owner = actor.roles.includes("owner");
+  const owner = can(actor, "staff.confirm");
   const [row] = await db
     .insert(competency)
     .values({ userId: u.id, skill: input.skill, level: input.level, note: input.note.trim(), assessedOn: input.assessedOn, assessedBy: actor.id, confirmedBy: owner ? actor.id : null, confirmedAt: owner ? now : null })
@@ -73,7 +74,7 @@ export async function assessCompetency(db: Db, actor: Actor, input: { userId: st
 
 /** 대표 확인·되돌림 */
 export async function confirmAssessment(db: Db, actor: Actor, id: number, ok: boolean, now = new Date()) {
-  if (!actor.roles.includes("owner")) throw new StaffError("역량 평가 확인은 대표가 합니다");
+  if (!can(actor, "staff.confirm")) throw new StaffError("역량 평가 확인은 대표가 합니다");
   const [c] = await db.select().from(competency).where(eq(competency.id, id));
   if (!c || c.confirmedAt || c.rejectedAt) throw new StaffError("이미 처리했거나 없는 평가입니다");
   await db.update(competency).set(ok ? { confirmedBy: actor.id, confirmedAt: now } : { rejectedAt: now, confirmedBy: actor.id }).where(eq(competency.id, id));
@@ -162,6 +163,24 @@ export async function saveProfile(db: Db, actor: Actor, userId: string, input: P
   await db.insert(staffProfile).values({ userId, ...values }).onConflictDoUpdate({ target: staffProfile.userId, set: values });
   // 개인정보는 감사 기록에 남기지 않는다(무엇을 바꿨는지만)
   await writeAudit(db, { actorId: actor.id, action: "staff.profile", entityType: "app_user", entityId: userId, after: { job: values.job, hiredOn: values.hiredOn, contractKind: values.contractKind, leftOn: values.leftOn, licenses: licenses.length } });
+}
+
+/**
+ * 직원 등록: 계정과 근로자 명부를 한 번에 만든다.
+ * 역할은 대표(계정 관리 권한)만 준다. 회계 담당이 등록하면 계정은 잠긴 채 생기고 대표에게 역할 지정을 알린다.
+ */
+export async function registerStaff(db: Db, actor: Actor, input: { name: string; loginId: string; password: string; roles: string[]; profile: ProfileView }, now = new Date()) {
+  if (!canSeeRoster(actor)) throw new StaffError("직원 등록은 대표·회계 담당이 합니다");
+  const manage = can(actor, "account.manage");
+  const roles = manage ? input.roles : [];
+  if (manage && !roles.length) throw new StaffError("역할을 하나 이상 고르세요");
+  const id = await db.transaction(async (tx) => {
+    const uid = await createUser(tx as unknown as Db, actor.id, { loginId: input.loginId, name: input.name, password: input.password, roles, pendingRoles: !manage });
+    await saveProfile(tx as unknown as Db, actor, uid, input.profile, now);
+    return uid;
+  });
+  if (!manage) await notifyRole(db, "owner", `직원 등록됨: ${input.name.trim()} — 역할을 정하면 로그인할 수 있습니다`, `staff-new-${id}`, "/settings/users");
+  return { id, pendingRoles: !manage };
 }
 
 /** 작업 배정 점검(work.ts 가 부른다): 단독 기준 미만이면 지도자 필요 */

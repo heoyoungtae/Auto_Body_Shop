@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { kakaoOverview } from "@/modules/messaging/service";
@@ -11,7 +12,7 @@ import { kakaoTestAction, saveKakaoAction } from "../messaging-actions";
 export default async function KakaoSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const o = await kakaoOverview(await getDb());
   return (
     <>

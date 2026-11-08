@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { consultFlags, getConsultation, pendingConsent } from "@/modules/customer/service";
@@ -28,7 +29,7 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
   const c = await getConsultation(db, id);
   const pending = c.consent.required ? null : await pendingConsent(db, c.customer.id);
   const today = seoulDate();
-  const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
+  const canWrite = can(user, "consult.write");
   const flags = consultFlags(c, today);
   const v = c.vehicle;
   const resv = c.reservedAt ? seoulParts(c.reservedAt) : null;

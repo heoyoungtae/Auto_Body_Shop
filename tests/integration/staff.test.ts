@@ -8,7 +8,7 @@ import type { Db } from "@/db/client";
 import { staffProfile } from "@/db/schema";
 import { assignStep, createWorkOrder, getWorkOrder } from "@/modules/repair/work";
 import { tenureText } from "@/modules/staff/rules";
-import { assessCompetency, confirmAssessment, getProfile, levelsOf, listStaff, pendingAssessments, saveProfile, type ProfileView } from "@/modules/staff/service";
+import { assessCompetency, confirmAssessment, getProfile, levelsOf, listStaff, pendingAssessments, registerStaff, saveProfile, type ProfileView } from "@/modules/staff/service";
 import { approvedRepair } from "./flow";
 import { seedShop, testDb } from "./db";
 
@@ -92,5 +92,28 @@ describe("역량 표", () => {
     await assignStep(db, boss(), detach.id, { assignee: ids.tech2, mentor: ids.tech1, planDate: "", stdMinutes: null }, now);
     const after = (await getWorkOrder(db, id)).steps.find((s) => s.id === detach.id)!;
     expect(after.mentorName).toBeTruthy();
+  });
+});
+
+describe("직원 등록", () => {
+  it("대표는 역할까지, 회계 담당은 역할 없이 잠긴 계정으로 등록하고 대표가 역할을 주면 열린다", async () => {
+    const { setRoles } = await import("@/modules/auth/service");
+    const { appUser } = await import("@/db/schema");
+    await expect(registerStaff(db, tech(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: [], profile: profile() }, now)).rejects.toThrow(/대표·회계/);
+    await expect(registerStaff(db, owner(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: [], profile: profile() }, now)).rejects.toThrow(/역할/);
+    // 명부가 틀리면 계정도 만들지 않는다
+    await expect(registerStaff(db, owner(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: ["technician"], profile: profile({ hiredOn: "" }) }, now)).rejects.toThrow(/입사일/);
+    expect(await db.select().from(appUser).where(eq(appUser.loginId, "newbie"))).toHaveLength(0);
+    const a = await registerStaff(db, owner(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: ["technician"], profile: profile() }, now);
+    expect(a.pendingRoles).toBe(false);
+    expect((await getProfile(db, owner(), a.id))!.hiredOn).toBe("2024-03-02");
+    const b = await registerStaff(db, acct(), { name: "신입2", loginId: "newbie2", password: "abcd1234", roles: ["owner"], profile: profile() }, now);
+    expect(b.pendingRoles).toBe(true);
+    const [u] = await db.select().from(appUser).where(eq(appUser.id, b.id));
+    expect(u.active).toBe(false);
+    expect((await listStaff(db, owner())).find((r) => r.id === b.id)!.roles).toEqual([]);
+    await setRoles(db, ids.owner, b.id, ["technician"]);
+    const [u2] = await db.select().from(appUser).where(eq(appUser.id, b.id));
+    expect(u2.active).toBe(true);
   });
 });

@@ -1,3 +1,4 @@
+import { rolesFor } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { getConsultation, reservationCalendar } from "@/modules/customer/service";
@@ -15,7 +16,7 @@ import { SaveCheck } from "../../save-check";
 
 export default async function EditConsult({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const [{ id }, { error }] = await Promise.all([params, searchParams]);
-  await requireUser(["owner", "plant_manager", "advisor"]);
+  await requireUser(rolesFor("consult.write"));
   const db = await getDb();
   const c = await getConsultation(db, id);
   const today = seoulDate();

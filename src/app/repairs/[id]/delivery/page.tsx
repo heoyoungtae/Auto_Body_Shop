@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { getRepair } from "@/modules/repair/service";
@@ -26,7 +27,7 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
   const r = await getRepair(db, id);
   const st = await statementOf(db, id);
   const policy = await loadPolicy(db, seoulDate());
-  const desk = user.roles.some((x) => x === "advisor" || x === "plant_manager" || x === "owner");
+  const desk = can(user, "delivery.do");
   const ready = r.status === "ready";
   const cv = r.insurance !== "self" ? await claimView(db, id) : null;
   const snap = (st?.snapshot ?? {}) as { warranty?: { kind: string; until: string }[]; legalFreeDays?: number; byPayer?: { insurance: number; general: number } };

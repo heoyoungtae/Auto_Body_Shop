@@ -1,6 +1,7 @@
 // 수리 건(RO)·입고 점검(F-02-01) — 사내 표준서 STD-02 4절.
 // 수리 건은 상담 일지에서만 만든다: 고객·차량·보험·손상은 상담에서 그대로 불러오고 다시 묻지 않는다.
 // 점검 내용은 몇 번이고 나눠 저장할 수 있고, 고객 서명으로 마치면 잠긴다('다시 점검'으로만 풀림).
+import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, consultation, customer, repairOrder, roDamage, roPhoto, vehicle } from "@/db/schema";
@@ -274,8 +275,8 @@ export async function repairsOfConsults(db: Db, consultIds: string[]) {
 }
 
 // ── 손상 진단(STD-02 5절) ──
-const DIAG_ROLES: Role[] = ["technician", "plant_manager", "owner"];
-const CONFIRM_ROLES: Role[] = ["plant_manager", "owner"];
+const DIAG_ROLES: Role[] = rolesFor("diag.write");
+const CONFIRM_ROLES: Role[] = rolesFor("diag.confirm");
 
 export type DamageInput = {
   id?: string;

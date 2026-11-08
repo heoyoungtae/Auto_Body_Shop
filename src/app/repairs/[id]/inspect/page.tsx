@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { inspectionContext, inspectionsOf } from "@/modules/repair/inspect";
@@ -20,7 +21,7 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
   const ctx = await inspectionContext(db, id);
   const rounds = await inspectionsOf(db, id);
   const open = rounds.find((r) => !r.result) ?? null;
-  const canInspect = user.roles.some((r) => r === "quality" || r === "plant_manager" || r === "owner");
+  const canInspect = can(user, "inspect.do");
   const worked = ctx.workers.includes(user.id);
   const items = itemsFor(ctx.processes);
   const L = ctx.limits;

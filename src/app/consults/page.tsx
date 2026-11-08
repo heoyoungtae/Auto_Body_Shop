@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { listConsultations, reservationCalendar, type ConsultFilter } from "@/modules/customer/service";
@@ -23,7 +24,7 @@ export default async function ConsultsPage({ searchParams }: { searchParams: Pro
   const db = await getDb();
   const today = seoulDate();
   const [rows, cal, due] = await Promise.all([listConsultations(db, f, new Date(), q.q, q.d), reservationCalendar(db, 14), f === "due" ? Promise.resolve(null) : listConsultations(db, "due")]);
-  const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
+  const canWrite = can(user, "consult.write");
   const href = (o: Record<string, string | undefined>) => `/consults?${new URLSearchParams(Object.entries({ f, q: q.q, ...o }).filter(([, v]) => v) as [string, string][])}`;
 
   return (

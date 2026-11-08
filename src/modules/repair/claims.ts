@@ -1,5 +1,6 @@
 // 보험 청구(STD-03 6절 보험 수리 절차 → STD-12 수납): 접수 확인 → 손해사정 요청 → 승인 범위 → (작업) → 청구 → 입금 확인.
 // 보험사·사고접수번호는 상담·수리 건에서 불러오고, 금액은 견적(승인 줄)·정비명세서에서 불러온다(다시 치지 않음).
+import { rolesFor } from "@/modules/auth/permissions";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { customer, estimate, estimateLine, insuranceClaim, repairOrder, repairStatement, vehicle } from "@/db/schema";
@@ -15,8 +16,8 @@ import { totals } from "./estimate-rules";
 
 export class ClaimError extends UserError {}
 type Actor = { id: string; roles: Role[] };
-const DESK: Role[] = ["advisor", "plant_manager", "owner"];
-const MONEY: Role[] = ["accounting", "owner"];
+const DESK: Role[] = rolesFor("claim.desk");
+const MONEY: Role[] = rolesFor("claim.money");
 const must = (a: Actor, roles: Role[], msg: string) => {
   if (!a.roles.some((r) => roles.includes(r))) throw new ClaimError(msg);
 };

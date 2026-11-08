@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import { getDb } from "@/db/runtime";
 import { loadShopInfo, shopAddressLine, shopMissing } from "@/modules/platform/shop";
 import { AssistForm } from "../../_assist";
@@ -11,7 +12,7 @@ import { saveSealAction, saveShopAction } from "./actions";
 export default async function ShopSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const shop = await loadShopInfo(await getDb());
   const missing = shopMissing(shop);
   return (

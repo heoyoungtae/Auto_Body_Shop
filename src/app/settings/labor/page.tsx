@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { fmtMinutes, LABOR_CATS, LABOR_LOCKED, type LaborDef } from "@/modules/repair/labor";
@@ -17,7 +18,7 @@ const unit = (d: LaborDef) => (d.kind === "hours" ? "분" : d.kind === "pct" ? "
 export default async function LaborPage({ searchParams }: { searchParams: Promise<{ code?: string; error?: string; notice?: string }> }) {
   const { code, error, notice } = await searchParams;
   const user = await requireUser();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const db = await getDb();
   const [table, changes, catalog] = await Promise.all([loadLabor(db), laborChanges(db), laborCatalog(db)]);
   const changed = new Set(changes.map((c) => c.key.slice(6)));

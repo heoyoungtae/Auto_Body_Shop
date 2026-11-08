@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { confirmedRevisionRequests, getDoc } from "@/modules/approval/service";
@@ -19,7 +20,7 @@ export default async function DelegationPage({ searchParams }: { searchParams: P
   const { task, from, error, notice } = await searchParams;
   const user = await requireUser();
   const db = await getDb();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const rows = await Promise.all(DELEGATION_TASKS.map(async (t) => ({ task: t, def: DEFAULT_DELEGATION[t], bands: await loadBands(db, t) })));
   const sel = task && isDelegationTask(task) ? rows.find((r) => r.task === task)! : null;
   const requests = sel ? await confirmedRevisionRequests(db) : [];

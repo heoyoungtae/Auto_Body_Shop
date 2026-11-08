@@ -1,6 +1,7 @@
 // 견적서(F-03-02, 법정 서식 별지 제89호의3) — STD-03 4·5절.
 // 견적은 진단 확인이 끝난 수리 건에서만 만들고, 항목은 진단 줄과 공임 기준표로 채운다(다시 적지 않음).
 // 작성(상담원) → 검토 요청 → 검토(전결: 200만 원 이하 공장장, 초과 대표) → 발급(법정 서식) → 고객 승인(다음 단계).
+import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, consultation, customer, estimate, estimateLine, repairOrder, roDamage, vehicle } from "@/db/schema";
@@ -23,7 +24,7 @@ import { loadLabor } from "./labor-store";
 export class EstimateError extends UserError {}
 
 type Actor = { id: string; roles: Role[] };
-const WRITERS: Role[] = ["advisor", "plant_manager", "owner"];
+const WRITERS: Role[] = rolesFor("estimate.write");
 const clean = (s: string | null | undefined) => (s ?? "").trim() || null;
 
 async function estRow(db: Db, id: string) {

@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { FIELD_HELP } from "@/modules/help/fields";
@@ -37,8 +38,8 @@ export default async function ClaimPage({ params, searchParams }: { params: Prom
   const db = await getDb();
   const v = await claimView(db, id);
   const { ro: r, claim: c, amounts: a, due } = v;
-  const desk = user.roles.some((x) => x === "advisor" || x === "plant_manager" || x === "owner");
-  const money = user.roles.some((x) => x === "accounting" || x === "owner");
+  const desk = can(user, "claim.desk");
+  const money = can(user, "claim.money");
   const today = seoulDate();
   const locked = c?.status === "claimed" || c?.status === "paid";
   const late = (d: string | null) => (d && d < today ? <Badge tone="danger">기한 지남</Badge> : null);

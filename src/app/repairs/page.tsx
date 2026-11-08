@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { intakePanel } from "@/modules/dashboard/service";
@@ -19,7 +20,7 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
   const db = await getDb();
   const now = new Date();
   const today = seoulDate(now);
-  const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
+  const canWrite = can(user, "repair.write");
   const all = q.f === "all";
   const qc = q.f === "qc";
   const [panel, due, repairs, policy] = await Promise.all([intakePanel(db, now), listConsultations(db, "due", now), listRepairs(db, all ? "all" : qc ? "qc" : "open"), loadPolicy(db, today)]);

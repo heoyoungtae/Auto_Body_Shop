@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
@@ -23,7 +24,7 @@ export default async function CompetencyPage({ searchParams }: { searchParams: P
   const [rows, pending, pol] = await Promise.all([listStaff(db, user), pendingAssessments(db), loadPolicy(db, today)]);
   const people = rows.filter((r) => r.active && !r.leftOn);
   const minSolo = pol["competency.min_solo_level"];
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "staff.confirm");
   return (
     <>
       <PageTitle help="staff.competency" sub={`단독 배정은 ${minSolo}단계 이상, 지도자·최종 검사자는 ${MENTOR_LEVEL}단계 이상입니다(STD-11 6절).`} actions={<Link href="/staff" className="text-sm text-[var(--accent)]">← 직원 명부</Link>}>

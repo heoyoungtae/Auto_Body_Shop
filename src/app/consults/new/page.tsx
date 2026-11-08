@@ -1,3 +1,4 @@
+import { rolesFor } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { vehicleHints, getConsultation, getCustomer, reservationCalendar, searchCustomers } from "@/modules/customer/service";
@@ -36,7 +37,7 @@ async function start(q: Q) {
 
 export default async function NewConsult({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
-  await requireUser(["owner", "plant_manager", "advisor"]);
+  await requireUser(rolesFor("consult.write"));
   const db = await getDb();
   const today = seoulDate();
   const s = await start(q);

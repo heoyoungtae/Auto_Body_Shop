@@ -65,7 +65,7 @@ export async function logout(db: Db, token: string | undefined | null) {
   if (token) await db.delete(session).where(eq(session.tokenHash, sha256(token)));
 }
 
-export type NewUser = { loginId: string; name: string; password: string; roles: string[]; phone?: string | null };
+export type NewUser = { loginId: string; name: string; password: string; roles: string[]; phone?: string | null; pendingRoles?: boolean };
 
 export async function createUser(db: Db, actorId: string | null, input: NewUser): Promise<string> {
   const loginId = normLogin(input.loginId);
@@ -73,15 +73,15 @@ export async function createUser(db: Db, actorId: string | null, input: NewUser)
   if (!input.name.trim()) throw new AuthError("이름을 적어 주세요");
   checkPassword(input.password);
   const roles = input.roles.filter(isRole);
-  if (!roles.length) throw new AuthError("역할을 하나 이상 고르세요");
+  if (!roles.length && !input.pendingRoles) throw new AuthError("역할을 하나 이상 고르세요");
   const [exists] = await db.select({ id: appUser.id }).from(appUser).where(eq(appUser.loginId, loginId));
   if (exists) throw new AuthError("이미 있는 아이디입니다");
   return db.transaction(async (tx) => {
     const [u] = await tx
       .insert(appUser)
-      .values({ loginId, name: input.name.trim(), passwordHash: hashSecret(input.password), phoneEnc: input.phone ? encrypt(input.phone) : null })
+      .values({ loginId, name: input.name.trim(), passwordHash: hashSecret(input.password), phoneEnc: input.phone ? encrypt(input.phone) : null, active: roles.length > 0 })
       .returning({ id: appUser.id });
-    await tx.insert(userRole).values(roles.map((role) => ({ userId: u.id, role })));
+    if (roles.length) await tx.insert(userRole).values(roles.map((role) => ({ userId: u.id, role })));
     await writeAudit(tx, { actorId, action: "user.create", entityType: "user", entityId: u.id, after: { loginId, roles } });
     return u.id;
   });
@@ -98,6 +98,8 @@ export async function setRoles(db: Db, actorId: string, userId: string, rolesIn:
   await db.transaction(async (tx) => {
     await tx.delete(userRole).where(eq(userRole.userId, userId));
     await tx.insert(userRole).values(roles.map((role) => ({ userId, role })));
+    // 회계 담당이 등록해 역할을 기다리던 계정은 역할을 받으면 바로 쓸 수 있게 연다
+    if (!before.length) await tx.update(appUser).set({ active: true }).where(eq(appUser.id, userId));
     await writeAudit(tx, { actorId, action: "user.roles", entityType: "user", entityId: userId, before: before.map((r) => r.role), after: roles });
   });
 }

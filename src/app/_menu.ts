@@ -119,6 +119,7 @@ export const MENU: MenuGroup[] = [
       { label: "정책값", href: "/settings/policies", std: "부록 D" },
       { label: "전결 규정", href: "/settings/delegation", std: "부록 B" },
       { label: "직원·역할", href: "/settings/users" },
+      { label: "권한표", href: "/settings/permissions" },
       { label: "문자 발송 서비스", href: "/settings/messaging" },
       { label: "카카오 알림톡", href: "/settings/kakao" },
       { label: "기프티콘 공급사", href: "/settings/gift" },

@@ -1,5 +1,6 @@
 // 근태·휴가·연장근로 신청서(F-11-04, STD-11 4절)와 재직증명서 발급 신청.
 // 신청은 전자결재 문서로 올리고(별도 표 없음), 연차 사용량·주 연장근로는 확정·진행 중 문서에서 센다.
+import { can } from "@/modules/auth/permissions";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, approvalDoc, staffProfile } from "@/db/schema";
@@ -21,7 +22,7 @@ const LIVE = ["draft", "in_progress", "confirmed", "checked"] as const;
 const DONE = ["confirmed", "checked"];
 
 export type LeaveData = { leaveKind: string; fromDate: string; toDate: string; fromTime: string; toTime: string; days: number; hours: number; deduct: number; reason: string };
-export const canSeeTeamLeave = (a: Actor) => a.roles.some((r) => r === "owner" || r === "plant_manager" || r === "accounting");
+export const canSeeTeamLeave = (a: Actor) => can(a, "leave.team");
 
 async function hiredOnOf(db: Db, userId: string) {
   const [p] = await db.select({ hiredOn: staffProfile.hiredOn, leftOn: staffProfile.leftOn }).from(staffProfile).where(eq(staffProfile.userId, userId));
@@ -161,7 +162,7 @@ export async function requestCertificate(db: Db, actor: Actor, input: { purpose:
 }
 
 export async function listCertificates(db: Db, actor: Actor) {
-  const all = actor.roles.some((r) => r === "owner" || r === "accounting");
+  const all = can(actor, "cert.all");
   return db
     .select({ doc: approvalDoc, name: appUser.name })
     .from(approvalDoc)
@@ -175,7 +176,7 @@ export async function listCertificates(db: Db, actor: Actor) {
 export async function certificateView(db: Db, actor: Actor, docId: string) {
   const [d] = await db.select().from(approvalDoc).where(and(eq(approvalDoc.id, docId), eq(approvalDoc.formCode, CERT_FORM)));
   if (!d) throw new LeaveError("없는 신청서입니다");
-  const staff = actor.roles.some((r) => r === "owner" || r === "accounting");
+  const staff = can(actor, "cert.all");
   if (d.drafterId !== actor.id && !staff) throw new LeaveError("본인과 대표·회계 담당만 볼 수 있습니다");
   if (!DONE.includes(d.status) || !d.confirmedAt) throw new LeaveError("대표 승인 뒤에 인쇄할 수 있습니다");
   return { doc: d, data: d.data as CertData, issuedOn: seoulDate(d.confirmedAt) };

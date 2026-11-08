@@ -2,8 +2,39 @@
 // 직원 명부·역량 표(STD-11) 화면의 서버 동작
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { assessCompetency, confirmAssessment, saveProfile } from "@/modules/staff/service";
+import { assessCompetency, confirmAssessment, registerStaff, saveProfile, type ProfileView } from "@/modules/staff/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
+
+function profileOf(form: FormData): ProfileView {
+  const s = (k: string) => String(form.get(k) ?? "").trim();
+  return {
+    job: s("job"),
+    gender: s("gender"),
+    birth: s("birth"),
+    zip: s("zip"),
+    address: s("address"),
+    addressDetail: s("addressDetail"),
+    career: s("career"),
+    hiredOn: s("hiredOn"),
+    contractKind: s("contractKind"),
+    contractEnd: s("contractEnd"),
+    licenses: [0, 1, 2].map((i) => ({ name: s(`licName${i}`), no: s(`licNo${i}`), on: s(`licOn${i}`) })),
+    leftOn: s("leftOn"),
+    leftReason: s("leftReason"),
+  };
+}
+
+export async function registerStaffAction(form: FormData) {
+  const user = await requireUser();
+  const s = (k: string) => String(form.get(k) ?? "").trim();
+  let r: { id: string; pendingRoles: boolean };
+  try {
+    r = await registerStaff(await getDb(), user, { name: s("name"), loginId: s("loginId"), password: String(form.get("password") ?? ""), roles: form.getAll("roles").map(String), profile: profileOf(form) });
+  } catch (e) {
+    redirect(errorUrl("/staff/new", userMessage(e)));
+  }
+  redirect(noticeUrl(`/staff/${r.id}`, r.pendingRoles ? "등록했습니다. 대표가 역할을 정하면 로그인할 수 있습니다(대표에게 알림을 보냈습니다)" : "등록했습니다. 첫 비밀번호를 직원에게 알려 주세요. 다음은 역량 표에서 직무별 단계를 매깁니다"));
+}
 
 export async function saveProfileAction(form: FormData) {
   const user = await requireUser();
@@ -11,22 +42,7 @@ export async function saveProfileAction(form: FormData) {
   const id = s("userId");
   const back = `/staff/${id}`;
   try {
-    const licenses = [0, 1, 2].map((i) => ({ name: s(`licName${i}`), no: s(`licNo${i}`), on: s(`licOn${i}`) }));
-    await saveProfile(await getDb(), user, id, {
-      job: s("job"),
-      gender: s("gender"),
-      birth: s("birth"),
-      zip: s("zip"),
-      address: s("address"),
-      addressDetail: s("addressDetail"),
-      career: s("career"),
-      hiredOn: s("hiredOn"),
-      contractKind: s("contractKind"),
-      contractEnd: s("contractEnd"),
-      licenses,
-      leftOn: s("leftOn"),
-      leftReason: s("leftReason"),
-    });
+    await saveProfile(await getDb(), user, id, profileOf(form));
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }

@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { smsOverview } from "@/modules/messaging/service";
@@ -12,7 +13,7 @@ import { ProviderPicker } from "../provider-picker";
 export default async function SmsSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const o = await smsOverview(await getDb());
   const cur = o.providers.find((p) => p.id === o.current)!;
   return (

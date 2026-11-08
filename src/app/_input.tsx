@@ -415,14 +415,16 @@ export function PasswordField({ help, name, label, required, rules, matchName, a
   const [val, setVal] = useState("");
   const [caps, setCaps] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
-  const checks = [
-    { ok: val.length >= 8, text: "8자 이상" },
-    { ok: /[a-zA-Z]/.test(val), text: "영문 포함" },
-    { ok: /\d/.test(val), text: "숫자 포함" },
+  // 규칙은 칸의 지금 값으로 검사한다(state 는 한 박자 늦어 마지막 글자를 놓친다)
+  const rulesOf = (x: string) => [
+    { ok: x.length >= 8, text: "8자 이상" },
+    { ok: /[a-zA-Z]/.test(x), text: "영문 포함" },
+    { ok: /\d/.test(x), text: "숫자 포함" },
   ];
+  const checks = rulesOf(val);
   const other = () => (matchName ? (ref.current?.form?.elements.namedItem(matchName) as HTMLInputElement | null)?.value ?? "" : "");
   const v = useKoValidity(label ?? h.label, undefined, (el) => {
-    if (rules && el.value && checks.some((c) => !c.ok)) return "8자 이상, 영문과 숫자를 함께 넣어 주세요";
+    if (rules && el.value && rulesOf(el.value).some((c) => !c.ok)) return "8자 이상, 영문과 숫자를 함께 넣어 주세요";
     if (matchName && el.value && el.value !== other()) return "위에 적은 새 비밀번호와 다릅니다";
     return null;
   });

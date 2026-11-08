@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { confirmedRevisionRequests, getDoc } from "@/modules/approval/service";
@@ -19,7 +20,7 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
   const user = await requireUser();
   const db = await getDb();
   const rows = await policyOverview(db);
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const sel: PolicyKey | null = key && isPolicyKey(key) ? key : null;
   const history = sel ? await policyHistory(db, sel) : [];
   const requests = sel ? await confirmedRevisionRequests(db) : [];

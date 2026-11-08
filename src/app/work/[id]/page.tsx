@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { getWorkOrder } from "@/modules/repair/work";
@@ -58,7 +59,7 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
   const [{ id }, { error, notice }] = await Promise.all([params, searchParams]);
   const user = await requireUser();
   const w = await getWorkOrder(await getDb(), id);
-  const boss = user.roles.some((r) => r === "plant_manager" || r === "owner");
+  const boss = can(user, "work.assign");
   const open = w.status !== "done";
   const v = w.vehicle;
   const lineName = (lid: string) => w.lines.find((l) => l.id === lid)?.name;

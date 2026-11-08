@@ -1,6 +1,7 @@
 // 최종 검사(F-05-01)와 출고(점검·정비명세서 별지 제89호의2, 인수 확인 F-05-02) — STD-05.
 // 검사자는 주 작업자가 아니어야 하고(공장장만 예외, 사유 기록), 불합격이면 재작업 공정이 생겨 다시 검사한다.
 // 합격하면 출고 대기. 정비명세서는 승인한 견적 줄로 만들고, 고객 인수 서명을 받으면 출고된다.
+import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, customer, estimate, estimateLine, inspection, repairOrder, repairStatement, vehicle, workOrder, workStep } from "@/db/schema";
@@ -23,8 +24,8 @@ import { processLabel } from "./work-rules";
 
 export class InspectError extends UserError {}
 type Actor = { id: string; roles: Role[] };
-const INSPECTORS: Role[] = ["quality", "plant_manager", "owner"];
-const DESK: Role[] = ["advisor", "plant_manager", "owner"];
+const INSPECTORS: Role[] = rolesFor("inspect.do");
+const DESK: Role[] = rolesFor("delivery.do");
 
 async function roRow(db: Db, id: string) {
   const [r] = await db.select().from(repairOrder).where(eq(repairOrder.id, id));

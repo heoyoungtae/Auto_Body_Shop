@@ -1,4 +1,5 @@
 "use server";
+import { rolesFor } from "@/modules/auth/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -8,7 +9,7 @@ import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
 /** 수리 건에서: 승인 항목으로 작업 지시서 만들기 */
 export async function createWorkOrderAction(form: FormData) {
-  const user = await requireUser(["plant_manager", "owner"]);
+  const user = await requireUser(rolesFor("work.assign"));
   const roId = String(form.get("roId") ?? "");
   let res: { id: string; created: boolean };
   try {

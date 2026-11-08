@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import { getDb } from "@/db/runtime";
 import { addBusinessDays, closedReason, DAY_KIND_LABEL, HOLIDAY_DATA_LAST_YEAR, KR_PUBLIC_HOLIDAYS, WEEKDAYS, type DayKind } from "@/modules/platform/business-days";
 import { calendarMeta, listShopDays, loadShopCalendar } from "@/modules/platform/calendar";
@@ -14,7 +15,7 @@ const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8))}(
 export default async function CalendarSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const db = await getDb();
   const [cal, meta, days] = await Promise.all([loadShopCalendar(db), calendarMeta(db), listShopDays(db, addDays(seoulDate(), -30))]);
   const today = seoulDate();

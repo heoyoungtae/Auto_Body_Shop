@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { resolveApprover } from "@/modules/platform/delegation";
@@ -161,7 +162,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const db = await getDb();
   const e = await getEstimate(db, eid);
   const shop = await loadShopInfo(db);
-  const canWrite = user.roles.some((r) => r === "advisor" || r === "plant_manager" || r === "owner");
+  const canWrite = can(user, "estimate.write");
   const draft = e.status === "draft" && canWrite;
   const t = totals(e.lines);
   const issues = estimateIssues(e.lines, { registeredOn: e.vehicle.registeredOn, mileage: e.ro.mileage });

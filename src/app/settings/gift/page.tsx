@@ -1,3 +1,4 @@
+import { can } from "@/modules/auth/permissions";
 import { getDb } from "@/db/runtime";
 import { giftOverview } from "@/modules/messaging/service";
 import { AssistForm } from "../../_assist";
@@ -11,7 +12,7 @@ import { ProviderPicker } from "../provider-picker";
 export default async function GiftSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
-  const owner = user.roles.includes("owner");
+  const owner = can(user, "settings.edit");
   const o = await giftOverview(await getDb());
   const cur = o.providers.find((p) => p.id === o.provider)!;
   return (
