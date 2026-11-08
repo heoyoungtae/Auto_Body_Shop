@@ -76,3 +76,20 @@ describe("전자결재: 문서 개정 요청서(F-Q-05)", () => {
     expect((await getDoc(db, d.id)).status).toBe("cancelled");
   });
 });
+
+describe("앞선 전표 불러오기: 확정된 개정 요청서", () => {
+  it("확정된 요청서만 근거 번호로 쓸 수 있다", async () => {
+    const { assertRevisionRequestNo, confirmedRevisionRequests } = await import("@/modules/approval/service");
+    const d = await createDraft(db, { formCode: "F-Q-05", title: "견적 유효기간 14 → 10", data: { target: "부록 D", proposed: "10 일", reason: "x", policyKey: "estimate.valid_days", proposedValue: 10 }, drafterId: ids.advisor }, now);
+    await submit(db, d.id, ids.advisor, now);
+    await expect(assertRevisionRequestNo(db, d.docNo)).rejects.toThrow(/확정된/);
+    await act(db, d.id, ids.quality, "approve", null, now);
+    await act(db, d.id, ids.owner, "approve", null, now);
+    await expect(assertRevisionRequestNo(db, d.docNo)).resolves.toBeUndefined();
+    await expect(assertRevisionRequestNo(db, null)).resolves.toBeUndefined();
+    await expect(assertRevisionRequestNo(db, "R-2611-9999")).rejects.toThrow(/목록/);
+    const list = await confirmedRevisionRequests(db);
+    expect(list.map((x) => x.docNo)).toEqual([d.docNo]);
+    expect((list[0].data as { proposedValue: number }).proposedValue).toBe(10);
+  });
+});

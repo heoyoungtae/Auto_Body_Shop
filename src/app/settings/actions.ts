@@ -7,6 +7,7 @@ import { createUser, resetPassword, setActive, setRoles } from "@/modules/auth/s
 import { changeBands, DelegationError, isDelegationTask, type Band } from "@/modules/platform/delegation";
 import { writeAudit } from "@/modules/platform/audit";
 import { changePolicy } from "@/modules/platform/policy";
+import { assertRevisionRequestNo } from "@/modules/approval/service";
 import { errorUrl, noticeUrl, requireOwner, userMessage } from "../_lib/session";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -15,6 +16,7 @@ export async function changePolicyAction(form: FormData) {
   const user = await requireOwner();
   const key = s(form, "key");
   try {
+    await assertRevisionRequestNo(await getDb(), s(form, "revisionRequestNo") || null);
     await changePolicy(await getDb(), user.id, {
       key,
       value: Number(s(form, "value").replace(/[,\s]/g, "")),
@@ -41,6 +43,7 @@ export async function changeBandsAction(form: FormData) {
       const raw = s(form, `upTo${i}`).replace(/[,\s원%]/g, "");
       bands.push({ upTo: raw === "" ? null : Number(raw), role: role as Role });
     }
+    await assertRevisionRequestNo(await getDb(), s(form, "revisionRequestNo") || null);
     await changeBands(await getDb(), user.id, task, bands, s(form, "effectiveFrom"), s(form, "revisionRequestNo") || null);
   } catch (e) {
     redirect(errorUrl(`/settings/delegation?task=${task}`, userMessage(e)));
@@ -79,7 +82,9 @@ export async function addProxyAction(form: FormData) {
   const fromDate = s(form, "fromDate");
   const toDate = s(form, "toDate");
   const proxyId = s(form, "proxyId");
-  if (!fromDate || !toDate || toDate < fromDate || !proxyId) redirect(errorUrl("/settings/users", "대리 기간과 대리인을 확인해 주세요"));
+  if (!proxyId) redirect(errorUrl("/settings/users", "대리인을 골라 주세요"));
+  if (!fromDate || !toDate) redirect(errorUrl("/settings/users", "대리 시작일과 종료일을 모두 골라 주세요"));
+  if (toDate < fromDate) redirect(errorUrl("/settings/users", "종료일이 시작일보다 앞입니다"));
   const db = await getDb();
   await db.insert(proxyAssignment).values({ principalId: user.id, proxyId, fromDate, toDate });
   await writeAudit(db, { actorId: user.id, action: "proxy.add", entityType: "proxy", entityId: proxyId, after: { fromDate, toDate } });

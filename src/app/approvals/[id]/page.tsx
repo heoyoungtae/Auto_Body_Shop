@@ -6,12 +6,35 @@ import { appUser } from "@/db/schema";
 import { activeStep } from "@/modules/approval/machine";
 import { ApprovalError, events, getDoc } from "@/modules/approval/service";
 import type { DocumentFlag, ResolvedStep } from "@/modules/approval/types";
+import { DEFAULT_DELEGATION, isDelegationTask } from "@/modules/platform/delegation";
+import { DEFAULT_POLICY, isPolicyKey } from "@/modules/platform/policy";
+import { AssistForm } from "../../_assist";
+import { TextAreaField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
-import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle, STATUS_LABEL, STATUS_TONE } from "../../_ui";
+import { Badge, buttonClass, Card, ErrorBox, fmtTime, Notice, PageTitle, StatusBadge } from "../../_ui";
+import { ActForm } from "./act-form";
 import { actAction, cancelAction, resubmitAction } from "../actions";
 
-const FIELD_LABEL: Record<string, string> = { target: "대상", current: "현재 내용", proposed: "바꿀 내용", reason: "사유", targetDocNo: "취소할 문서", kind: "구분", body: "내용" };
+const FIELD_LABEL: Record<string, string> = {
+  target: "대상",
+  policyKey: "정책값",
+  delegationTask: "전결 업무",
+  current: "현재 내용",
+  proposedValue: "바꿀 값",
+  proposed: "바꿀 내용",
+  reason: "사유",
+  targetDocNo: "취소할 문서",
+  kind: "구분",
+  body: "내용",
+};
+/** 저장된 키·숫자를 사람이 읽는 말로 */
+function show(k: string, v: unknown): string {
+  if (k === "policyKey" && typeof v === "string" && isPolicyKey(v)) return DEFAULT_POLICY[v].label;
+  if (k === "delegationTask" && typeof v === "string" && isDelegationTask(v)) return DEFAULT_DELEGATION[v].label;
+  if (typeof v === "number") return v.toLocaleString("ko-KR");
+  return String(v ?? "");
+}
 /** jsonb 는 키 순서를 바꾸므로 양식 순서대로 다시 놓는다 */
 const order = (k: string) => { const i = Object.keys(FIELD_LABEL).indexOf(k); return i < 0 ? 99 : i; };
 const EVENT_LABEL: Record<string, string> = { created: "작성", submit: "상신", resubmit: "재상신", approve: "승인", reject: "반려", confirm: "확인", cancelled: "취소됨" };
@@ -36,13 +59,31 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
   const active = activeStep({ status: doc.status, steps, flags: [], revision: doc.revision } as never);
   const mine = !!active && active.candidates.includes(user.id) && !active.doneBy.includes(user.id);
   const data = doc.data as Record<string, unknown>;
+  const settled = (doc.status === "confirmed" || doc.status === "checked") && !doc.cancelsId && doc.formCode === "F-Q-05";
+  const applyLink =
+    settled && user.roles.includes("owner")
+      ? typeof data.policyKey === "string"
+        ? `/settings/policies?key=${encodeURIComponent(data.policyKey)}&from=${doc.id}`
+        : typeof data.delegationTask === "string"
+          ? `/settings/delegation?task=${encodeURIComponent(data.delegationTask)}&from=${doc.id}`
+          : null
+      : null;
   return (
     <div className="max-w-3xl space-y-4">
-      <PageTitle sub={`${doc.formCode} · 개정 ${doc.revision}판`} actions={<Badge tone={STATUS_TONE[doc.status]}>{STATUS_LABEL[doc.status]}</Badge>}>
+      <PageTitle help="approvals.detail" sub={`${doc.formCode} · 개정 ${doc.revision}판`} actions={<StatusBadge status={doc.status} />}>
         {doc.docNo} {doc.title}
       </PageTitle>
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
+      <NextStep
+        text={nextStep({
+          status: doc.status,
+          mine,
+          drafter: doc.drafterId === user.id,
+          activeLabel: active?.label,
+          activeWho: active ? active.candidates.map(nm).join(" 또는 ") : "",
+        })}
+      />
       {(doc.flags as DocumentFlag[]).length > 0 && (
         <div className="flex gap-2">
           {(doc.flags as DocumentFlag[]).map((f) => (
@@ -72,7 +113,7 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
             .map(([k, v]) => (
             <div key={k}>
               <dt className="text-xs text-[var(--muted)]">{FIELD_LABEL[k] ?? k}</dt>
-              <dd className="whitespace-pre-wrap">{String(v ?? "")}</dd>
+              <dd className="whitespace-pre-wrap">{show(k, v)}</dd>
             </div>
           ))}
         </dl>
@@ -86,37 +127,40 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
 
       {mine && (
         <Card title={`${active!.label} 처리`}>
-          <form action={actAction} className="space-y-3">
-            <input type="hidden" name="id" value={doc.id} />
-            <textarea name="comment" placeholder="의견(반려할 때는 사유 필수)" className="min-h-20 w-full rounded-md border border-[var(--line-strong)] p-2 text-sm" />
-            <div className="flex gap-2">
-              <button name="type" value={active!.kind === "confirm" ? "confirm" : "approve"} className="inline-flex h-11 items-center rounded-md bg-[var(--accent)] px-4 text-sm font-medium text-[var(--accent-fg)]">
-                {active!.kind === "confirm" ? "확인" : "승인"}
-              </button>
-              {active!.kind !== "confirm" && (
-                <button name="type" value="reject" className="inline-flex h-11 items-center rounded-md border border-[var(--danger)]/50 px-4 text-sm font-medium text-[var(--danger)]">
-                  반려
-                </button>
-              )}
-            </div>
-          </form>
+          <ActForm id={doc.id} kind={active!.kind} action={actAction} />
         </Card>
       )}
 
       {doc.status === "rejected" && doc.drafterId === user.id && (
-        <form action={resubmitAction}>
-          <input type="hidden" name="id" value={doc.id} />
-          <SubmitButton>다시 상신</SubmitButton>
-        </form>
+        <div className="flex flex-wrap gap-2">
+          <form action={resubmitAction}>
+            <input type="hidden" name="id" value={doc.id} />
+            <SubmitButton>같은 내용으로 다시 상신</SubmitButton>
+          </form>
+          {doc.formCode === "F-Q-05" && (
+            <Link href={`/approvals/new?from=${doc.id}`} className={buttonClass("secondary")}>
+              고쳐서 새로 올리기(내용 불러옴)
+            </Link>
+          )}
+        </div>
+      )}
+
+      {applyLink && (
+        <Card title="설정에 반영">
+          <p className="mb-2 text-sm text-[var(--muted)]">확정된 요청서입니다. 아래 단추를 누르면 값·근거 번호·사유가 채워진 변경 화면이 열립니다(대표).</p>
+          <Link href={applyLink} className={buttonClass()}>
+            {data.policyKey ? "정책값 바꾸기 화면 열기" : "전결 규정 바꾸기 화면 열기"}
+          </Link>
+        </Card>
       )}
 
       {(doc.status === "confirmed" || doc.status === "checked") && !doc.cancelsId && (
         <Card title="취소 요청">
-          <form action={cancelAction} className="flex flex-wrap gap-2">
+          <AssistForm id={`cancel-${doc.id}`} action={cancelAction} className="space-y-3">
             <input type="hidden" name="id" value={doc.id} />
-            <input name="reason" required placeholder="취소 사유" className="h-11 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] px-3 text-sm" />
+            <TextAreaField help="approval.cancelReason" name="reason" required rows={2} />
             <SubmitButton variant="danger">취소 문서 상신</SubmitButton>
-          </form>
+          </AssistForm>
         </Card>
       )}
 
@@ -132,5 +176,31 @@ export default async function ApprovalDetail({ params, searchParams }: { params:
         </ul>
       </Card>
     </div>
+  );
+}
+
+function nextStep(x: { status: string; mine: boolean; drafter: boolean; activeLabel?: string; activeWho: string }): string {
+  if (x.mine) return `지금 내 차례(${x.activeLabel})입니다. 내용을 읽고 아래에서 승인 또는 반려해 주세요.`;
+  switch (x.status) {
+    case "in_progress":
+      return `지금 ${x.activeWho}의 ${x.activeLabel} 차례입니다.${x.drafter ? " 처리되면 알림으로 알려 드립니다." : " 내 차례가 아니라 볼 수만 있습니다."}`;
+    case "rejected":
+      return x.drafter ? "반려됐습니다. 아래 처리 이력의 반려 사유를 보고, 고쳐서 새로 올리거나 같은 내용으로 다시 상신하세요." : "반려되어 기안자가 고치는 중입니다.";
+    case "confirmed":
+    case "checked":
+      return "확정된 문서입니다. 내용은 바꿀 수 없고, 무르려면 아래 '취소 요청'을 씁니다.";
+    case "cancelled":
+      return "취소 문서가 확정되어 무효가 된 문서입니다. 기록으로만 남아 있습니다.";
+    default:
+      return "작성 중인 문서입니다.";
+  }
+}
+
+function NextStep({ text }: { text: string }) {
+  return (
+    <p className="rounded-md border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-2.5 text-sm">
+      <b>지금 할 일 · </b>
+      {text}
+    </p>
   );
 }

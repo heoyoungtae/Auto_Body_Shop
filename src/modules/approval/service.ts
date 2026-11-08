@@ -1,6 +1,6 @@
 // 결재 서비스: 문서 만들기·상신·처리·취소. 상태 계산은 machine.ts, 사람 정하기는 line.ts.
 import { UserError } from "@/modules/platform/errors";
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { approvalDoc, approvalEvent, notification, proxyAssignment } from "@/db/schema";
 import { sha256 } from "../auth/crypto";
@@ -208,4 +208,23 @@ export async function myDrafts(db: Db, userId: string): Promise<DocRow[]> {
 
 export async function events(db: Db, docId: string) {
   return db.select().from(approvalEvent).where(eq(approvalEvent.docId, docId)).orderBy(approvalEvent.id);
+}
+
+/**
+ * 확정된 문서 개정 요청서(F-Q-05) — 설정 화면이 '근거 번호' 목록과 값 불러오기에 쓴다(중복 입력 없이).
+ * 취소 문서와 이미 취소된 요청서는 뺀다.
+ */
+export async function confirmedRevisionRequests(db: Db): Promise<DocRow[]> {
+  return db
+    .select()
+    .from(approvalDoc)
+    .where(and(eq(approvalDoc.formCode, "F-Q-05"), inArray(approvalDoc.status, ["confirmed", "checked"]), isNull(approvalDoc.cancelsId)))
+    .orderBy(desc(approvalDoc.confirmedAt));
+}
+
+/** 설정 변경의 근거 번호 검사: 비었으면 통과, 적었으면 확정된 요청서여야 한다 */
+export async function assertRevisionRequestNo(db: Db, no: string | null | undefined): Promise<void> {
+  if (!no) return;
+  const list = await confirmedRevisionRequests(db);
+  if (!list.some((d) => d.docNo === no)) throw new ApprovalError(`근거 번호 ${no}: 확정된 문서 개정 요청서가 아닙니다. 목록에서 골라 주세요`);
 }

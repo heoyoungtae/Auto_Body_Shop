@@ -2,15 +2,19 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { changePassword } from "@/modules/auth/service";
+import { AssistForm } from "../_assist";
+import { PasswordField } from "../_input";
 import { SubmitButton } from "../_submit";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
-import { ErrorBox, Field, Notice, PageTitle } from "../_ui";
+import { ErrorBox, Notice, PageTitle } from "../_ui";
 
 async function changePasswordAction(form: FormData) {
   "use server";
   const user = await requireUser();
+  const next = String(form.get("next") ?? "");
+  if (next !== String(form.get("next2") ?? "")) redirect(errorUrl("/account", "새 비밀번호 두 칸이 서로 다릅니다"));
   try {
-    await changePassword(await getDb(), user.id, String(form.get("current") ?? ""), String(form.get("next") ?? ""));
+    await changePassword(await getDb(), user.id, String(form.get("current") ?? ""), next);
   } catch (e) {
     redirect(errorUrl("/account", userMessage(e)));
   }
@@ -22,14 +26,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const user = await requireUser();
   return (
     <div className="max-w-sm">
-      <PageTitle sub={`${user.loginId} · ${user.roles.map((r) => ROLE_LABEL[r]).join("·")}`}>{user.name}</PageTitle>
-      <form action={changePasswordAction} className="space-y-4">
+      <PageTitle help="account" sub={`${user.loginId} · ${user.roles.map((r) => ROLE_LABEL[r]).join("·")}`}>
+        {user.name}
+      </PageTitle>
+      <AssistForm id="account" action={changePasswordAction} className="space-y-4">
         <ErrorBox message={error} />
         {notice && <Notice>{notice}</Notice>}
-        <Field label="현재 비밀번호" name="current" type="password" autoComplete="current-password" required />
-        <Field label="새 비밀번호" name="next" type="password" autoComplete="new-password" required hint="8자 이상, 영문+숫자" />
+        <PasswordField help="account.current" name="current" autoComplete="current-password" required />
+        <PasswordField help="account.next" name="next" autoComplete="new-password" required rules />
+        <PasswordField help="account.next2" name="next2" autoComplete="new-password" required matchName="next" />
         <SubmitButton>비밀번호 바꾸기</SubmitButton>
-      </form>
+      </AssistForm>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   await requireUser();
   return (
     <>
-      <PageTitle sub="모든 직원이 볼 수 있고, 바꾸는 것은 대표만 할 수 있습니다.">설정</PageTitle>
+      <PageTitle help="settings" sub="모든 직원이 볼 수 있고, 바꾸는 것은 대표만 할 수 있습니다.">설정</PageTitle>
       <div className="grid gap-4 md:grid-cols-3">
         {ITEMS.map((i) => (
           <Link key={i.href} href={i.href} className="block">

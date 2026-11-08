@@ -1,5 +1,8 @@
 // 공통 화면 조각. 작업장 태블릿에서 장갑 낀 손으로도 누를 수 있게 버튼·입력 높이를 44px 이상으로 둔다(설계서 4.1).
+import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
+import { GLOSSARY, STATUS_HELP } from "@/modules/help/glossary";
+import { PAGE_HELP, type PageHelpKey } from "@/modules/help/pages";
 
 export function ErrorBox({ message }: { message?: string }) {
   if (!message) return null;
@@ -12,39 +15,6 @@ export function ErrorBox({ message }: { message?: string }) {
 
 export function Notice({ children }: { children: ReactNode }) {
   return <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5 text-sm text-[var(--muted)]">{children}</p>;
-}
-
-const inputBox =
-  "block w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-base shadow-[var(--shadow)] outline-none transition-colors focus:border-[var(--accent)] focus:ring-3 focus:ring-[var(--accent)]/15";
-
-export function Field({ label, hint, ...props }: ComponentProps<"input"> & { label: string; hint?: string }) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1.5 block font-medium">{label}</span>
-      <input {...props} className={`h-11 ${inputBox}`} />
-      {hint && <span className="mt-1 block text-xs text-[var(--muted)]">{hint}</span>}
-    </label>
-  );
-}
-
-export function TextArea({ label, ...props }: ComponentProps<"textarea"> & { label: string }) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1.5 block font-medium">{label}</span>
-      <textarea {...props} className={`min-h-28 py-2 ${inputBox}`} />
-    </label>
-  );
-}
-
-export function Select({ label, children, ...props }: ComponentProps<"select"> & { label: string }) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1.5 block font-medium">{label}</span>
-      <select {...props} className={`h-11 ${inputBox}`}>
-        {children}
-      </select>
-    </label>
-  );
 }
 
 type ButtonVariant = "primary" | "secondary" | "danger";
@@ -62,14 +32,105 @@ export function Button({ variant = "primary", className = "", ...props }: Compon
   return <button {...props} className={`${buttonClass(variant)} ${className}`} />;
 }
 
-export function PageTitle({ children, sub, actions }: { children: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
+/** 화면 제목. help 키가 필수라서 도움말 없는 화면은 만들 수 없다 */
+export function PageTitle({ children, sub, actions, help }: { children: ReactNode; sub?: ReactNode; actions?: ReactNode; help: PageHelpKey }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0 flex-1">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{children}</h1>
-        {sub && <p className="mt-1 text-sm text-[var(--muted)]">{sub}</p>}
+    <div className="mb-5">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{children}</h1>
+          {sub && <p className="mt-1 text-sm text-[var(--muted)]">{sub}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      <PageHelp id={help} />
+    </div>
+  );
+}
+
+/** 화면 도움말: 제목 아래 접힌 상자. 자바스크립트 없이도 열린다 */
+export function PageHelp({ id }: { id: PageHelpKey }) {
+  const h = PAGE_HELP[id] as (typeof PAGE_HELP)[PageHelpKey] & { tips?: string[]; faq?: { q: string; a: string }[]; refs?: string[]; terms?: string[] };
+  return (
+    <details className="group mt-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] text-sm open:bg-[var(--surface)]" data-page-help={id}>
+      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 px-3 text-[var(--accent)] [&::-webkit-details-marker]:hidden">
+        <span aria-hidden className="inline-flex size-5 items-center justify-center rounded-full border border-current text-xs">?</span>
+        이 화면 도움말
+        <span className="ml-auto text-xs text-[var(--muted)] group-open:hidden">펼치기</span>
+        <span className="ml-auto hidden text-xs text-[var(--muted)] group-open:inline">접기</span>
+      </summary>
+      <div className="space-y-3 border-t border-[var(--line)] px-3 py-3">
+        <p>{h.purpose}</p>
+        <p className="text-xs text-[var(--muted)]">쓰는 사람: {h.who}</p>
+        <div>
+          <h3 className="mb-1 text-xs font-semibold">순서</h3>
+          <ol className="list-decimal space-y-0.5 pl-5">
+            {h.steps.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ol>
+        </div>
+        {h.tips && (
+          <div>
+            <h3 className="mb-1 text-xs font-semibold">요령</h3>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {h.tips.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {h.faq && (
+          <div>
+            <h3 className="mb-1 text-xs font-semibold">자주 묻는 질문</h3>
+            <dl className="space-y-1.5">
+              {h.faq.map((f) => (
+                <div key={f.q}>
+                  <dt className="font-medium">Q. {f.q}</dt>
+                  <dd className="text-[var(--muted)]">A. {f.a}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+        {h.terms && (
+          <div>
+            <h3 className="mb-1 text-xs font-semibold">용어</h3>
+            <dl className="grid gap-1 sm:grid-cols-2">
+              {h.terms.map((t) => (
+                <div key={t} className="text-xs">
+                  <dt className="inline font-medium">{t}</dt> <dd className="inline text-[var(--muted)]">{GLOSSARY[t]}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+        <p className="flex flex-wrap gap-x-3 text-xs text-[var(--muted)]">
+          {h.refs && <span>관련: {h.refs.join(" · ")}</span>}
+          <Link href="/help" className="text-[var(--accent)]">
+            도움말 센터 →
+          </Link>
+        </p>
+      </div>
+    </details>
+  );
+}
+
+/** 문서 상태 표시. 손가락을 대거나 마우스를 올리면 뜻을 보여 준다 */
+export function StatusBadge({ status }: { status: string }) {
+  return (
+    <span title={STATUS_HELP[status]} aria-label={`${STATUS_LABEL[status] ?? status}: ${STATUS_HELP[status] ?? ""}`}>
+      <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status] ?? status}</Badge>
+    </span>
+  );
+}
+
+/** 빈 목록 안내: 무엇이 없고, 무엇을 하면 생기는지 */
+export function Empty({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="rounded-md border border-dashed border-[var(--line-strong)] px-3 py-4 text-center text-sm text-[var(--muted)]">
+      <p>{children}</p>
+      {action && <div className="mt-2">{action}</div>}
     </div>
   );
 }

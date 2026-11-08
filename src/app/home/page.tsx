@@ -3,7 +3,7 @@ import { getDb } from "@/db/runtime";
 import { inbox, myDrafts } from "@/modules/approval/service";
 import { listNotifications } from "@/modules/platform/notify";
 import { requireUser } from "../_lib/session";
-import { Badge, Card, ErrorBox, fmtTime, PageTitle, STATUS_LABEL, STATUS_TONE } from "../_ui";
+import { Badge, Card, ErrorBox, fmtTime, PageTitle, StatusBadge } from "../_ui";
 
 /** 설계서 5.1 모듈과 단계. 화면이 생기면 링크로 바뀐다 */
 const MODULES = [
@@ -26,8 +26,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const [todo, mine, notes] = await Promise.all([inbox(db, user.id), myDrafts(db, user.id), listNotifications(db, user.id)]);
   return (
     <>
-      <PageTitle sub="오늘 처리할 결재와 알림">내 할 일</PageTitle>
+      <PageTitle help="home" sub="오늘 처리할 결재와 알림">내 할 일</PageTitle>
       <ErrorBox message={error} />
+      {todo.length === 0 && mine.length === 0 && (
+        <div className="mb-4 rounded-md border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 py-2.5 text-sm">
+          처음 쓰시나요? <Link href="/help" className="font-medium text-[var(--accent)]">도움말 센터</Link>에서 내 역할의 &lsquo;처음 할 일&rsquo;을 보세요. 화면마다 제목 아래 &lsquo;이 화면 도움말&rsquo;이 있고, 입력 칸 옆 ? 를 누르면 칸 설명이 나옵니다.
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <Card title={`결재 대기 ${todo.length}건`} actions={<Link href="/approvals" className="text-sm text-[var(--accent)]">결재함</Link>}>
           {todo.length === 0 ? (
@@ -68,7 +73,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   <Link href={`/approvals/${d.id}`} className="hover:underline">
                     {d.docNo} {d.title}
                   </Link>
-                  <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
+                  <StatusBadge status={d.status} />
                 </li>
               ))}
             </ul>

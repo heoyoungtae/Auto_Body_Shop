@@ -1,0 +1,563 @@
+"use client";
+// 입력도우미 부품. 모든 입력 칸은 이 부품으로 만들고 help 키(src/modules/help/fields.ts)를 꼭 넘긴다.
+// 칸마다: 이름·필수 표시, ? 자세히, 한 줄 안내·예시, 한글 오류 안내, 불러온 값의 출처 표시.
+// 값은 브라우저 폼이 그대로 보낸다(제어하지 않음). 그래야 서버 오류로 돌아왔을 때 _assist.tsx 가 값을 되살릴 수 있다.
+import { useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { FIELD_HELP, type FieldHelpKey } from "@/modules/help/fields";
+import { addDaysIso, dayLabel, koMoney, seoulToday } from "./_format";
+
+const inputBox =
+  "block w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-base shadow-[var(--shadow)] outline-none transition-colors focus:border-[var(--accent)] focus:ring-3 focus:ring-[var(--accent)]/15 aria-[invalid=true]:border-[var(--danger)]";
+
+type El = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+/** 브라우저 기본(영문·짧은) 검사 문구를 칸 이름을 넣은 한글 안내로 바꾼다 */
+function koMessage(el: El, label: string, formatMsg?: string): string {
+  const v = el.validity;
+  if (v.valueMissing) return el instanceof HTMLSelectElement ? `'${label}'을(를) 골라 주세요` : `'${label}'을(를) 적어 주세요`;
+  if (v.patternMismatch) return formatMsg ?? `'${label}' 형식을 확인해 주세요`;
+  if (v.typeMismatch) return `'${label}' 형식을 확인해 주세요`;
+  if (v.tooShort) return `'${label}'은(는) ${(el as HTMLInputElement).minLength}자 이상이어야 합니다`;
+  if (v.tooLong) return `'${label}'은(는) ${(el as HTMLInputElement).maxLength}자까지입니다`;
+  if (v.rangeUnderflow) return `'${label}'은(는) ${(el as HTMLInputElement).min} 이상이어야 합니다`;
+  if (v.rangeOverflow) return `'${label}'은(는) ${(el as HTMLInputElement).max} 이하여야 합니다`;
+  if (v.badInput) return `'${label}'에 올바른 값을 넣어 주세요`;
+  return el.validationMessage;
+}
+
+/** 칸의 한글 오류 상태. 제출 시 invalid 이벤트에서 채우고, 고치면 지운다 */
+function useKoValidity(label: string, formatMsg?: string, extra?: (el: El) => string | null) {
+  const [error, setError] = useState<string | null>(null);
+  const check = (el: El) => {
+    el.setCustomValidity("");
+    const custom = extra?.(el) ?? null;
+    if (custom) el.setCustomValidity(custom);
+    return custom ?? (el.validity.valid ? null : koMessage(el, label, formatMsg));
+  };
+  return {
+    error,
+    onInvalid: (e: React.FormEvent<El>) => {
+      const el = e.currentTarget;
+      const msg = check(el) ?? koMessage(el, label, formatMsg);
+      el.setCustomValidity(msg);
+      setError(msg);
+    },
+    /** 입력할 때마다: 이미 오류가 보이는 칸만 다시 검사해 바로 풀어 준다 */
+    revalidate: (el: El) => {
+      const msg = check(el);
+      if (error) setError(msg);
+    },
+  };
+}
+
+function Shell({
+  id,
+  helpKey,
+  label,
+  required,
+  error,
+  from,
+  aside,
+  children,
+}: {
+  id: string;
+  helpKey: FieldHelpKey;
+  label?: string;
+  required?: boolean;
+  error?: string | null;
+  from?: string;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
+  const h = FIELD_HELP[helpKey];
+  const [open, setOpen] = useState(false);
+  const name = label ?? h.label;
+  const hasDetail = "detail" in h && h.detail;
+  return (
+    <div className="block text-sm" data-help={helpKey}>
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <label htmlFor={id} className="font-medium">
+          {name}
+        </label>
+        <span className={`text-xs ${required ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>{required ? "필수" : "선택"}</span>
+        {hasDetail && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls={`${id}-detail`}
+            aria-label={`${name} 도움말`}
+            className="inline-flex size-6 items-center justify-center rounded-full border border-[var(--line-strong)] text-xs text-[var(--muted)] hover:bg-[var(--surface-2)]"
+          >
+            ?
+          </button>
+        )}
+        {from && <span className="ml-auto rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-xs text-[var(--accent)]">{from}에서 불러옴</span>}
+      </div>
+      {hasDetail && open && (
+        <p id={`${id}-detail`} className="mb-2 rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs leading-relaxed">
+          {h.detail}
+        </p>
+      )}
+      {children}
+      {error ? (
+        <p id={`${id}-msg`} role="alert" className="mt-1 text-xs font-medium text-[var(--danger)]">
+          {error}
+        </p>
+      ) : (
+        ("hint" in h || "example" in h) && (
+          <p id={`${id}-msg`} className="mt-1 text-xs text-[var(--muted)]">
+            {"hint" in h && h.hint}
+            {"example" in h && h.example && <span className="ml-1">(예: {h.example})</span>}
+          </p>
+        )
+      )}
+      {aside}
+    </div>
+  );
+}
+
+type Common = { help: FieldHelpKey; name: string; label?: string; required?: boolean; from?: string };
+
+/** 한 줄 글자 칸. suggestions 를 주면 칸을 누를 때 고를 목록이 뜬다(앞선 전표 번호 등) */
+export function TextField({
+  help,
+  name,
+  label,
+  required,
+  from,
+  suggestions,
+  lower,
+  ...rest
+}: Common & Omit<ComponentProps<"input">, "name" | "required"> & { suggestions?: { value: string; label?: string }[]; lower?: boolean }) {
+  const id = useId();
+  const h = FIELD_HELP[help];
+  const fmt = "format" in h ? h.format : undefined;
+  const v = useKoValidity(label ?? h.label, fmt?.message);
+  return (
+    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
+      <input
+        id={id}
+        name={name}
+        required={required}
+        placeholder={"example" in h ? h.example : undefined}
+        pattern={fmt?.pattern}
+        maxLength={"maxLength" in h ? h.maxLength : undefined}
+        list={suggestions?.length ? `${id}-list` : undefined}
+        aria-invalid={!!v.error}
+        aria-describedby={`${id}-msg`}
+        {...rest}
+        onInvalid={v.onInvalid}
+        onInput={(e) => {
+          if (lower) {
+            const el = e.currentTarget;
+            const pos = el.selectionStart;
+            el.value = el.value.toLowerCase();
+            if (pos != null) el.setSelectionRange(pos, pos);
+          }
+          v.revalidate(e.currentTarget);
+        }}
+        className={`h-11 ${inputBox}`}
+      />
+      {suggestions?.length ? (
+        <datalist id={`${id}-list`}>
+          {suggestions.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </datalist>
+      ) : null}
+    </Shell>
+  );
+}
+
+/** 여러 줄 칸: 글자 수, 자주 쓰는 문구 넣기 */
+export function TextAreaField({ help, name, label, required, from, defaultValue, rows }: Common & { defaultValue?: string; rows?: number }) {
+  const id = useId();
+  const h = FIELD_HELP[help];
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const max = "maxLength" in h ? h.maxLength : undefined;
+  const [count, setCount] = useState(String(defaultValue ?? "").length);
+  const v = useKoValidity(label ?? h.label);
+  useResync(ref, () => setCount(ref.current?.value.length ?? 0));
+  const insert = (t: string) => {
+    const el = ref.current;
+    if (!el) return;
+    const at = el.selectionStart ?? el.value.length;
+    const before = el.value.slice(0, at);
+    const glue = before && !before.endsWith("\n") ? "\n" : "";
+    el.value = before + glue + t + el.value.slice(el.selectionEnd ?? at);
+    const caret = (before + glue + t).length;
+    el.focus();
+    el.setSelectionRange(caret, caret);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const templates = "templates" in h ? h.templates : undefined;
+  return (
+    <Shell
+      id={id}
+      helpKey={help}
+      label={label}
+      required={required}
+      error={v.error}
+      from={from}
+      aside={
+        max ? (
+          <p className={`mt-0.5 text-right text-xs ${count > max * 0.9 ? "text-[var(--warn)]" : "text-[var(--muted)]"}`}>
+            {count.toLocaleString("ko-KR")} / {max.toLocaleString("ko-KR")}자
+          </p>
+        ) : null
+      }
+    >
+      {templates && (
+        <div className="mb-1.5 flex flex-wrap gap-1" aria-label="문구 넣기">
+          <span className="self-center text-xs text-[var(--muted)]">문구 넣기:</span>
+          {templates.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => insert(t)}
+              className="min-h-8 rounded-full border border-[var(--line-strong)] px-2.5 text-xs hover:bg-[var(--surface-2)]"
+            >
+              {t.split("\n")[0].replace(/[:：]\s*$/, "").slice(0, 24) || t.slice(0, 24)}
+            </button>
+          ))}
+        </div>
+      )}
+      <textarea
+        ref={ref}
+        id={id}
+        name={name}
+        required={required}
+        defaultValue={defaultValue}
+        rows={rows}
+        maxLength={max}
+        placeholder={"example" in h ? `예: ${h.example}` : undefined}
+        aria-invalid={!!v.error}
+        aria-describedby={`${id}-msg`}
+        onInvalid={v.onInvalid}
+        onInput={(e) => {
+          setCount(e.currentTarget.value.length);
+          v.revalidate(e.currentTarget);
+        }}
+        className={`min-h-28 py-2 ${inputBox}`}
+      />
+    </Shell>
+  );
+}
+
+/**
+ * 숫자 칸: 쉼표를 넣어 보여 주고, 단위·범위·지금 값·제안값과 비교하고, 금액이면 한글로 읽어 준다.
+ * 보이는 칸은 이름이 없고, 쉼표 뺀 숫자를 같은 name 의 숨은 칸이 보낸다.
+ */
+export function NumberField({
+  help,
+  name,
+  label,
+  required,
+  from,
+  defaultValue,
+  unit,
+  min,
+  max,
+  current,
+  suggested,
+}: Common & { defaultValue?: number | null; unit?: string; min?: number; max?: number; current?: number; suggested?: number }) {
+  const id = useId();
+  const h = FIELD_HELP[help];
+  const shown = useRef<HTMLInputElement>(null);
+  const raw = useRef<HTMLInputElement>(null);
+  const [num, setNum] = useState<number | null>(defaultValue ?? null);
+  const name_ = label ?? h.label;
+  const rangeMsg = (n: number | null) => {
+    if (n == null) return null;
+    if (min != null && n < min) return `'${name_}'은(는) ${min.toLocaleString("ko-KR")} 이상이어야 합니다`;
+    if (max != null && n > max) return `'${name_}'은(는) ${max.toLocaleString("ko-KR")} 이하여야 합니다`;
+    return null;
+  };
+  const v = useKoValidity(name_, "숫자만 적어 주세요", (el) => rangeMsg(parse(el.value)));
+  useResync(shown, (kind) => {
+    // 되살릴 때는 숨은 칸에 들어간 값을, 폼을 비울 때는 처음 값을 쓴다
+    const n = kind === "restored" ? parse(raw.current?.value ?? "") : (defaultValue ?? null);
+    if (shown.current) shown.current.value = n == null ? "" : n.toLocaleString("ko-KR");
+    setNum(n);
+  });
+  const money = unit?.includes("원");
+  const live = rangeMsg(num);
+  return (
+    <Shell
+      id={id}
+      helpKey={help}
+      label={label}
+      required={required}
+      error={v.error}
+      from={from}
+      aside={
+        <div className="mt-1 space-y-0.5 text-xs">
+          {(min != null || max != null) && (
+            <p className="text-[var(--muted)]">
+              범위: {min != null ? min.toLocaleString("ko-KR") : "0"} ~ {max != null ? max.toLocaleString("ko-KR") : "제한 없음"}
+            </p>
+          )}
+          {(current != null || suggested != null) && (
+            <p className="text-[var(--muted)]">
+              {current != null && <>지금 {current.toLocaleString("ko-KR")}</>}
+              {current != null && suggested != null && " · "}
+              {suggested != null && <>표준서 제안 {suggested.toLocaleString("ko-KR")}</>}
+              {num != null && current != null && num !== current && (
+                <b className="ml-1 text-[var(--fg)]">
+                  → {num > current ? "+" : ""}
+                  {(num - current).toLocaleString("ko-KR")}
+                  {current !== 0 && ` (${num > current ? "+" : ""}${Math.round(((num - current) / current) * 100)}%)`}
+                </b>
+              )}
+              {num != null && current != null && num === current && <b className="ml-1 text-[var(--warn)]">지금 값과 같음</b>}
+            </p>
+          )}
+          {money && num != null && num > 0 && <p className="text-[var(--muted)]">읽기: {koMoney(num)}</p>}
+          {live && !v.error && <p className="text-[var(--warn)]">{live}</p>}
+        </div>
+      }
+    >
+      <div className="flex items-center gap-2">
+        <input
+          ref={shown}
+          id={id}
+          inputMode="numeric"
+          autoComplete="off"
+          required={required}
+          defaultValue={defaultValue == null ? "" : defaultValue.toLocaleString("ko-KR")}
+          pattern="[0-9,\s]*"
+          placeholder={"example" in h ? h.example : undefined}
+          aria-invalid={!!v.error}
+          aria-describedby={`${id}-msg`}
+          onInvalid={v.onInvalid}
+          onInput={(e) => {
+            const el = e.currentTarget;
+            const digits = el.value.replace(/[^\d]/g, "");
+            const n = digits === "" ? null : Number(digits);
+            const fromEnd = el.value.length - (el.selectionStart ?? el.value.length);
+            el.value = n == null ? "" : n.toLocaleString("ko-KR");
+            const caret = Math.max(0, el.value.length - fromEnd);
+            el.setSelectionRange(caret, caret);
+            setNum(n);
+            v.revalidate(el);
+          }}
+          className={`h-11 text-right tabular-nums ${inputBox}`}
+        />
+        {unit && <span className="shrink-0 text-sm text-[var(--muted)]">{unit}</span>}
+      </div>
+      {/* 숨은 칸은 브라우저가 value 를 속성으로 다뤄서, 상태로 묶어 두어야 다시 그려도 값이 지워지지 않는다 */}
+      <input ref={raw} type="hidden" name={name} value={num == null ? "" : String(num)} data-raw-for={id} />
+    </Shell>
+  );
+}
+
+const parse = (s: string) => {
+  const d = s.replace(/[^\d]/g, "");
+  return d === "" ? null : Number(d);
+};
+
+/** 날짜 칸: 빠른 선택 단추, 요일·며칠 뒤 표시 */
+export function DateField({ help, name, label, required, from, defaultValue, min, quick = ["today", "tomorrow", "week", "nextMonth"] }: Common & { defaultValue?: string; min?: string; quick?: ("today" | "tomorrow" | "week" | "nextMonth")[] }) {
+  const id = useId();
+  const h = FIELD_HELP[help];
+  const ref = useRef<HTMLInputElement>(null);
+  const [val, setVal] = useState(defaultValue ?? "");
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => setToday(seoulToday()), []);
+  const v = useKoValidity(label ?? h.label, undefined, (el) => (min && el.value && el.value < min ? `'${label ?? h.label}'은(는) ${min}부터 고를 수 있습니다` : null));
+  useResync(ref, () => setVal(ref.current?.value ?? ""));
+  const set = (d: string) => {
+    const el = ref.current;
+    if (!el) return;
+    el.value = d;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const chips = today
+    ? {
+        today: ["오늘", today],
+        tomorrow: ["내일", addDaysIso(today, 1)],
+        week: ["1주 뒤", addDaysIso(today, 7)],
+        nextMonth: ["다음 달 1일", `${nextMonthFirst(today)}`],
+      }
+    : null;
+  return (
+    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from} aside={val && today ? <p className="mt-0.5 text-xs text-[var(--muted)]">{dayLabel(val, today)}</p> : null}>
+      <input
+        ref={ref}
+        id={id}
+        type="date"
+        name={name}
+        required={required}
+        defaultValue={defaultValue}
+        min={min}
+        aria-invalid={!!v.error}
+        aria-describedby={`${id}-msg`}
+        onInvalid={v.onInvalid}
+        onInput={(e) => {
+          setVal(e.currentTarget.value);
+          v.revalidate(e.currentTarget);
+        }}
+        onChange={(e) => {
+          setVal(e.currentTarget.value);
+          v.revalidate(e.currentTarget);
+        }}
+        className={`h-11 ${inputBox}`}
+      />
+      {chips && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {quick.map((q) => (
+            <button key={q} type="button" onClick={() => set(chips[q][1])} className="min-h-8 rounded-full border border-[var(--line-strong)] px-2.5 text-xs hover:bg-[var(--surface-2)]">
+              {chips[q][0]}
+            </button>
+          ))}
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+const nextMonthFirst = (iso: string) => {
+  const [y, m] = iso.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+};
+
+/** 비밀번호 칸: 보기 단추, Caps Lock 경고, (새 비밀번호면) 규칙 확인, (확인 칸이면) 일치 확인 */
+export function PasswordField({ help, name, label, required, rules, matchName, autoComplete }: Common & { rules?: boolean; matchName?: string; autoComplete?: string }) {
+  const id = useId();
+  const h = FIELD_HELP[help];
+  const [show, setShow] = useState(false);
+  const [val, setVal] = useState("");
+  const [caps, setCaps] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+  const checks = [
+    { ok: val.length >= 8, text: "8자 이상" },
+    { ok: /[a-zA-Z]/.test(val), text: "영문 포함" },
+    { ok: /\d/.test(val), text: "숫자 포함" },
+  ];
+  const other = () => (matchName ? (ref.current?.form?.elements.namedItem(matchName) as HTMLInputElement | null)?.value ?? "" : "");
+  const v = useKoValidity(label ?? h.label, undefined, (el) => {
+    if (rules && el.value && checks.some((c) => !c.ok)) return "8자 이상, 영문과 숫자를 함께 넣어 주세요";
+    if (matchName && el.value && el.value !== other()) return "위에 적은 새 비밀번호와 다릅니다";
+    return null;
+  });
+  return (
+    <Shell
+      id={id}
+      helpKey={help}
+      label={label}
+      required={required}
+      error={v.error}
+      aside={
+        <>
+          {caps && <p className="mt-0.5 text-xs font-medium text-[var(--warn)]">Caps Lock 이 켜져 있습니다</p>}
+          {rules && (
+            <ul className="mt-1 flex flex-wrap gap-x-3 text-xs" aria-label="비밀번호 규칙">
+              {checks.map((c) => (
+                <li key={c.text} className={c.ok ? "text-[var(--ok)]" : "text-[var(--muted)]"}>
+                  {c.ok ? "✓" : "○"} {c.text}
+                </li>
+              ))}
+            </ul>
+          )}
+          {matchName && val && <p className={`mt-0.5 text-xs ${val === other() ? "text-[var(--ok)]" : "text-[var(--warn)]"}`}>{val === other() ? "✓ 일치합니다" : "아직 다릅니다"}</p>}
+        </>
+      }
+    >
+      <div className="relative">
+        <input
+          ref={ref}
+          id={id}
+          name={name}
+          type={show ? "text" : "password"}
+          required={required}
+          autoComplete={autoComplete}
+          autoCapitalize="none"
+          spellCheck={false}
+          aria-invalid={!!v.error}
+          aria-describedby={`${id}-msg`}
+          onInvalid={v.onInvalid}
+          onKeyUp={(e) => setCaps(e.getModifierState?.("CapsLock") ?? false)}
+          onInput={(e) => {
+            setVal(e.currentTarget.value);
+            v.revalidate(e.currentTarget);
+          }}
+          className={`h-11 pr-16 ${inputBox}`}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          aria-pressed={show}
+          className="absolute inset-y-1 right-1 rounded px-2 text-xs text-[var(--muted)] hover:bg-[var(--surface-2)]"
+        >
+          {show ? "숨기기" : "보기"}
+        </button>
+      </div>
+    </Shell>
+  );
+}
+
+/** 고르기 칸 */
+export function SelectField({ help, name, label, required, from, defaultValue, options, placeholder }: Common & { defaultValue?: string; options: { value: string; label: string }[]; placeholder?: string }) {
+  const id = useId();
+  const h = FIELD_HELP[help];
+  const v = useKoValidity(label ?? h.label);
+  return (
+    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
+      <select
+        id={id}
+        name={name}
+        required={required}
+        defaultValue={defaultValue ?? ""}
+        aria-invalid={!!v.error}
+        aria-describedby={`${id}-msg`}
+        onInvalid={v.onInvalid}
+        onChange={(e) => v.revalidate(e.currentTarget)}
+        className={`h-11 ${inputBox}`}
+      >
+        {placeholder != null && <option value="">{placeholder}</option>}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </Shell>
+  );
+}
+
+/** 여러 개 고르기(체크 상자). 큰 누름 영역 */
+export function CheckGroup({ help, name, options, defaultChecked = [], label }: { help: FieldHelpKey; name: string; options: { value: string; label: string }[]; defaultChecked?: string[]; label?: string }) {
+  const id = useId();
+  return (
+    <Shell id={id} helpKey={help} label={label}>
+      <div id={id} role="group" className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <label key={o.value} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--line)] px-2.5 has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-soft)]">
+            <input type="checkbox" name={name} value={o.value} defaultChecked={defaultChecked.includes(o.value)} className="size-4" /> {o.label}
+          </label>
+        ))}
+      </div>
+    </Shell>
+  );
+}
+
+/** 폼이 reset 되거나 _assist.tsx 가 값을 되살렸을 때 화면 상태를 다시 맞춘다 */
+function useResync(ref: React.RefObject<HTMLElement | null>, sync: (kind: "reset" | "restored") => void) {
+  const fn = useRef(sync);
+  fn.current = sync;
+  useEffect(() => {
+    const form = (ref.current as HTMLInputElement | null)?.form;
+    if (!form) return;
+    const onReset = () => setTimeout(() => fn.current("reset"), 0);
+    const onRestored = () => setTimeout(() => fn.current("restored"), 0);
+    form.addEventListener("reset", onReset);
+    form.addEventListener("assist:restored", onRestored);
+    return () => {
+      form.removeEventListener("reset", onReset);
+      form.removeEventListener("assist:restored", onRestored);
+    };
+  }, [ref]);
+}

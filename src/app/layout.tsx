@@ -19,6 +19,7 @@ const NAV: { href: string; label: string; owner?: boolean }[] = [
   { href: "/approvals", label: "결재" },
   { href: "/notifications", label: "알림" },
   { href: "/settings", label: "설정" },
+  { href: "/help", label: "도움말" },
 ];
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
+import { DEMO_PASSWORD, DEMO_USERS } from "@/db/seed";
+import { ROLE_LABEL } from "@/modules/auth/roles";
+import { AssistForm } from "../_assist";
+import { PasswordField, TextField } from "../_input";
 import { SubmitButton } from "../_submit";
-import { ErrorBox, Field, Notice, PageTitle } from "../_ui";
+import { ErrorBox, PageTitle } from "../_ui";
 import { currentUser } from "../_lib/session";
 import { loginAction } from "./actions";
+import { DemoPick } from "./demo-pick";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -10,20 +15,21 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const demo = process.env.DEMO_SEED === "1" || !process.env.DATABASE_URL;
   return (
     <div className="mx-auto max-w-sm">
-      <PageTitle sub="대표·공장장·상담원·기술자·품질·안전환경·회계">직원 로그인</PageTitle>
-      <form action={loginAction} className="space-y-4">
+      <PageTitle help="login" sub="대표·공장장·상담원·기술자·품질·안전환경·회계">
+        직원 로그인
+      </PageTitle>
+      <AssistForm id="login" action={loginAction} guard={false} className="space-y-4">
         <ErrorBox message={error} />
-        <Field label="아이디" name="loginId" autoComplete="username" autoCapitalize="none" required />
-        <Field label="비밀번호" name="password" type="password" autoComplete="current-password" required />
+        <TextField help="login.loginId" name="loginId" autoComplete="username" autoCapitalize="none" spellCheck={false} lower required />
+        <PasswordField help="login.password" name="password" autoComplete="current-password" required />
         <SubmitButton full>로그인</SubmitButton>
-      </form>
-      {demo && (
-        <div className="mt-6">
-          <Notice>
-            시연 서버입니다. 아이디 owner(대표), manager(공장장), advisor(상담원), tech1·tech2(기술자), quality(품질), safety(안전환경), account(회계), 비밀번호는 모두 demo1234 입니다.
-          </Notice>
-        </div>
-      )}
+        {demo && (
+          <DemoPick
+            password={DEMO_PASSWORD}
+            users={DEMO_USERS.map((u) => ({ loginId: u.loginId, label: `${u.name} · ${u.roles.map((r) => ROLE_LABEL[r]).join("·")}` }))}
+          />
+        )}
+      </AssistForm>
     </div>
   );
 }

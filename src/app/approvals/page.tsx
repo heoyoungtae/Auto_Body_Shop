@@ -4,12 +4,12 @@ import { getDb } from "@/db/runtime";
 import { approvalDoc } from "@/db/schema";
 import { inbox } from "@/modules/approval/service";
 import { requireUser } from "../_lib/session";
-import { Badge, buttonClass, Card, fmtTime, PageTitle, STATUS_LABEL, STATUS_TONE } from "../_ui";
+import { buttonClass, Card, Empty, fmtTime, PageTitle, StatusBadge } from "../_ui";
 
 type Row = typeof approvalDoc.$inferSelect;
 
-function List({ rows, empty }: { rows: Row[]; empty: string }) {
-  if (!rows.length) return <p className="text-sm text-[var(--muted)]">{empty}</p>;
+function List({ rows, empty }: { rows: Row[]; empty: React.ReactNode }) {
+  if (!rows.length) return <Empty>{empty}</Empty>;
   return (
     <ul className="divide-y divide-[var(--line)] text-sm">
       {rows.map((d) => (
@@ -19,7 +19,7 @@ function List({ rows, empty }: { rows: Row[]; empty: string }) {
           </Link>
           <span className="flex items-center gap-2">
             <span className="text-xs text-[var(--muted)]">{fmtTime(d.updatedAt)}</span>
-            <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
+            <StatusBadge status={d.status} />
           </span>
         </li>
       ))}
@@ -34,6 +34,7 @@ export default async function ApprovalsPage() {
   return (
     <>
       <PageTitle
+        help="approvals"
         sub="양식의 결재란이 곧 결재 단계입니다. 확정된 문서는 고칠 수 없고 취소 문서로만 바뀝니다."
         actions={
           <Link href="/approvals/new" className={buttonClass()}>
@@ -45,10 +46,10 @@ export default async function ApprovalsPage() {
       </PageTitle>
       <div className="space-y-4">
         <Card title={`내가 처리할 문서 ${todo.length}건`}>
-          <List rows={todo} empty="처리할 결재가 없습니다." />
+          <List rows={todo} empty="지금 내 차례인 결재가 없습니다. 차례가 오면 알림으로 알려 드립니다." />
         </Card>
         <Card title="최근 문서">
-          <List rows={all} empty="아직 문서가 없습니다." />
+          <List rows={all} empty={<>아직 문서가 없습니다. 오른쪽 위 &lsquo;문서 개정 요청&rsquo;으로 첫 문서를 올려 보세요.</>} />
         </Card>
       </div>
     </>
