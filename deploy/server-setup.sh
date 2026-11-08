@@ -47,7 +47,7 @@ fi
 # 매일 03:00(한국 시각) 백업. 서버 시간대가 UTC 이면 18:00 으로 등록한다
 if ! crontab -l 2>/dev/null | grep -q 'deploy/backup.sh'; then
   hour=3; [ "$(date +%Z)" = "UTC" ] && hour=18
-  (crontab -l 2>/dev/null; echo "0 $hour * * * bash $PWD/backup.sh >> $HOME/backups.log 2>&1") | crontab -
+  { crontab -l 2>/dev/null || true; echo "0 $hour * * * bash $PWD/backup.sh >> $HOME/backups.log 2>&1"; } | crontab -
 fi
 
 if ! sudo docker image inspect auto-body-shop-app:latest >/dev/null 2>&1; then
