@@ -1,6 +1,6 @@
 "use client";
 // 왼쪽 메뉴. 넓은 화면에서는 늘 보이고, 태블릿·휴대폰에서는 ☰ 단추로 열고 닫는다.
-// 묶음 접기와 '개발 예정 보기'는 이 기기에 기억한다.
+// 묶음은 기본으로 접혀 있다. 지금 화면이 든 묶음만 저절로 펼친다. 펼친 묶음과 '개발 예정 보기'는 이 기기에 기억한다.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
@@ -50,22 +50,37 @@ const save = (k: string, v: unknown) => {
 const HREFS = MENU.flatMap((g) => g.items.map((i) => i.href).filter((h): h is string => !!h));
 const activeHref = (path: string) => HREFS.filter((h) => path === h || path.startsWith(h + "/")).sort((a, b) => b.length - a.length)[0];
 const isActive = (path: string, href: string) => activeHref(path) === href;
+const groupOf = (path: string) => {
+  const h = activeHref(path);
+  return h ? MENU.find((g) => g.items.some((i) => i.href === h))?.id : undefined;
+};
 
 export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   const path = usePathname();
   const { open, setOpen } = useContext(NavCtx);
-  const [closed, setClosed] = useState<string[]>([]);
+  const [opened, setOpened] = useState<string[]>([]);
   const [future, setFuture] = useState(true);
   useEffect(() => {
-    setClosed(load("menu:closed", []));
+    setOpened(load("menu:open", []));
     setFuture(load("menu:future", true));
   }, []);
   useEffect(() => setOpen(false), [path, setOpen]);
+  // 지금 화면이 든 묶음은 펼친다(저장하지 않음 — 다른 화면으로 가면 원래대로)
+  const [here, setHere] = useState<string | undefined>(() => groupOf(path));
+  useEffect(() => setHere(groupOf(path)), [path]);
   const visible = (i: MenuItem) => (!i.roles || i.roles.some((r) => roles.includes(r))) && (future || i.href);
+  const isOpen = (id: string) => opened.includes(id) || here === id;
   const toggle = (id: string) => {
-    const next = closed.includes(id) ? closed.filter((x) => x !== id) : [...closed, id];
-    setClosed(next);
-    save("menu:closed", next);
+    if (isOpen(id)) {
+      if (here === id) setHere(undefined);
+      const next = opened.filter((x) => x !== id);
+      setOpened(next);
+      save("menu:open", next);
+    } else {
+      const next = [...opened, id];
+      setOpened(next);
+      save("menu:open", next);
+    }
   };
   return (
     <>
@@ -84,7 +99,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
         {MENU.map((g) => {
           const items = g.items.filter(visible);
           if (!items.length) return null;
-          const shut = closed.includes(g.id);
+          const shut = !isOpen(g.id);
           return (
             <div key={g.id} className="px-2 pt-3">
               <button
