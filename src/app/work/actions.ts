@@ -32,7 +32,7 @@ export async function workAction(form: FormData) {
     if (intent === "header") await saveWorkHeader(db, user, id, { dueDate: s("dueDate"), note: s("note") });
     else if (intent === "assign") {
       const m = s("stdMinutes").replace(/[^\d]/g, "");
-      await assignStep(db, user, stepId, { assignee: s("assignee"), planDate: s("planDate"), stdMinutes: m ? Number(m) : null });
+      await assignStep(db, user, stepId, { assignee: s("assignee"), mentor: s("mentor") || null, planDate: s("planDate"), stdMinutes: m ? Number(m) : null });
       msg = "담당을 정했습니다. 담당에게 알림을 보냈습니다";
     } else if (intent === "assignRest") {
       const n = await assignRest(db, user, id, { assignee: s("assignee"), planDate: s("planDate") });

@@ -12,6 +12,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
+import { checkAssignment, currentLevels } from "@/modules/staff/service";
 import { blockers, buildSteps, finishIssues, isProcess, minutesBetween, processLabel, PROCESSES } from "./work-rules";
 
 export class WorkError extends UserError {}
@@ -80,7 +81,7 @@ export async function saveWorkHeader(db: Db, actor: Actor, id: string, input: { 
 }
 
 /** 공정 배정: 담당(기술자 또는 공장장)·예정일·표준 시간 */
-export async function assignStep(db: Db, actor: Actor, stepId: string, input: { assignee: string; planDate: string; stdMinutes: number | null }, now = new Date()) {
+export async function assignStep(db: Db, actor: Actor, stepId: string, input: { assignee: string; planDate: string; stdMinutes: number | null; mentor?: string | null }, now = new Date()) {
   mustBoss(actor);
   const { s, w } = await stepRow(db, stepId);
   mustOpen(w);
@@ -89,9 +90,14 @@ export async function assignStep(db: Db, actor: Actor, stepId: string, input: { 
   const roles = await rolesOf(db, input.assignee);
   if (!roles.some((r) => r === "technician" || r === "plant_manager")) throw new WorkError("공정 담당은 기술자(또는 공장장)입니다");
   if (input.planDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.planDate)) throw new WorkError("예정일을 다시 골라 주세요");
-  await db.update(workStep).set({ assignee: input.assignee, planDate: input.planDate || null, stdMinutes: input.stdMinutes ?? s.stdMinutes }).where(eq(workStep.id, stepId));
+  const mentor = input.mentor || null;
+  if (mentor === input.assignee) throw new WorkError("지도자는 담당과 다른 사람이어야 합니다");
+  // 역량 표(F-11-02): 단독 기준 미만이면 지도자 함께(STD-11 6절)
+  const issue = await checkAssignment(db, s.process, input.assignee, mentor, seoulDate(now));
+  if (issue) throw new WorkError(issue);
+  await db.update(workStep).set({ assignee: input.assignee, mentor, planDate: input.planDate || null, stdMinutes: input.stdMinutes ?? s.stdMinutes }).where(eq(workStep.id, stepId));
   await db.update(workOrder).set({ updatedAt: now }).where(eq(workOrder.id, w.id));
-  await writeAudit(db, { actorId: actor.id, action: "work.assign", entityType: "work_order", entityId: w.docNo, after: { step: s.process, assignee: input.assignee, planDate: input.planDate } });
+  await writeAudit(db, { actorId: actor.id, action: "work.assign", entityType: "work_order", entityId: w.docNo, after: { step: s.process, assignee: input.assignee, mentor, planDate: input.planDate } });
   if (input.assignee !== s.assignee) await notifyUser(db, input.assignee, `작업 배정: ${w.docNo} ${processLabel(s.process)}${input.planDate ? ` (${input.planDate})` : ""}`, `work-assign-${stepId}-${input.assignee}`, `/work/${w.id}`);
 }
 
@@ -171,7 +177,8 @@ export async function getWorkOrder(db: Db, id: string) {
     usersWithRole(db, "technician"),
     usersWithRole(db, "plant_manager"),
   ]);
-  const ids = [...new Set([...techIds, ...bossIds, ...steps.map((s) => s.assignee).filter((x): x is string => !!x)])];
+  const ids = [...new Set([...techIds, ...bossIds, ...steps.flatMap((s) => [s.assignee, s.mentor]).filter((x): x is string => !!x)])];
+  const levels = await currentLevels(db);
   const users = ids.length ? await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(inArray(appUser.id, ids)) : [];
   const nameOf = (uid: string | null) => users.find((u) => u.id === uid)?.name ?? null;
   return {
@@ -181,8 +188,8 @@ export async function getWorkOrder(db: Db, id: string) {
     customerName: c?.name ?? "",
     estimate: e,
     lines,
-    steps: steps.map((s) => ({ ...s, assigneeName: nameOf(s.assignee), blockedBy: s.startedAt ? [] : blockers(steps, s).map((b) => processLabel(b.process)) })),
-    workers: [...techIds.map((uid) => ({ id: uid, name: nameOf(uid) ?? "", role: "기술자" })), ...bossIds.filter((b) => !techIds.includes(b)).map((uid) => ({ id: uid, name: nameOf(uid) ?? "", role: "공장장" }))],
+    steps: steps.map((s) => ({ ...s, assigneeName: nameOf(s.assignee), mentorName: nameOf(s.mentor), blockedBy: s.startedAt ? [] : blockers(steps, s).map((b) => processLabel(b.process)) })),
+    workers: [...techIds.map((uid) => ({ id: uid, name: nameOf(uid) ?? "", role: "기술자", levels: levels.get(uid) ?? {} })), ...bossIds.filter((b) => !techIds.includes(b)).map((uid) => ({ id: uid, name: nameOf(uid) ?? "", role: "공장장", levels: levels.get(uid) ?? {} }))],
   };
 }
 
@@ -250,6 +257,9 @@ export async function assignRest(db: Db, actor: Actor, woId: string, input: { as
   mustBoss(actor);
   const steps = await db.select().from(workStep).where(and(eq(workStep.workOrderId, woId), isNull(workStep.endedAt), isNull(workStep.assignee)));
   if (!steps.length) throw new WorkError("담당을 정할 공정이 없습니다");
+  const bad: string[] = [];
+  for (const s of steps) if (await checkAssignment(db, s.process, input.assignee, null, seoulDate(now))) bad.push(processLabel(s.process));
+  if (bad.length) throw new WorkError(`역량이 단독 기준에 못 미치는 공정이 있어 한꺼번에 정할 수 없습니다: ${bad.join(", ")}. 그 공정은 지도자를 함께 정해 하나씩 배정해 주세요`);
   for (const s of steps) await assignStep(db, actor, s.id, { assignee: input.assignee, planDate: input.planDate, stdMinutes: null }, now);
   return steps.length;
 }

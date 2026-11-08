@@ -240,6 +240,8 @@ export const workStep = pgTable(
     process: text("process").notNull(),
     lineIds: jsonb("line_ids").$type<string[]>().notNull().default([]),
     assignee: uuid("assignee").references(() => appUser.id),
+    /** 담당의 역량이 단독 배정 기준 미만일 때 함께 지정하는 지도자(역량 3단계 이상) */
+    mentor: uuid("mentor").references(() => appUser.id),
     planDate: text("plan_date"),
     stdMinutes: integer("std_minutes").notNull().default(0),
     startedAt: timestamp("started_at", { withTimezone: true }),

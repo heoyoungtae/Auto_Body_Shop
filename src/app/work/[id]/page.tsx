@@ -10,6 +10,15 @@ import { requireUser } from "../../_lib/session";
 import { Badge, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
 import { removeStepPhotoAction, uploadStepPhotoAction, workAction } from "../actions";
 import { PhotoStrip } from "../../photo-strip";
+import { LEVELS, PROCESS_SKILL, SKILLS, type Levels } from "@/modules/staff/rules";
+
+/** 고르기 목록에 그 공정 직무의 역량 단계를 붙인다 */
+function lvText(levels: Levels, process: string) {
+  const sk = PROCESS_SKILL[process];
+  if (!sk) return "";
+  const lv = levels[sk];
+  return `— ${SKILLS[sk]} ${lv ? `${lv}단계 ${LEVELS[lv as 1].label}` : "평가 없음"}`;
+}
 
 function Hidden({ woId, stepId, intent }: { woId: string; stepId?: string; intent: string }) {
   return (
@@ -95,7 +104,7 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
                       {p?.std ? ` — ${p.std}` : ""}
                     </p>
                     <p>
-                      담당 <b>{s.assigneeName ?? "미정"}</b> · 예정 {s.planDate ?? "—"} · 표준 {s.stdMinutes ? fmtMinutes(s.stdMinutes) : "—"}
+                      담당 <b>{s.assigneeName ?? "미정"}</b>{s.mentorName && <> (지도 {s.mentorName})</>} · 예정 {s.planDate ?? "—"} · 표준 {s.stdMinutes ? fmtMinutes(s.stdMinutes) : "—"}
                       {s.startedAt && ` · 시작 ${fmtTime(s.startedAt)}`}
                       {s.endedAt && ` · 끝 ${fmtTime(s.endedAt)} (${fmtMinutes(s.actualMinutes ?? 0)})`}
                     </p>
@@ -104,12 +113,13 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
                     {boss && open && !s.endedAt && (
                       <details>
                         <summary className="cursor-pointer font-semibold text-[var(--accent)]">{s.assignee ? "담당·예정 바꾸기" : "담당 정하기"}</summary>
-                        <AssistForm id={`wa-${s.id}`} action={workAction} className="mt-2 grid gap-3 md:grid-cols-3">
+                        <AssistForm id={`wa-${s.id}`} action={workAction} className="mt-2 grid gap-3 md:grid-cols-4">
                           <Hidden woId={w.id} stepId={s.id} intent="assign" />
-                          <SelectField help="work.assignee" name="assignee" required defaultValue={s.assignee ?? ""} placeholder="고르기" options={w.workers.map((u) => ({ value: u.id, label: `${u.name}(${u.role})` }))} />
+                          <SelectField help="work.assignee" name="assignee" required defaultValue={s.assignee ?? ""} placeholder="고르기" options={w.workers.map((u) => ({ value: u.id, label: `${u.name}(${u.role}) ${lvText(u.levels, s.process)}` }))} />
+                          <SelectField help="work.mentor" name="mentor" defaultValue={s.mentor ?? ""} placeholder="없음(혼자 작업)" options={w.workers.map((u) => ({ value: u.id, label: `${u.name} ${lvText(u.levels, s.process)}` }))} />
                           <DateField help="work.planDate" name="planDate" defaultValue={s.planDate ?? ""} quick={["today", "tomorrow"]} />
                           <NumberField help="work.stdMinutes" name="stdMinutes" unit="분" min={0} max={6000} defaultValue={s.stdMinutes || null} />
-                          <div className="md:col-span-3">
+                          <div className="md:col-span-4">
                             <SubmitButton variant="secondary">담당 저장</SubmitButton>
                           </div>
                         </AssistForm>

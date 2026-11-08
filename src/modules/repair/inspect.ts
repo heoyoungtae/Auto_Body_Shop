@@ -14,6 +14,7 @@ import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
 import { userSignature } from "@/modules/auth/signature";
+import { inspectorIssue } from "@/modules/staff/service";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { totals } from "./estimate-rules";
@@ -52,6 +53,8 @@ export async function startInspection(db: Db, actor: Actor, roId: string, indepe
     if (!independenceNote.trim()) throw new InspectError("이 차를 작업했습니다. 인원이 부족해 직접 검사하는 사유를 적어 주세요(STD-05 3절)");
     note = independenceNote.trim();
   }
+  const skill = await inspectorIssue(db, actor.id);
+  if (skill) throw new InspectError(skill);
   const prev = await db.select({ round: inspection.round }).from(inspection).where(eq(inspection.repairOrderId, roId)).orderBy(desc(inspection.round)).limit(1);
   const [i] = await db.insert(inspection).values({ repairOrderId: roId, workOrderId: w.id, round: (prev[0]?.round ?? 0) + 1, inspector: actor.id, independenceNote: note, startedAt: now }).returning({ id: inspection.id });
   await writeAudit(db, { actorId: actor.id, action: "inspect.start", entityType: "repair_order", entityId: r.docNo, after: { round: (prev[0]?.round ?? 0) + 1, independenceNote: note } });
