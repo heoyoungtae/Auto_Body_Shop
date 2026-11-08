@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { staffDocument, staffProfile } from "@/db/schema";
 import { checkContract, contractNumbers, monthlyStdHours, type ContractTerms } from "@/modules/staff/contract-rules";
-import { approveContract, contractDefaults, createPledge, getDocument, listDocuments, markDelivered, saveContract, signDocument, updateLeaveChecks } from "@/modules/staff/documents";
+import { ackRules, approveContract, contractDefaults, rulesAckStatus, createPledge, getDocument, listDocuments, markDelivered, saveContract, signDocument, updateLeaveChecks } from "@/modules/staff/documents";
 import { saveProfile, type ProfileView } from "@/modules/staff/service";
 import { seedShop, testDb } from "./db";
 
@@ -119,5 +119,13 @@ describe("근로계약서 흐름", () => {
     await signDocument(db, acct(), l.doc.id, PNG, now);
     const [row] = await db.select().from(staffDocument).where(eq(staffDocument.id, l.doc.id));
     expect(row).toMatchObject({ status: "signed", signedVia: "in_person" });
+  });
+
+  it("취업규칙은 직원이 읽고 확인 서명하며, 같은 판을 두 번 확인할 수 없다", async () => {
+    await expect(ackRules(db, tech(), null, now)).rejects.toThrow(/서명란/);
+    await ackRules(db, tech(), PNG, now);
+    expect((await rulesAckStatus(db)).has(ids.tech1)).toBe(true);
+    expect((await rulesAckStatus(db)).has(ids.tech2)).toBe(false);
+    await expect(ackRules(db, tech(), PNG, now)).rejects.toThrow(/이미/);
   });
 });

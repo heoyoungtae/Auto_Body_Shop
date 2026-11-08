@@ -21,7 +21,7 @@ export default async function NewStaffDocPage({ params, searchParams }: { params
   const user = await requireUser();
   const db = await getDb();
   const [u] = await db.select({ name: appUser.name }).from(appUser).where(eq(appUser.id, id));
-  if (!u || !isDocKind(kind)) notFound();
+  if (!u || !isDocKind(kind) || kind === "rules_ack") notFound();
   const title = `${u.name} ${DOC_KINDS[kind].label}`;
   const back = (
     <Link href={`/staff/${id}`} className="text-sm text-[var(--accent)]">

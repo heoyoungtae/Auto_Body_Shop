@@ -17,6 +17,7 @@ import { loadShopInfo, shopAddressLine } from "@/modules/platform/shop";
 import { storeFile } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
 import { checkContract, DOC_KINDS, LEAVE_CHECKS, PLEDGE_VERSION, type ContractTerms, type DocKind, type PledgeTerms } from "./contract-rules";
+import { RULES_VERSION } from "./work-rules-text";
 import { getProfile } from "./service";
 
 export class DocError extends UserError {}
@@ -126,7 +127,7 @@ export async function approveContract(db: Db, actor: Actor, docId: string, now =
 }
 
 /** 서약서·확인서 만들기(바로 서명 대기). 퇴직 확인서는 반납·삭제 확인 항목을 담당자가 함께 확인해 체크한다 */
-export async function createPledge(db: Db, actor: Actor, userId: string, kind: "pledge_join" | "pledge_leave", input: { leftOn?: string; checks?: string[]; note?: string } = {}, now = new Date()) {
+export async function createPledge(db: Db, actor: Actor, userId: string, kind: "pledge_join" | "pledge_leave" | "rules_ack", input: { leftOn?: string; checks?: string[]; note?: string } = {}, now = new Date()) {
   if (!canWriteDocs(actor)) throw new DocError("서약서는 대표·회계 담당이 준비합니다");
   const name = await nameOf(db, userId);
   const open = await db
@@ -134,7 +135,7 @@ export async function createPledge(db: Db, actor: Actor, userId: string, kind: "
     .from(staffDocument)
     .where(and(eq(staffDocument.userId, userId), eq(staffDocument.kind, kind), inArray(staffDocument.status, ["draft", "ready"])));
   if (open.length) throw new DocError(`서명을 기다리는 ${DOC_KINDS[kind].label}가 이미 있습니다`);
-  const terms: PledgeTerms = { version: PLEDGE_VERSION };
+  const terms: PledgeTerms = { version: kind === "rules_ack" ? RULES_VERSION : PLEDGE_VERSION };
   if (kind === "pledge_leave") {
     const [p] = await db.select({ leftOn: staffProfile.leftOn }).from(staffProfile).where(eq(staffProfile.userId, userId));
     const leftOn = input.leftOn || p?.leftOn || "";
@@ -198,6 +199,32 @@ export async function signDocument(db: Db, actor: Actor, docId: string, png: Uin
   });
   await writeAudit(db, { actorId: actor.id, action: "staff_doc.sign", entityType: "staff_document", entityId: d.id, after: { kind: d.kind, via: self ? "self" : "in_person" } });
   if (self) await notifyRole(db, "accounting", `${name} ${DOC_KINDS[d.kind as DocKind].label} 서명 완료 ${d.docNo}${d.kind === "contract" ? " — 교부 기록 필요" : ""}`, `doc-signed-${d.id}`, `/staff/docs/${d.id}`);
+}
+
+/** 취업규칙 확인: 직원이 /rules 에서 읽고 바로 서명한다(지금 판을 이미 확인했으면 막음) */
+export async function ackRules(db: Db, actor: Actor, png: Uint8Array | null, now = new Date()) {
+  const mine = await db
+    .select()
+    .from(staffDocument)
+    .where(and(eq(staffDocument.userId, actor.id), eq(staffDocument.kind, "rules_ack"), ne(staffDocument.status, "cancelled")));
+  if (mine.some((d) => d.status === "signed" && (d.terms as PledgeTerms).version === RULES_VERSION)) throw new DocError("이 판의 취업규칙은 이미 확인했습니다");
+  let doc = mine.find((d) => d.status === "ready" && (d.terms as PledgeTerms).version === RULES_VERSION);
+  if (!doc) {
+    [doc] = await db
+      .insert(staffDocument)
+      .values({ docNo: await nextDocNo(db, "PL", now), userId: actor.id, kind: "rules_ack", status: "ready", terms: { version: RULES_VERSION }, createdBy: actor.id, createdAt: now, updatedAt: now })
+      .returning();
+  }
+  await signDocument(db, actor, doc.id, png, now);
+  return doc;
+}
+
+/** 직원별 취업규칙 확인 여부(지금 판) */
+export async function rulesAckStatus(db: Db) {
+  const rows = await db.select({ userId: staffDocument.userId, terms: staffDocument.terms, signedAt: staffDocument.signedAt }).from(staffDocument).where(and(eq(staffDocument.kind, "rules_ack"), eq(staffDocument.status, "signed")));
+  const out = new Map<string, Date>();
+  for (const r of rows) if ((r.terms as PledgeTerms).version === RULES_VERSION && r.signedAt) out.set(r.userId, r.signedAt);
+  return out;
 }
 
 export const DELIVER_HOW = { print: "인쇄본을 직접 줌", app: "앱에서 본인이 받음(전자 교부)", email: "이메일·문자로 보냄" } as const;

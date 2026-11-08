@@ -6,6 +6,7 @@ export const DOC_KINDS = {
   contract: { label: "근로계약서", form: "F-11-01" },
   pledge_join: { label: "정보보호·비밀유지 서약서", form: "F-13-02" },
   pledge_leave: { label: "퇴직 비밀유지 확인서", form: "F-13-03" },
+  rules_ack: { label: "취업규칙 확인서", form: "HR-RULES" },
 } as const;
 export type DocKind = keyof typeof DOC_KINDS;
 export const isDocKind = (s: string): s is DocKind => s in DOC_KINDS;
@@ -50,6 +51,8 @@ export type ContractTerms = {
 };
 
 export type PledgeTerms = { version: string; leftOn?: string; checks?: string[]; note?: string };
+
+export const RULES_ACK_TEXT = "본인은 회사 취업규칙을 받아 끝까지 읽었고, 그 내용을 확인하였습니다. 궁금한 점은 회계 담당이나 대표에게 물어 설명을 들었습니다.";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const HM = /^([01]\d|2[0-3]):([0-5]\d)$/;

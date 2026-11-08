@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { seoulDate } from "@/modules/platform/time";
-import { CONTRACT_TYPES, DOC_KINDS, DOC_STATUS, fmtDays, INSURANCES, LEAVE_CHECKS, LEAVE_PLEDGE_TEXT, PAY_METHODS, PAY_TYPES, PLEDGE_JOIN_ITEMS, WEEKDAYS, type ContractTerms, type DocKind, type PledgeTerms } from "@/modules/staff/contract-rules";
+import { CONTRACT_TYPES, DOC_KINDS, DOC_STATUS, fmtDays, INSURANCES, LEAVE_CHECKS, LEAVE_PLEDGE_TEXT, PAY_METHODS, PAY_TYPES, PLEDGE_JOIN_ITEMS, RULES_ACK_TEXT, WEEKDAYS, type ContractTerms, type DocKind, type PledgeTerms } from "@/modules/staff/contract-rules";
 import { canWriteDocs, DELIVER_HOW, getDocument, type Party } from "@/modules/staff/documents";
 import { AssistForm } from "../../../_assist";
 import { CheckGroup, SelectField, TextAreaField, TextField } from "../../../_input";
@@ -268,7 +268,17 @@ function PledgeBody({ kind, t, party, shop, date, signPath }: { kind: DocKind; t
   return (
     <>
       <h1 className="my-6 text-center text-2xl font-bold tracking-[0.2em]">{DOC_KINDS[kind].label}</h1>
-      {kind === "pledge_join" ? (
+      {kind === "rules_ack" ? (
+        <>
+          <p>{RULES_ACK_TEXT}</p>
+          <p className="mt-2">
+            확인한 취업규칙: {shop.name || "회사"} 취업규칙({t.version}) —{" "}
+            <Link href="/rules" className="text-[var(--accent)] print:text-black">
+              앱 › 취업규칙
+            </Link>
+          </p>
+        </>
+      ) : kind === "pledge_join" ? (
         <>
           <p>본인은 {shop.name || "회사"}에서 일하는 동안과 퇴직한 뒤에 다음 사항을 지킬 것을 서약합니다.</p>
           <ol className="mt-3 list-decimal space-y-2 pl-5">

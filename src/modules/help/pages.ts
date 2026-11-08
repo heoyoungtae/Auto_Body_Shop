@@ -383,6 +383,14 @@ export const PAGE_HELP = {
     tips: ["근로계약서는 서명과 함께 직원에게 꼭 교부합니다(근로기준법 제17조, 어기면 500만 원 이하 벌금).", "계약서·서약서는 퇴직 후 3년 보존합니다(제42조)."],
     refs: ["사내 표준서 STD-11·STD-13", "근로기준법 제17·42조"],
   },
+  rules: {
+    title: "취업규칙",
+    purpose: "회사의 근로조건과 복무 규칙을 보고, 읽었다는 확인 서명을 남깁니다.",
+    who: "모든 직원(대표·회계 담당은 직원별 확인 현황도 봄)",
+    steps: ["위 장 이름을 누르면 그 장으로 갑니다.", "끝까지 읽은 뒤 오른쪽 '내 확인'에 서명합니다.", "취업규칙이 바뀌면 새 판에 다시 확인 서명합니다."],
+    tips: ["근태·연차·급여일 같은 숫자는 앱 설정(정책값)과 같습니다.", "서명한 확인서는 '계약서·서약서'에 남습니다."],
+    refs: ["근로기준법 제14·93·94조", "사내 표준서 STD-11"],
+  },
   "staff.docNew": {
     title: "계약서·서약서 쓰기",
     purpose: "근로계약서나 서약서를 준비해 직원 서명을 받을 수 있게 합니다.",
@@ -559,6 +567,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/staff/[id]": "staff.profile",
   "/staff/competency": "staff.competency",
   "/staff/docs": "staff.docs",
+  "/rules": "rules",
   "/staff/docs/[docId]": "staff.doc",
   "/staff/[id]/docs/new": "staff.docNew",
   "/staff/new": "staff.new",

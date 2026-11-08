@@ -10,6 +10,7 @@ export const LEAVE_KINDS = {
   out: { label: "외출", unit: "time", deduct: 0, ahead: false, hint: "근무 중 잠시 나감" },
   early: { label: "조퇴", unit: "time", deduct: 0, ahead: false, hint: "일찍 퇴근" },
   late: { label: "지각", unit: "time", deduct: 0, ahead: false, hint: "늦게 출근(사후 신고)" },
+  family: { label: "경조휴가", unit: "day", deduct: 0, ahead: false, hint: "결혼·장례 등. 유급, 연차에서 빼지 않음(취업규칙 제18조)" },
   absent: { label: "결근", unit: "day", deduct: 0, ahead: false, hint: "알리지 못하고 빠짐(사후 신고)" },
   overtime: { label: "연장근무", unit: "time", deduct: 0, ahead: true, hint: "정해진 시간 뒤 더 일함. 미리 신청" },
 } as const;
