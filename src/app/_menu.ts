@@ -20,7 +20,7 @@ export const MENU: MenuGroup[] = [
     id: "repair",
     label: "수리 업무",
     items: [
-      { label: "상담·예약", phase: "1차", std: "STD-01" },
+      { label: "상담·예약", href: "/consults", std: "STD-01" },
       { label: "접수·입고", phase: "1차", std: "STD-02" },
       { label: "견적·고객 승인", phase: "1차", std: "STD-03" },
       { label: "작업·공정", phase: "1차", std: "STD-04" },
@@ -32,7 +32,7 @@ export const MENU: MenuGroup[] = [
     id: "customer",
     label: "고객",
     items: [
-      { label: "고객·차량", phase: "1차", std: "STD-01" },
+      { label: "고객·차량", href: "/customers", std: "STD-13" },
       { label: "보증 수리", phase: "2차", std: "STD-06.2" },
       { label: "만족도·불만", phase: "2차", std: "STD-06" },
     ],

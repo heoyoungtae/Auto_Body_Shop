@@ -74,7 +74,7 @@ function mergeFields(defs: { key: string; secret?: boolean }[], input: Record<st
 const fieldView = (defs: { key: string; label: string; secret?: boolean }[], plain: Record<string, string> = {}, secret: Record<string, string> = {}) =>
   defs.map((f) => ({ ...f, value: f.secret ? "" : (plain[f.key] ?? ""), saved: f.secret ? !!secret[f.key] : !!plain[f.key] }));
 
-async function log(db: Db, e: { channel: string; purpose: string; provider: string; to: string; body: string; ok: boolean; error?: string; sentBy: string; amount?: number; ref?: string }) {
+async function log(db: Db, e: { channel: string; purpose: string; provider: string; to: string; body: string; ok: boolean; error?: string; sentBy: string | null; amount?: number; ref?: string; customerName?: string }) {
   await db.insert(messageLog).values({
     channel: e.channel,
     purpose: e.purpose,
@@ -86,6 +86,7 @@ async function log(db: Db, e: { channel: string; purpose: string; provider: stri
     status: e.ok ? "성공" : "실패",
     error: e.error ?? null,
     ref: e.ref ?? null,
+    customerName: e.customerName ?? null,
     sentBy: e.sentBy,
   });
 }
@@ -271,4 +272,49 @@ export async function listLogs(db: Db, limit = 200) {
     .leftJoin(appUser, eq(appUser.id, messageLog.sentBy))
     .orderBy(desc(messageLog.createdAt))
     .limit(limit);
+}
+
+// ── 고객 안내 발송(상담·예약·견적·출고 화면과 주기 작업이 쓴다) ──
+export const SHOP_NAME = "외관수리 정비소";
+
+/** 전화번호를 보기 좋게: 0212345678 → 02-1234-5678, 15881234 → 1588-1234 */
+export function formatPhone(raw: string): string {
+  const d = digits(raw);
+  if (d.length === 8) return `${d.slice(0, 4)}-${d.slice(4)}`;
+  if (d.startsWith("02")) return d.length === 9 ? `02-${d.slice(2, 5)}-${d.slice(5)}` : `02-${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  return raw;
+}
+
+export type NoticeResult = { ok: boolean; channel: string; error?: string; demo: boolean; text: string };
+
+/**
+ * 정보성 안내 1건. 알림톡이 준비된 템플릿이면 알림톡으로, 아니면 같은 문구를 문자로 보낸다(설정 › 카카오 알림톡).
+ * 업체명·업체전화는 여기서 채우므로 부르는 쪽은 고객·건 값만 넘긴다(중복 입력 없음).
+ */
+export async function sendNotice(
+  db: Db,
+  e: { key: KakaoKey; to: string; vars: Record<string, string>; purpose: string; customerName?: string; ref?: string; sentBy: string | null },
+  f: typeof fetch = fetch,
+): Promise<NoticeResult> {
+  const to = mobile(e.to);
+  const p = await smsRuntime(db);
+  const vars = { 업체명: SHOP_NAME, 업체전화: p.sender ? formatPhone(p.sender) : "정비소", ...e.vars };
+  const text = renderKakao(e.key, vars);
+  const kakao = await kakaoOverview(db);
+  const ready = kakao.templates.find((t) => t.key === e.key)?.ready;
+  const sendKakao = ADAPTERS[p.id].sendKakao;
+  let r: { ok: boolean; error?: string };
+  let channel: string;
+  if (ready && sendKakao) {
+    const { data } = await load(db, "kakao");
+    channel = "알림톡";
+    [r] = await sendKakao(p.cfg, p.sender, [{ to, text, subject: SHOP_NAME, pfId: data.pfId, templateId: data.codes[e.key] ?? "DEMO", variables: Object.fromEntries(Object.entries(vars).map(([a, b]) => [`#{${a}}`, b])) }], f);
+  } else {
+    channel = smsKind(text);
+    [r] = await ADAPTERS[p.id].send(p.cfg, p.sender, [{ to, text, kind: smsKind(text), subject: KAKAO_TEMPLATES[e.key].title }], f);
+  }
+  await log(db, { channel, purpose: e.purpose, provider: p.id, to, body: text, ok: r.ok, error: r.error, sentBy: e.sentBy, ref: e.ref, customerName: e.customerName });
+  return { ok: r.ok, error: r.error, channel, demo: p.id === "demo", text };
 }

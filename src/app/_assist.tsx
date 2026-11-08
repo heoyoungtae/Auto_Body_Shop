@@ -47,7 +47,29 @@ function restore(form: HTMLFormElement, snap: Snapshot) {
     nativeSetter(el, vals[i]);
     el.dispatchEvent(new Event("input", { bubbles: true }));
   }
+  // 고른 값에 따라 나중에 나타나는 칸(ShowWhen)도 되살릴 수 있게 남겨 둔다
+  (form as HTMLFormElement & { assistSnap?: Snapshot }).assistSnap = snap;
   form.dispatchEvent(new Event("assist:restored"));
+}
+
+/** 나중에 나타난 칸에 되살린 값을 채운다(빈 칸만) */
+export function restoreWithin(root: HTMLElement) {
+  const form = root.closest("form") as (HTMLFormElement & { assistSnap?: Snapshot }) | null;
+  const snap = form?.assistSnap;
+  if (!snap) return;
+  for (const el of Array.from(root.querySelectorAll("input,textarea,select"))) {
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) || !el.name) continue;
+    const vals = snap[el.name];
+    if (!vals) continue;
+    if (el instanceof HTMLInputElement && el.type === "checkbox") {
+      el.checked = vals.includes(el.value);
+      continue;
+    }
+    if (el instanceof HTMLInputElement && SKIP.has(el.type) && !el.dataset.rawFor) continue;
+    if (el.value || vals[0] == null) continue;
+    nativeSetter(el, vals[0]);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }
 }
 
 const isEmpty = (s: Snapshot) => Object.values(s).every((v) => v.every((x) => !x.trim()));
