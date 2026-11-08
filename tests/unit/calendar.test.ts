@@ -33,3 +33,17 @@ describe("대시보드 패널", () => {
     expect(panelsFor(["owner"])).toContain("month");
   });
 });
+
+import { generationFor, generationsOf, yearMismatch } from "@/modules/customer/generations";
+describe("차종 세대", () => {
+  it("차종·연식으로 세대를 고르고, 겹치는 해는 고르지 않는다", () => {
+    expect(generationFor("아반떼", 2022)?.code).toBe("CN7");
+    expect(generationFor("아반떼 하이브리드", 2017)?.code).toBe("AD");
+    expect(generationFor("아반떼", 2020)).toBeUndefined();
+    expect(generationsOf("없는차")).toEqual([]);
+  });
+  it("세대와 연식이 맞지 않으면 알린다(앞뒤 1년 허용)", () => {
+    expect(yearMismatch("쏘렌토", "MQ4", 2015)).toMatch(/MQ4/);
+    expect(yearMismatch("쏘렌토", "MQ4", 2019)).toBeNull();
+  });
+});

@@ -17,7 +17,7 @@ export const CONSENT_PICK = { phone: CONSENT_METHOD_LABEL.phone, visit: CONSENT_
 export const DAMAGE_TYPES = ["찌그러짐", "긁힘", "도장 박리", "부식", "기타"] as const;
 export const CAUSES = ["사고", "긁힘·주차", "노후", "기타"] as const;
 export const METHODS = ["덴트", "판금·도장", "교환", "광택"] as const;
-export const PARTS_PREF = ["순정", "인증 대체품", "중고", "상관없음"] as const;
+export const PARTS_PREF = ["순정(OEM)", "품질인증 대체부품", "친환경(중고·재제조·재생)", "상관없음"] as const;
 
 /** 상담 시간 고르기(30분 단위, 영업시간 08:00~19:00) */
 export const TIME_SLOTS = Array.from({ length: 23 }, (_, i) => {

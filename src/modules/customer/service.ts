@@ -13,6 +13,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { addDays, seoulDate } from "@/modules/platform/time";
+import { generationFor, isVehicleOption } from "./generations";
 import { decodeVin, makerOf, normalizeVin, VIN_RE } from "./vehicles";
 import {
   addBusinessDays,
@@ -160,7 +161,21 @@ export async function updateCustomer(db: Db, actorId: string, id: string, input:
   await writeAudit(db, { actorId, action: "customer.update", entityType: "customer", entityId: id, after: { name, memo: set.memo, phoneChanged: !!input.phone?.trim() } });
 }
 
-export type VehicleInput = { id?: string; plateNo: string; vin?: string; maker?: string; model?: string; year?: number | null; colorCode?: string; mileage?: number | null };
+export type VehicleInput = {
+  id?: string;
+  plateNo: string;
+  vin?: string;
+  maker?: string;
+  model?: string;
+  /** 세대 코드(예: CN7). 비우면 차종·연식으로 고른다 */
+  generation?: string;
+  trim?: string;
+  year?: number | null;
+  colorCode?: string;
+  mileage?: number | null;
+  /** 수리 사양(VEHICLE_OPTIONS 키). 주면 통째로 바꾸고, 안 주면 지난 값 유지 */
+  options?: string[];
+};
 
 export async function saveVehicle(db: Db, actorId: string, customerId: string, input: VehicleInput, today = seoulDate()) {
   const plateNo = plateOf(input.plateNo);
@@ -188,7 +203,10 @@ export async function saveVehicle(db: Db, actorId: string, customerId: string, i
     maker: clean(input.maker) ?? decoded?.maker ?? (model ? makerOf(model) : undefined) ?? old?.maker ?? null,
     model,
     year: year ?? old?.year ?? null,
+    generation: clean(input.generation) ?? (model !== old?.model ? null : old?.generation) ?? generationFor(model, year ?? old?.year)?.code ?? null,
+    trim: clean(input.trim) ?? old?.trim ?? null,
     colorCode: clean(input.colorCode)?.toUpperCase() ?? old?.colorCode ?? null,
+    options: input.options ? input.options.filter(isVehicleOption) : (old?.options ?? []),
     ...(mileage != null ? { mileage, mileageOn: today } : {}),
     updatedAt: new Date(),
   };
@@ -661,6 +679,26 @@ export async function purgeUnconsented(db: Db, now = new Date()) {
 }
 
 /** 같은 차종에서 쓴 색상 코드(많이 쓴 순). 화면의 추천 목록 */
+/** 이 정비소에서 차종별로 쓴 트림(많이 쓴 순). 기록이 쌓일수록 추천이 정확해진다 */
+export async function trimHints(db: Db) {
+  const rows = await db
+    .select({ model: vehicle.model, trim: vehicle.trim, n: sql<number>`count(*)::int` })
+    .from(vehicle)
+    .where(sql`${vehicle.trim} is not null and ${vehicle.model} is not null`)
+    .groupBy(vehicle.model, vehicle.trim)
+    .orderBy(desc(sql`count(*)`))
+    .limit(500);
+  const out: Record<string, string[]> = {};
+  for (const r of rows) (out[r.model!] ??= []).push(r.trim!);
+  return out;
+}
+
+/** 차량 칸 추천: 색상 코드·트림(이 정비소 기록) */
+export async function vehicleHints(db: Db) {
+  const [colors, trims] = await Promise.all([colorHints(db), trimHints(db)]);
+  return { colors, trims };
+}
+
 export async function colorHints(db: Db) {
   const rows = await db
     .select({ maker: vehicle.maker, model: vehicle.model, code: vehicle.colorCode, n: sql<number>`count(*)::int` })

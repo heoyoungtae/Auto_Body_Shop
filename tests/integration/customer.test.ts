@@ -10,6 +10,7 @@ import {
   getCustomer,
   listConsultations,
   revealPhone,
+  saveVehicle,
   searchCustomers,
   sendReminders,
   sendReservationConfirm,
@@ -176,5 +177,18 @@ describe("동의 링크·차대번호·주행거리", () => {
     await saveCalendarRules(db, ids.owner, { workdays: [1, 2, 3, 4, 5, 6], excludeHolidays: true });
     const r = await createConsultation(db, ids.advisor, base({ newCustomer: { name: "김토", phone: "010-2222-3333" }, newVehicle: { plateNo: "34나5678" }, result: "reserved", reservedDate: "2026-11-14", reservedTime: "10:00" }), now);
     expect(r.result).toBe("reserved");
+  });
+
+  it("차종·연식으로 세대를 채우고, 수리 사양은 안 보낸 칸이면 지난 값을 둔다", async () => {
+    const c = await createConsultation(db, ids.advisor, base({ newVehicle: { plateNo: "12가3456", model: "쏘렌토", year: 2022, trim: "시그니처", options: ["radar_front", "bsd", "nope"] } }), now);
+    const cust = await getCustomer(db, c.customerId);
+    const v = cust.vehicles[0];
+    expect(v.generation).toBe("MQ4");
+    expect(v.trim).toBe("시그니처");
+    expect(v.options).toEqual(["radar_front", "bsd"]);
+    await saveVehicle(db, ids.advisor, c.customerId, { id: v.id, plateNo: "12가3456", colorCode: "ABP" });
+    const again = (await getCustomer(db, c.customerId)).vehicles[0];
+    expect(again.options).toEqual(["radar_front", "bsd"]);
+    expect(again.generation).toBe("MQ4");
   });
 });

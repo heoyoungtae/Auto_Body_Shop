@@ -1,4 +1,5 @@
 "use server";
+import { readVehicle } from "./vehicle-form";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { createConsultation, markReplied, sendReservationConfirm, updateConsultation, type ConsentInput } from "@/modules/customer/service";
@@ -57,14 +58,13 @@ export async function createConsultAction(form: FormData) {
   let msg = "상담 일지를 저장했습니다";
   try {
     const vehicleId = str("vehicleId");
-    const year = str("year").replace(/[^\d]/g, "");
     const row = await createConsultation(await getDb(), user.id, {
       customerId: str("customerId") || undefined,
       newCustomer: str("customerId") ? undefined : { name: str("newName"), phone: str("newPhone") },
       consent: await readConsent(form),
       requestConsent: str("consentMethod") === "link",
       vehicleId: vehicleId && vehicleId !== "new" ? vehicleId : undefined,
-      newVehicle: !vehicleId || vehicleId === "new" ? { plateNo: str("plateNo"), vin: str("vin"), maker: str("maker"), model: str("model"), year: year ? Number(year) : null, colorCode: str("colorCode") } : undefined,
+      newVehicle: !vehicleId || vehicleId === "new" ? readVehicle(form) : undefined,
       channel: (str("channel") || "phone") as "phone",
       fromId: str("fromId") || undefined,
       ...readConsultForm(form),

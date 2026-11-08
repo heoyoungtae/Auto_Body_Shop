@@ -36,6 +36,13 @@
       "when": 1794119261798,
       "tag": "0004_shop_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794120710663,
+      "tag": "0005_vehicle_generation",
+      "breakpoints": true
     }
   ]
 }

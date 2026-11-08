@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { colorHints, getCustomer, pendingConsent, revealPhone } from "@/modules/customer/service";
+import { VEHICLE_OPTIONS, type VehicleOption } from "@/modules/customer/generations";
+import { vehicleHints, getCustomer, pendingConsent, revealPhone } from "@/modules/customer/service";
 import { formatPhone } from "@/modules/messaging/service";
 import { CONSENT_METHOD_LABEL, RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
 import { AssistForm } from "../../_assist";
@@ -16,7 +17,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const user = await requireUser();
   const db = await getDb();
   const c = await getCustomer(db, id);
-  const [colors, pending] = await Promise.all([colorHints(db), pendingConsent(db, id)]);
+  const [hints, pending] = await Promise.all([vehicleHints(db), pendingConsent(db, id)]);
   const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
   // 전체 번호는 누를 때만, 본 기록이 남는다(설계서 9.2)
   const full = q.show === "phone" && canWrite ? await revealPhone(db, user.id, id) : null;
@@ -68,7 +69,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               {c.vehicles.map((v) => (
                 <details key={v.id} className="rounded-md border border-[var(--line)]">
                   <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-sm">
-                    <b>{v.plateNo}</b> {[v.maker, v.model, v.year && `${v.year}년식`, v.colorCode, v.mileage != null && `${v.mileage.toLocaleString("ko-KR")}km(${v.mileageOn})`].filter(Boolean).join(" · ")}
+                    <b>{v.plateNo}</b> {[v.maker, [v.model, v.generation].filter(Boolean).join(" "), v.trim, v.year && `${v.year}년식`, v.colorCode, v.options?.length && v.options.map((o) => VEHICLE_OPTIONS[o as VehicleOption] ?? o).join("·"), v.mileage != null && `${v.mileage.toLocaleString("ko-KR")}km(${v.mileageOn})`].filter(Boolean).join(" · ")}
                     {v.vin && <span className="text-xs text-[var(--muted)]">차대 {v.vin}</span>}
                     {canWrite && <span className="ml-auto text-xs text-[var(--accent)]">고치기</span>}
                   </summary>
@@ -77,7 +78,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
                       <AssistForm id={`veh-${v.id}`} action={vehicleAction} className="space-y-4">
                         <input type="hidden" name="id" value={c.id} />
                         <input type="hidden" name="vehicleId" value={v.id} />
-                        <NewVehicleFields v={v} colors={colors} />
+                        <NewVehicleFields v={v} hints={hints} />
                         <SubmitButton variant="secondary">차량 저장</SubmitButton>
                       </AssistForm>
                       <AssistForm id={`move-${v.id}`} action={moveVehicleAction} className="flex flex-wrap items-end gap-2">
@@ -97,7 +98,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
                   <summary className="cursor-pointer px-3 py-2 text-sm text-[var(--accent)]">+ 차량 더하기</summary>
                   <AssistForm id={`veh-new-${c.id}`} action={vehicleAction} className="space-y-4 border-t border-[var(--line)] p-3">
                     <input type="hidden" name="id" value={c.id} />
-                    <NewVehicleFields colors={colors} />
+                    <NewVehicleFields hints={hints} />
                     <SubmitButton variant="secondary">차량 더하기</SubmitButton>
                   </AssistForm>
                 </details>

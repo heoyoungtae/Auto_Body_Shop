@@ -35,7 +35,13 @@ export const vehicle = pgTable(
     maker: text("maker"),
     model: text("model"),
     year: integer("year"),
+    /** 세대 코드(예: CN7). src/modules/customer/generations.ts 목록 */
+    generation: text("generation"),
+    /** 트림(세부 모델). 고정 목록 없이 이 정비소 기록에서 추천 */
+    trim: text("trim"),
     colorCode: text("color_code"),
+    /** 수리 사양: 레이더·센서·카메라·램프·선루프·3코트 도장 등(VEHICLE_OPTIONS 키) */
+    options: jsonb("options").$type<string[]>().notNull().default([]),
     /** 마지막으로 안 주행거리(km)와 그날. 상담 때는 고객 말, 입고 때는 계기판 확인 값 */
     mileage: integer("mileage"),
     mileageOn: date("mileage_on"),

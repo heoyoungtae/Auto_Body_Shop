@@ -1,4 +1,5 @@
 "use server";
+import { readVehicle } from "../consults/vehicle-form";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { changeConsent, findByPhone, moveVehicle, saveVehicle, sendConsentRequest, updateCustomer, type ConsentInput } from "@/modules/customer/service";
@@ -45,9 +46,8 @@ export async function consentAction(form: FormData) {
 export async function vehicleAction(form: FormData) {
   const user = await requireUser([...STAFF]);
   const id = str(form, "id");
-  const year = str(form, "year").replace(/[^\d]/g, "");
   try {
-    await saveVehicle(await getDb(), user.id, id, { id: str(form, "vehicleId") || undefined, plateNo: str(form, "plateNo"), vin: str(form, "vin"), maker: str(form, "maker"), model: str(form, "model"), year: year ? Number(year) : null, colorCode: str(form, "colorCode") });
+    await saveVehicle(await getDb(), user.id, id, { id: str(form, "vehicleId") || undefined, ...readVehicle(form) });
   } catch (e) {
     redirect(errorUrl(`/customers/${id}`, userMessage(e)));
   }

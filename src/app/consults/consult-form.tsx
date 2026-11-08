@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { CONSENT_PICK, CONSENT_TEXT, CAUSES, CHANNEL_LABEL, DAMAGE_TYPES, INSURANCE_LABEL, METHODS, PARTS_PREF, RESULT_LABEL, TIME_SLOTS } from "@/modules/customer/rules";
 import { CheckGroup, DateField, NumberField, SelectField, TextAreaField, TextField } from "../_input";
 import { ShowWhen } from "./show-when";
-import { VehicleFields } from "./vehicle-fields";
+import { VehicleFields, type VehicleHints, type VehicleValues } from "./vehicle-fields";
 import { CONSENT_LINK_DAYS } from "@/modules/customer/consent-const";
 
 export type ConsultPrefill = {
@@ -108,8 +108,8 @@ export function ConsentFields({ checked = ["required"], method = "phone", narrow
   );
 }
 
-export function NewVehicleFields({ from, v, colors }: { from?: string; v?: { plateNo?: string; vin?: string | null; maker?: string | null; model?: string | null; year?: number | null; colorCode?: string | null }; colors?: Record<string, string[]> }) {
-  return <VehicleFields v={v} from={from} colors={colors} />;
+export function NewVehicleFields({ from, v, hints }: { from?: string; v?: VehicleValues; hints?: VehicleHints }) {
+  return <VehicleFields v={v} from={from} hints={hints} />;
 }
 
 /** 상담 내용·요구·예상 금액·결과. src 는 값을 불러온 곳(지난 상담 번호) */

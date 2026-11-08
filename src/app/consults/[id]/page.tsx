@@ -3,6 +3,7 @@ import { getDb } from "@/db/runtime";
 import { consultFlags, getConsultation, pendingConsent } from "@/modules/customer/service";
 import { CHANNEL_LABEL, INSURANCE_LABEL, RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
 import { seoulDate } from "@/modules/platform/time";
+import { VEHICLE_OPTIONS, type VehicleOption } from "@/modules/customer/generations";
 import { dayLabel, koMoney } from "../../_format";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
@@ -76,7 +77,8 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
               <Row k="개인정보 동의">
                 {c.consent.required ? <Badge tone="ok">필수 동의</Badge> : pending ? <Badge tone="warn">링크 동의 대기 · {fmtTime(pending.expiresAt)}까지</Badge> : <Badge tone="danger">필수 동의 없음</Badge>} {c.consent.marketing && <Badge>광고 문자 동의</Badge>} {c.consent.photo && <Badge>사진 홍보 동의</Badge>}
               </Row>
-              <Row k="차량">{v && [v.plateNo, v.maker, v.model, v.year && `${v.year}년식`].filter(Boolean).join(" · ")}</Row>
+              <Row k="차량">{v && [v.plateNo, v.maker, [v.model, v.generation].filter(Boolean).join(" "), v.trim, v.year && `${v.year}년식`].filter(Boolean).join(" · ")}</Row>
+              <Row k="수리 사양">{v?.options?.length ? v.options.map((o) => VEHICLE_OPTIONS[o as VehicleOption] ?? o).join(", ") : null}</Row>
               <Row k="색상 코드">{v?.colorCode}</Row>
               <Row k="차대번호">{v?.vin}</Row>
               <Row k="주행거리">{c.mileage != null ? `${c.mileage.toLocaleString("ko-KR")}km(고객 말)` : v?.mileage != null ? `${v.mileage.toLocaleString("ko-KR")}km(${v.mileageOn})` : null}</Row>

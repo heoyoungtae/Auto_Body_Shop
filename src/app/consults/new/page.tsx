@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { colorHints, getConsultation, getCustomer, reservationCalendar, searchCustomers } from "@/modules/customer/service";
+import { vehicleHints, getConsultation, getCustomer, reservationCalendar, searchCustomers } from "@/modules/customer/service";
 import { normalizePhone } from "@/modules/auth/crypto";
 import { normalizePlate, PLATE_RE, PHONE_RE, seoulParts } from "@/modules/customer/rules";
 import { seoulDate } from "@/modules/platform/time";
@@ -11,6 +11,7 @@ import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, Empty, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { createConsultAction } from "../actions";
 import { ConsentFields, ConsultFields, NewCustomerFields, NewVehicleFields, type ConsultPrefill } from "../consult-form";
+import type { VehicleHints } from "../vehicle-fields";
 import { Calendar } from "../calendar";
 import { ShowWhen } from "../show-when";
 import { SaveCheck } from "../save-check";
@@ -42,7 +43,7 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
   const cust = s.customerId ? await getCustomer(db, s.customerId).catch(() => null) : null;
   const found = q.q ? await searchCustomers(db, q.q) : [];
   const cal = await reservationCalendar(db, 60);
-  const colors = await colorHints(db);
+  const hints = await vehicleHints(db);
   // 찾았는데 없으면, 친 값을 새 고객 칸에 넣어 준다(다시 치지 않게)
   const typed = q.q?.trim() ?? "";
   const typedPhone = PHONE_RE.test(normalizePhone(typed)) ? typed : undefined;
@@ -138,9 +139,9 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
                   <ConsentFields checked={["required", ...(cust.consent.photo ? ["photo"] : []), ...(cust.consent.marketing ? ["marketing"] : [])]} />
                 )}
                 {cust.vehicles.length ? (
-                  <VehiclePick vehicles={cust.vehicles} selected={s.vehicleId} from={vehicleSrc} colors={colors} />
+                  <VehiclePick vehicles={cust.vehicles} selected={s.vehicleId} from={vehicleSrc} hints={hints} />
                 ) : (
-                  <NewVehicleFields v={{ plateNo: typedPlate }} colors={colors} />
+                  <NewVehicleFields v={{ plateNo: typedPlate }} hints={hints} />
                 )}
               </fieldset>
             ) : (
@@ -148,7 +149,7 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
                 <NewCustomerFields phone={typedPhone} />
                 <fieldset className="space-y-4 rounded-lg border border-[var(--line)] p-4">
                   <legend className="px-1 text-sm font-semibold">차량</legend>
-                  <NewVehicleFields v={{ plateNo: typedPlate }} colors={colors} />
+                  <NewVehicleFields v={{ plateNo: typedPlate }} hints={hints} />
                 </fieldset>
               </>
             )}
@@ -167,17 +168,17 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
   );
 }
 
-function VehiclePick({ vehicles, selected, from, colors }: { vehicles: { id: string; plateNo: string; model: string | null; year: number | null; colorCode: string | null }[]; selected?: string; from?: string; colors: Record<string, string[]> }) {
+function VehiclePick({ vehicles, selected, from, hints }: { vehicles: { id: string; plateNo: string; model: string | null; generation: string | null; year: number | null; colorCode: string | null }[]; selected?: string; from?: string; hints: VehicleHints }) {
   const def = selected && (selected === "new" || vehicles.some((v) => v.id === selected)) ? selected : vehicles[0].id;
   return (
-    <ShowWhen field="vehicleId" initial={def} cases={{ new: <NewVehicleFields colors={colors} /> }}>
+    <ShowWhen field="vehicleId" initial={def} cases={{ new: <NewVehicleFields hints={hints} /> }}>
       <SelectField
         help="veh.pick"
         name="vehicleId"
         required
         defaultValue={def}
         from={def !== "new" ? from : undefined}
-        options={[...vehicles.map((v) => ({ value: v.id, label: [v.plateNo, v.model, v.year, v.colorCode].filter(Boolean).join(" · ") })), { value: "new", label: "새 차량 적기" }]}
+        options={[...vehicles.map((v) => ({ value: v.id, label: [v.plateNo, [v.model, v.generation].filter(Boolean).join(" "), v.year, v.colorCode].filter(Boolean).join(" · ") })), { value: "new", label: "새 차량 적기" }]}
       />
     </ShowWhen>
   );
