@@ -11,7 +11,7 @@ export const MENU: MenuGroup[] = [
     id: "my",
     label: "내 업무",
     items: [
-      { label: "내 할 일", href: "/home" },
+      { label: "대시보드", href: "/home" },
       { label: "결재", href: "/approvals" },
       { label: "알림", href: "/notifications" },
     ],
@@ -116,6 +116,7 @@ export const MENU: MenuGroup[] = [
       { label: "문자 발송 서비스", href: "/settings/messaging" },
       { label: "카카오 알림톡", href: "/settings/kakao" },
       { label: "기프티콘 공급사", href: "/settings/gift" },
+      { label: "영업일·휴무일", href: "/settings/calendar" },
     ],
   },
   {

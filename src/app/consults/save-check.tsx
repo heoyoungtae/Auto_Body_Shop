@@ -7,7 +7,7 @@ import { normalizeVin, VIN_RE } from "@/modules/customer/vehicles";
 
 type Issue = { field: string; msg: string };
 
-function check(form: HTMLFormElement, fullDates: string[]): Issue[] {
+function check(form: HTMLFormElement, fullDates: string[], closed: Record<string, string>): Issue[] {
   const fd = new FormData(form);
   const has = (k: string) => form.elements.namedItem(k) != null;
   const v = (k: string) => String(fd.get(k) ?? "").trim();
@@ -32,6 +32,7 @@ function check(form: HTMLFormElement, fullDates: string[]): Issue[] {
   const r = v("result");
   if (r === "reserved") {
     if (!v("reservedDate")) out.push({ field: "reservedDate", msg: "입고 예약일을 골라야 합니다" });
+    else if (closed[v("reservedDate")]) out.push({ field: "reservedDate", msg: `${v("reservedDate")}은(는) 쉬는 날입니다(${closed[v("reservedDate")]}). 다른 날을 고르세요` });
     else if (fullDates.includes(v("reservedDate")) && !all("overCapacityOk").includes("1")) out.push({ field: "overCapacityOk", msg: `${v("reservedDate")}은(는) 입고 한도가 찼습니다. 공장장 동의를 받고 체크하거나 다른 날을 고르세요` });
     if (ins && ins !== "self" && !v("claimNo")) out.push({ field: "claimNo", msg: "보험 건은 예약 전에 사고접수번호를 받아 적어야 합니다" });
   }
@@ -39,7 +40,7 @@ function check(form: HTMLFormElement, fullDates: string[]): Issue[] {
   return out;
 }
 
-export function SaveCheck({ fullDates = [] }: { fullDates?: string[] }) {
+export function SaveCheck({ fullDates = [], closed = {} }: { fullDates?: string[]; closed?: Record<string, string> }) {
   const box = useRef<HTMLDivElement>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   useEffect(() => {
@@ -48,7 +49,7 @@ export function SaveCheck({ fullDates = [] }: { fullDates?: string[] }) {
     let t: ReturnType<typeof setTimeout>;
     const run = () => {
       clearTimeout(t);
-      t = setTimeout(() => setIssues(check(form, fullDates)), 150);
+      t = setTimeout(() => setIssues(check(form, fullDates, closed)), 150);
     };
     run();
     form.addEventListener("input", run);
@@ -59,7 +60,7 @@ export function SaveCheck({ fullDates = [] }: { fullDates?: string[] }) {
       form.removeEventListener("change", run);
       form.removeEventListener("assist:restored", run);
     };
-  }, [fullDates]);
+  }, [fullDates, closed]);
   const go = (name: string) => {
     const el = box.current?.closest("form")?.querySelector<HTMLElement>(`[name="${name}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });

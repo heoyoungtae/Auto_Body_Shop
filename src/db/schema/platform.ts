@@ -167,3 +167,20 @@ export const jobRun = pgTable(
   },
   (t) => [uniqueIndex("job_run_uq").on(t.job, t.runDate)],
 );
+
+/** 앱 전체 설정(키 하나에 JSON 하나). 예: calendar = 영업 요일·공휴일 제외 여부 */
+export const appConfig = pgTable("app_config", {
+  key: text("key").primaryKey(),
+  data: jsonb("data").notNull().default({}),
+  updatedBy: uuid("updated_by").references(() => appUser.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** 설정에서 넣은 날: holiday(공휴일 추가) · closed(가게 휴무) · open(특별 영업일) */
+export const shopDay = pgTable("shop_day", {
+  date: date("date").primaryKey(),
+  kind: text("kind").notNull(),
+  name: text("name").notNull().default(""),
+  createdBy: uuid("created_by").references(() => appUser.id),
+  createdAt: createdAt(),
+});

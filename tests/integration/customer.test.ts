@@ -16,6 +16,7 @@ import {
   type ConsultInput,
 } from "@/modules/customer/service";
 import { addBusinessDays } from "@/modules/customer/rules";
+import { addShopDay, saveCalendarRules } from "@/modules/platform/calendar";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -164,5 +165,16 @@ describe("동의 링크·차대번호·주행거리", () => {
     const [v] = await db.select().from(vehicle);
     expect(v).toMatchObject({ maker: "현대", year: 2024, mileage: 45000 });
     await expect(createConsultation(db, ids.advisor, base({ newVehicle: { plateNo: "12가3456" }, mileage: 40000, consent: undefined, newCustomer: { name: "홍길동", phone: "01012345678" } }), now)).rejects.toThrow(/주행거리/);
+  });
+
+  it("쉬는 날에는 예약할 수 없고, 회신 기한은 설정의 영업일로 센다", async () => {
+    await addShopDay(db, ids.owner, { date: "2026-11-10", kind: "closed", name: "설비 점검" });
+    await expect(createConsultation(db, ids.advisor, base({ result: "reserved", reservedDate: "2026-11-10", reservedTime: "10:00" }), now)).rejects.toThrow(/쉬는 날/);
+    await expect(createConsultation(db, ids.advisor, base({ result: "reserved", reservedDate: "2026-11-14", reservedTime: "10:00" }), now)).rejects.toThrow(/토요일 휴무/);
+    const c = await createConsultation(db, ids.advisor, base({ channel: "message" }), now);
+    expect(c.replyDue).toBe("2026-11-11"); // 11/10 휴무를 건너뜀
+    await saveCalendarRules(db, ids.owner, { workdays: [1, 2, 3, 4, 5, 6], excludeHolidays: true });
+    const r = await createConsultation(db, ids.advisor, base({ newCustomer: { name: "김토", phone: "010-2222-3333" }, newVehicle: { plateNo: "34나5678" }, result: "reserved", reservedDate: "2026-11-14", reservedTime: "10:00" }), now);
+    expect(r.result).toBe("reserved");
   });
 });

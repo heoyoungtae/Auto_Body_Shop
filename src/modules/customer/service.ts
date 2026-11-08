@@ -1,5 +1,7 @@
 // 고객·차량·동의·상담 일지 — 사내 표준서 STD-01(상담·예약), STD-13(개인정보), 설계서 6.1·9.2
 // 규칙: 동의 없이 연락처를 저장하지 않는다. 같은 전화번호·차량번호는 새로 만들지 않고 다시 쓴다.
+import { closedReason, type ShopCalendar } from "@/modules/platform/business-days";
+import { loadShopCalendar } from "@/modules/platform/calendar";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, consent, consentRequest, consultation, customer, vehicle } from "@/db/schema";
@@ -250,14 +252,15 @@ export type ResultInput = {
 };
 
 /** 그날 입고 예약 수와 한도(정책값 '일별 입고 한도', 0이면 한도 없음) */
-export async function capacity(db: Db, date: string, exceptId?: string) {
+export async function capacity(db: Db, date: string, exceptId?: string, cal?: ShopCalendar) {
   const from = seoulDateTime(date, "00:00");
   const to = seoulDateTime(addDays(date, 1), "00:00");
   const conds = [eq(consultation.result, "reserved"), gte(consultation.reservedAt, from), lt(consultation.reservedAt, to)];
   if (exceptId) conds.push(ne(consultation.id, exceptId));
   const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(consultation).where(and(...conds));
   const cap = (await loadPolicy(db, date))["intake.daily_capacity"];
-  return { date, count: r.n, cap, full: cap > 0 && r.n >= cap };
+  const closed = closedReason(cal ?? (await loadShopCalendar(db)), date);
+  return { date, count: r.n, cap, full: cap > 0 && r.n >= cap, closed };
 }
 
 async function resultFields(db: Db, r: ResultInput, insurance: string, claimNo: string | null, now: Date, exceptId?: string) {
@@ -267,6 +270,9 @@ async function resultFields(db: Db, r: ResultInput, insurance: string, claimNo: 
   if (r.result === "reserved") {
     if (!r.reservedDate || !r.reservedTime) throw new CustomerError("입고 예약 날짜와 시간을 골라 주세요");
     if (r.reservedDate < today) throw new CustomerError("지난 날짜로는 예약할 수 없습니다");
+    const cal = await loadShopCalendar(db);
+    const off = closedReason(cal, r.reservedDate);
+    if (off) throw new CustomerError(`${r.reservedDate}은(는) 쉬는 날입니다(${off}). 다른 날을 고르거나, 그날 문을 열면 설정 › 영업일·휴무일에서 특별 영업일로 넣어 주세요`);
     if (insurance !== "self" && !claimNo) throw new CustomerError("보험 건은 예약 전에 사고접수번호를 받아 적어 주세요(STD-01 6단계)");
     const cap = await capacity(db, r.reservedDate, exceptId);
     if (cap.full && !r.overCapacityOk) throw new CustomerError(`${r.reservedDate} 입고 예약이 한도(${cap.cap}대)에 찼습니다. 공장장 동의를 받았으면 '한도 넘김 동의'에 체크하세요`);
@@ -300,6 +306,7 @@ async function createConsultationTx(db: Db, actorId: string, input: ConsultInput
   const insurer = input.insurance === "self" ? null : clean(input.insurer);
   if (input.insurance !== "self" && !insurer) throw new CustomerError("보험사를 적어 주세요");
   const claimNo = input.insurance === "self" ? null : clean(input.claimNo);
+  const replyDue = addBusinessDays(today, policy["consult.reply_business_days"], await loadShopCalendar(db));
 
   return db.transaction(async (tx) => {
     // 1) 고객: 고른 고객 → 같은 번호의 고객 → 새 고객. 연락처는 필수 동의가 있어야 저장한다
@@ -364,7 +371,7 @@ async function createConsultationTx(db: Db, actorId: string, input: ConsultInput
         estMax,
         estNoticed: !!input.estNoticed,
         ...res,
-        replyDue: addBusinessDays(today, policy["consult.reply_business_days"]),
+        replyDue,
         repliedAt: answered ? now : null,
         fromId: input.fromId ?? null,
         advisorId: actorId,
@@ -511,7 +518,8 @@ export function consultFlags(r: { result: string; reservedAt: Date | null; recon
 export async function reservationCalendar(db: Db, days = 14, now = new Date()) {
   const today = seoulDate(now);
   const out = [];
-  for (let i = 0; i < days; i++) out.push(await capacity(db, addDays(today, i)));
+  const cal = await loadShopCalendar(db);
+  for (let i = 0; i < days; i++) out.push(await capacity(db, addDays(today, i), undefined, cal));
   return out;
 }
 

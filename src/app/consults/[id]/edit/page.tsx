@@ -44,7 +44,7 @@ export default async function EditConsult({ params, searchParams }: { params: Pr
             today={today}
             p={{ ...c, reservedDate: resv?.date, reservedTime: resv?.time }}
           />
-          <SaveCheck fullDates={cal.filter((d) => d.full && !(c.result === "reserved" && d.date === resv?.date)).map((d) => d.date)} />
+          <SaveCheck fullDates={cal.filter((d) => d.full && !(c.result === "reserved" && d.date === resv?.date)).map((d) => d.date)} closed={Object.fromEntries(cal.filter((d) => d.closed).map((d) => [d.date, d.closed!]))} />
           <SubmitButton>저장</SubmitButton>
         </AssistForm>
         <Card title="입고 예약 현황(2주)" help={{ kind: "panel", id: "consult.calendar" }}>

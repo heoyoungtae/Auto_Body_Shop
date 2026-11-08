@@ -43,17 +43,8 @@ export const CONSENT_TEXT = {
   notice: "서버 위탁·국외 이전 고지: 기록은 Oracle Cloud(일본 오사카) 서버에 보관되고, 문자 발송 대행사에 연락처가 전달됩니다. [개인정보 처리방침 확인 필요]",
 } as const;
 
-/** 영업일 더하기(토·일 제외. 공휴일은 아직 빼지 않음) */
-export function addBusinessDays(iso: string, n: number): string {
-  let t = Date.parse(`${iso}T00:00:00Z`);
-  let left = n;
-  while (left > 0) {
-    t += 864e5;
-    const wd = new Date(t).getUTCDay();
-    if (wd !== 0 && wd !== 6) left--;
-  }
-  return new Date(t).toISOString().slice(0, 10);
-}
+/** 영업일 더하기 — 설정 › 영업일·휴무일을 따른다(platform/business-days.ts) */
+export { addBusinessDays } from "@/modules/platform/business-days";
 
 /** 서울 날짜·시각 → UTC Date */
 export const seoulDateTime = (date: string, time: string) => new Date(`${date}T${time}:00+09:00`);
