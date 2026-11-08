@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { consultFlags, getConsultation } from "@/modules/customer/service";
+import { consultFlags, getConsultation, pendingConsent } from "@/modules/customer/service";
 import { CHANNEL_LABEL, INSURANCE_LABEL, RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { dayLabel, koMoney } from "../../_format";
@@ -21,7 +21,9 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
 export default async function ConsultDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
   const [{ id }, { error, notice }] = await Promise.all([params, searchParams]);
   const user = await requireUser();
-  const c = await getConsultation(await getDb(), id);
+  const db = await getDb();
+  const c = await getConsultation(db, id);
+  const pending = c.consent.required ? null : await pendingConsent(db, c.customer.id);
   const today = seoulDate();
   const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
   const flags = consultFlags(c, today);
@@ -72,10 +74,12 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
                 <span className="text-[var(--muted)]">{c.customer.phone ?? "연락처 없음"}</span>
               </Row>
               <Row k="개인정보 동의">
-                {c.consent.required ? <Badge tone="ok">필수 동의</Badge> : <Badge tone="danger">필수 동의 없음</Badge>} {c.consent.marketing && <Badge>광고 문자 동의</Badge>} {c.consent.photo && <Badge>사진 홍보 동의</Badge>}
+                {c.consent.required ? <Badge tone="ok">필수 동의</Badge> : pending ? <Badge tone="warn">링크 동의 대기 · {fmtTime(pending.expiresAt)}까지</Badge> : <Badge tone="danger">필수 동의 없음</Badge>} {c.consent.marketing && <Badge>광고 문자 동의</Badge>} {c.consent.photo && <Badge>사진 홍보 동의</Badge>}
               </Row>
-              <Row k="차량">{v && [v.plateNo, v.model, v.year && `${v.year}년식`].filter(Boolean).join(" · ")}</Row>
+              <Row k="차량">{v && [v.plateNo, v.maker, v.model, v.year && `${v.year}년식`].filter(Boolean).join(" · ")}</Row>
               <Row k="색상 코드">{v?.colorCode}</Row>
+              <Row k="차대번호">{v?.vin}</Row>
+              <Row k="주행거리">{c.mileage != null ? `${c.mileage.toLocaleString("ko-KR")}km(고객 말)` : v?.mileage != null ? `${v.mileage.toLocaleString("ko-KR")}km(${v.mileageOn})` : null}</Row>
             </dl>
           </Card>
           <Card title="상담 내용" help={{ kind: "panel", id: "consult.content" }}>

@@ -39,3 +39,12 @@ describe("알림톡 템플릿", () => {
     for (const k of KAKAO_KEYS) expect(KAKAO_TEMPLATES[k].text).not.toMatch(/할인|이벤트|\(광고\)/);
   });
 });
+
+describe("차대번호", () => {
+  it("제조사와 연식을 읽는다", async () => {
+    const { decodeVin } = await import("@/modules/customer/vehicles");
+    expect(decodeVin("KNAPX81ABPK123456", new Date("2026-11-08"))).toEqual({ maker: "기아", year: 2023 });
+    expect(decodeVin("WBA11AA0X9F123456", new Date("2026-11-08"))).toEqual({ maker: "BMW", year: 2009 });
+    expect(decodeVin("KMHO341CBRA123456")).toBeNull(); // O 는 쓰지 않음
+  });
+});

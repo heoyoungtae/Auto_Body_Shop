@@ -21,6 +21,7 @@ function readConsultForm(form: FormData) {
     damageParts: str("damageParts"),
     cause: str("cause"),
     photoCount: num("photoCount") ?? 0,
+    mileage: num("mileage"),
     methods: all("methods"),
     structural: flag("structural"),
     insurance: (str("insurance") || "self") as "self" | "own" | "other",
@@ -43,7 +44,7 @@ function readConsultForm(form: FormData) {
 }
 
 export async function readConsent(form: FormData): Promise<ConsentInput | undefined> {
-  if (!form.has("consentMethod")) return undefined;
+  if (!form.has("consentMethod") || form.get("consentMethod") === "link") return undefined;
   const c = form.getAll("consent").map(String);
   return { required: c.includes("required"), photo: c.includes("photo"), marketing: c.includes("marketing"), method: (String(form.get("consentMethod")) || "phone") as ConsentInput["method"] };
 }
@@ -53,6 +54,7 @@ export async function createConsultAction(form: FormData) {
   const str = (k: string) => String(form.get(k) ?? "").trim();
   const back = String(form.get("back") || "/consults/new");
   let id: string;
+  let msg = "상담 일지를 저장했습니다";
   try {
     const vehicleId = str("vehicleId");
     const year = str("year").replace(/[^\d]/g, "");
@@ -60,17 +62,20 @@ export async function createConsultAction(form: FormData) {
       customerId: str("customerId") || undefined,
       newCustomer: str("customerId") ? undefined : { name: str("newName"), phone: str("newPhone") },
       consent: await readConsent(form),
+      requestConsent: str("consentMethod") === "link",
       vehicleId: vehicleId && vehicleId !== "new" ? vehicleId : undefined,
-      newVehicle: !vehicleId || vehicleId === "new" ? { plateNo: str("plateNo"), model: str("model"), year: year ? Number(year) : null, colorCode: str("colorCode") } : undefined,
+      newVehicle: !vehicleId || vehicleId === "new" ? { plateNo: str("plateNo"), vin: str("vin"), maker: str("maker"), model: str("model"), year: year ? Number(year) : null, colorCode: str("colorCode") } : undefined,
       channel: (str("channel") || "phone") as "phone",
       fromId: str("fromId") || undefined,
       ...readConsultForm(form),
     });
     id = row.id;
+    const cs = row.consentSent;
+    if (cs) msg += cs.ok ? `. 동의 링크를 ${cs.channel}(으)로 보냈습니다${cs.demo ? "(데모라 발송 이력에만 남음)" : ""}` : `. 동의 링크를 보내지 못했습니다(${cs.error ?? "대행사 오류"}) — 고객 화면에서 다시 보내 주세요`;
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }
-  redirect(noticeUrl(`/consults/${id}`, "상담 일지를 저장했습니다"));
+  redirect(noticeUrl(`/consults/${id}`, msg));
 }
 
 export async function updateConsultAction(form: FormData) {

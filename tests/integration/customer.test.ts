@@ -134,3 +134,35 @@ describe("고객·상담(STD-01, STD-13)", () => {
     expect(addBusinessDays("2026-11-09", 3)).toBe("2026-11-12");
   });
 });
+
+describe("동의 링크·차대번호·주행거리", () => {
+  it("동의를 링크로 요청하면 저장되고, 고객이 링크에서 동의하면 기록된다", async () => {
+    const { acceptConsentRequest, consentRequestView, consentState } = await import("@/modules/customer/service");
+    const c = await createConsultation(db, ids.advisor, base({ consent: undefined, requestConsent: true }), now);
+    expect(c.consentSent?.ok).toBe(true);
+    expect((await consentState(db, c.customerId)).required).toBe(false);
+    const token = c.consentSent!.token;
+    expect((await consentRequestView(db, token, now)).state).toBe("open");
+    await acceptConsentRequest(db, token, { required: true, photo: false, marketing: true }, {}, now);
+    const st = await consentState(db, c.customerId);
+    expect(st).toMatchObject({ required: true, marketing: true, method: "online" });
+    expect((await consentRequestView(db, token, now)).state).toBe("used");
+  });
+
+  it("기한 안에 동의가 없으면 연락처를 지운다", async () => {
+    const { purgeUnconsented } = await import("@/modules/customer/service");
+    const c = await createConsultation(db, ids.advisor, base({ consent: undefined, requestConsent: true }), now);
+    expect(await purgeUnconsented(db, new Date("2026-11-11T01:00:00Z"))).toBe("동의 없는 연락처 0건 삭제");
+    expect(await purgeUnconsented(db, new Date("2026-11-12T02:00:00Z"))).toBe("동의 없는 연락처 1건 삭제");
+    const [row] = await db.select().from(customer).where(eq(customer.id, c.customerId));
+    expect(row.phoneEnc).toBeNull();
+  });
+
+  it("차대번호에서 제조사·연식을 채우고, 주행거리가 줄면 막는다", async () => {
+    const { vehicle } = await import("@/db/schema");
+    await createConsultation(db, ids.advisor, base({ newVehicle: { plateNo: "12가3456", vin: "KMHL341CBRA123456", model: "쏘나타" }, mileage: 45000 }), now);
+    const [v] = await db.select().from(vehicle);
+    expect(v).toMatchObject({ maker: "현대", year: 2024, mileage: 45000 });
+    await expect(createConsultation(db, ids.advisor, base({ newVehicle: { plateNo: "12가3456" }, mileage: 40000, consent: undefined, newCustomer: { name: "홍길동", phone: "01012345678" } }), now)).rejects.toThrow(/주행거리/);
+  });
+});

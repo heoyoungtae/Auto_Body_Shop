@@ -2,8 +2,8 @@
 // 규칙: 동의 없이 연락처를 저장하지 않는다. 같은 전화번호·차량번호는 새로 만들지 않고 다시 쓴다.
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, consent, consultation, customer, vehicle } from "@/db/schema";
-import { decrypt, encrypt, maskPhone, normalizePhone, phoneHash } from "@/modules/auth/crypto";
+import { appUser, consent, consentRequest, consultation, customer, vehicle } from "@/db/schema";
+import { decrypt, encrypt, maskPhone, normalizePhone, phoneHash, randomToken, sha256 } from "@/modules/auth/crypto";
 import { sendNotice } from "@/modules/messaging/service";
 import { writeAudit } from "@/modules/platform/audit";
 import { nextDocNo } from "@/modules/platform/docno";
@@ -11,6 +11,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { addDays, seoulDate } from "@/modules/platform/time";
+import { decodeVin, makerOf, normalizeVin, VIN_RE } from "./vehicles";
 import {
   addBusinessDays,
   CONSENT_VERSION,
@@ -157,16 +158,38 @@ export async function updateCustomer(db: Db, actorId: string, id: string, input:
   await writeAudit(db, { actorId, action: "customer.update", entityType: "customer", entityId: id, after: { name, memo: set.memo, phoneChanged: !!input.phone?.trim() } });
 }
 
-export async function saveVehicle(db: Db, actorId: string, customerId: string, input: { id?: string; plateNo: string; model?: string; year?: number | null; colorCode?: string }) {
+export type VehicleInput = { id?: string; plateNo: string; vin?: string; maker?: string; model?: string; year?: number | null; colorCode?: string; mileage?: number | null };
+
+export async function saveVehicle(db: Db, actorId: string, customerId: string, input: VehicleInput, today = seoulDate()) {
   const plateNo = plateOf(input.plateNo);
-  const year = input.year ?? null;
+  const vin = input.vin?.trim() ? normalizeVin(input.vin) : null;
+  if (vin && !VIN_RE.test(vin)) throw new CustomerError("차대번호는 영문·숫자 17자리입니다(I·O·Q는 쓰지 않음). 등록증의 '차대번호' 칸을 보고 적어 주세요");
+  const decoded = vin ? decodeVin(vin) : null;
+  // 차대번호에서 읽은 연식·제조사를 빈 칸에 채운다(다시 치지 않게)
+  const year = input.year ?? decoded?.year ?? null;
   if (year != null && (year < 1980 || year > new Date().getFullYear() + 1)) throw new CustomerError("연식을 확인해 주세요(예: 2021)");
   const same = await findByPlate(db, plateNo);
   if (same && same.id !== input.id && same.customerId !== customerId) throw new CustomerError(`${plateNo}는 다른 고객의 차량으로 등록되어 있습니다. 소유자가 바뀌었으면 그 고객 화면에서 옮겨 주세요`);
+  if (vin) {
+    const [byVin] = await db.select().from(vehicle).where(eq(vehicle.vin, vin));
+    if (byVin && byVin.id !== (input.id ?? same?.id)) throw new CustomerError(`같은 차대번호의 차량(${byVin.plateNo})이 이미 있습니다. 번호판이 바뀌었으면 그 차량의 차량번호를 고쳐 주세요`);
+  }
   const vid = input.id ?? same?.id;
   // 이미 있는 차량이면 비운 칸은 지난 값을 그대로 둔다(다시 칠 필요 없음)
   const [old] = vid ? await db.select().from(vehicle).where(eq(vehicle.id, vid)) : [];
-  const values = { plateNo, model: clean(input.model) ?? old?.model ?? null, year: year ?? old?.year ?? null, colorCode: clean(input.colorCode)?.toUpperCase() ?? old?.colorCode ?? null, updatedAt: new Date() };
+  const model = clean(input.model) ?? old?.model ?? null;
+  const mileage = input.mileage ?? null;
+  if (mileage != null && old?.mileage != null && mileage < old.mileage) throw new CustomerError(`주행거리가 지난번(${old.mileage.toLocaleString("ko-KR")}km)보다 적습니다. 계기판을 다시 확인해 주세요`);
+  const values = {
+    plateNo,
+    vin: vin ?? old?.vin ?? null,
+    maker: clean(input.maker) ?? decoded?.maker ?? (model ? makerOf(model) : undefined) ?? old?.maker ?? null,
+    model,
+    year: year ?? old?.year ?? null,
+    colorCode: clean(input.colorCode)?.toUpperCase() ?? old?.colorCode ?? null,
+    ...(mileage != null ? { mileage, mileageOn: today } : {}),
+    updatedAt: new Date(),
+  };
   if (vid) {
     await db.update(vehicle).set({ ...values, customerId }).where(eq(vehicle.id, vid));
     await writeAudit(db, { actorId, action: "vehicle.update", entityType: "vehicle", entityId: plateNo, after: values });
@@ -193,7 +216,10 @@ export type ConsultInput = {
   /** 기존 고객의 동의가 없거나 판이 바뀌었으면 여기서 받는다 */
   consent?: ConsentInput;
   vehicleId?: string;
-  newVehicle?: { plateNo: string; model?: string; year?: number | null; colorCode?: string };
+  newVehicle?: VehicleInput;
+  /** 동의를 그 자리에서 못 받으면 문자·알림톡 링크로 요청한다(동의 전 연락처는 기한 뒤 지움) */
+  requestConsent?: boolean;
+  mileage?: number | null;
   channel: (typeof consultation.$inferInsert)["channel"];
   damageTypes: string[];
   damageParts?: string;
@@ -255,7 +281,15 @@ async function resultFields(db: Db, r: ResultInput, insurance: string, claimNo: 
   return out;
 }
 
-export async function createConsultation(db: Db, actorId: string, input: ConsultInput, now = new Date()) {
+export async function createConsultation(db: Db, actorId: string, input: ConsultInput, now = new Date(), f: typeof fetch = fetch) {
+  const row = await createConsultationTx(db, actorId, input, now);
+  // 동의를 링크로 받기로 했으면 저장한 뒤 바로 보낸다
+  let consentSent: Awaited<ReturnType<typeof sendConsentRequest>> | null = null;
+  if (input.requestConsent && !(await consentState(db, row.customerId)).required) consentSent = await sendConsentRequest(db, actorId, row.customerId, row.id, now, f);
+  return Object.assign(row, { consentSent });
+}
+
+async function createConsultationTx(db: Db, actorId: string, input: ConsultInput, now: Date) {
   const today = seoulDate(now);
   const policy = await loadPolicy(db, today);
   if (!input.damageTypes.length && !clean(input.damageParts)) throw new CustomerError("손상 유형이나 부위를 하나 이상 적어 주세요");
@@ -277,7 +311,7 @@ export async function createConsultation(db: Db, actorId: string, input: Consult
       const same = await findByPhone(tx, phone);
       if (same) customerId = same.id;
       else {
-        if (!input.consent?.required) throw new CustomerError("개인정보 필수 동의 없이 연락처를 저장할 수 없습니다. 동의서를 읽어 주고 '필수'에 체크하세요(STD-13)");
+        if (!input.consent?.required && !input.requestConsent) throw new CustomerError("개인정보 필수 동의 없이 연락처를 저장할 수 없습니다. 동의서를 읽어 주고 '필수'에 체크하거나, 동의 받은 방법에서 '문자로 동의 요청'을 고르세요(STD-13)");
         const [c] = await tx.insert(customer).values({ name: nc.name.trim(), phoneEnc: encrypt(phone), phoneHash: phoneHash(phone), phoneMasked: maskPhone(phone), createdBy: actorId }).returning({ id: customer.id });
         customerId = c.id;
         await writeAudit(tx, { actorId, action: "customer.create", entityType: "customer", entityId: customerId, after: { name: nc.name.trim() } });
@@ -287,7 +321,7 @@ export async function createConsultation(db: Db, actorId: string, input: Consult
     if (input.consent && (input.consent.required !== st.required || input.consent.marketing !== st.marketing || input.consent.photo !== st.photo || !st.current)) {
       if (!input.consent.required) throw new CustomerError("필수 동의가 없으면 상담을 기록할 수 없습니다");
       await addConsent(tx, actorId, customerId, input.consent);
-    } else if (!st.required) throw new CustomerError("이 고객은 개인정보 필수 동의가 없습니다. 동의를 받아 체크해 주세요");
+    } else if (!st.required && !input.requestConsent) throw new CustomerError("이 고객은 개인정보 필수 동의가 없습니다. 동의를 받아 체크하거나 '문자로 동의 요청'을 고르세요");
 
     // 2) 차량: 고른 차량 → 같은 번호의 차량 → 새 차량
     let vehicleId: string | null = input.vehicleId ?? null;
@@ -295,8 +329,9 @@ export async function createConsultation(db: Db, actorId: string, input: Consult
       const [v] = await tx.select().from(vehicle).where(eq(vehicle.id, vehicleId));
       if (!v || v.customerId !== customerId) throw new CustomerError("고른 차량이 이 고객의 차량이 아닙니다");
     } else if (input.newVehicle?.plateNo.trim()) {
-      vehicleId = await saveVehicle(tx, actorId, customerId, input.newVehicle);
+      vehicleId = await saveVehicle(tx, actorId, customerId, { ...input.newVehicle, mileage: input.newVehicle.mileage ?? input.mileage }, today);
     }
+    if (vehicleId && input.mileage != null && input.vehicleId) await saveVehicle(tx, actorId, customerId, { id: vehicleId, plateNo: (await tx.select({ p: vehicle.plateNo }).from(vehicle).where(eq(vehicle.id, vehicleId)))[0].p, mileage: input.mileage }, today);
 
     // 3) 결과(예약·재연락·거절)
     const res = await resultFields(tx, input, input.insurance, claimNo, now);
@@ -315,6 +350,7 @@ export async function createConsultation(db: Db, actorId: string, input: Consult
         damageParts: clean(input.damageParts),
         cause: clean(input.cause),
         photoCount: Math.max(0, input.photoCount ?? 0),
+        mileage: input.mileage ?? null,
         methods: input.methods,
         structural: !!input.structural,
         insurance: input.insurance,
@@ -359,6 +395,7 @@ export async function updateConsultation(db: Db, actorId: string, id: string, in
       damageParts: clean(input.damageParts),
       cause: clean(input.cause),
       photoCount: Math.max(0, input.photoCount ?? 0),
+      mileage: input.mileage ?? null,
       methods: input.methods,
       structural: !!input.structural,
       insurance: input.insurance,
@@ -533,3 +570,98 @@ export async function notifyDueConsults(db: Db, now = new Date()) {
 }
 
 export const resultLabel = (r: string) => RESULT_LABEL[r as keyof typeof RESULT_LABEL] ?? r;
+
+// ── 문자·알림톡 링크로 동의 받기(F-13-01, 방법 '고객용 화면') ──
+export { CONSENT_LINK_DAYS } from "./consent-const";
+import { CONSENT_LINK_DAYS } from "./consent-const";
+
+const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+
+/** 동의 요청 링크를 만들어 보낸다. 링크는 CONSENT_LINK_DAYS 일 동안 열린다 */
+export async function sendConsentRequest(db: Db, actorId: string | null, customerId: string, consultId: string | null, now = new Date(), f: typeof fetch = fetch) {
+  const st = await consentState(db, customerId);
+  if (st.required && st.current) throw new CustomerError("이미 필수 동의를 받은 고객입니다");
+  const token = randomToken(24);
+  const [req] = await db
+    .insert(consentRequest)
+    .values({ tokenHash: sha256(token), customerId, consultId, expiresAt: new Date(now.getTime() + CONSENT_LINK_DAYS * 864e5), createdBy: actorId })
+    .returning({ id: consentRequest.id });
+  const p = await phoneForNotice(db, customerId);
+  const r = await sendNotice(db, { key: "consent_request", to: p.to, vars: { 고객명: p.name, 동의링크: `${appUrl()}/consent/${token}`, 기한: `${CONSENT_LINK_DAYS}일` }, purpose: "동의 요청", customerName: p.name, sentBy: actorId }, f);
+  await db.update(consentRequest).set({ sentOk: r.ok }).where(eq(consentRequest.id, req.id));
+  await writeAudit(db, { actorId, action: "consent.request", entityType: "customer", entityId: customerId, after: { ok: r.ok, channel: r.channel } });
+  return { ...r, token };
+}
+
+/** 고객 상태: 동의 요청을 보냈고 아직 기다리는 중인지 */
+export async function pendingConsent(db: Db, customerId: string, now = new Date()) {
+  const [r] = await db
+    .select({ expiresAt: consentRequest.expiresAt, createdAt: consentRequest.createdAt, sentOk: consentRequest.sentOk })
+    .from(consentRequest)
+    .where(and(eq(consentRequest.customerId, customerId), isNull(consentRequest.usedAt), gte(consentRequest.expiresAt, now)))
+    .orderBy(desc(consentRequest.createdAt))
+    .limit(1);
+  return r ?? null;
+}
+
+async function requestByToken(db: Db, token: string) {
+  const [r] = await db.select().from(consentRequest).where(eq(consentRequest.tokenHash, sha256(token)));
+  return r ?? null;
+}
+
+/** 고객이 링크를 열었을 때 보여 줄 것(이름 첫 글자만) */
+export async function consentRequestView(db: Db, token: string, now = new Date()) {
+  const r = await requestByToken(db, token);
+  if (!r) return { state: "invalid" as const };
+  if (r.usedAt) return { state: "used" as const };
+  if (r.expiresAt < now) return { state: "expired" as const };
+  const [c] = await db.select({ name: customer.name, phone: customer.phoneEnc }).from(customer).where(eq(customer.id, r.customerId));
+  if (!c?.phone) return { state: "expired" as const };
+  const st = await consentState(db, r.customerId);
+  return { state: "open" as const, name: `${c.name.slice(0, 1)}${"*".repeat(Math.max(1, c.name.length - 1))}`, current: st };
+}
+
+export async function acceptConsentRequest(db: Db, token: string, input: { required: boolean; photo: boolean; marketing: boolean }, meta: { ip?: string | null } = {}, now = new Date()) {
+  const r = await requestByToken(db, token);
+  if (!r || r.usedAt || r.expiresAt < now) throw new CustomerError("링크가 만료되었거나 이미 쓰였습니다. 정비소에 다시 요청해 주세요");
+  await db.transaction(async (tx) => {
+    await tx.update(consentRequest).set({ usedAt: now }).where(eq(consentRequest.id, r.id));
+    await addConsent(tx, null, r.customerId, { ...input, method: "online", note: meta.ip ? `링크 동의 IP ${meta.ip}` : "링크 동의" });
+    if (!input.required) await tx.update(customer).set({ phoneEnc: null, phoneHash: null, phoneMasked: null, updatedAt: now }).where(eq(customer.id, r.customerId));
+  });
+  if (input.required) await notifyRole(db, "advisor", "고객이 링크로 개인정보 동의를 했습니다", `consent-ok-${r.id}`, `/customers/${r.customerId}`);
+  else await notifyRole(db, "advisor", "고객이 필수 동의를 하지 않아 연락처를 지웠습니다", `consent-no-${r.id}`, `/customers/${r.customerId}`);
+}
+
+/** 주기 작업: 기한 안에 동의가 없으면 연락처를 지운다(동의 없이 연락처를 두지 않음) */
+export async function purgeUnconsented(db: Db, now = new Date()) {
+  const expired = await db
+    .select({ customerId: consentRequest.customerId })
+    .from(consentRequest)
+    .where(and(isNull(consentRequest.usedAt), lt(consentRequest.expiresAt, now)));
+  let n = 0;
+  for (const cid of [...new Set(expired.map((e) => e.customerId))]) {
+    if ((await consentState(db, cid)).required) continue;
+    if (await pendingConsent(db, cid, now)) continue; // 새로 보낸 요청이 아직 열려 있음
+    const [c] = await db.select({ enc: customer.phoneEnc }).from(customer).where(eq(customer.id, cid));
+    if (!c?.enc) continue;
+    await db.update(customer).set({ phoneEnc: null, phoneHash: null, phoneMasked: null, updatedAt: now }).where(eq(customer.id, cid));
+    await writeAudit(db, { actorId: null, action: "customer.phone_removed", entityType: "customer", entityId: cid, after: { reason: `동의 요청 ${CONSENT_LINK_DAYS}일 안에 동의 없음` } });
+    n++;
+  }
+  return `동의 없는 연락처 ${n}건 삭제`;
+}
+
+/** 같은 차종에서 쓴 색상 코드(많이 쓴 순). 화면의 추천 목록 */
+export async function colorHints(db: Db) {
+  const rows = await db
+    .select({ maker: vehicle.maker, model: vehicle.model, code: vehicle.colorCode, n: sql<number>`count(*)::int` })
+    .from(vehicle)
+    .where(sql`${vehicle.colorCode} is not null and ${vehicle.model} is not null`)
+    .groupBy(vehicle.maker, vehicle.model, vehicle.colorCode)
+    .orderBy(desc(sql`count(*)`))
+    .limit(500);
+  const out: Record<string, string[]> = {};
+  for (const r of rows) (out[r.model!] ??= []).push(r.code!);
+  return out;
+}

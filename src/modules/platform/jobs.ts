@@ -4,7 +4,7 @@ import { and, eq, lt } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { jobRun, session } from "@/db/schema";
 import { seoulDate } from "./time";
-import { notifyDueConsults, sendReminders } from "@/modules/customer/service";
+import { notifyDueConsults, purgeUnconsented, sendReminders } from "@/modules/customer/service";
 
 export type JobResult = { job: string; status: "done" | "skipped" | "failed"; message?: string };
 
@@ -15,7 +15,8 @@ export const JOBS: Record<string, JobFn> = {
   daily: async (db, _today, now) => {
     const removed = await db.delete(session).where(lt(session.expiresAt, now)).returning({ t: session.tokenHash });
     const due = await notifyDueConsults(db, now);
-    return `만료 세션 ${removed.length}건 정리 · ${due}`;
+    const purged = await purgeUnconsented(db, now);
+    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged}`;
   },
   /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계) */
   reminders: async (db, _today, now) => sendReminders(db, now),

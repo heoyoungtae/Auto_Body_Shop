@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { getConsultation, getCustomer, reservationCalendar, searchCustomers } from "@/modules/customer/service";
+import { colorHints, getConsultation, getCustomer, reservationCalendar, searchCustomers } from "@/modules/customer/service";
 import { normalizePhone } from "@/modules/auth/crypto";
 import { normalizePlate, PLATE_RE, PHONE_RE, seoulParts } from "@/modules/customer/rules";
 import { seoulDate } from "@/modules/platform/time";
@@ -13,6 +13,7 @@ import { createConsultAction } from "../actions";
 import { ConsentFields, ConsultFields, NewCustomerFields, NewVehicleFields, type ConsultPrefill } from "../consult-form";
 import { Calendar } from "../calendar";
 import { ShowWhen } from "../show-when";
+import { SaveCheck } from "../save-check";
 
 type Q = { error?: string; q?: string; customer?: string; vehicle?: string; from?: string };
 
@@ -40,7 +41,8 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
   const s = await start(q);
   const cust = s.customerId ? await getCustomer(db, s.customerId).catch(() => null) : null;
   const found = q.q ? await searchCustomers(db, q.q) : [];
-  const cal = await reservationCalendar(db, 14);
+  const cal = await reservationCalendar(db, 60);
+  const colors = await colorHints(db);
   // 찾았는데 없으면, 친 값을 새 고객 칸에 넣어 준다(다시 치지 않게)
   const typed = q.q?.trim() ?? "";
   const typedPhone = PHONE_RE.test(normalizePhone(typed)) ? typed : undefined;
@@ -136,9 +138,9 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
                   <ConsentFields checked={["required", ...(cust.consent.photo ? ["photo"] : []), ...(cust.consent.marketing ? ["marketing"] : [])]} />
                 )}
                 {cust.vehicles.length ? (
-                  <VehiclePick vehicles={cust.vehicles} selected={s.vehicleId} from={vehicleSrc} />
+                  <VehiclePick vehicles={cust.vehicles} selected={s.vehicleId} from={vehicleSrc} colors={colors} />
                 ) : (
-                  <NewVehicleFields v={{ plateNo: typedPlate }} />
+                  <NewVehicleFields v={{ plateNo: typedPlate }} colors={colors} />
                 )}
               </fieldset>
             ) : (
@@ -146,17 +148,18 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
                 <NewCustomerFields phone={typedPhone} />
                 <fieldset className="space-y-4 rounded-lg border border-[var(--line)] p-4">
                   <legend className="px-1 text-sm font-semibold">차량</legend>
-                  <NewVehicleFields v={{ plateNo: typedPlate }} />
+                  <NewVehicleFields v={{ plateNo: typedPlate }} colors={colors} />
                 </fieldset>
               </>
             )}
             <ConsultFields p={s.p} src={s.src} today={today} />
+            <SaveCheck fullDates={cal.filter((d) => d.full).map((d) => d.date)} />
             <SubmitButton>상담 일지 저장</SubmitButton>
           </AssistForm>
         </div>
         <div className="space-y-4">
           <Card title="입고 예약 현황(2주)" help={{ kind: "panel", id: "consult.calendar" }}>
-            <Calendar days={cal} today={today} />
+            <Calendar days={cal.slice(0, 14)} today={today} />
           </Card>
         </div>
       </div>
@@ -164,10 +167,10 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
   );
 }
 
-function VehiclePick({ vehicles, selected, from }: { vehicles: { id: string; plateNo: string; model: string | null; year: number | null; colorCode: string | null }[]; selected?: string; from?: string }) {
+function VehiclePick({ vehicles, selected, from, colors }: { vehicles: { id: string; plateNo: string; model: string | null; year: number | null; colorCode: string | null }[]; selected?: string; from?: string; colors: Record<string, string[]> }) {
   const def = selected && (selected === "new" || vehicles.some((v) => v.id === selected)) ? selected : vehicles[0].id;
   return (
-    <ShowWhen field="vehicleId" initial={def} cases={{ new: <NewVehicleFields /> }}>
+    <ShowWhen field="vehicleId" initial={def} cases={{ new: <NewVehicleFields colors={colors} /> }}>
       <SelectField
         help="veh.pick"
         name="vehicleId"

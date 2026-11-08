@@ -5,6 +5,13 @@
 export type KakaoTemplate = { title: string; usage: string; std: string; vars: string[]; text: string };
 
 export const KAKAO_TEMPLATES = {
+  consent_request: {
+    title: "개인정보 동의 요청",
+    usage: "상담 때 동의를 그 자리에서 못 받았을 때(동의 받은 방법 '문자로 동의 요청')",
+    std: "STD-13",
+    vars: ["고객명", "업체명", "동의링크", "기한", "업체전화"],
+    text: "#{고객명} 고객님, #{업체명}입니다.\n상담 내용 기록과 예약·견적 안내를 위해 개인정보 수집·이용 동의가 필요합니다.\n\n아래 링크에서 내용을 확인하고 동의해 주세요(#{기한} 안).\n#{동의링크}\n\n동의하지 않으시면 연락처는 저장하지 않고 지웁니다.\n문의: #{업체전화}",
+  },
   reservation_confirm: {
     title: "예약 확인",
     usage: "상담·예약 화면의 [예약 확인 보내기]",
@@ -58,6 +65,8 @@ export const renderKakao = (key: KakaoKey, v: Record<string, string>) => KAKAO_T
 export const SAMPLE_VARS: Record<string, string> = {
   고객명: "홍길동",
   업체명: "외관수리 정비소",
+  동의링크: "https://example.sslip.io/consent/보기",
+  기한: "3일",
   예약일시: "11월 10일(화) 오전 10:00",
   용건: "앞범퍼 긁힘 수리",
   업체전화: "02-000-0000",

@@ -10,7 +10,9 @@ export const PHONE_RE = /^0\d{8,10}$/;
 export const CHANNEL_LABEL = { phone: "전화", visit: "방문", message: "문자·메신저", online: "고객용 화면", insurer: "보험사 소개", partner: "거래처 소개" } as const;
 export const RESULT_LABEL = { open: "진행 중", reserved: "입고 예약", recontact: "재연락", declined: "거절·보류", converted: "입고됨" } as const;
 export const INSURANCE_LABEL = { self: "자비", own: "자차 보험", other: "대물(상대 보험)" } as const;
-export const CONSENT_METHOD_LABEL = { phone: "전화로 읽어 주고 구두 동의", visit: "방문해서 서명", online: "고객용 화면에서 동의" } as const;
+export const CONSENT_METHOD_LABEL = { phone: "전화로 읽어 주고 구두 동의", visit: "방문해서 서명", online: "고객이 링크·화면에서 직접 동의" } as const;
+/** 상담 화면의 '동의 받은 방법' 고르기: 위 세 가지 + 링크로 요청 */
+export const CONSENT_PICK = { phone: CONSENT_METHOD_LABEL.phone, visit: CONSENT_METHOD_LABEL.visit, link: "문자·알림톡으로 동의 요청(링크)" } as const;
 
 export const DAMAGE_TYPES = ["찌그러짐", "긁힘", "도장 박리", "부식", "기타"] as const;
 export const CAUSES = ["사고", "긁힘·주차", "노후", "기타"] as const;
@@ -35,8 +37,8 @@ export const CONSENT_TEXT = {
     body: "번호판·얼굴을 가린 사진만 누리집·SNS에 씁니다. 동의하지 않아도 수리에는 지장이 없습니다.",
   },
   marketing: {
-    title: "[선택] 할인·행사 안내(광고 문자) 받기",
-    body: "광고 문자는 오후 9시~오전 8시를 피해 보내고, 언제든 무료수신거부로 끊을 수 있습니다. 동의하지 않아도 예약·견적·출고 안내는 받습니다.",
+    title: "[선택] 할인·이벤트·기프티콘 안내(광고 문자) 받기",
+    body: "할인·이벤트 소식과 이벤트 경품·감사 기프티콘은 이 항목에 동의한 고객에게만 보냅니다. 동의하지 않으면 이벤트 참여와 기프티콘 수신이 어렵습니다. 광고 문자는 오후 9시~오전 8시를 피해 보내고, 언제든 무료수신거부로 끊을 수 있습니다. 동의하지 않아도 예약·견적·출고 안내는 받습니다.",
   },
   notice: "서버 위탁·국외 이전 고지: 기록은 Oracle Cloud(일본 오사카) 서버에 보관되고, 문자 발송 대행사에 연락처가 전달됩니다. [개인정보 처리방침 확인 필요]",
 } as const;

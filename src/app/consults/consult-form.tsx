@@ -1,12 +1,15 @@
 // 상담 일지(F-01-01) 입력 칸 묶음 — 새 상담과 고치기가 같이 쓴다.
 // 앞선 기록(고른 고객·차량, 지난 상담)에서 온 값에는 '○○에서 불러옴'을 붙인다.
 import type { ReactNode } from "react";
-import { CONSENT_METHOD_LABEL, CONSENT_TEXT, CAUSES, CHANNEL_LABEL, DAMAGE_TYPES, INSURANCE_LABEL, METHODS, PARTS_PREF, RESULT_LABEL, TIME_SLOTS } from "@/modules/customer/rules";
+import { CONSENT_PICK, CONSENT_TEXT, CAUSES, CHANNEL_LABEL, DAMAGE_TYPES, INSURANCE_LABEL, METHODS, PARTS_PREF, RESULT_LABEL, TIME_SLOTS } from "@/modules/customer/rules";
 import { CheckGroup, DateField, NumberField, SelectField, TextAreaField, TextField } from "../_input";
 import { ShowWhen } from "./show-when";
+import { VehicleFields } from "./vehicle-fields";
+import { CONSENT_LINK_DAYS } from "@/modules/customer/consent-const";
 
 export type ConsultPrefill = {
   channel?: string;
+  mileage?: number | null;
   damageTypes?: string[];
   damageParts?: string | null;
   cause?: string | null;
@@ -57,11 +60,24 @@ export function NewCustomerFields({ name, phone }: { name?: string; phone?: stri
   );
 }
 
-export function ConsentFields({ checked = ["required"], method = "phone", narrow = false }: { checked?: string[]; method?: string; narrow?: boolean }) {
+export function ConsentFields({ checked = ["required"], method = "phone", narrow = false, link = true }: { checked?: string[]; method?: string; narrow?: boolean; link?: boolean }) {
+  const boxes = (
+    <CheckGroup
+      help="consent.items"
+      name="consent"
+      options={[
+        { value: "required", label: "필수: 수리 상담·연락" },
+        { value: "photo", label: "선택: 사진 홍보" },
+        { value: "marketing", label: "선택: 이벤트·기프티콘·광고 문자" },
+      ]}
+      defaultChecked={checked}
+    />
+  );
+  const picks = link ? CONSENT_PICK : { phone: CONSENT_PICK.phone, visit: CONSENT_PICK.visit };
   return (
     <div className="space-y-3">
       <details className="rounded-md bg-[var(--surface-2)] px-3 py-2 text-sm">
-        <summary className="cursor-pointer font-medium">동의서 문구(고객에게 읽어 주기) · {"F-13-01"}</summary>
+        <summary className="cursor-pointer font-medium">동의서 문구(고객에게 읽어 주기) · F-13-01</summary>
         <div className="mt-2 space-y-2 text-[var(--muted)]">
           {(["required", "photo", "marketing"] as const).map((k) => (
             <p key={k}>
@@ -71,32 +87,29 @@ export function ConsentFields({ checked = ["required"], method = "phone", narrow
           <p className="text-xs">{CONSENT_TEXT.notice}</p>
         </div>
       </details>
-      <div className={`grid gap-4 ${narrow ? "" : "sm:grid-cols-2"}`}>
-        <CheckGroup
-          help="consent.items"
-          name="consent"
-          options={[
-            { value: "required", label: "필수: 수리 상담·연락" },
-            { value: "photo", label: "선택: 사진 홍보" },
-            { value: "marketing", label: "선택: 광고 문자" },
-          ]}
-          defaultChecked={checked}
-        />
-        <SelectField help="consent.method" name="consentMethod" required defaultValue={method} options={opts(CONSENT_METHOD_LABEL)} />
-      </div>
+      <ShowWhen
+        field="consentMethod"
+        initial={method}
+        cases={{
+          phone: boxes,
+          visit: boxes,
+          link: (
+            <p className="rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2 text-sm">
+              저장하면 고객 휴대폰으로 동의 링크를 보냅니다(알림톡이 준비됐으면 알림톡, 아니면 문자). 고객이 {CONSENT_LINK_DAYS}일 안에 동의하지 않으면 연락처는 자동으로 지워지고 상담 기록만 남습니다.
+            </p>
+          ),
+        }}
+      >
+        <div className={narrow ? "" : "sm:max-w-md"}>
+          <SelectField help="consent.method" name="consentMethod" required defaultValue={method} options={opts(picks)} />
+        </div>
+      </ShowWhen>
     </div>
   );
 }
 
-export function NewVehicleFields({ from, v }: { from?: string; v?: { plateNo?: string; model?: string | null; year?: number | null; colorCode?: string | null } }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <TextField help="veh.plate" name="plateNo" defaultValue={v?.plateNo} from={v?.plateNo ? from : undefined} autoComplete="off" />
-      <TextField help="veh.model" name="model" defaultValue={v?.model ?? undefined} from={v?.model ? from : undefined} />
-      <TextField help="veh.year" name="year" inputMode="numeric" maxLength={4} defaultValue={v?.year ? String(v.year) : undefined} from={v?.year ? from : undefined} />
-      <TextField help="veh.color" name="colorCode" defaultValue={v?.colorCode ?? undefined} from={v?.colorCode ? from : undefined} />
-    </div>
-  );
+export function NewVehicleFields({ from, v, colors }: { from?: string; v?: { plateNo?: string; vin?: string | null; maker?: string | null; model?: string | null; year?: number | null; colorCode?: string | null }; colors?: Record<string, string[]> }) {
+  return <VehicleFields v={v} from={from} colors={colors} />;
 }
 
 /** 상담 내용·요구·예상 금액·결과. src 는 값을 불러온 곳(지난 상담 번호) */
@@ -109,6 +122,7 @@ export function ConsultFields({ p, src, today, channel = true }: { p: ConsultPre
           {channel && <SelectField help="consult.channel" name="channel" required defaultValue={p.channel ?? "phone"} options={opts(CHANNEL_LABEL)} />}
           <SelectField help="consult.cause" name="cause" defaultValue={p.cause ?? ""} placeholder="고르기" options={list(CAUSES)} from={f(p.cause)} />
         </div>
+        <NumberField help="consult.mileage" name="mileage" unit="km" min={0} max={2000000} defaultValue={p.mileage ?? null} />
         <CheckGroup help="consult.damageTypes" name="damageTypes" options={list(DAMAGE_TYPES)} defaultChecked={p.damageTypes ?? []} />
         <TextAreaField help="consult.damageParts" name="damageParts" rows={2} defaultValue={p.damageParts ?? undefined} from={f(p.damageParts)} />
         <div className="grid gap-4 lg:grid-cols-3">

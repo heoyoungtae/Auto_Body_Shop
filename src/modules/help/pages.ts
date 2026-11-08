@@ -228,6 +228,15 @@ export const PAGE_HELP = {
     terms: ["입고 한도"],
     refs: ["사내 표준서 STD-01"],
   },
+  "public.consent": {
+    title: "개인정보 동의(고객용)",
+    purpose: "정비소가 문자·알림톡으로 보낸 링크입니다. 상담 기록과 연락을 위해 개인정보 수집·이용에 동의할지 고릅니다.",
+    who: "고객",
+    steps: ["내용을 읽습니다.", "동의할 항목에 체크합니다(필수는 꼭 필요).", "보내기를 누릅니다."],
+    tips: ["링크는 3일 동안 열립니다. 그 안에 답이 없으면 정비소는 연락처를 지웁니다."],
+    terms: ["개인정보 동의", "광고 문자"],
+    refs: ["사내 표준서 STD-13", "양식 F-13-01"],
+  },
   customers: {
     title: "고객·차량",
     purpose: "고객과 차량을 찾고 봅니다. 고객은 상담할 때 생기고, 같은 전화번호·차량번호는 한 고객으로 모입니다.",
@@ -275,6 +284,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/consults/[id]/edit": "consults.edit",
   "/customers": "customers",
   "/customers/[id]": "customers.detail",
+  "/consent/[token]": "public.consent",
 };
 
 /** 처음 쓰는 직원이 역할별로 할 일 */

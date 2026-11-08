@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { getCustomer, revealPhone } from "@/modules/customer/service";
+import { colorHints, getCustomer, pendingConsent, revealPhone } from "@/modules/customer/service";
 import { formatPhone } from "@/modules/messaging/service";
 import { CONSENT_METHOD_LABEL, RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
 import { AssistForm } from "../../_assist";
@@ -16,6 +16,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const user = await requireUser();
   const db = await getDb();
   const c = await getCustomer(db, id);
+  const [colors, pending] = await Promise.all([colorHints(db), pendingConsent(db, id)]);
   const canWrite = user.roles.some((r) => r === "owner" || r === "plant_manager" || r === "advisor");
   // 전체 번호는 누를 때만, 본 기록이 남는다(설계서 9.2)
   const full = q.show === "phone" && canWrite ? await revealPhone(db, user.id, id) : null;
@@ -67,7 +68,8 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               {c.vehicles.map((v) => (
                 <details key={v.id} className="rounded-md border border-[var(--line)]">
                   <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2 text-sm">
-                    <b>{v.plateNo}</b> {[v.model, v.year && `${v.year}년식`, v.colorCode].filter(Boolean).join(" · ")}
+                    <b>{v.plateNo}</b> {[v.maker, v.model, v.year && `${v.year}년식`, v.colorCode, v.mileage != null && `${v.mileage.toLocaleString("ko-KR")}km(${v.mileageOn})`].filter(Boolean).join(" · ")}
+                    {v.vin && <span className="text-xs text-[var(--muted)]">차대 {v.vin}</span>}
                     {canWrite && <span className="ml-auto text-xs text-[var(--accent)]">고치기</span>}
                   </summary>
                   {canWrite && (
@@ -75,7 +77,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
                       <AssistForm id={`veh-${v.id}`} action={vehicleAction} className="space-y-4">
                         <input type="hidden" name="id" value={c.id} />
                         <input type="hidden" name="vehicleId" value={v.id} />
-                        <NewVehicleFields v={v} />
+                        <NewVehicleFields v={v} colors={colors} />
                         <SubmitButton variant="secondary">차량 저장</SubmitButton>
                       </AssistForm>
                       <AssistForm id={`move-${v.id}`} action={moveVehicleAction} className="flex flex-wrap items-end gap-2">
@@ -95,7 +97,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
                   <summary className="cursor-pointer px-3 py-2 text-sm text-[var(--accent)]">+ 차량 더하기</summary>
                   <AssistForm id={`veh-new-${c.id}`} action={vehicleAction} className="space-y-4 border-t border-[var(--line)] p-3">
                     <input type="hidden" name="id" value={c.id} />
-                    <NewVehicleFields />
+                    <NewVehicleFields colors={colors} />
                     <SubmitButton variant="secondary">차량 더하기</SubmitButton>
                   </AssistForm>
                 </details>
@@ -128,6 +130,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               <Badge tone={c.consent.photo ? "accent" : "neutral"}>사진 홍보 {c.consent.photo ? "동의" : "안 함"}</Badge>
               <Badge tone={c.consent.marketing ? "accent" : "neutral"}>광고 문자 {c.consent.marketing ? "동의" : "안 함"}</Badge>
               {c.consent.required && !c.consent.current && <Badge tone="warn">동의서 판이 바뀜</Badge>}
+              {!c.consent.required && pending && <Badge tone="warn">링크 동의 대기 · {fmtTime(pending.expiresAt)}까지</Badge>}
             </p>
             {canWrite && (
               <AssistForm id={`consent-${c.id}`} action={consentAction} className="space-y-3">

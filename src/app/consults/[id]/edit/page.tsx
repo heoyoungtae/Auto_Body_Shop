@@ -11,6 +11,7 @@ import { Card, ErrorBox, PageTitle } from "../../../_ui";
 import { updateConsultAction } from "../../actions";
 import { Calendar } from "../../calendar";
 import { ConsultFields } from "../../consult-form";
+import { SaveCheck } from "../../save-check";
 
 export default async function EditConsult({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   const [{ id }, { error }] = await Promise.all([params, searchParams]);
@@ -19,7 +20,7 @@ export default async function EditConsult({ params, searchParams }: { params: Pr
   const c = await getConsultation(db, id);
   const today = seoulDate();
   const resv = c.reservedAt ? seoulParts(c.reservedAt) : null;
-  const cal = await reservationCalendar(db, 14);
+  const cal = await reservationCalendar(db, 60);
   return (
     <div>
       <PageTitle help="consults.edit" sub={<>고객 {c.customer.name} · 고객 이름·연락처는 <Link href={`/customers/${c.customer.id}`} className="text-[var(--accent)]">고객 화면</Link>에서 고칩니다.</>}>
@@ -43,10 +44,11 @@ export default async function EditConsult({ params, searchParams }: { params: Pr
             today={today}
             p={{ ...c, reservedDate: resv?.date, reservedTime: resv?.time }}
           />
+          <SaveCheck fullDates={cal.filter((d) => d.full && !(c.result === "reserved" && d.date === resv?.date)).map((d) => d.date)} />
           <SubmitButton>저장</SubmitButton>
         </AssistForm>
         <Card title="입고 예약 현황(2주)" help={{ kind: "panel", id: "consult.calendar" }}>
-          <Calendar days={cal} today={today} />
+          <Calendar days={cal.slice(0, 14)} today={today} />
         </Card>
       </div>
     </div>

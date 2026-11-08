@@ -30,13 +30,19 @@ export const vehicle = pgTable(
       .notNull()
       .references(() => customer.id),
     plateNo: text("plate_no").notNull(),
+    /** 차대번호(VIN 17자리). 제조사·연식을 여기서 읽는다 */
+    vin: text("vin"),
+    maker: text("maker"),
     model: text("model"),
     year: integer("year"),
     colorCode: text("color_code"),
+    /** 마지막으로 안 주행거리(km)와 그날. 상담 때는 고객 말, 입고 때는 계기판 확인 값 */
+    mileage: integer("mileage"),
+    mileageOn: date("mileage_on"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("vehicle_plate_uq").on(t.plateNo), index("vehicle_customer_idx").on(t.customerId)],
+  (t) => [uniqueIndex("vehicle_plate_uq").on(t.plateNo), index("vehicle_customer_idx").on(t.customerId), index("vehicle_vin_idx").on(t.vin)],
 );
 
 export const CONSENT_METHODS = ["phone", "visit", "online"] as const;
@@ -86,6 +92,8 @@ export const consultation = pgTable(
     damageParts: text("damage_parts"),
     cause: text("cause"),
     photoCount: integer("photo_count").notNull().default(0),
+    /** 고객이 말한 주행거리(km, 대략) */
+    mileage: integer("mileage"),
     /** 예비 판단: 수리 방법, 구조물 손상 의심 */
     methods: jsonb("methods").$type<string[]>().notNull().default([]),
     structural: boolean("structural").notNull().default(false),
@@ -124,4 +132,23 @@ export const consultation = pgTable(
     index("consultation_result_idx").on(t.result),
     index("consultation_reserved_idx").on(t.reservedAt),
   ],
+);
+
+/** 문자·알림톡 링크로 받는 동의 요청. 링크 토큰은 해시만 저장. 기한 안에 동의가 없으면 연락처를 지운다 */
+export const consentRequest = pgTable(
+  "consent_request",
+  {
+    id: id(),
+    tokenHash: text("token_hash").notNull(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    consultId: uuid("consult_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    sentOk: boolean("sent_ok").notNull().default(false),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("consent_request_token_uq").on(t.tokenHash), index("consent_request_customer_idx").on(t.customerId)],
 );

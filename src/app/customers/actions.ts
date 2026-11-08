@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { changeConsent, findByPhone, moveVehicle, saveVehicle, updateCustomer, type ConsentInput } from "@/modules/customer/service";
+import { changeConsent, findByPhone, moveVehicle, saveVehicle, sendConsentRequest, updateCustomer, type ConsentInput } from "@/modules/customer/service";
 import { CustomerError } from "@/modules/customer/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
@@ -22,6 +22,16 @@ export async function updateCustomerAction(form: FormData) {
 export async function consentAction(form: FormData) {
   const user = await requireUser([...STAFF]);
   const id = str(form, "id");
+  if (str(form, "consentMethod") === "link") {
+    let m: string;
+    try {
+      const r = await sendConsentRequest(await getDb(), user.id, id, null);
+      m = r.ok ? `동의 링크를 ${r.channel}(으)로 보냈습니다${r.demo ? "(데모라 발송 이력에만 남음)" : ""}` : `보내지 못했습니다: ${r.error ?? "대행사 오류"}`;
+    } catch (e) {
+      redirect(errorUrl(`/customers/${id}`, userMessage(e)));
+    }
+    redirect(noticeUrl(`/customers/${id}`, m));
+  }
   const c = form.getAll("consent").map(String);
   const input: ConsentInput = { required: c.includes("required"), photo: c.includes("photo"), marketing: c.includes("marketing"), method: (str(form, "consentMethod") || "phone") as ConsentInput["method"] };
   try {
@@ -37,7 +47,7 @@ export async function vehicleAction(form: FormData) {
   const id = str(form, "id");
   const year = str(form, "year").replace(/[^\d]/g, "");
   try {
-    await saveVehicle(await getDb(), user.id, id, { id: str(form, "vehicleId") || undefined, plateNo: str(form, "plateNo"), model: str(form, "model"), year: year ? Number(year) : null, colorCode: str(form, "colorCode") });
+    await saveVehicle(await getDb(), user.id, id, { id: str(form, "vehicleId") || undefined, plateNo: str(form, "plateNo"), vin: str(form, "vin"), maker: str(form, "maker"), model: str(form, "model"), year: year ? Number(year) : null, colorCode: str(form, "colorCode") });
   } catch (e) {
     redirect(errorUrl(`/customers/${id}`, userMessage(e)));
   }
