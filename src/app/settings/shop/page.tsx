@@ -1,11 +1,12 @@
 import { getDb } from "@/db/runtime";
-import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
+import { loadShopInfo, shopAddressLine, shopMissing } from "@/modules/platform/shop";
 import { AssistForm } from "../../_assist";
-import { TextField } from "../../_input";
+import { AddressField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Card, ErrorBox, Notice, PageTitle } from "../../_ui";
-import { saveShopAction } from "./actions";
+import { NeedImageNote, StampImageInput } from "../../stamp-image";
+import { saveSealAction, saveShopAction } from "./actions";
 
 export default async function ShopSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
@@ -33,7 +34,7 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
               <TextField help="shop.bizNo" name="bizNo" inputMode="numeric" defaultValue={shop.bizNo} />
               <TextField help="shop.repairRegNo" name="repairRegNo" defaultValue={shop.repairRegNo} />
             </div>
-            <TextField help="shop.address" name="address" defaultValue={shop.address} />
+            <AddressField help={{ zip: "shop.zip", address: "shop.address", detail: "shop.addressDetail" }} defaults={{ zip: shop.zip, address: shop.address, detail: shop.addressDetail }} />
             <SubmitButton>저장</SubmitButton>
           </AssistForm>
         ) : (
@@ -43,7 +44,7 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
               ["대표자", shop.ceo],
               ["사업자등록번호", shop.bizNo],
               ["정비업 등록번호", shop.repairRegNo],
-              ["주소", shop.address],
+              ["주소", shopAddressLine(shop)],
               ["전화번호", shop.phone],
             ].map(([k, v]) => (
               <div key={k} className="grid grid-cols-[8rem_1fr]">
@@ -54,6 +55,41 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
           </dl>
         )}
       </Card>
+      <div className="mt-4">
+        <Card title="직인" help={{ kind: "panel", id: "shop.seal" }}>
+          <div className="grid gap-6 lg:grid-cols-[14rem_1fr]">
+            <div>
+              <p className="mb-1 text-sm font-medium">지금 등록된 직인</p>
+              <div className="grid h-36 place-items-center rounded-md border border-[var(--line)] bg-white">
+                {shop.sealPath ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/api/files/${shop.sealPath}`} alt="등록된 직인" className="max-h-32 max-w-[12rem] object-contain" />
+                ) : (
+                  <span className="text-sm text-[var(--muted)]">아직 없음</span>
+                )}
+              </div>
+              {owner && shop.sealPath && (
+                <form action={saveSealAction} className="mt-2">
+                  <input type="hidden" name="intent" value="clear" />
+                  <SubmitButton variant="secondary">직인 지우기</SubmitButton>
+                </form>
+              )}
+            </div>
+            {owner ? (
+              <AssistForm id="shop-seal" action={saveSealAction} guard={false} className="space-y-3">
+                <p className="text-sm">
+                  흰 종이에 직인(법인인감·사업자 도장)을 또렷하게 찍어 사진을 찍거나 스캔해 올립니다. 흰 바탕은 저절로 지우고 도장 부분만 잘라, 견적서·정비명세서의 &lsquo;대표이사 (서명 또는 인)&rsquo;·&lsquo;업체명 및 대표자 (서명 또는 인)&rsquo; 칸에 겹쳐 찍습니다.
+                </p>
+                <StampImageInput name="seal" label="직인 그림 고르기" hint="PNG·JPG. 도장이 화면 가운데 크게 나오게 찍으면 좋습니다." />
+                <NeedImageNote fields={["seal"]} msg="직인 그림을 골라야 저장됩니다." />
+                <SubmitButton>{shop.sealPath ? "직인 바꾸기" : "직인 등록"}</SubmitButton>
+              </AssistForm>
+            ) : (
+              <p className="text-sm text-[var(--muted)]">직인 등록·바꾸기는 대표만 할 수 있습니다.</p>
+            )}
+          </div>
+        </Card>
+      </div>
     </>
   );
 }

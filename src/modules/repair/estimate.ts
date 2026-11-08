@@ -14,6 +14,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
+import { userSignature } from "@/modules/auth/signature";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { buildLines, estimateIssues, isLineCategory, isPartCode, totals, type EstimateKind } from "./estimate-rules";
 import { isPaintGrade, laborWon, paintWon, partGroup, type PaintGrade } from "./labor";
@@ -201,6 +202,8 @@ export async function issueEstimate(db: Db, actor: Actor, id: string, now = new 
     vin: g.vehicle.vin,
     shop,
     writer: g.writer,
+    // 발급 순간의 작성자 서명·직인(shop.sealPath)을 고정한다
+    writerSign: await userSignature(db, e.createdBy),
   };
   // 같은 수리 건에서 앞서 보낸 뒤 답이 없던 견적은 이 차수로 바뀐다(고객 화면 링크도 닫힘)
   await db.update(estimate).set({ status: "void", updatedAt: now }).where(and(eq(estimate.repairOrderId, e.repairOrderId), eq(estimate.status, "sent"), ne(estimate.id, id)));

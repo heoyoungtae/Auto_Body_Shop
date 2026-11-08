@@ -13,6 +13,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
+import { userSignature } from "@/modules/auth/signature";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { totals } from "./estimate-rules";
@@ -192,6 +193,7 @@ export async function issueStatement(db: Db, actor: Actor, roId: string, input: 
     completedOn: w.completedAt ? seoulDate(w.completedAt) : today,
     shop,
     writer: writer?.name ?? null,
+    writerSign: await userSignature(db, actor.id),
     estimateNo: e.docNo,
     lines: lines.map((l) => ({ payer: l.payer, category: l.category, name: l.name, partCode: l.partCode, partNo: l.partNo, qty: l.qty, unitWon: l.unitWon, laborWon: l.laborWon })),
     byPayer: { insurance: totals(lines.filter((l) => l.payer === "insurance")).total, general: totals(lines.filter((l) => l.payer !== "insurance")).total },

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { getEstimate } from "@/modules/repair/estimate";
 import { totals } from "@/modules/repair/estimate-rules";
-import type { ShopInfo } from "@/modules/platform/shop";
+import { shopAddressLine, type ShopInfo } from "@/modules/platform/shop";
+import { SignMark } from "../../../../sign-mark";
 import { requireUser } from "../../../../../_lib/session";
 import { buttonClass, PageTitle } from "../../../../../_ui";
 import { PrintButton } from "./print-button";
 
-type Snap = { owner: string; plateNo: string; carName: string; mileage: number | null; registeredOn: string | null; vin: string | null; shop: ShopInfo; writer: string | null };
+type Snap = { owner: string; plateNo: string; carName: string; mileage: number | null; registeredOn: string | null; vin: string | null; shop: ShopInfo; writer: string | null; writerSign?: string | null };
 const won = (n: number) => (n ? n.toLocaleString("ko-KR") : "");
 const cell = "border border-black px-1.5 py-1";
 const head = `${cell} bg-neutral-100 text-center font-medium`;
@@ -121,11 +122,11 @@ export default async function EstimatePrint({ params }: { params: Promise<{ id: 
               <tr>
                 <td className={head}>업체명 및 대표자</td>
                 <td className={cell} colSpan={2}>
-                  {s.shop!.name} {s.shop!.ceo} <span className="text-neutral-500">(서명 또는 인)</span>
+                  {s.shop!.name} {s.shop!.ceo} <SignMark path={s.shop!.sealPath} kind="seal" />
                 </td>
                 <td className={head}>주소</td>
                 <td className={cell} colSpan={3}>
-                  {s.shop!.address} (전화번호 {s.shop!.phone})
+                  {shopAddressLine(s.shop!)} (전화번호 {s.shop!.phone})
                 </td>
               </tr>
               <tr>
@@ -217,10 +218,10 @@ export default async function EstimatePrint({ params }: { params: Promise<{ id: 
             {y}년 {Number(m)}월 {Number(d)}일
           </p>
           <p className="mt-2 text-right">
-            작성자 {s.writer ?? ""} <span className="text-neutral-500">(서명 또는 인)</span>
+            작성자 {s.writer ?? ""} <SignMark path={s.writerSign} />
           </p>
           <p className="mt-1 text-right">
-            대표이사 {s.shop!.ceo} <span className="text-neutral-500">(서명 또는 인)</span>
+            대표이사 {s.shop!.ceo} <SignMark path={s.shop!.sealPath} kind="seal" />
           </p>
 
           <div className="mt-3 border-t border-black pt-2 text-[10px] whitespace-pre-wrap">

@@ -605,3 +605,116 @@ function useResync(ref: React.RefObject<HTMLElement | null>, sync: (kind: "reset
     };
   }, [ref]);
 }
+
+// ── 주소 찾기(카카오 다음 우편번호 서비스) ──
+// 무료·키 없음. 단추를 누를 때만 스크립트를 불러오고, 찾기 창은 칸 아래에 펼친다(팝업 차단 걱정 없음).
+type DaumAddr = { zonecode: string; roadAddress: string; jibunAddress: string; autoJibunAddress?: string; bname: string; buildingName: string; apartment: "Y" | "N"; userSelectedType: "R" | "J" };
+type DaumPostcode = new (o: { oncomplete: (d: DaumAddr) => void; width?: string; height?: string }) => { embed: (el: HTMLElement, o?: { autoClose?: boolean }) => void };
+const POSTCODE_SRC = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+let postcodeLoading: Promise<DaumPostcode> | null = null;
+function loadPostcode(): Promise<DaumPostcode> {
+  const w = window as unknown as { daum?: { Postcode?: DaumPostcode } };
+  if (w.daum?.Postcode) return Promise.resolve(w.daum.Postcode);
+  postcodeLoading ??= new Promise((ok, fail) => {
+    const s = document.createElement("script");
+    s.src = POSTCODE_SRC;
+    s.async = true;
+    s.onload = () => (w.daum?.Postcode ? ok(w.daum.Postcode) : fail(new Error("no postcode")));
+    s.onerror = () => {
+      postcodeLoading = null;
+      fail(new Error("load failed"));
+    };
+    document.head.appendChild(s);
+  });
+  return postcodeLoading;
+}
+
+/** 고른 결과를 서류에 쓰는 도로명 주소 한 줄로: 도로명 + (법정동, 건물명) */
+export function daumRoadLine(d: DaumAddr): string {
+  if (d.userSelectedType === "J") return d.jibunAddress || d.autoJibunAddress || d.roadAddress;
+  const extra = [/[동로가]$/.test(d.bname) ? d.bname : "", d.buildingName && d.apartment === "Y" ? d.buildingName : ""].filter(Boolean).join(", ");
+  return `${d.roadAddress}${extra ? ` (${extra})` : ""}`;
+}
+
+/** 우편번호·주소·상세주소 세 칸. '주소 찾기'로 우편번호와 도로명 주소를 채우고 상세주소로 넘어간다 */
+export function AddressField({
+  help,
+  names = { zip: "zip", address: "address", detail: "addressDetail" },
+  defaults = {},
+  required,
+  from,
+}: {
+  help: { zip: FieldHelpKey; address: FieldHelpKey; detail: FieldHelpKey };
+  names?: { zip: string; address: string; detail: string };
+  defaults?: { zip?: string; address?: string; detail?: string };
+  required?: boolean;
+  from?: string;
+}) {
+  const root = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const field = (n: string) => root.current?.querySelector<HTMLInputElement>(`input[name="${n}"]`) ?? null;
+  const put = (n: string, v: string) => {
+    const el = field(n);
+    if (!el) return;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(el, v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  useEffect(() => {
+    if (!open) {
+      setMsg(null);
+      return;
+    }
+    let alive = true;
+    setMsg("주소 찾기 창을 여는 중…");
+    loadPostcode()
+      .then((Postcode) => {
+        if (!alive || !box.current) return;
+        setMsg(null);
+        box.current.innerHTML = "";
+        new Postcode({
+          width: "100%",
+          height: "100%",
+          oncomplete: (d) => {
+            put(names.zip, d.zonecode);
+            put(names.address, daumRoadLine(d));
+            setOpen(false);
+            setTimeout(() => field(names.detail)?.focus(), 0);
+          },
+        }).embed(box.current, { autoClose: false });
+      })
+      .catch(() => alive && setMsg("주소 찾기 창을 불러오지 못했습니다(인터넷 연결 확인). 우편번호와 주소를 직접 적어도 됩니다."));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <div ref={root} className="space-y-3" data-assist-address>
+      <div className="grid gap-3 sm:grid-cols-[12rem_auto_1fr] sm:items-end">
+        <TextField help={help.zip} name={names.zip} required={required} from={from} defaultValue={defaults.zip} inputMode="numeric" />
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="h-11 rounded-md border border-[var(--accent)] px-4 text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+          aria-expanded={open}
+        >
+          {open ? "찾기 닫기" : "🔍 주소 찾기"}
+        </button>
+        <p className="text-xs text-[var(--muted)] sm:pb-3">도로명·건물명·지번으로 찾으면 우편번호와 주소가 저절로 들어갑니다.</p>
+      </div>
+      {(open || msg) && (
+        <div className="rounded-md border border-[var(--line-strong)] bg-[var(--surface)]">
+          {msg && <p className="px-3 py-2 text-sm text-[var(--muted)]">{msg}</p>}
+          {open && <div ref={box} className="h-[440px] w-full" />}
+        </div>
+      )}
+      <TextField help={help.address} name={names.address} required={required} from={from} defaultValue={defaults.address} />
+      <TextField help={help.detail} name={names.detail} from={from} defaultValue={defaults.detail} />
+    </div>
+  );
+}

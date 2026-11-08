@@ -23,6 +23,8 @@ export const appUser = pgTable(
     lockedUntil: timestamp("locked_until", { withTimezone: true }),
     /** 퇴직 점검표(F-11-07) 확정일. 있으면 로그인 불가 */
     retiredOn: date("retired_on"),
+    /** 내 서명 그림(보관 폴더 상대 경로). 견적서·정비명세서의 작성자 칸에 찍힌다 */
+    signaturePath: text("signature_path"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("app_user_login_uq").on(t.loginId)],

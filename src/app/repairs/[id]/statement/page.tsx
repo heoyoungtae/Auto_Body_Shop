@@ -4,13 +4,14 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { statementOf } from "@/modules/repair/inspect";
-import type { ShopInfo } from "@/modules/platform/shop";
+import { shopAddressLine, type ShopInfo } from "@/modules/platform/shop";
+import { SignMark } from "../../sign-mark";
 import { requireUser } from "../../../_lib/session";
 import { buttonClass, PageTitle } from "../../../_ui";
 import { PrintButton } from "../estimate/[eid]/print/print-button";
 
 type Line = { payer: string; category: string; name: string; partCode: string | null; partNo: string | null; qty: number; unitWon: number; laborWon: number };
-type Snap = { owner: string; plateNo: string; carName: string; mileage: number | null; registeredOn: string | null; requestedOn: string; completedOn: string; shop: ShopInfo; writer: string | null; estimateNo: string; lines: Line[]; warranty: { kind: string; until: string }[]; legalFreeDays: number; noWashDays: number };
+type Snap = { owner: string; plateNo: string; carName: string; mileage: number | null; registeredOn: string | null; requestedOn: string; completedOn: string; shop: ShopInfo; writer: string | null; writerSign?: string | null; estimateNo: string; lines: Line[]; warranty: { kind: string; until: string }[]; legalFreeDays: number; noWashDays: number };
 const won = (n: number) => (n ? n.toLocaleString("ko-KR") : "");
 const cell = "border border-black px-1.5 py-1";
 const head = `${cell} bg-neutral-100 text-center font-medium`;
@@ -110,7 +111,7 @@ export default async function StatementPrint({ params }: { params: Promise<{ id:
                 </td>
                 <td className={head}>주소 · 전화번호</td>
                 <td className={cell} colSpan={2}>
-                  {s.shop.address} · {s.shop.phone}
+                  {shopAddressLine(s.shop)} · {s.shop.phone}
                 </td>
               </tr>
               <tr>
@@ -118,7 +119,7 @@ export default async function StatementPrint({ params }: { params: Promise<{ id:
                   정비책임자
                 </td>
                 <td className={cell}>
-                  {s.writer ?? ""} <span className="text-neutral-500">(서명 또는 인)</span>
+                  {s.writer ?? ""} <SignMark path={s.writerSign} />
                 </td>
                 <td className={head}>추가정비 동의 여부</td>
                 <td className={cell} colSpan={2}>
@@ -196,10 +197,10 @@ export default async function StatementPrint({ params }: { params: Promise<{ id:
             {y}년 {Number(m)}월 {Number(d)}일
           </p>
           <p className="mt-2 text-right">
-            작성자 {s.writer ?? ""} <span className="text-neutral-500">(서명 또는 인)</span>
+            작성자 {s.writer ?? ""} <SignMark path={s.writerSign} />
           </p>
           <p className="mt-1 text-right">
-            대표이사 {s.shop.ceo} <span className="text-neutral-500">(서명 또는 인)</span>
+            대표이사 {s.shop.ceo} <SignMark path={s.shop.sealPath} kind="seal" />
           </p>
           <div className="mt-3 border-t border-black pt-2 text-[10px]">
             {NOTES.map((n) => (

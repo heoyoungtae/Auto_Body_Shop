@@ -1,8 +1,10 @@
 "use client";
 // 서명란: 손가락·펜·마우스로 그린 서명을 PNG 로 숨은 칸 signature 에 넣는다.
 import { useEffect, useRef, useState } from "react";
+import { trimCanvas } from "../stamp-image";
 
-export function SignaturePad({ name = "signature", hint = "이 칸에 고객(탁송이면 기사)이 서명합니다" }: { name?: string; hint?: string }) {
+/** trim: 빈 가장자리를 잘라 낸다(서류에 찍을 서명 등록용) */
+export function SignaturePad({ name = "signature", hint = "이 칸에 고객(탁송이면 기사)이 서명합니다", trim = false }: { name?: string; hint?: string; trim?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const hidden = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
@@ -30,7 +32,7 @@ export function SignaturePad({ name = "signature", hint = "이 칸에 고객(탁
   };
   const changed = () => queueMicrotask(() => hidden.current?.form?.dispatchEvent(new Event("change", { bubbles: true })));
   const save = () => {
-    if (canvas.current) setData(canvas.current.toDataURL("image/png"));
+    if (canvas.current) setData(((trim && trimCanvas(canvas.current)) || canvas.current).toDataURL("image/png"));
     changed();
   };
   const clear = () => {
