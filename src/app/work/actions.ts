@@ -39,8 +39,9 @@ export async function workAction(form: FormData) {
       const n = await assignRest(db, user, id, { assignee: s("assignee"), planDate: s("planDate") });
       msg = `담당이 없던 공정 ${n}개를 배정했습니다. 공정마다 다른 사람이면 그 공정에서 바꾸세요`;
     } else if (intent === "start") {
-      await startStep(db, user, stepId);
+      const r = await startStep(db, user, stepId);
       msg = "공정을 시작했습니다. 끝나면 자주 검사를 확인하고 '공정 끝'을 누르세요";
+      if (r.warnings.length) msg += ` · 설비 확인(공장장에게 알림): ${r.warnings.join(" / ")}`;
     } else if (intent === "finish") {
       const detail: Record<string, string> = {};
       for (const k of ["colorCode", "paintMaker", "mixNo", "lot", "tempC", "minutes", "weld"]) if (form.has(k)) detail[k] = s(k);

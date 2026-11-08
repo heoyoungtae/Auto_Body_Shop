@@ -27,6 +27,10 @@ export const PERMS = {
   "leave.team": { area: "인사", label: "직원 근태 전체 보기", std: "STD-11 4절", roles: ["owner", "plant_manager", "accounting"] },
   "cert.all": { area: "인사", label: "재직증명서 전체 보기·인쇄", std: "STD-11", roles: ["owner", "accounting"], note: "본인은 자기 것" },
   "cert.approve": { area: "인사", label: "재직증명서 발급 승인(직인)", std: "STD-11", roles: ["owner"] },
+  "equip.manage": { area: "설비", label: "설비 대장·윤활 개소·예방정비 계획 쓰기, 고장 확인(사용 재개)", std: "STD-08", roles: ["plant_manager", "owner"] },
+  "equip.check": { area: "설비", label: "설비 점검·윤활·운전 일지·고장 신고·예방정비 실적", std: "STD-08", roles: ["technician", "plant_manager", "owner", "safety", "quality"] },
+  "equip.calibrate": { area: "설비", label: "측정 장비 교정 기록", std: "STD-08 6절", roles: ["quality", "plant_manager", "owner"] },
+  "pm.approve": { area: "설비", label: "예방정비 계획 승인", std: "STD-08 9절", roles: ["owner"] },
   "account.manage": { area: "설정", label: "계정·역할·비밀번호·잠금", std: "설계 9.1", roles: ["owner"] },
   "settings.edit": { area: "설정", label: "정비소 정보·영업일·정책값·전결·공임표·연동 설정", std: "부록 B·D", roles: ["owner"] },
 } satisfies Record<string, Perm>;

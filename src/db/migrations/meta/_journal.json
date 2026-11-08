@@ -120,6 +120,13 @@
       "when": 1794149954823,
       "tag": "0016_staff_document",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794155280268,
+      "tag": "0017_equipment",
+      "breakpoints": true
     }
   ]
 }

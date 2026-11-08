@@ -5,6 +5,7 @@ import type { Db } from "@/db/client";
 import { jobRun, session } from "@/db/schema";
 import { seoulDate } from "./time";
 import { notifyDueConsults, purgeUnconsented, sendReminders } from "@/modules/customer/service";
+import { equipmentDailyAlerts } from "@/modules/equipment/service";
 
 export type JobResult = { job: string; status: "done" | "skipped" | "failed"; message?: string };
 
@@ -16,7 +17,8 @@ export const JOBS: Record<string, JobFn> = {
     const removed = await db.delete(session).where(lt(session.expiresAt, now)).returning({ t: session.tokenHash });
     const due = await notifyDueConsults(db, now);
     const purged = await purgeUnconsented(db, now);
-    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged}`;
+    const equip = await equipmentDailyAlerts(db, now);
+    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip}`;
   },
   /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계) */
   reminders: async (db, _today, now) => sendReminders(db, now),

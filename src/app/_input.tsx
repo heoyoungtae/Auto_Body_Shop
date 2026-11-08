@@ -529,6 +529,33 @@ export function CheckGroup({ help, name, options, defaultChecked = [], label }: 
   );
 }
 
+/** 하나 고르기(큰 단추 모양 라디오). 점검표 ○△×- 처럼 휴대폰에서 한 번에 누르는 칸 */
+export function RadioRow({
+  help,
+  name,
+  label,
+  required,
+  from,
+  options,
+  defaultValue,
+}: Common & { options: { value: string; label: string; tone?: "ok" | "warn" | "danger" }[]; defaultValue?: string }) {
+  const id = useId();
+  const h = FIELD_HELP[help];
+  const v = useKoValidity(label ?? h.label);
+  const tone = { ok: "has-[:checked]:border-[var(--ok)] has-[:checked]:bg-[var(--ok-soft)]", warn: "has-[:checked]:border-[var(--warn)] has-[:checked]:bg-[var(--warn-soft)]", danger: "has-[:checked]:border-[var(--danger)] has-[:checked]:bg-[var(--danger-soft)]" };
+  return (
+    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
+      <div id={id} role="radiogroup" aria-describedby={`${id}-msg`} className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <label key={o.value} className={`flex min-h-11 min-w-12 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--line)] px-3 has-[:checked]:font-semibold ${o.tone ? tone[o.tone] : "has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-soft)]"}`}>
+            <input type="radio" name={name} value={o.value} required={required} defaultChecked={defaultValue === o.value} onInvalid={v.onInvalid} onChange={(e) => v.revalidate(e.currentTarget)} className="size-4" /> {o.label}
+          </label>
+        ))}
+      </div>
+    </Shell>
+  );
+}
+
 /** 금액이 붙은 고르기 목록(견적 승인 등). 고른 것의 합계를 바로 보여 준다 */
 export function AmountChecklist({
   help,

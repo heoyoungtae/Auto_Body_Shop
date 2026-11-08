@@ -2,6 +2,7 @@ import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { getWorkOrder } from "@/modules/repair/work";
+import { processEquipmentWarnings } from "@/modules/equipment/service";
 import { fmtMinutes } from "@/modules/repair/labor";
 import { PROCESSES, WO_STATUS_LABEL, isProcess, processLabel } from "@/modules/repair/work-rules";
 import { AssistForm } from "../../_assist";
@@ -58,11 +59,14 @@ const DETAIL_LABEL: Record<string, string> = { colorCode: "컬러 코드", paint
 export default async function WorkOrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
   const [{ id }, { error, notice }] = await Promise.all([params, searchParams]);
   const user = await requireUser();
-  const w = await getWorkOrder(await getDb(), id);
+  const db = await getDb();
+  const w = await getWorkOrder(db, id);
   const boss = can(user, "work.assign");
   const open = w.status !== "done";
   const v = w.vehicle;
   const lineName = (lid: string) => w.lines.find((l) => l.id === lid)?.name;
+  // 시작 전에 보여 줄 설비 경고(STD-08 5.4)
+  const eqWarn = new Map(await Promise.all([...new Set(w.steps.filter((s) => !s.startedAt).map((s) => s.process))].map(async (p) => [p, await processEquipmentWarnings(db, p)] as const)));
 
   return (
     <div>
@@ -127,6 +131,19 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
                       </details>
                     )}
 
+                    {state === "ready" && mine && s.assignee && open && (eqWarn.get(s.process)?.length ?? 0) > 0 && (
+                      <div className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] p-2 text-sm">
+                        <b>설비 확인</b>
+                        <ul className="list-disc pl-5">
+                          {eqWarn.get(s.process)!.map((t) => (
+                            <li key={t}>{t}</li>
+                          ))}
+                        </ul>
+                        <Link href="/equipment" className="text-xs text-[var(--accent)]">
+                          설비 대장에서 점검하기
+                        </Link>
+                      </div>
+                    )}
                     {state === "ready" && mine && s.assignee && open && (
                       <form action={workAction}>
                         <Hidden woId={w.id} stepId={s.id} intent="start" />

@@ -14,6 +14,7 @@ import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
 import { checkAssignment, currentLevels } from "@/modules/staff/service";
+import { processEquipmentWarnings } from "@/modules/equipment/service";
 import { blockers, buildSteps, finishIssues, isProcess, minutesBetween, processLabel, PROCESSES } from "./work-rules";
 
 export class WorkError extends UserError {}
@@ -117,6 +118,10 @@ export async function startStep(db: Db, actor: Actor, stepId: string, now = new 
   await db.update(workStep).set({ startedAt: now, startedBy: actor.id }).where(eq(workStep.id, stepId));
   if (w.status === "planned") await db.update(workOrder).set({ status: "working", updatedAt: now }).where(eq(workOrder.id, w.id));
   await writeAudit(db, { actorId: actor.id, action: "work.start", entityType: "work_order", entityId: w.docNo, after: { step: s.process } });
+  // 설비 경고(STD-08 5.4): 사용 금지 설비나 오늘 점검 안 한 A등급 설비. 막지는 않고 알린다
+  const warnings = await processEquipmentWarnings(db, s.process, seoulDate(now));
+  if (warnings.length) await notifyRole(db, "plant_manager", `${w.docNo} ${processLabel(s.process)} 시작 — 설비 확인: ${warnings.join(" / ")}`, `work-eq-${stepId}`, `/work/${w.id}`);
+  return { warnings };
 }
 
 /** 공정 사진(시작한 뒤, 끝나기 전) */
