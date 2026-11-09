@@ -8,6 +8,7 @@ import { appUser, customer, estimate, estimateLine, inspection, repairOrder, rep
 import type { Role } from "@/modules/auth/roles";
 import { phoneForNotice } from "@/modules/customer/service";
 import { sendNotice } from "@/modules/messaging/service";
+import { issueNc } from "@/modules/quality/nc";
 import { writeAudit } from "@/modules/platform/audit";
 import { nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
@@ -113,6 +114,8 @@ export async function judgeInspection(db: Db, actor: Actor, inspectionId: string
   if (res.pass) await notifyRole(db, "advisor", `최종 검사 합격: ${r.docNo} — 고객에게 완료 안내를 보내고 인도 일시를 정하세요`, `qc-pass-${r.docNo}-${i.round}`, `/repairs/${r.id}/delivery`);
   else {
     await notifyRole(db, "plant_manager", `최종 검사 불합격(${i.round}차): ${r.docNo} — 재작업 담당을 정하세요`, `qc-fail-${r.docNo}-${i.round}`, `/work/${i.workOrderId}`);
+    // 최종 검사 불합격은 부적합 자동 발행(설계 6.3). 같은 차의 안 끝난 보고서가 있으면 그것을 쓴다
+    await issueNc(db, actor.id, { source: "inspect", refType: "repair_order", refId: r.id, refLabel: r.docNo, content: `${i.round}차 최종 검사 불합격: ${res.fails.map((f) => f.why).join(" / ")} — ${input.failNote.trim()}`, immediate: "재작업 공정 지시(작업 지시서)" }, now);
     if (i.round >= 2) await notifyRole(db, "quality", `같은 차 ${i.round}회 연속 불합격: ${r.docNo} — 원인 분석·시정 조치(7일 안, STD-05 6.5)`, `qc-repeat-${r.docNo}-${i.round}`, `/repairs/${r.id}/inspect`);
   }
   return res;

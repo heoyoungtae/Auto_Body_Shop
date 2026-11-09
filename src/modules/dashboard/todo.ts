@@ -18,6 +18,13 @@ import { loadPolicy } from "@/modules/platform/policy";
 import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { consentPanel } from "./service";
+import { can } from "@/modules/auth/permissions";
+import { listOpenFailures, todayBoard } from "@/modules/equipment/service";
+import { listNc } from "@/modules/quality/nc";
+import { NC_SOURCES } from "@/modules/quality/rules";
+import { fiveSBoard, myZonesToday } from "@/modules/quality/five-s";
+import { isBusinessDay } from "@/modules/platform/business-days";
+import { loadShopCalendar } from "@/modules/platform/calendar";
 
 export type TodoWhen = "late" | "today" | "soon" | "setup";
 export type Todo = { key: string; when: TodoWhen; what: string; detail?: string; href: string; action: string };
@@ -128,6 +135,40 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     const who = `${r.docNo} ${r.customerName} ${r.plateNo}`;
     if (r.status === "inspecting" && user.roles.some((x) => x === "quality" || x === "plant_manager")) out.push({ key: `qc-${r.id}`, when: "today", what: `최종 검사: ${who}`, detail: "작업이 모두 끝났습니다. 주 작업자가 아닌 사람이 검사합니다", href: `/repairs/${r.id}/inspect`, action: "검사하기" });
     if (r.status === "ready" && user.roles.some((x) => x === "advisor" || x === "owner")) out.push({ key: `dl-${r.id}`, when: r.readyNoticeAt ? "soon" : "today", what: `${r.readyNoticeAt ? "출고" : "완료 안내·출고"}: ${who}`, detail: r.readyNoticeAt ? "인도 때 정비명세서 발급·설명·인수 서명" : "검사 합격 — 고객에게 완료 안내를 보내고 인도 일시를 정합니다", href: `/repairs/${r.id}/delivery`, action: r.readyNoticeAt ? "출고하기" : "안내 보내기" });
+  }
+
+  // 설비(STD-08): 내 설비 일상 점검·윤활, 공장장은 A등급 미점검·고장·예방정비
+  const open = isBusinessDay(await loadShopCalendar(db), today);
+  if (can(user, "equip.check")) {
+    const b = await todayBoard(db, today);
+    const boss = can(user, "equip.manage");
+    if (open)
+      for (const e of b.unchecked.filter((x) => x.ownerId === user.id || (boss && x.grade === "A")))
+        out.push({ key: `eqc-${e.id}`, when: "today", what: `일상 점검: ${e.no} ${e.name}`, detail: e.grade === "A" ? "A등급 — 작업 전에 점검합니다" : "작업 전에 점검합니다", href: `/equipment/${e.id}/check`, action: "점검하기" });
+    for (const l of b.lubeDue.filter((x) => x.p.ownerId === user.id || (boss && !x.p.ownerId)))
+      out.push({ key: `lub-${l.p.id}`, when: l.p.nextDueOn < today ? "late" : l.p.nextDueOn === today ? "today" : "soon", what: `윤활: ${l.eqName} ${l.p.code} ${l.p.spot}`, detail: `기한 ${l.p.nextDueOn} · ${l.p.oil}`, href: "/equipment/lube", action: "기록하기" });
+    if (boss) {
+      for (const f of await listOpenFailures(db)) out.push({ key: `eqf-${f.id}`, when: "late", what: `설비 사용 금지: ${f.eqNo} ${f.eqName}`, detail: `${f.docNo} ${f.symptom.slice(0, 40)} — 조치 확인 뒤 사용 재개`, href: `/equipment/failures/${f.id}`, action: "확인하기" });
+      for (const r of b.pmDue) out.push({ key: `pm-${r.t.id}`, when: r.t.dueOn < today ? "late" : "soon", what: `예방정비: ${r.eqNo} ${r.eqName} — ${r.task}`, detail: `예정 ${r.t.dueOn}`, href: "/equipment/pm", action: "실적 적기" });
+    }
+  }
+
+  // 3정5S: 내 구역 일일 점검, 공장장은 매월 첫 주 월간 평가
+  if (open) for (const z of await myZonesToday(db, user.id, today)) out.push({ key: `5s-${z.code}`, when: "today", what: `3정5S 일일 점검: ${z.code} ${z.name}`, detail: "작업 끝에 체크하고 사진 1장", href: `/five-s/${z.code}`, action: "점검하기" });
+  if (can(user, "five_s.audit") && +today.slice(8, 10) <= 7) {
+    const fb = await fiveSBoard(db, today);
+    const left = fb.zones.filter((z) => !z.scores[fb.ym]);
+    if (left.length) out.push({ key: `5sm-${fb.ym}`, when: "today", what: `3정5S 월간 평가 ${left.length}개 구역 남음`, detail: "매월 첫 주(STD-08 14.2)", href: "/five-s", action: "평가하기" });
+  }
+
+  // 부적합(F-Q-10): 내 시정 조치, 품질·공장장은 처리 결정·효과 확인
+  const handle = can(user, "nc.handle");
+  for (const { n } of await listNc(db)) {
+    const href = `/nc/${n.id}`;
+    const label = `${n.docNo} ${NC_SOURCES[n.source as keyof typeof NC_SOURCES] ?? ""} ${n.content.slice(0, 30)}`;
+    if (n.status === "planned" && n.assigneeId === user.id) out.push({ key: `nca-${n.id}`, when: n.dueOn && n.dueOn < today ? "late" : "today", what: `시정 조치: ${label}`, detail: `기한 ${n.dueOn}`, href, action: "조치 적기" });
+    if (handle && n.status === "open") out.push({ key: `nco-${n.id}`, when: "today", what: `부적합 처리 결정: ${label}`, detail: "원인 분석·시정 조치·담당·기한을 정합니다", href, action: "결정하기" });
+    if (handle && n.status === "done") out.push({ key: `ncv-${n.id}`, when: "soon", what: `효과 확인·종결: ${label}`, detail: "재발이 없으면 종결합니다", href, action: "확인하기" });
   }
 
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });

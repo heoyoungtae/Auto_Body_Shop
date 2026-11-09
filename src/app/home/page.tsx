@@ -7,6 +7,11 @@ import { inbox, myDrafts } from "@/modules/approval/service";
 import { CHANNEL_LABEL, seoulParts } from "@/modules/customer/rules";
 import { consentPanel, duePanel, intakePanel, monthPanel, PANELS, panelsFor, todayInfo, type PanelId } from "@/modules/dashboard/service";
 import { listNotifications } from "@/modules/platform/notify";
+import { todayBoard } from "@/modules/equipment/service";
+import { listNc } from "@/modules/quality/nc";
+import { fiveSBoard } from "@/modules/quality/five-s";
+import { NC_SOURCES, NC_STATUS, NC_TONE, type NcStatus } from "@/modules/quality/rules";
+import { inspectTodos } from "@/modules/repair/inspect";
 import { myTodos } from "@/modules/dashboard/todo";
 import { dayLabel } from "../_format";
 import { requireUser } from "../_lib/session";
@@ -37,6 +42,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     has("month") ? monthPanel(db) : null,
   ]);
   const canWrite = can(user, "repair.write");
+  const [ncs, qcWait, eqBoard, fs] = await Promise.all([
+    has("quality") ? listNc(db) : null,
+    has("quality") ? inspectTodos(db) : null,
+    has("equipment") ? todayBoard(db, day.today) : null,
+    has("equipment") ? fiveSBoard(db, day.today) : null,
+  ]);
 
   const live: Partial<Record<PanelId, ReactNode>> = {
     intake: intake && (
@@ -146,6 +157,60 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             ))}
           </ul>
         )}
+      </Card>
+    ),
+    quality: ncs && (
+      <Card key="quality" title={`검사·부적합 · 열린 부적합 ${ncs.length}건`} help={{ kind: "panel", id: "dash.quality" }} actions={<More href="/nc" />}>
+        <p className="mb-2 text-sm">
+          최종 검사 대기 <b>{qcWait!.filter((r) => r.status === "inspecting").length}</b>대 · 기한 지난 시정 조치 <b className="text-[var(--danger)]">{ncs.filter(({ n }) => n.status === "planned" && n.dueOn && n.dueOn < day.today).length}</b>건
+        </p>
+        {ncs.length === 0 ? (
+          <Nothing>열린 부적합이 없습니다.</Nothing>
+        ) : (
+          <ul className="divide-y divide-[var(--line)] text-sm">
+            {ncs.slice(0, 6).map(({ n }) => (
+              <li key={n.id} className="flex items-center justify-between gap-2 py-1.5">
+                <Link href={`/nc/${n.id}`} className="min-w-0 truncate hover:underline">
+                  {n.docNo} {NC_SOURCES[n.source as keyof typeof NC_SOURCES]} · {n.content}
+                </Link>
+                <span className="shrink-0 whitespace-nowrap">
+                  <Badge tone={NC_TONE[n.status as NcStatus]}>{n.dueOn && n.status === "planned" ? `기한 ${n.dueOn.slice(5)}` : NC_STATUS[n.status as NcStatus]}</Badge>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    ),
+    equipment: eqBoard && fs && (
+      <Card key="equipment" title={`설비 점검 · 오늘 남은 점검 ${eqBoard.unchecked.length}대`} help={{ kind: "panel", id: "dash.equipment" }} actions={<More href="/equipment" />}>
+        {eqBoard.unchecked.length === 0 ? (
+          <Nothing>오늘 일상 점검을 모두 했습니다.</Nothing>
+        ) : (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {eqBoard.unchecked.map((e) => (
+              <Link key={e.id} href={`/equipment/${e.id}/check`} className="rounded border border-[var(--line)] px-2 py-0.5 text-xs hover:bg-[var(--surface-2)]">
+                {e.grade === "A" && <b className="text-[var(--danger)]">A </b>}
+                {e.name}
+              </Link>
+            ))}
+          </div>
+        )}
+        <p className="text-sm">
+          사용 금지 <b className={eqBoard.stopped.length ? "text-[var(--danger)]" : ""}>{eqBoard.stopped.length}</b>대 · 윤활 예정 <b>{eqBoard.lubeDue.length}</b>곳 · 예방정비 <b>{eqBoard.pmDue.length}</b>건
+        </p>
+        <p className="mt-1 text-sm">
+          이번 달 5S:{" "}
+          {fs.zones.some((z) => z.scores[fs.ym])
+            ? fs.zones
+                .filter((z) => z.scores[fs.ym])
+                .map((z) => (
+                  <span key={z.code} className={z.scores[fs.ym].total < fs.threshold ? "font-bold text-[var(--danger)]" : ""}>
+                    {z.code} {z.scores[fs.ym].total}{" "}
+                  </span>
+                ))
+            : <span className="text-[var(--muted)]">아직 평가 전</span>}
+        </p>
       </Card>
     ),
     notes: (

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { equipment, notification, pmTask } from "@/db/schema";
+import { equipment, equipmentFailure, notification, pmTask } from "@/db/schema";
 import { addMonthsIso, checkIssues, dueState, monthsForCycle, nextEqNo, pmDueDates, pmKpi } from "@/modules/equipment/rules";
 import {
   addLubePoint,
@@ -97,8 +97,10 @@ describe("설비 관리 흐름", () => {
     await expect(closeFailure(db, tech(), r.failureId!, now)).rejects.toThrow(/공장장/);
     await expect(closeFailure(db, mgr(), r.failureId!, now)).rejects.toThrow(/조치/);
     await expect(resumeEquipment(db, mgr(), id, now)).rejects.toThrow(/고장 기록/);
-    await expect(updateFailure(db, tech(), r.failureId!, { action: "필터 교체", cause: "wear", downMinutes: 40, prevention: ["nc"] })).rejects.toThrow(/F-Q-10/);
-    await updateFailure(db, tech(), r.failureId!, { action: "필터 교체", cause: "wear", downMinutes: 40, prevention: ["pm"] });
+    // 부적합 보고를 고르면 F-Q-10이 발행되고 번호가 채워진다
+    await updateFailure(db, tech(), r.failureId!, { action: "필터 교체", cause: "wear", downMinutes: 40, prevention: ["pm", "nc"] });
+    const [fr] = await db.select().from(equipmentFailure).where(eq(equipmentFailure.id, r.failureId!));
+    expect(fr.ncRef).toMatch(/^NC-/);
     const c = await closeFailure(db, mgr(), r.failureId!, now);
     expect(c).toMatchObject({ resumed: true, repeat: false });
     const [e2] = await db.select().from(equipment).where(eq(equipment.id, id));

@@ -127,6 +127,13 @@
       "when": 1794155280268,
       "tag": "0017_equipment",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794207952040,
+      "tag": "0018_quality_five_s",
+      "breakpoints": true
     }
   ]
 }

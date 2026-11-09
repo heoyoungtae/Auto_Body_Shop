@@ -11,6 +11,7 @@ import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { processLabel } from "@/modules/repair/work-rules";
+import { issueNc } from "@/modules/quality/nc";
 import {
   addDaysIso,
   addMonthsIso,
@@ -269,10 +270,15 @@ export async function updateFailure(db: Db, actor: Actor, failureId: string, inp
   if (f.status === "closed") throw new EquipError("공장장이 확인한 기록은 고칠 수 없습니다");
   if (input.cause && !(input.cause in FAIL_CAUSES)) throw new EquipError("원인을 목록에서 골라 주세요");
   const prevention = (input.prevention ?? []).filter((p) => p in PREVENTIONS);
-  if (prevention.includes("nc") && !clean(input.ncRef)) throw new EquipError("부적합 보고를 골랐으면 F-Q-10 번호를 적어 주세요");
+  // 부적합 보고를 고르면 이 고장으로 F-Q-10을 발행하고 번호를 채운다(이미 있으면 그 번호)
+  let ncRef = clean(input.ncRef);
+  if (prevention.includes("nc") && !ncRef) {
+    const e = await eqRow(db, f.equipmentId);
+    ncRef = (await issueNc(db, actor.id, { source: "equipment", refType: "equipment_failure", refId: f.id, refLabel: `${e.no} ${e.name} 고장 ${f.docNo}`, content: f.symptom, immediate: clean(input.action) ?? "설비 사용 금지" })).docNo;
+  }
   await db
     .update(equipmentFailure)
-    .set({ action: clean(input.action), external: !!input.external, downMinutes: input.downMinutes ?? null, parts: clean(input.parts), cost: input.cost ?? null, cause: clean(input.cause), prevention, ncRef: clean(input.ncRef) })
+    .set({ action: clean(input.action), external: !!input.external, downMinutes: input.downMinutes ?? null, parts: clean(input.parts), cost: input.cost ?? null, cause: clean(input.cause), prevention, ncRef })
     .where(eq(equipmentFailure.id, failureId));
 }
 
@@ -429,7 +435,8 @@ export async function recordCalibration(db: Db, actor: Actor, equipmentId: strin
     await db.update(equipment).set({ calibNextOn: nextOn, updatedAt: now, ...(e.status === "stopped" && e.stopReason === "교정 불합격" ? { status: "in_use", stopReason: null, stoppedAt: null } : {}) }).where(eq(equipment.id, equipmentId));
   } else {
     await db.update(equipment).set({ status: "stopped", stopReason: "교정 불합격", stoppedAt: now, updatedAt: now }).where(eq(equipment.id, equipmentId));
-    const t = `교정 불합격: ${e.no} ${e.name} — 사용 금지. 지난 교정 뒤 이 장비로 측정한 차를 다시 확인하세요(6절)`;
+    const nc = await issueNc(db, actor.id, { source: "equipment", refType: "equipment", refId: e.id, refLabel: `${e.no} ${e.name} 교정 불합격`, content: `측정 장비 교정 불합격(${input.calibratedOn}, ${clean(input.agency)})`, immediate: "사용 금지, 지난 교정 뒤 측정한 차 다시 확인" }, now);
+    const t = `교정 불합격: ${e.no} ${e.name} — 사용 금지(부적합 ${nc.docNo}). 지난 교정 뒤 이 장비로 측정한 차를 다시 확인하세요(6절)`;
     await notifyRole(db, "quality", t, `calib-${equipmentId}-${input.calibratedOn}`, `/equipment/${equipmentId}`);
     await notifyRole(db, "plant_manager", t, `calib-${equipmentId}-${input.calibratedOn}`, `/equipment/${equipmentId}`);
   }

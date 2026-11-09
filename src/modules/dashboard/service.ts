@@ -23,8 +23,8 @@ export const PANELS: Record<PanelId, { roles: Role[] | "all"; stage?: string; ti
   mine: { roles: "all", title: "내가 올린 문서" },
   work: { roles: ["owner", "plant_manager", "advisor"], stage: "1차", title: "작업 현황", body: "입고 차량별 현재 공정, 출고 예정일 지연, 검사 대기" },
   mywork: { roles: ["technician"], stage: "1차", title: "내 작업", body: "나에게 배정된 작업과 자주검사, 다음 공정" },
-  quality: { roles: ["owner", "quality"], stage: "1차", title: "검사·부적합", body: "최종검사 대기, 열린 부적합과 시정 기한" },
-  equipment: { roles: ["owner", "plant_manager", "technician"], stage: "1차", title: "설비 점검", body: "오늘 안 한 일상점검(A등급 강조), 윤활 예정, 이번 달 5S 점수" },
+  quality: { roles: ["owner", "quality", "plant_manager"], title: "검사·부적합", body: "최종검사 대기, 열린 부적합과 시정 기한" },
+  equipment: { roles: ["owner", "plant_manager", "technician"], title: "설비 점검", body: "오늘 안 한 일상점검(A등급 강조), 윤활 예정, 이번 달 5S 점수" },
   safety: { roles: ["owner", "safety"], stage: "2차", title: "안전·환경", body: "방지시설 일지 누락, 폐기물 보관 기한, 법규 기한" },
   money: { roles: ["owner", "accounting"], stage: "3차", title: "매출·미수", body: "이번 달 매출, 보험 미수와 독촉 대상, 지출 결의 대기" },
 };

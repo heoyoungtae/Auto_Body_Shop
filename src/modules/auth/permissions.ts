@@ -31,6 +31,9 @@ export const PERMS = {
   "equip.check": { area: "설비", label: "설비 점검·윤활·운전 일지·고장 신고·예방정비 실적", std: "STD-08", roles: ["technician", "plant_manager", "owner", "safety", "quality"] },
   "equip.calibrate": { area: "설비", label: "측정 장비 교정 기록", std: "STD-08 6절", roles: ["quality", "plant_manager", "owner"] },
   "pm.approve": { area: "설비", label: "예방정비 계획 승인", std: "STD-08 9절", roles: ["owner"] },
+  "nc.handle": { area: "품질", label: "부적합 원인 분석·시정 조치 지정·효과 확인·종결", std: "STD-Q Q.9", roles: ["quality", "plant_manager", "owner"], note: "부적합 발행은 누구나. 조치 담당은 자기 조치를 적음" },
+  "nc.approve": { area: "품질", label: "중대 부적합 종결 승인", std: "F-Q-10", roles: ["owner"] },
+  "five_s.audit": { area: "설비", label: "3정5S 구역 담당 지정·월간 평가", std: "STD-08 11·14절", roles: ["plant_manager", "owner"], note: "일일 점검은 구역 담당(대행자)이 함" },
   "account.manage": { area: "설정", label: "계정·역할·비밀번호·잠금", std: "설계 9.1", roles: ["owner"] },
   "settings.edit": { area: "설정", label: "정비소 정보·영업일·정책값·전결·공임표·연동 설정", std: "부록 B·D", roles: ["owner"] },
 } satisfies Record<string, Perm>;

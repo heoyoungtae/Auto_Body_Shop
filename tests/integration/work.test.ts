@@ -9,6 +9,7 @@ import { repairOrder } from "@/db/schema";
 import { addStepPhoto, assignRest, assignStep, createWorkOrder, finishStep, getWorkOrder, startStep, workTodos } from "@/modules/repair/work";
 import { PROCESSES, type Process } from "@/modules/repair/work-rules";
 import { approvedRepair, PNG, WEBP } from "./flow";
+import { ncFor } from "@/modules/quality/nc";
 import { addInspectionPhoto, deliver, inspectionContext, inspectionsOf, issueStatement, judgeInspection, startInspection, statementOf } from "@/modules/repair/inspect";
 import { itemsFor } from "@/modules/repair/inspect-rules";
 import { seedShop, testDb } from "./db";
@@ -114,6 +115,9 @@ describe("검사·출고(STD-05)", () => {
     let [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
     expect(ro.status).toBe("working");
     expect((await getWorkOrder(db, woId)).steps.at(-1)!.process).toBe("rework");
+    // 불합격은 부적합(F-Q-10) 자동 발행
+    const ncs = await ncFor(db, "repair_order", [roId]);
+    expect(ncs.length).toBe(1);
     await finishAll(woId);
     const second = await startInspection(db, quality(), roId, "", now);
     for (let k = 0; k < 4; k++) await addInspectionPhoto(db, quality(), second.id, WEBP);

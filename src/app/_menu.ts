@@ -60,7 +60,7 @@ export const MENU: MenuGroup[] = [
       { label: "윤활", href: "/equipment/lube", std: "STD-08.4" },
       { label: "예방정비", href: "/equipment/pm", std: "STD-08.6" },
       { label: "측정 장비 교정", href: "/equipment?f=gauge", std: "STD-08.3" },
-      { label: "3정5S 점검", phase: "1차", std: "STD-08.8~11" },
+      { label: "3정5S 점검", href: "/five-s", std: "STD-08.8~11" },
       { label: "치공구", phase: "2차", std: "STD-08.7" },
       { label: "개선 제안", phase: "2차", std: "STD-08.12" },
     ],
@@ -69,7 +69,7 @@ export const MENU: MenuGroup[] = [
     id: "quality",
     label: "품질",
     items: [
-      { label: "부적합·시정 조치", phase: "1차", std: "STD-Q.9" },
+      { label: "부적합·시정 조치", href: "/nc", std: "STD-Q.9" },
       { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
       { label: "법규 대장", phase: "2차", std: "STD-Q.6" },
       { label: "리스크·내부 심사", phase: "3차", std: "STD-Q" },
