@@ -20,7 +20,13 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
   const db = await getDb();
   const today = seoulDate();
   const [cal, meta, days, sync, hol] = await Promise.all([loadShopCalendar(db), calendarMeta(db), listShopDays(db, addDays(today, -30)), holidaySyncStatus(db), holidayTodo(db, today)]);
-  const holidays = Object.entries(KR_PUBLIC_HOLIDAYS).filter(([d]) => d >= today);
+  // 앱 기본 목록 + 특일 정보에서 가져온 날 + 직접 넣은 공휴일을 한 목록으로
+  const holidays = [
+    ...Object.entries(KR_PUBLIC_HOLIDAYS).map(([d, name]) => ({ d, name, src: "base" as const })),
+    ...days.filter((x) => x.kind === "holiday" && !KR_PUBLIC_HOLIDAYS[x.date]).map((x) => ({ d: x.date, name: x.name, src: x.createdBy ? ("hand" as const) : ("api" as const) })),
+  ]
+    .filter((h) => h.d >= today)
+    .sort((a, b) => a.d.localeCompare(b.d));
   const next = [1, 3].map((n) => ({ n, date: addBusinessDays(today, n, cal) }));
   return (
     <>
@@ -87,6 +93,7 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
                     <li key={d.date} className="flex flex-wrap items-center justify-between gap-2 py-2">
                       <span>
                         <b className={d.date < today ? "text-[var(--muted)]" : ""}>{d.date}</b> {md(d.date).slice(-3)} <Badge tone={d.kind === "open" ? "ok" : d.kind === "closed" ? "warn" : "accent"}>{DAY_KIND_LABEL[d.kind as DayKind].split("(")[0]}</Badge> {d.name}
+                        {d.kind === "holiday" && !d.createdBy && <span className="ml-1 text-xs text-[var(--muted)]">(특일 정보에서 가져옴)</span>}
                       </span>
                       {owner && (
                         <form action={removeShopDayAction}>
@@ -144,20 +151,22 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
             )}
           </div>
         </Card>
-        <Card title={`다가오는 법정 공휴일(~${HOLIDAY_DATA_LAST_YEAR}년)`} help={{ kind: "panel", id: "calendar.holidays" }}>
+        <Card title="다가오는 공휴일" help={{ kind: "panel", id: "calendar.holidays" }}>
           <ul className="text-sm">
-            {holidays.map(([d, name]) => {
+            {holidays.map(({ d, name, src }) => {
               const off = closedReason(cal, d);
               return (
-                <li key={d} className={`flex justify-between gap-2 py-1 ${d < today ? "text-[var(--muted)]" : ""}`}>
+                <li key={d} className="flex justify-between gap-2 py-1">
                   <span>
-                    {d.slice(0, 4)}. {md(d)} {name}
+                    {d.slice(0, 4)}. {md(d)} {name} {src === "api" && <Badge tone="accent">특일 정보에서 가져옴</Badge>}
+                    {src === "hand" && <Badge>직접 넣음</Badge>}
                   </span>
                   <span className="shrink-0 text-xs">{off ? "쉼" : <span className="text-[var(--ok)]">영업</span>}</span>
                 </li>
               );
             })}
           </ul>
+          <p className="mt-2 text-xs text-[var(--muted)]">표시 없는 날은 앱에 들어 있는 목록(~{HOLIDAY_DATA_LAST_YEAR}년)입니다. 그 뒤 해는 특일 정보에서 가져온 날이 이어서 나옵니다.</p>
         </Card>
         </div>
       </div>

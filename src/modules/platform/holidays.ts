@@ -166,7 +166,7 @@ export async function syncHolidays(db: Db, now = new Date(), opts: { force?: boo
   const fresh = found.filter((h) => !KR_PUBLIC_HOLIDAYS[h.date]);
   let added = 0;
   for (const h of fresh) {
-    const r = await db.insert(shopDay).values({ date: h.date, kind: "holiday", name: h.name, createdBy: opts.actorId ?? null }).onConflictDoNothing().returning({ d: shopDay.date });
+    const r = await db.insert(shopDay).values({ date: h.date, kind: "holiday", name: h.name, createdBy: null }).onConflictDoNothing().returning({ d: shopDay.date });
     added += r.length;
   }
   if (added) {
@@ -174,7 +174,7 @@ export async function syncHolidays(db: Db, now = new Date(), opts: { force?: boo
     await notifyRole(db, "owner", `공휴일 ${added}일을 새로 넣었습니다(특일 정보). 설정 › 영업일·휴무일에서 확인하세요`, `holiday-added-${today}`, "/settings/calendar");
   }
   const nextCount = found.filter((h) => h.date.startsWith(`${year + 1}-`)).length;
-  return finish({ status: "done", added, message: `공휴일 ${found.length}일 확인, 새로 ${added}일 넣음${nextCount ? "" : ` · ${year + 1}년 발표 전`}` });
+  return finish({ status: "done", added, message: `공휴일 ${found.length}일 확인, 새로 ${added}일 넣음${added ? `(${fresh.slice(0, 5).map((h) => `${h.date.slice(5)} ${h.name}`).join(", ")}${fresh.length > 5 ? " 등" : ""})` : "(앱 목록과 같음)"}${nextCount ? "" : ` · ${year + 1}년 발표 전`}` });
 }
 
 /** 대표 할 일: 9월부터 내년 공휴일이 하나도 없을 때 */
