@@ -22,6 +22,7 @@ import { can } from "@/modules/auth/permissions";
 import { listOpenFailures, todayBoard } from "@/modules/equipment/service";
 import { listNc } from "@/modules/quality/nc";
 import { listComplaints } from "@/modules/cs/service";
+import { MIN_WAGE_CHECK_FROM, MIN_WAGE_TODO_FROM, nextMinWage } from "@/modules/staff/min-wage";
 import { NC_SOURCES } from "@/modules/quality/rules";
 import { fiveSBoard, myZonesToday } from "@/modules/quality/five-s";
 import { isBusinessDay } from "@/modules/platform/business-days";
@@ -199,6 +200,19 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     const missing = shopMissing(await loadShopInfo(db));
     if (missing.length) out.push({ key: "set-shop", when: "setup", what: "사업장 정보가 비어 있습니다", detail: `법정 견적서에 찍힐 ${missing.slice(0, 3).join("·")}${missing.length > 3 ? " 등" : ""}`, href: "/settings/shop", action: "넣기" });
     if (policy["intake.daily_capacity"] === 0) out.push({ key: "set-cap", when: "setup", what: "일별 입고 한도가 정해지지 않았습니다", detail: "정하면 예약이 넘칠 때 경고합니다(부록 D 1.2)", href: "/settings/policies?key=intake.daily_capacity", action: "정하기" });
+    // 다음 해 최저임금: 8월 중순(15일)까지 정책값에 없으면 대표 할 일(사용자 지시 2026-11-09). 8월 말일부터는 앱이 자동으로도 가져온다
+    if (today.slice(5) >= MIN_WAGE_TODO_FROM) {
+      const next = await nextMinWage(db, today);
+      if (next == null)
+        out.push({
+          key: "set-minwage",
+          when: today.slice(5) >= MIN_WAGE_CHECK_FROM ? "late" : "today",
+          what: `${Number(today.slice(0, 4)) + 1}년 최저임금이 아직 없습니다`,
+          detail: `매년 8월 5일 고시 · 정책값 '최저임금(시급)'에 ${Number(today.slice(0, 4)) + 1}-01-01 시행으로 넣거나 '지금 가져오기'를 누릅니다`,
+          href: "/settings/policies?key=wage.minimum_hourly",
+          action: "넣기",
+        });
+    }
     if (Number(today.slice(0, 4)) >= HOLIDAY_DATA_LAST_YEAR) out.push({ key: "set-hol", when: "setup", what: `${HOLIDAY_DATA_LAST_YEAR + 1}년 공휴일을 넣어야 합니다`, href: "/settings/calendar", action: "넣기" });
   }
 

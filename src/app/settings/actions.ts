@@ -1,4 +1,5 @@
 "use server";
+import { syncNextMinWage } from "@/modules/staff/min-wage";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { proxyAssignment } from "@/db/schema";
@@ -28,6 +29,15 @@ export async function changePolicyAction(form: FormData) {
     redirect(errorUrl(`/settings/policies?key=${encodeURIComponent(key)}`, userMessage(e)));
   }
   redirect(noticeUrl(`/settings/policies?key=${encodeURIComponent(key)}`, "바꿨습니다"));
+}
+
+/** 고시된 다음 해 최저임금을 지금 가져오기(대표) */
+export async function syncMinWageAction() {
+  const user = await requireOwner();
+  const r = await syncNextMinWage(await getDb(), new Date(), { force: true, actorId: user.id });
+  const url = `/settings/policies?key=wage.minimum_hourly`;
+  if (r.status === "failed") redirect(errorUrl(url, `${r.message}. 직접 넣어 주세요`));
+  redirect(noticeUrl(url, r.message));
 }
 
 export async function changeBandsAction(form: FormData) {

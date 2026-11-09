@@ -10,7 +10,8 @@ import { DateField, NumberField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { buttonClass, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
-import { changePolicyAction } from "../actions";
+import { changePolicyAction, syncMinWageAction } from "../actions";
+import { MIN_WAGE_SOURCE } from "@/modules/staff/min-wage";
 import { PolicyTable } from "./policy-table";
 
 type Def = { value: number; unit: string; label: string; clause: string; min?: number; max?: number };
@@ -53,6 +54,22 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
             <p className="mb-3 text-xs text-[var(--muted)]">
               지금 {cur.value.toLocaleString("ko-KR")} {def.unit} · 표준서 제안 {def.value.toLocaleString("ko-KR")} · 범위 {def.min ?? 0}~{def.max ?? "제한 없음"} · 근거 부록 D({def.clause})
             </p>
+            {sel === "wage.minimum_hourly" && (
+              <div className="mb-3 rounded-md border border-[var(--line)] bg-[var(--surface-2)] p-3 text-sm">
+                <p>
+                  매년 8월 말일부터 앱이{" "}
+                  <a href={MIN_WAGE_SOURCE} target="_blank" rel="noreferrer" className="text-[var(--accent)]">
+                    최저임금위원회 결정현황
+                  </a>
+                  에서 고시된 다음 해 시간급을 읽어 다음 해 1월 1일 시행으로 넣고 대표에게 알립니다. 시행 전까지 아래에서 고칠 수 있고, 가져오지 못하면 직접 넣으라고 알립니다.
+                </p>
+                {owner && (
+                  <form action={syncMinWageAction} className="mt-2">
+                    <SubmitButton variant="secondary">고시된 다음 해 값 지금 가져오기</SubmitButton>
+                  </form>
+                )}
+              </div>
+            )}
             {owner ? (
               <>
                 {pending.length > 0 && !src && (
@@ -112,7 +129,7 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
               <ul className="space-y-1 text-sm">
                 {history.map((h, i) => (
                   <li key={i}>
-                    {h.effectiveFrom} 시행 → <b>{Number(h.value).toLocaleString("ko-KR")}</b> · {h.changedBy} · {h.reason}
+                    {h.effectiveFrom} 시행 → <b>{Number(h.value).toLocaleString("ko-KR")}</b> · {h.changedBy ?? "자동(최저임금위원회)"} · {h.reason}
                     {h.revisionRequestNo && ` · ${h.revisionRequestNo}`} <span className="text-xs text-[var(--muted)]">({fmtTime(h.createdAt)})</span>
                   </li>
                 ))}

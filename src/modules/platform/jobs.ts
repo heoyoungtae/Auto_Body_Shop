@@ -8,6 +8,7 @@ import { notifyDueConsults, purgeUnconsented, sendReminders } from "@/modules/cu
 import { equipmentDailyAlerts } from "@/modules/equipment/service";
 import { ncDailyAlerts } from "@/modules/quality/nc";
 import { csDailyAlerts } from "@/modules/cs/service";
+import { syncNextMinWage } from "@/modules/staff/min-wage";
 
 export type JobResult = { job: string; status: "done" | "skipped" | "failed"; message?: string };
 
@@ -22,7 +23,8 @@ export const JOBS: Record<string, JobFn> = {
     const equip = await equipmentDailyAlerts(db, now);
     const nc = await ncDailyAlerts(db, now);
     const cs = await csDailyAlerts(db, now);
-    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs}`;
+    const wage = await syncNextMinWage(db, now);
+    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message}`;
   },
   /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계) */
   reminders: async (db, _today, now) => sendReminders(db, now),
