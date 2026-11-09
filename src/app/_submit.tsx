@@ -11,6 +11,7 @@ export function SubmitButton({
   name,
   value,
   noValidate,
+  disabled,
 }: {
   children: ReactNode;
   variant?: "primary" | "secondary" | "danger";
@@ -20,10 +21,12 @@ export function SubmitButton({
   value?: string;
   /** 중간 저장처럼 필수 칸 검사를 건너뛸 때 */
   noValidate?: boolean;
+  /** 보낼 수 없는 상태(받는 사람 없음 등) */
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" name={name} value={value} formNoValidate={noValidate} variant={variant} className={full ? "w-full" : ""} disabled={pending} aria-busy={pending}>
+    <Button type="submit" name={name} value={value} formNoValidate={noValidate} variant={variant} className={full ? "w-full" : ""} disabled={pending || disabled} aria-busy={pending}>
       {pending ? "처리 중…" : children}
     </Button>
   );

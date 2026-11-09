@@ -35,3 +35,15 @@ export const messageLog = pgTable(
   },
   (t) => [index("message_log_created_idx").on(t.createdAt)],
 );
+
+/** 문구 서식: 직원이 골라 쓰는 문자 문구(#{고객명} 같은 바꿈 칸). 알림톡 템플릿은 kakao.ts 에 고정 */
+export const smsTemplate = pgTable("sms_template", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  /** info 정보성 안내 / ad 광고(마케팅 동의 고객에게만, (광고)·수신거부 자동) */
+  purpose: text("purpose").notNull(),
+  body: text("body").notNull(),
+  active: integer("active").notNull().default(1),
+  updatedBy: uuid("updated_by").references(() => appUser.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

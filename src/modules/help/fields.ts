@@ -639,6 +639,14 @@ export const FIELD_HELP = {
   "cp.closeNote": { label: "확인 내용", hint: "누가 언제 어떻게 확인했는지(불만족이면 남은 문제)", example: "11/20 전화, 마감 만족하심" },
   "survey.q": { label: "질문", hint: "1점 매우 불만 ~ 5점 매우 만족" },
   "survey.comment": { label: "하고 싶은 말씀", hint: "좋았던 점, 아쉬웠던 점 무엇이든", maxLength: 1000 },
+  "sms.purpose": { label: "용도", hint: "알릴 일이면 정보성, 홍보·할인·행사면 광고", detail: "광고는 마케팅 동의 고객에게만 가고 (광고)·무료수신거부 번호가 붙으며, 오후 9시~오전 8시에는 보낼 수 없습니다(정보통신망법 제50조)." },
+  "sms.scope": { label: "받는 사람", hint: "고객 한 명 / 기간 안에 출고한 고객 / 전체 고객", detail: "개인정보 필수 동의가 없거나 철회한 고객, 연락처가 없는 고객은 저절로 빠집니다." },
+  "sms.months": { label: "출고 기간", hint: "이 기간 안에 차를 찾아간 고객" },
+  "sms.template": { label: "문구 서식", hint: "고르고 '불러오기'를 누르면 내용 칸에 채워집니다", detail: "서식은 문자관리 › 문구 서식에서 더하고 고칩니다." },
+  "sms.body": { label: "내용", hint: "#{고객명} 같은 칸은 고객마다 바뀝니다", example: "#{고객명} 고객님, #{업체명}입니다. ○월 ○일은 임시 휴무입니다.", detail: "한글 45자(90바이트)까지는 단문, 넘으면 장문으로 갑니다. 광고 표기·수신거부는 직접 쓰지 않습니다." },
+  "tpl.title": { label: "서식 이름", hint: "고를 때 보이는 이름", example: "임시 휴무 안내" },
+  "tpl.purpose": { label: "용도", hint: "정보성 안내 / 광고(마케팅)" },
+  "tpl.body": { label: "문구", hint: "#{고객명} #{차량번호} #{업체명} #{업체전화} 를 쓸 수 있습니다", example: "#{고객명} 고객님, #{업체명}입니다.", maxLength: 1000, templates: ["#{고객명} 고객님, #{업체명}입니다.", "문의: #{업체전화}"] },
 } satisfies Record<string, FieldHelp>;
 
 export type FieldHelpKey = keyof typeof FIELD_HELP;

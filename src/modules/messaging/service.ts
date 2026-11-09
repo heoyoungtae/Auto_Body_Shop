@@ -318,3 +318,18 @@ export async function sendNotice(
   await log(db, { channel, purpose: e.purpose, provider: p.id, to, body: text, ok: r.ok, error: r.error, sentBy: e.sentBy, ref: e.ref, customerName: e.customerName });
   return { ok: r.ok, error: r.error, channel, demo: p.id === "demo", text };
 }
+
+/** 직원이 고른 고객에게 문자 여러 건(문자 발송 화면). 고객마다 이미 바꿔 넣은 문구를 받는다 */
+export async function sendSmsBatch(db: Db, actorId: string, purpose: string, items: { to: string; text: string; customerName: string }[], f: typeof fetch = fetch) {
+  const p = await smsRuntime(db);
+  const msgs = items.map((m) => ({ to: mobile(m.to), text: m.text, kind: smsKind(m.text) as "SMS" | "LMS", subject: SHOP_NAME }));
+  const res = await ADAPTERS[p.id].send(p.cfg, p.sender, msgs, f);
+  for (let i = 0; i < msgs.length; i++) await log(db, { channel: msgs[i].kind, purpose, provider: p.id, to: msgs[i].to, body: msgs[i].text, ok: !!res[i]?.ok, error: res[i]?.error, sentBy: actorId, customerName: items[i].customerName });
+  return { ok: res.filter((r) => r.ok).length, failed: res.filter((r) => !r.ok).length, demo: p.id === "demo", errors: [...new Set(res.filter((r) => !r.ok).map((r) => r.error ?? "실패"))] };
+}
+
+/** 광고 문자에 붙일 수신거부 번호·발신번호·업체 전화 */
+export async function smsSenderInfo(db: Db) {
+  const { data } = await load(db, "sms");
+  return { optout: data.optout, sender: data.sender, provider: data.provider };
+}

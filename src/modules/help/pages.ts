@@ -190,7 +190,7 @@ export const PAGE_HELP = {
     purpose: "문자·알림톡·기프티콘을 언제 누가 누구에게 보냈고 성공했는지 봅니다.",
     who: "모든 직원",
     steps: ["상태가 '실패'인 줄의 사유를 확인합니다.", "실패가 계속되면 설정 > 문자 발송 서비스에서 연결과 잔액을 확인합니다."],
-    tips: ["받는 번호는 가운데를 가려 보여 줍니다.", "지금은 설정 화면의 시험 발송만 쌓입니다. 고객 발송은 1차 개발에서 붙습니다."],
+    tips: ["받는 번호는 가운데를 가려 보여 줍니다.", "문자 발송·고객 안내 알림톡·설문·시험 발송이 모두 쌓입니다."],
   },
   help: {
     title: "도움말 센터",
@@ -651,6 +651,21 @@ export const PAGE_HELP = {
     tips: ["불편하셨던 점이 있으면 담당자가 확인해 연락드립니다.", "응답은 서비스 개선을 위한 통계로만 씁니다."],
     refs: ["사내 표준서 STD-06 7절"],
   },
+  "messages.send": {
+    title: "문자 발송",
+    purpose: "고객에게 안내·광고 문자를 보냅니다. 동의 확인과 광고 규칙을 앱이 지킵니다.",
+    who: "상담원 · 공장장 · 대표",
+    steps: ["용도(정보성·광고)와 받는 사람을 고르고 '받는 사람 보기'를 누릅니다.", "문구 서식을 불러오거나 직접 씁니다.", "미리보기를 확인하고 'N명에게 보내기'를 누릅니다."],
+    tips: ["예약 확인·견적·완료 안내·설문은 각 화면과 주기 작업이 저절로 보내므로 여기서 보내지 않습니다.", "광고는 마케팅 동의 고객에게만, 오후 9시~오전 8시를 피해서 보냅니다."],
+    refs: ["사내 표준서 STD-01·STD-13", "정보통신망법 제50조"],
+  },
+  "messages.templates": {
+    title: "문구 서식",
+    purpose: "문자 발송에서 불러 쓰는 문구를 만들고 고칩니다.",
+    who: "상담원 · 공장장 · 대표",
+    steps: ["'새 서식'에 이름·용도·문구를 적습니다.", "문자 발송에서 서식을 골라 불러옵니다."],
+    tips: ["#{고객명} #{차량번호} #{업체명} #{업체전화} 는 보낼 때 고객마다 바뀝니다.", "(광고)·무료수신거부는 쓰지 않습니다. 보낼 때 저절로 붙습니다."],
+  },
 } satisfies Record<string, PageHelp>;
 
 export type PageHelpKey = keyof typeof PAGE_HELP;
@@ -674,6 +689,8 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/kakao": "settings.kakao",
   "/settings/gift": "settings.gift",
   "/settings/calendar": "settings.calendar",
+  "/messages/send": "messages.send",
+  "/messages/templates": "messages.templates",
   "/messages/log": "messages.log",
   "/consults": "consults",
   "/consults/new": "consults.new",

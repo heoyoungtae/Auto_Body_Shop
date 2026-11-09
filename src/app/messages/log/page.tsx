@@ -1,9 +1,10 @@
 import { getDb } from "@/db/runtime";
 import { listLogs } from "@/modules/messaging/service";
 import { requireUser } from "../../_lib/session";
-import { Badge, Empty, fmtTime, PageTitle } from "../../_ui";
+import { Badge, Empty, fmtTime, Notice, PageTitle } from "../../_ui";
 
-export default async function MessageLogPage() {
+export default async function MessageLogPage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
+  const { notice } = await searchParams;
   await requireUser();
   const rows = await listLogs(await getDb());
   return (
@@ -11,6 +12,7 @@ export default async function MessageLogPage() {
       <PageTitle help="messages.log" sub="문자·알림톡·기프티콘 발송 기록. 최근 200건.">
         발송 이력
       </PageTitle>
+      {notice && <Notice>{notice}</Notice>}
       {rows.length === 0 ? (
         <Empty>아직 보낸 것이 없습니다. 설정 &gt; 문자 발송 서비스에서 시험 발송을 해 보세요.</Empty>
       ) : (
