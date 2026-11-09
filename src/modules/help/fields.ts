@@ -765,6 +765,7 @@ export const FIELD_HELP = {
   "schedule.repeatUntil": { label: "반복 끝나는 날", hint: "비우면 계속 반복" },
   "schedule.remindDays": { label: "미리 알림", hint: "그날 아침 알림이 갑니다", detail: "공용 일정은 참석자(비우면 전 직원)에게, 개인 일정은 나에게 알림이 갑니다. 매일 아침 일정 작업이 보냅니다." },
   "schedule.cancelReason": { label: "취소 이유", hint: "공용 일정은 꼭 적습니다(참석자 알림에 들어갑니다)", example: "강사 사정으로 다음 주로 미룸", templates: ["다음 주로 미룸", "업체 사정으로 취소"] },
+  "cal.apiKey": { label: "특일 정보 인증키", hint: "공공데이터포털 마이페이지의 일반 인증키(Decoding)", detail: "공공데이터포털(data.go.kr)에서 '한국천문연구원 특일 정보'를 활용신청하면 바로 승인되고 인증키가 나옵니다. 키는 암호화해 저장하고 화면에 다시 보여 주지 않습니다. 비워 두면 공휴일을 직접 넣어야 합니다." },
 } satisfies Record<string, FieldHelp>;
 
 export type FieldHelpKey = keyof typeof FIELD_HELP;

@@ -309,6 +309,7 @@ export const PANEL_HELP = {
   "schedule.form": { title: "일정 내용", body: "종류·이름·날짜는 꼭 적습니다. 시각을 비우면 하루 종일 일정입니다." },
   "schedule.info": { title: "일정", body: "공용·개인 구분, 날짜·시각·참석자·반복·알림과 누가 올리고 고쳤는지입니다." },
   "schedule.cancel": { title: "취소", body: "일정을 지우지 않고 취소로 표시합니다. 공용 일정은 이유를 적으면 참석자에게 알림이 갑니다." },
+  "calendar.sync": { title: "공휴일 자동 갱신", body: "인증키를 넣으면 앱이 매달 공휴일을 가져옵니다. 9월이 지나도 내년 공휴일이 없으면 대표 할 일과 알림으로 알려 줍니다.", tips: ["정부가 임시공휴일을 발표하면 다음 가져오기 때 들어옵니다. 급하면 '지금 가져오기'를 누릅니다."] },
 } satisfies Record<string, PanelHelp>;
 
 export type PanelHelpKey = keyof typeof PANEL_HELP;

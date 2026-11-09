@@ -2,13 +2,14 @@ import { can } from "@/modules/auth/permissions";
 import { getDb } from "@/db/runtime";
 import { addBusinessDays, closedReason, DAY_KIND_LABEL, HOLIDAY_DATA_LAST_YEAR, KR_PUBLIC_HOLIDAYS, WEEKDAYS, type DayKind } from "@/modules/platform/business-days";
 import { calendarMeta, listShopDays, loadShopCalendar } from "@/modules/platform/calendar";
+import { HOLIDAY_API_GUIDE, holidaySyncStatus, holidayTodo } from "@/modules/platform/holidays";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
 import { CheckGroup, DateField, SelectField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
-import { addShopDayAction, removeShopDayAction, saveCalendarRulesAction } from "./actions";
+import { addShopDayAction, removeShopDayAction, saveCalendarRulesAction, saveHolidayKeyAction, syncHolidaysAction } from "./actions";
 
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8))}(${WEEKDAYS[new Date(`${iso}T00:00:00Z`).getUTCDay()]})`;
 
@@ -17,9 +18,8 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
   const user = await requireUser();
   const owner = can(user, "settings.edit");
   const db = await getDb();
-  const [cal, meta, days] = await Promise.all([loadShopCalendar(db), calendarMeta(db), listShopDays(db, addDays(seoulDate(), -30))]);
   const today = seoulDate();
-  const year = Number(today.slice(0, 4));
+  const [cal, meta, days, sync, hol] = await Promise.all([loadShopCalendar(db), calendarMeta(db), listShopDays(db, addDays(today, -30)), holidaySyncStatus(db), holidayTodo(db, today)]);
   const holidays = Object.entries(KR_PUBLIC_HOLIDAYS).filter(([d]) => d >= today);
   const next = [1, 3].map((n) => ({ n, date: addBusinessDays(today, n, cal) }));
   return (
@@ -37,9 +37,9 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
           </span>
           {meta.updatedAt && <span className="ml-2 text-xs text-[var(--muted)]">마지막 저장 {fmtTime(meta.updatedAt)}</span>}
         </p>
-        {year >= HOLIDAY_DATA_LAST_YEAR && (
+        {hol && (
           <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">
-            앱에 들어 있는 공휴일은 {HOLIDAY_DATA_LAST_YEAR}년까지입니다. 정부가 {HOLIDAY_DATA_LAST_YEAR + 1}년 공휴일을 발표하면 아래 &lsquo;날 넣기&rsquo;에서 &lsquo;공휴일 추가&rsquo;로 넣거나 개발 담당에게 목록 갱신을 요청하세요.
+            {hol.next}년 공휴일이 아직 없습니다. 오른쪽 &lsquo;공휴일 자동 갱신&rsquo;에서 가져오거나, 아래 &lsquo;날 넣기&rsquo;에서 &lsquo;공휴일 추가&rsquo;로 넣어 주세요.
           </p>
         )}
       </div>
@@ -101,6 +101,49 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
             </div>
           </Card>
         </div>
+        <div className="space-y-4">
+        <Card title="공휴일 자동 갱신" help={{ kind: "panel", id: "calendar.sync" }}>
+          <div className="space-y-3 text-sm">
+            <p>
+              매달 1일(9월부터 내년 공휴일이 없으면 매일) 공공데이터포털 &lsquo;특일 정보&rsquo;에서 올해·내년 공휴일을 가져와, 빠진 날(임시공휴일·선거일 포함)을 &lsquo;공휴일 추가&rsquo;로 넣습니다. 직접 넣은 날은 바꾸지 않습니다.
+            </p>
+            <p>
+              인증키 {sync.hasKey ? <Badge tone="ok">저장됨</Badge> : <Badge tone="warn">없음</Badge>}
+              {sync.lastAt && (
+                <span className="ml-2 text-xs text-[var(--muted)]">
+                  마지막 {fmtTime(sync.lastAt)} · {sync.lastMessage}
+                </span>
+              )}
+            </p>
+            {owner && (
+              <>
+                <AssistForm id="holiday-key" action={saveHolidayKeyAction} className="space-y-2">
+                  <TextField help="cal.apiKey" name="apiKey" type="password" autoComplete="off" required={!sync.hasKey} />
+                  <div className="flex flex-wrap gap-2">
+                    <SubmitButton name="intent" value="save">{sync.hasKey ? "인증키 바꾸기" : "인증키 저장"}</SubmitButton>
+                    {sync.hasKey && (
+                      <SubmitButton name="intent" value="clear" variant="secondary" noValidate>
+                        인증키 지우기
+                      </SubmitButton>
+                    )}
+                  </div>
+                </AssistForm>
+                {sync.hasKey && (
+                  <form action={syncHolidaysAction}>
+                    <SubmitButton variant="secondary">지금 가져오기</SubmitButton>
+                  </form>
+                )}
+                <p className="text-xs text-[var(--muted)]">
+                  인증키 받는 곳:{" "}
+                  <a href={HOLIDAY_API_GUIDE} target="_blank" rel="noreferrer" className="text-[var(--accent)] underline">
+                    공공데이터포털 &lsquo;한국천문연구원 특일 정보&rsquo;
+                  </a>{" "}
+                  → 로그인 → 활용신청(자동 승인) → 마이페이지의 일반 인증키(Decoding)를 복사해 넣습니다.
+                </p>
+              </>
+            )}
+          </div>
+        </Card>
         <Card title={`다가오는 법정 공휴일(~${HOLIDAY_DATA_LAST_YEAR}년)`} help={{ kind: "panel", id: "calendar.holidays" }}>
           <ul className="text-sm">
             {holidays.map(([d, name]) => {
@@ -116,6 +159,7 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
             })}
           </ul>
         </Card>
+        </div>
       </div>
     </>
   );

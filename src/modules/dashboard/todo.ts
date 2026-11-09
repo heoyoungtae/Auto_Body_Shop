@@ -12,7 +12,6 @@ import { inspectTodos } from "@/modules/repair/inspect";
 import { claimTodos } from "@/modules/repair/claims";
 import { seoulParts } from "@/modules/customer/rules";
 import { kakaoOverview, smsOverview } from "@/modules/messaging/service";
-import { HOLIDAY_DATA_LAST_YEAR } from "@/modules/platform/business-days";
 import { unreadCount } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
@@ -35,6 +34,7 @@ import { NC_SOURCES } from "@/modules/quality/rules";
 import { fiveSBoard, myZonesToday } from "@/modules/quality/five-s";
 import { isBusinessDay } from "@/modules/platform/business-days";
 import { loadShopCalendar } from "@/modules/platform/calendar";
+import { holidayTodo } from "@/modules/platform/holidays";
 
 export type TodoWhen = "late" | "today" | "soon" | "setup";
 export type Todo = { key: string; when: TodoWhen; what: string; detail?: string; href: string; action: string };
@@ -233,7 +233,9 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
           action: "넣기",
         });
     }
-    if (Number(today.slice(0, 4)) >= HOLIDAY_DATA_LAST_YEAR) out.push({ key: "set-hol", when: "setup", what: `${HOLIDAY_DATA_LAST_YEAR + 1}년 공휴일을 넣어야 합니다`, href: "/settings/calendar", action: "넣기" });
+    // 내년 공휴일: 9월부터 하나도 없으면(특일 정보 자동 갱신 실패·인증키 없음 포함)
+    const hol = await holidayTodo(db, today);
+    if (hol) out.push({ key: "set-hol", when: today.slice(5) >= "11-01" ? "late" : "today", what: `${hol.next}년 공휴일이 아직 없습니다`, detail: hol.hasKey ? `자동 가져오기: ${hol.lastMessage ?? "아직 안 함"} · '지금 가져오기'를 누르거나 직접 넣습니다` : "공공데이터포털 인증키를 넣으면 앱이 저절로 가져옵니다. 직접 넣어도 됩니다", href: "/settings/calendar", action: hol.hasKey ? "가져오기" : "설정하기" });
   }
 
   const order: TodoWhen[] = ["late", "today", "soon", "setup"];
