@@ -155,3 +155,24 @@ export const OS_STATUS = { draft: "작성 중", review: "승인 대기", approve
 export type OsStatus = keyof typeof OS_STATUS;
 export const OS_TONE: Record<OsStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { draft: "neutral", review: "warn", approved: "accent", requested: "accent", out: "warn", returned: "warn", accepted: "ok", cancelled: "neutral" };
 export const OS_STEPS: OsStatus[] = ["draft", "review", "approved", "requested", "out", "returned", "accepted"];
+
+// ── 비품·자산(9절) ──
+export const FX_CATEGORIES = { tool: "공구", ppe: "보호구", it: "전산(저장장치 있음)", furniture: "집기·가구", vehicle: "운반·차량", other: "기타" } as const;
+export type FxCategory = keyof typeof FX_CATEGORIES;
+export const isFxCategory = (s: string): s is FxCategory => s in FX_CATEGORIES;
+export const FX_STATUS = { in_use: "사용 중", lost: "분실", broken: "파손", disposed: "처분" } as const;
+export type FxStatus = keyof typeof FX_STATUS;
+export const FX_TONE: Record<FxStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { in_use: "ok", lost: "danger", broken: "warn", disposed: "neutral" };
+export const FX_EVENT = { register: "등록", move: "위치·사용자 변경", receive: "수령 확인", check: "실물 확인", lost: "분실", broken: "파손", found: "되찾음·수리", dispose: "처분", label: "라벨 부착" } as const;
+export const DISPOSE_METHODS = { sell: "매각", scrap: "폐기", donate: "기증" } as const;
+export type DisposeMethod = keyof typeof DISPOSE_METHODS;
+export const CHECK_RESULTS = { ok: "있음(이상 없음)", lost: "없음(분실)", broken: "파손" } as const;
+export type CheckResult = keyof typeof CHECK_RESULTS;
+/** 등록 기한: 받은 날부터 3일(9.2) */
+export const FX_REGISTER_DAYS = 3;
+
+/** 다음 관리 번호(FX-001, FX-002 …) */
+export function nextFxNo(existing: string[]) {
+  const n = existing.map((x) => Number(/^FX-(\d+)$/.exec(x)?.[1] ?? 0)).reduce((a, b) => Math.max(a, b), 0) + 1;
+  return `FX-${String(n).padStart(3, "0")}`;
+}

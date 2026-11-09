@@ -736,6 +736,22 @@ export const FIELD_HELP = {
   "os.resultNote": { label: "결과", hint: "업체가 한 일과 결과", example: "전방 레이더 보정 완료, 경고등 없음" },
   "os.redoNote": { label: "재작업 요청", hint: "다시 해야 할 것", example: "보정 후에도 경고등 남음" },
   "os.cancelReason": { label: "취소 이유", hint: "왜 취소하는지" },
+  "fx.name": { label: "품명", hint: "무엇인지 알아보게", example: "충전 드릴(18V)" },
+  "fx.category": { label: "구분", hint: "전산은 저장장치가 있는 것(PC·태블릿·블랙박스)", detail: "전산 비품은 처분할 때 저장장치 자료를 완전히 지웠는지 확인해야 합니다(STD-13). 보호구 지급도 여기 기록합니다(STD-09)." },
+  "fx.spec": { label: "규격·모델", hint: "모델명·일련번호", example: "DCD791 / S/N 12345" },
+  "fx.purchasedOn": { label: "구입일", hint: "받은 날" },
+  "fx.priceWon": { label: "구입 가격", hint: "부가세 포함", detail: "정책값 '자산 비품 기준 금액' 이상이면 자산 비품으로 구분되고, 처분은 대표가 합니다." },
+  "fx.location": { label: "보관 위치", hint: "공용이면 어디에 두는지", example: "공구장 B-2" },
+  "fx.holderId": { label: "사용자", hint: "개인에게 지급하면 고릅니다", detail: "사용자를 정하면 그 사람의 내 할 일에 '수령 확인'이 올라갑니다. 퇴직할 때 이 목록으로 지급품을 돌려받습니다(F-11-07)." },
+  "fx.warrantyUntil": { label: "보증 기간", hint: "제조사 보증이 끝나는 날" },
+  "fx.supplierId": { label: "구입처", hint: "협력업체에 있으면 고릅니다" },
+  "fx.expenseRef": { label: "지출 결의", hint: "구입 근거(지출 결의 번호 등)", example: "EX-2611-0003" },
+  "fx.note": { label: "메모", hint: "부속품·특이사항", maxLength: 500 },
+  "fx.checkResult": { label: "결과", hint: "실물을 보고 고릅니다", detail: "분실·파손이면 경위를 적어야 하고 대표에게 보고됩니다. 되찾거나 수리했으면 '되찾음·수리함'으로 사용 중으로 돌립니다." },
+  "fx.checkNote": { label: "경위·메모", hint: "분실·파손이면 필수", example: "11/8 출장 작업 뒤 차에 두고 온 것으로 추정" },
+  "fx.disposeMethod": { label: "처분 방법", hint: "매각·폐기·기증" },
+  "fx.disposeNote": { label: "처분 근거", hint: "불요품 처분 결재 번호나 이유", example: "모터 고장, 수리비가 새 제품보다 비쌈" },
+  "fx.dataWiped": { label: "자료 삭제", hint: "저장장치 자료를 완전히 지웠는지", detail: "고객·직원 개인정보가 남지 않게 초기화하거나 저장장치를 물리적으로 파기한 뒤 처분합니다(STD-13)." },
 } satisfies Record<string, FieldHelp>;
 
 export type FieldHelpKey = keyof typeof FIELD_HELP;

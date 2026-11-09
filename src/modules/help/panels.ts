@@ -298,6 +298,12 @@ export const PANEL_HELP = {
   "os.photos": { title: "결과 사진·성적서", body: "업체가 준 보정 성적서·계측표·작업 사진을 찍어 올립니다. 한 장 이상 있어야 수용할 수 있습니다." },
   "os.cancel": { title: "외주 취소", body: "결과를 받기 전에만 취소합니다. 업체에도 알리세요." },
   "ro.purchase": { title: "부품·자재·외주", body: "이 차의 부품 발주서(견적 승인 때 저절로 만들어짐), 외주 의뢰, 쓴 자재입니다. 부품 도착이 출고 약속보다 늦으면 상담원에게 알림이 갑니다." },
+  "fx.list": { title: "비품 대장", body: "관리 번호 순 비품 목록입니다. '확인할 것'에는 분실·파손, 수령 확인 전, 라벨 안 붙인 비품이 모입니다." },
+  "fx.info": { title: "비품 정보", body: "관리 번호·구분·구입·위치·사용자·보증 기간입니다. 기준 금액 이상은 자산 비품입니다." },
+  "fx.move": { title: "위치·사용자 바꾸기", body: "자리를 옮기거나 다른 사람에게 넘기면 적습니다. 새 사용자에게 수령 확인 요청이 갑니다." },
+  "fx.check": { title: "실물 확인", body: "연 1회(12월) 실물을 확인합니다. 분실·파손은 경위를 적으면 대표에게 보고됩니다." },
+  "fx.dispose": { title: "처분", body: "불요품 처분 결재 뒤 매각·폐기·기증합니다. 전산 비품은 자료 완전 삭제를 확인해야 합니다." },
+  "fx.events": { title: "이력", body: "등록·이동·수령·확인·분실·처분 기록입니다." },
 } satisfies Record<string, PanelHelp>;
 
 export type PanelHelpKey = keyof typeof PANEL_HELP;

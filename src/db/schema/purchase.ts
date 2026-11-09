@@ -290,3 +290,58 @@ export const outsourceJob = pgTable(
   },
   (t) => [uniqueIndex("outsource_job_no_uq").on(t.docNo), index("outsource_job_ro_idx").on(t.repairOrderId), index("outsource_job_status_idx").on(t.status)],
 );
+
+/**
+ * 비품·자산(F-07-04). no: 관리 번호(FX-001). asset: 정책값(자산 비품 기준 금액) 이상이면 자산 비품
+ * status: in_use 사용 중 / lost 분실 / broken 파손 / disposed 처분
+ */
+export const fixture = pgTable(
+  "fixture",
+  {
+    id: id(),
+    no: text("no").notNull(),
+    name: text("name").notNull(),
+    /** tool 공구 · ppe 보호구 · it 전산(저장장치) · furniture 집기 · vehicle 차량·운반 · other */
+    category: text("category").notNull(),
+    spec: text("spec"),
+    purchasedOn: text("purchased_on"),
+    priceWon: integer("price_won").notNull().default(0),
+    asset: boolean("asset").notNull().default(false),
+    location: text("location"),
+    holderId: uuid("holder_id").references(() => appUser.id),
+    /** 개인 지급품 수령 확인(사용자) */
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    warrantyUntil: text("warranty_until"),
+    supplierId: uuid("supplier_id").references(() => supplier.id),
+    /** 지출 결의(F-12-01) 번호·근거 */
+    expenseRef: text("expense_ref"),
+    labeledAt: timestamp("labeled_at", { withTimezone: true }),
+    status: text("status").notNull().default("in_use"),
+    note: text("note"),
+    /** 처분: 방법(sell 매각 · scrap 폐기 · donate 기증)·근거·저장장치 자료 삭제 확인 */
+    disposedOn: text("disposed_on"),
+    disposeMethod: text("dispose_method"),
+    disposeNote: text("dispose_note"),
+    dataWiped: boolean("data_wiped"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fixture_no_uq").on(t.no), index("fixture_holder_idx").on(t.holderId)],
+);
+
+/** 비품 이력: register 등록 · move 위치·사용자 변경 · receive 수령 확인 · check 연 1회 실물 확인 · lost 분실 · broken 파손 · found 되찾음·수리 · dispose 처분 */
+export const fixtureEvent = pgTable(
+  "fixture_event",
+  {
+    id: id(),
+    fixtureId: uuid("fixture_id")
+      .notNull()
+      .references(() => fixture.id),
+    kind: text("kind").notNull(),
+    detail: text("detail"),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("fixture_event_fx_idx").on(t.fixtureId, t.at)],
+);

@@ -773,6 +773,36 @@ export const PAGE_HELP = {
     who: "공장장 · 승인자 · 상담원",
     steps: ["승인되면 업체에 의뢰하고 '의뢰함'을 누릅니다.", "차를 옮기면 상담원이 고객에게 먼저 알리고 반출 주행거리를 적습니다.", "결과를 받으면 반입 주행거리와 결과를 적고 사진·성적서를 올립니다.", "공장장이 수용하거나 재작업을 요청합니다."],
   },
+  fixtures: {
+    title: "비품·자산",
+    purpose: "공구·보호구·전산·집기 같은 비품을 관리 번호로 등록하고, 지급·이동·실물 확인·처분을 기록합니다(STD-07 9절, F-07-04).",
+    who: "대장 관리: 회계 담당 · 자산 비품 처분: 대표 · 수령 확인·이동·분실 신고: 사용자",
+    steps: ["비품을 받으면 3일 안에 '비품 등록'을 합니다.", "라벨(관리 번호·QR)을 인쇄해 붙입니다.", "개인에게 지급했으면 받은 사람이 수령 확인을 누릅니다.", "매년 12월 '실물 확인'으로 모두 확인합니다."],
+  },
+  "fixtures.new": {
+    title: "비품 등록",
+    purpose: "새 비품을 대장에 올리고 관리 번호를 매깁니다.",
+    who: "회계 담당 · 대표",
+    steps: ["품명·구분·구입일·가격을 적습니다.", "보관 위치나 사용자를 정합니다.", "등록하고 라벨을 인쇄합니다."],
+  },
+  "fixtures.detail": {
+    title: "비품",
+    purpose: "비품 한 개의 정보·사용자·이력을 보고 이동·실물 확인·처분을 합니다.",
+    who: "회계 담당 · 사용자 · 대표",
+    steps: ["지급받은 사람은 '받았음'을 누릅니다.", "자리나 사용자가 바뀌면 '바꾸기'로 적습니다.", "없어지거나 부서지면 경위를 적어 신고합니다."],
+  },
+  "fixtures.check": {
+    title: "비품 실물 확인",
+    purpose: "매년 12월 대장의 비품이 실제로 있는지 하나씩 확인합니다.",
+    who: "회계 담당",
+    steps: ["목록 순서대로 실물을 찾습니다.", "있으면 '있음'을 누릅니다.", "없거나 부서졌으면 비품을 열어 경위를 적습니다."],
+  },
+  "fixtures.labels": {
+    title: "비품 라벨",
+    purpose: "관리 번호와 QR이 든 라벨을 인쇄합니다. QR을 찍으면 그 비품 화면이 열립니다.",
+    who: "회계 담당",
+    steps: ["'인쇄'를 누릅니다.", "비품에 붙이고 비품 화면에서 '라벨 붙였음'을 누릅니다."],
+  },
 } satisfies Record<string, PageHelp>;
 
 export type PageHelpKey = keyof typeof PAGE_HELP;
@@ -815,6 +845,11 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/outsource": "outsource",
   "/outsource/new": "outsource.new",
   "/outsource/[id]": "outsource.detail",
+  "/fixtures": "fixtures",
+  "/fixtures/new": "fixtures.new",
+  "/fixtures/[id]": "fixtures.detail",
+  "/fixtures/check": "fixtures.check",
+  "/fixtures/labels": "fixtures.labels",
   "/messages/log": "messages.log",
   "/consults": "consults",
   "/consults/new": "consults.new",

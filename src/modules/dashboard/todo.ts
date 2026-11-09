@@ -27,6 +27,7 @@ import { supplierTodos } from "@/modules/purchase/supplier";
 import { orderTodos } from "@/modules/purchase/order";
 import { stockTodos } from "@/modules/purchase/stock";
 import { outsourceTodos } from "@/modules/purchase/outsource";
+import { fixtureTodos } from "@/modules/purchase/fixture";
 import { MIN_WAGE_CHECK_FROM, MIN_WAGE_TODO_FROM, nextMinWage } from "@/modules/staff/min-wage";
 import { NC_SOURCES } from "@/modules/quality/rules";
 import { fiveSBoard, myZonesToday } from "@/modules/quality/five-s";
@@ -199,7 +200,7 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
   out.push(...(await taskTodos(db, user, today)));
 
   // 구매·자재·외주(STD-07): 협력업체 승인·평가, 발주 승인·보내기·입고, 재고 미달·유효기간·실사, 외주 진행
-  out.push(...(await supplierTodos(db, user, today)), ...(await orderTodos(db, user, today)), ...(await stockTodos(db, user, today, now)), ...(await outsourceTodos(db, user, today)));
+  out.push(...(await supplierTodos(db, user, today)), ...(await orderTodos(db, user, today)), ...(await stockTodos(db, user, today, now)), ...(await outsourceTodos(db, user, today)), ...(await fixtureTodos(db, user, today)));
 
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });
 
