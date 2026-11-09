@@ -75,6 +75,62 @@ export function parseHolidayJson(body: unknown): { date: string; name: string }[
   return out;
 }
 
+/** 공공데이터포털이 보내는 오류 이유(XML·HTML·글)를 짧게 뽑는다 */
+export function apiReason(text: string): string {
+  const code = /<returnAuthMsg>([^<]+)<\/returnAuthMsg>/i.exec(text)?.[1] ?? /<resultMsg>([^<]+)<\/resultMsg>/i.exec(text)?.[1] ?? /"resultMsg"\s*:\s*"([^"]+)"/.exec(text)?.[1];
+  const raw = (code ?? text.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim().slice(0, 120);
+  if (/SERVICE_KEY_IS_NOT_REGISTERED|등록되지 않은/i.test(raw)) return "인증키가 등록되지 않음(신청 직후면 1~2시간 뒤 다시, 아니면 Decoding 키인지 확인)";
+  if (/LIMITED_NUMBER_OF_SERVICE_REQUESTS/i.test(raw)) return "하루 호출 한도 초과";
+  if (/SERVICE_ACCESS_DENIED|접근.*거부|forbidden/i.test(raw)) return `접근 거부(${raw})`;
+  return raw || "내용 없음";
+}
+
+/** 인증키는 Decoding 키를 그대로 보낸다. Encoding 키(%2B 등)를 넣었으면 풀어서 한 번만 인코딩되게 */
+export function normalizeKey(k: string) {
+  if (/%[0-9a-f]{2}/i.test(k)) {
+    try {
+      return decodeURIComponent(k);
+    } catch {
+      return k;
+    }
+  }
+  return k;
+}
+
+const UA = "Mozilla/5.0 (compatible; auto-body-shop/1.0)";
+
+/** 한 해 공휴일. https 가 막히면 http 로 한 번 더(공공데이터포털 안내 주소가 http) */
+async function fetchYear(key: string, y: number, f: typeof fetch): Promise<{ ok: true; list: { date: string; name: string }[] } | { ok: false; why: string }> {
+  const qs = new URLSearchParams({ serviceKey: normalizeKey(key), solYear: String(y), numOfRows: "100", _type: "json" }).toString();
+  const tries: string[] = [];
+  for (const base of [HOLIDAY_API, HOLIDAY_API.replace("https://", "http://")]) {
+    let text: string;
+    let status: number;
+    try {
+      const res = await f(`${base}?${qs}`, { headers: { "User-Agent": UA, Accept: "application/json, application/xml;q=0.9, */*;q=0.8" }, signal: AbortSignal.timeout(20_000) });
+      status = res.status;
+      text = await res.text();
+    } catch (e) {
+      tries.push(`${base.slice(0, 5)} 접속 안 됨(${e instanceof Error ? e.message : String(e)})`);
+      continue;
+    }
+    if (status >= 200 && status < 300) {
+      let json: unknown;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        return { ok: false, why: `특일 정보 오류: ${apiReason(text)}` };
+      }
+      const list = parseHolidayJson(json);
+      if (!list) return { ok: false, why: `특일 정보 오류: ${apiReason(text)}` };
+      return { ok: true, list };
+    }
+    tries.push(`${base.startsWith("https") ? "https" : "http"} ${status} ${apiReason(text)}`);
+    if (status !== 403 && status < 500) break;
+  }
+  return { ok: false, why: `특일 정보 응답 ${tries.join(" / ")}` };
+}
+
 export type HolidaySyncResult = { status: "skipped" | "nokey" | "done" | "failed"; message: string; added?: number };
 
 /** 올해·내년 공휴일을 가져와 빠진 날을 넣는다. force 는 대표가 '지금 가져오기'를 누를 때 */
@@ -102,23 +158,9 @@ export async function syncHolidays(db: Db, now = new Date(), opts: { force?: boo
   }
   const found: { date: string; name: string }[] = [];
   for (const y of [year, year + 1]) {
-    const qs = new URLSearchParams({ serviceKey: key, solYear: String(y), numOfRows: "100", _type: "json" });
-    try {
-      const res = await (opts.f ?? fetch)(`${HOLIDAY_API}?${qs.toString()}`, { headers: { "User-Agent": "auto-body-shop app" }, signal: AbortSignal.timeout(20_000) });
-      if (!res.ok) return finish({ status: "failed", message: `특일 정보 응답 ${res.status}` });
-      const text = await res.text();
-      let json: unknown;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        return finish({ status: "failed", message: /SERVICE_KEY|등록되지 않은/i.test(text) ? "인증키가 맞지 않거나 아직 승인 전" : "특일 정보 응답 형식이 다름" });
-      }
-      const list = parseHolidayJson(json);
-      if (!list) return finish({ status: "failed", message: "특일 정보 응답 오류(인증키·사용 신청 확인)" });
-      found.push(...list);
-    } catch (e) {
-      return finish({ status: "failed", message: `특일 정보 접속 안 됨: ${e instanceof Error ? e.message : String(e)}` });
-    }
+    const got = await fetchYear(key, y, opts.f ?? fetch);
+    if (!got.ok) return finish({ status: "failed", message: got.why });
+    found.push(...got.list);
   }
   // 내장 목록에 없고, 대표가 넣은 날도 아닌 것만 '공휴일 추가'로 넣는다
   const fresh = found.filter((h) => !KR_PUBLIC_HOLIDAYS[h.date]);
