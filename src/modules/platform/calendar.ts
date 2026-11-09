@@ -7,6 +7,13 @@ import { UserError } from "./errors";
 import { DEFAULT_CALENDAR, type DayKind, type ShopCalendar } from "./business-days";
 
 const KEY = "calendar";
+/** 특일 정보에서 받은 공휴일(holidays.ts 가 저장) */
+export const OFFICIAL_KEY = "holiday.official";
+
+export async function loadOfficialHolidays(db: Db): Promise<Record<string, Record<string, string>>> {
+  const [r] = await db.select({ data: appConfig.data }).from(appConfig).where(eq(appConfig.key, OFFICIAL_KEY));
+  return ((r?.data as { years?: Record<string, Record<string, string>> } | undefined)?.years ?? {}) as Record<string, Record<string, string>>;
+}
 const KINDS: DayKind[] = ["holiday", "closed", "open"];
 
 export async function loadShopCalendar(db: Db): Promise<ShopCalendar> {
@@ -17,6 +24,7 @@ export async function loadShopCalendar(db: Db): Promise<ShopCalendar> {
     workdays: Array.isArray(data.workdays) ? data.workdays : DEFAULT_CALENDAR.workdays,
     excludeHolidays: typeof data.excludeHolidays === "boolean" ? data.excludeHolidays : DEFAULT_CALENDAR.excludeHolidays,
     days: Object.fromEntries(rows.map((r) => [r.date, { kind: r.kind as DayKind, name: r.name }])),
+    official: await loadOfficialHolidays(db),
   };
 }
 

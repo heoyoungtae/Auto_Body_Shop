@@ -39,21 +39,24 @@ describe("공휴일 자동 갱신", () => {
     expect((await db.select().from(notification).where(eq(notification.userId, ids.owner))).some((n) => n.title.includes("2028년 공휴일"))).toBe(true);
 
     await saveHolidayKey(db, ids.owner, "abcdefghijklmnopqrstuvwxyz0123456789");
-    await db.insert(shopDay).values({ date: "2028-05-02", kind: "closed", name: "정비소 창립일" });
+    await db.insert(shopDay).values({ date: "2028-05-02", kind: "closed", name: "정비소 창립일", createdBy: ids.owner });
     const f = fake({
       "2027": { item: [{ locdate: 20270101, dateName: "1월1일", isHoliday: "Y" }, { locdate: 20270603, dateName: "임시공휴일", isHoliday: "Y" }] },
       "2028": { item: [{ locdate: 20280101, dateName: "1월1일", isHoliday: "Y" }, { locdate: 20280502, dateName: "어린이날 대체", isHoliday: "Y" }, { locdate: 20280405, dateName: "식목일", isHoliday: "N" }] },
     });
     const r = await syncHolidays(db, sep, { f });
     expect(r.status).toBe("done");
-    expect(r.added).toBe(2);
-    const rows = await db.select().from(shopDay);
-    expect(rows.find((d) => d.date === "2027-06-03")?.kind).toBe("holiday");
-    expect(rows.find((d) => d.date === "2028-01-01")?.name).toBe("1월1일");
-    expect(rows.find((d) => d.date === "2028-05-02")?.kind).toBe("closed");
-    expect(rows.some((d) => d.date === "2027-01-01" || d.date === "2028-04-05")).toBe(false);
     const cal = await loadShopCalendar(db);
+    // 받은 해(2027)는 받은 목록만: 예비 목록의 설날(2027-02-07)은 더 이상 공휴일이 아님
+    expect(closedReason(cal, "2027-06-03")).toMatch(/임시공휴일/);
+    expect(closedReason(cal, "2027-02-08")).toBeNull(); // 월요일, 받은 목록에 없음
     expect(closedReason(cal, "2028-01-01")).toMatch(/1월1일/);
+    expect(closedReason(cal, "2028-04-05")).toBeNull(); // 수요일, isHoliday N
+    // 직접 넣은 날은 그대로
+    expect((await db.select().from(shopDay)).find((d) => d.date === "2028-05-02")?.kind).toBe("closed");
+    expect(r.message).toMatch(/\+06-03 임시공휴일/);
+    // 못 받은 해(2026)는 예비 목록 그대로
+    expect(closedReason(cal, "2026-12-25")).toMatch(/성탄절/);
     expect(await holidayTodo(db, "2027-09-02")).toBeNull();
     // 1일이 아니고 내년 것이 있으면 건너뜀
     expect((await syncHolidays(db, new Date("2027-09-03T00:00:00Z"), { f })).status).toBe("skipped");

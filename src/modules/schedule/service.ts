@@ -7,7 +7,7 @@ import { appUser, approvalDoc, consultation, equipment, instruction, instruction
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
-import { KR_PUBLIC_HOLIDAYS } from "@/modules/platform/business-days";
+import { holidayList } from "@/modules/platform/business-days";
 import { loadShopCalendar } from "@/modules/platform/calendar";
 import { UserError } from "@/modules/platform/errors";
 import { notifyUser } from "@/modules/platform/notify";
@@ -193,14 +193,15 @@ export async function autoItems(db: Db, actor: Actor, from: string, to: string, 
   const out: CalItem[] = [];
   // 공휴일·가게 휴무일(설정 › 영업일·휴무일)
   const cal = await loadShopCalendar(db);
-  for (const [d, name] of Object.entries(KR_PUBLIC_HOLIDAYS)) {
-    if (d < from || d > to) continue;
+  const pub = holidayList(cal, from, to);
+  const pubDates = new Set(pub.map((h) => h.date));
+  for (const { date: d, name } of pub) {
     const own = cal.days[d];
     if (own?.kind === "open") out.push(auto("holiday", d, d, `${name}(특별 영업)`, null, { tone: "neutral" }));
     else if (cal.excludeHolidays) out.push(auto("holiday", d, d, name, null));
   }
   for (const [d, v] of Object.entries(cal.days)) {
-    if (d < from || d > to || KR_PUBLIC_HOLIDAYS[d]) continue;
+    if (d < from || d > to || pubDates.has(d)) continue;
     if (v.kind === "open") out.push(auto("holiday", d, d, `${v.name || "특별 영업일"}`, null, { tone: "neutral" }));
     else out.push(auto("holiday", d, d, v.name || "가게 휴무", null));
   }

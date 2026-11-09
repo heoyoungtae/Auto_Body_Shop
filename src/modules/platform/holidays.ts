@@ -1,9 +1,9 @@
 // 공휴일 자동 갱신(사용자 질문 2026-11-09 "2027 이후의 공휴일은 어떻게 갱신되나?").
-// 공공데이터포털 '한국천문연구원 특일 정보'(getRestDeInfo)에서 올해·내년 공휴일을 매달 1일에 가져와,
-// 앱에 내장된 목록(KR_PUBLIC_HOLIDAYS)에 없는 날을 설정 › 영업일·휴무일의 '공휴일 추가'로 넣는다(임시공휴일·선거일 포함).
-// 대표가 직접 넣은 날(휴무·특별 영업 등)은 덮어쓰지 않는다. 인증키는 대표가 설정 화면에서 넣고 암호화해 둔다.
+// 공공데이터포털 '한국천문연구원 특일 정보'(getRestDeInfo)에서 올해·내년 공휴일을 매달 1일에 가져와 그 해의 정답으로 저장한다(임시공휴일·선거일 포함).
+// 받은 해는 받은 목록만 쓰고, 못 받은 해만 앱 예비 목록(KR_PUBLIC_HOLIDAYS)을 쓴다(사용자 지시 2026-11-09 "하드코딩 공휴일은 제거해야").
+// 대표가 직접 넣은 날(휴무·특별 영업·공휴일 추가)은 따로 두고 건드리지 않는다. 인증키는 대표가 설정 화면에서 넣고 암호화해 둔다.
 // 가져오지 못하거나 9월이 지나도 내년 공휴일이 없으면 대표 '내 할 일'과 알림으로 알린다.
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appConfig, shopDay } from "@/db/schema";
 import { decrypt, encrypt } from "@/modules/auth/crypto";
@@ -12,6 +12,7 @@ import { HOLIDAY_DATA_LAST_YEAR, KR_PUBLIC_HOLIDAYS } from "./business-days";
 import { UserError } from "./errors";
 import { notifyRole } from "./notify";
 import { seoulDate } from "./time";
+import { loadOfficialHolidays, OFFICIAL_KEY } from "./calendar";
 
 export const HOLIDAY_API = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo";
 export const HOLIDAY_API_GUIDE = "https://www.data.go.kr/data/15012690/openapi.do";
@@ -49,7 +50,8 @@ export async function saveHolidayKey(db: Db, actorId: string, key: string) {
 
 /** 그 해에 앱이 아는 공휴일 수(내장 + 설정에서 넣은 공휴일) */
 export async function holidaysKnown(db: Db, year: number) {
-  const builtIn = Object.keys(KR_PUBLIC_HOLIDAYS).filter((d) => d.startsWith(`${year}-`)).length;
+  const off = (await loadOfficialHolidays(db))[String(year)];
+  const builtIn = off ? Object.keys(off).length : Object.keys(KR_PUBLIC_HOLIDAYS).filter((d) => d.startsWith(`${year}-`)).length;
   const added = await db
     .select({ d: shopDay.date })
     .from(shopDay)
@@ -162,19 +164,32 @@ export async function syncHolidays(db: Db, now = new Date(), opts: { force?: boo
     if (!got.ok) return finish({ status: "failed", message: got.why });
     found.push(...got.list);
   }
-  // 내장 목록에 없고, 대표가 넣은 날도 아닌 것만 '공휴일 추가'로 넣는다
-  const fresh = found.filter((h) => !KR_PUBLIC_HOLIDAYS[h.date]);
-  let added = 0;
-  for (const h of fresh) {
-    const r = await db.insert(shopDay).values({ date: h.date, kind: "holiday", name: h.name, createdBy: null }).onConflictDoNothing().returning({ d: shopDay.date });
-    added += r.length;
+  // 받은 해마다 그 해 목록을 통째로 바꾼다(빈 해 = 아직 발표 전이라 저장하지 않음)
+  const official = await loadOfficialHolidays(db);
+  const changes: string[] = [];
+  const years: Record<string, Record<string, string>> = { ...official };
+  for (const y of [year, year + 1]) {
+    const list = found.filter((h) => h.date.startsWith(`${y}-`));
+    if (!list.length) continue;
+    const next = Object.fromEntries(list.map((h) => [h.date, h.name]));
+    const before = official[String(y)] ?? Object.fromEntries(Object.entries(KR_PUBLIC_HOLIDAYS).filter(([d]) => d.startsWith(`${y}-`)));
+    for (const [d, n] of Object.entries(next)) if (!before[d]) changes.push(`+${d.slice(5)} ${n}`);
+    for (const [d, n] of Object.entries(before)) if (!next[d]) changes.push(`-${d.slice(5)} ${n}`);
+    years[String(y)] = next;
   }
-  if (added) {
-    await writeAudit(db, { actorId: opts.actorId ?? null, action: "holiday.sync", entityType: "shop_day", entityId: `${year}-${year + 1}`, after: { added: fresh.map((h) => `${h.date} ${h.name}`) } });
-    await notifyRole(db, "owner", `공휴일 ${added}일을 새로 넣었습니다(특일 정보). 설정 › 영업일·휴무일에서 확인하세요`, `holiday-added-${today}`, "/settings/calendar");
+  await db
+    .insert(appConfig)
+    .values({ key: OFFICIAL_KEY, data: { years, fetchedAt: now.toISOString() }, updatedBy: opts.actorId ?? null, updatedAt: now })
+    .onConflictDoUpdate({ target: appConfig.key, set: { data: { years, fetchedAt: now.toISOString() }, updatedBy: opts.actorId ?? null, updatedAt: now } });
+  // 앞 버전이 '공휴일 추가'로 넣었던 자동 항목(직접 넣은 것 아님)은 정리
+  await db.delete(shopDay).where(and(eq(shopDay.kind, "holiday"), isNull(shopDay.createdBy)));
+  if (changes.length) {
+    await writeAudit(db, { actorId: opts.actorId ?? null, action: "holiday.sync", entityType: "config", entityId: OFFICIAL_KEY, after: { changes } });
+    await notifyRole(db, "owner", `공휴일이 바뀌었습니다(특일 정보): ${changes.slice(0, 4).join(", ")}${changes.length > 4 ? " 등" : ""}. 설정 › 영업일·휴무일에서 확인하세요`, `holiday-changed-${today}`, "/settings/calendar");
   }
+  const counts = [year, year + 1].map((y) => `${y}년 ${found.filter((h) => h.date.startsWith(`${y}-`)).length}일`).join(", ");
   const nextCount = found.filter((h) => h.date.startsWith(`${year + 1}-`)).length;
-  return finish({ status: "done", added, message: `공휴일 ${found.length}일 확인, 새로 ${added}일 넣음${added ? `(${fresh.slice(0, 5).map((h) => `${h.date.slice(5)} ${h.name}`).join(", ")}${fresh.length > 5 ? " 등" : ""})` : "(앱 목록과 같음)"}${nextCount ? "" : ` · ${year + 1}년 발표 전`}` });
+  return finish({ status: "done", added: changes.length, message: `공휴일 받음(${counts})${changes.length ? ` · 바뀐 날: ${changes.slice(0, 5).join(", ")}${changes.length > 5 ? " 등" : ""}` : " · 앱 목록과 같음"}${nextCount ? "" : ` · ${year + 1}년 발표 전`}` });
 }
 
 /** 대표 할 일: 9월부터 내년 공휴일이 하나도 없을 때 */

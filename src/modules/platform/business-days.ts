@@ -65,7 +65,28 @@ export type ShopCalendar = {
   excludeHolidays: boolean;
   /** 설정에서 넣은 날: 날짜 → 종류·이름 */
   days: Record<string, { kind: DayKind; name: string }>;
+  /** 특일 정보에서 받은 그 해 공휴일(해 → 날짜 → 이름). 받은 해는 이것만 쓰고 앱 예비 목록은 쓰지 않는다 */
+  official?: Record<string, Record<string, string>>;
 };
+
+/** 그날의 법정 공휴일 이름. 받은 해는 받은 목록, 못 받은 해는 앱 예비 목록 */
+export function holidayName(cal: ShopCalendar, iso: string): string | null {
+  const off = cal.official?.[iso.slice(0, 4)];
+  return (off ? off[iso] : KR_PUBLIC_HOLIDAYS[iso]) ?? null;
+}
+
+/** 기간 안 법정 공휴일과 출처(official 특일 정보 · fallback 앱 예비 목록) */
+export function holidayList(cal: ShopCalendar, from: string, to: string) {
+  const out: { date: string; name: string; src: "official" | "fallback" }[] = [];
+  const years = new Set<string>();
+  for (let y = Number(from.slice(0, 4)); y <= Number(to.slice(0, 4)); y++) years.add(String(y));
+  for (const y of years) {
+    const off = cal.official?.[y];
+    const src = off ? Object.entries(off) : Object.entries(KR_PUBLIC_HOLIDAYS).filter(([d]) => d.startsWith(`${y}-`));
+    for (const [date, name] of src) if (date >= from && date <= to) out.push({ date, name, src: off ? "official" : "fallback" });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
 
 export const DEFAULT_CALENDAR: ShopCalendar = { workdays: [1, 2, 3, 4, 5], excludeHolidays: true, days: {} };
 
@@ -78,7 +99,8 @@ export function closedReason(cal: ShopCalendar, iso: string): string | null {
   if (d?.kind === "closed") return `가게 휴무${d.name ? `: ${d.name}` : ""}`;
   if (cal.excludeHolidays) {
     if (d?.kind === "holiday") return d.name || "공휴일";
-    if (KR_PUBLIC_HOLIDAYS[iso]) return KR_PUBLIC_HOLIDAYS[iso];
+    const h = holidayName(cal, iso);
+    if (h) return h;
   }
   if (!cal.workdays.includes(weekday(iso))) return `${WEEKDAYS[weekday(iso)]}요일 휴무`;
   return null;

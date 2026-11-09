@@ -1,6 +1,6 @@
 import { can } from "@/modules/auth/permissions";
 import { getDb } from "@/db/runtime";
-import { addBusinessDays, closedReason, DAY_KIND_LABEL, HOLIDAY_DATA_LAST_YEAR, KR_PUBLIC_HOLIDAYS, WEEKDAYS, type DayKind } from "@/modules/platform/business-days";
+import { addBusinessDays, closedReason, holidayList, DAY_KIND_LABEL, HOLIDAY_DATA_LAST_YEAR, KR_PUBLIC_HOLIDAYS, WEEKDAYS, type DayKind } from "@/modules/platform/business-days";
 import { calendarMeta, listShopDays, loadShopCalendar } from "@/modules/platform/calendar";
 import { HOLIDAY_API_GUIDE, holidaySyncStatus, holidayTodo } from "@/modules/platform/holidays";
 import { addDays, seoulDate } from "@/modules/platform/time";
@@ -20,13 +20,12 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
   const db = await getDb();
   const today = seoulDate();
   const [cal, meta, days, sync, hol] = await Promise.all([loadShopCalendar(db), calendarMeta(db), listShopDays(db, addDays(today, -30)), holidaySyncStatus(db), holidayTodo(db, today)]);
-  // 앱 기본 목록 + 특일 정보에서 가져온 날 + 직접 넣은 공휴일을 한 목록으로
+  // 법정 공휴일(받은 해는 특일 정보, 못 받은 해는 앱 예비 목록) + 직접 넣은 공휴일
+  const pub = holidayList(cal, today, `${Number(today.slice(0, 4)) + 2}-12-31`);
   const holidays = [
-    ...Object.entries(KR_PUBLIC_HOLIDAYS).map(([d, name]) => ({ d, name, src: "base" as const })),
-    ...days.filter((x) => x.kind === "holiday" && !KR_PUBLIC_HOLIDAYS[x.date]).map((x) => ({ d: x.date, name: x.name, src: x.createdBy ? ("hand" as const) : ("api" as const) })),
-  ]
-    .filter((h) => h.d >= today)
-    .sort((a, b) => a.d.localeCompare(b.d));
+    ...pub.map((h) => ({ d: h.date, name: h.name, src: h.src === "official" ? ("api" as const) : ("base" as const) })),
+    ...days.filter((x) => x.kind === "holiday" && x.date >= today && !pub.some((h) => h.date === x.date)).map((x) => ({ d: x.date, name: x.name, src: "hand" as const })),
+  ].sort((a, b) => a.d.localeCompare(b.d));
   const next = [1, 3].map((n) => ({ n, date: addBusinessDays(today, n, cal) }));
   return (
     <>
@@ -93,7 +92,6 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
                     <li key={d.date} className="flex flex-wrap items-center justify-between gap-2 py-2">
                       <span>
                         <b className={d.date < today ? "text-[var(--muted)]" : ""}>{d.date}</b> {md(d.date).slice(-3)} <Badge tone={d.kind === "open" ? "ok" : d.kind === "closed" ? "warn" : "accent"}>{DAY_KIND_LABEL[d.kind as DayKind].split("(")[0]}</Badge> {d.name}
-                        {d.kind === "holiday" && !d.createdBy && <span className="ml-1 text-xs text-[var(--muted)]">(특일 정보에서 가져옴)</span>}
                       </span>
                       {owner && (
                         <form action={removeShopDayAction}>
@@ -158,7 +156,8 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
               return (
                 <li key={d} className="flex justify-between gap-2 py-1">
                   <span>
-                    {d.slice(0, 4)}. {md(d)} {name} {src === "api" && <Badge tone="accent">특일 정보에서 가져옴</Badge>}
+                    {d.slice(0, 4)}. {md(d)} {name} {src === "api" && <Badge tone="ok">특일 정보</Badge>}
+                    {src === "base" && <Badge tone="warn">예비 목록</Badge>}
                     {src === "hand" && <Badge>직접 넣음</Badge>}
                   </span>
                   <span className="shrink-0 text-xs">{off ? "쉼" : <span className="text-[var(--ok)]">영업</span>}</span>
@@ -166,7 +165,7 @@ export default async function CalendarSettingsPage({ searchParams }: { searchPar
               );
             })}
           </ul>
-          <p className="mt-2 text-xs text-[var(--muted)]">표시 없는 날은 앱에 들어 있는 목록(~{HOLIDAY_DATA_LAST_YEAR}년)입니다. 그 뒤 해는 특일 정보에서 가져온 날이 이어서 나옵니다.</p>
+          <p className="mt-2 text-xs text-[var(--muted)]">특일 정보: 공공데이터포털에서 받은 그 해 공휴일(정답). 예비 목록: 그 해 자료를 아직 못 받아 앱에 들어 있는 목록(~{HOLIDAY_DATA_LAST_YEAR}년)을 임시로 씀.</p>
         </Card>
         </div>
       </div>
