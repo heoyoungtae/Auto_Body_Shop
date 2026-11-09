@@ -4,6 +4,7 @@ import { addDays, seoulDate } from "@/modules/platform/time";
 import { AUTO_KINDS, LAYERS, monthGrid, shiftMonth, timeLabel, weekOf, WEEKDAY, type Layer } from "@/modules/schedule/rules";
 import { canPostShop, itemsOn, listRange, type CalItem } from "@/modules/schedule/service";
 import { requireUser } from "../_lib/session";
+import { CellItems, FillHeight } from "./fill";
 import { Badge, buttonClass, Card, Empty, Notice, PageTitle } from "../_ui";
 
 type View = "month" | "week" | "list";
@@ -151,40 +152,34 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
             })()
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[42rem] table-fixed border-collapse text-sm">
-                <thead>
-                  <tr>
-                    {WEEKDAY.map((w, i) => (
-                      <th key={w} className={`py-1 text-xs font-medium ${i === 0 ? "text-[var(--danger)]" : i === 6 ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}>
-                        {w}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(view === "week" ? [week] : grid).map((w) => (
-                    <tr key={w[0]}>
-                      {w.map((d, i) => {
-                        const list = itemsOn(items, d);
-                        const max = view === "week" ? 50 : 4;
-                        return (
-                          <td key={d} className={`h-24 overflow-hidden border border-[var(--line)] p-1 align-top ${d === day ? "ring-2 ring-[var(--accent)] ring-inset" : ""} ${view === "month" && d.slice(0, 7) !== ym ? "bg-[var(--surface-2)] opacity-60" : ""}`}>
-                            <Link href={url({ d, m: d.slice(0, 7) })} className={`mb-0.5 flex items-center justify-between text-xs ${dayColor(d, i)}`}>
-                              <span className={d === today ? "rounded-full bg-[var(--accent)] px-1.5 font-bold text-white" : "font-semibold"}>{view === "week" ? md(d) : Number(d.slice(8))}</span>
-                              {list.length > max && <span className="text-[var(--muted)]">+{list.length - max}</span>}
-                            </Link>
-                            <div className="grid gap-0.5">
-                              {list.slice(0, max).map((it) => (
-                                <Chip key={it.key} it={it} />
-                              ))}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
+              <FillHeight className="flex min-w-[42rem] flex-col text-sm">
+                <div className="grid grid-cols-7">
+                  {WEEKDAY.map((w, i) => (
+                    <div key={w} className={`py-1 text-center text-xs font-medium ${i === 0 ? "text-[var(--danger)]" : i === 6 ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}>
+                      {w}
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+                <div className="grid min-h-0 flex-1 grid-cols-7 border-t border-l border-[var(--line)]" style={{ gridTemplateRows: `repeat(${view === "week" ? 1 : grid.length}, minmax(5.5rem, 1fr))` }}>
+                  {(view === "week" ? [week] : grid).flat().map((d) => {
+                    const i = new Date(`${d}T00:00:00Z`).getUTCDay();
+                    const list = itemsOn(items, d);
+                    return (
+                      <div key={d} className={`flex min-h-0 min-w-0 flex-col border-r border-b border-[var(--line)] p-1 ${d === day ? "ring-2 ring-[var(--accent)] ring-inset" : ""} ${view === "month" && d.slice(0, 7) !== ym ? "bg-[var(--surface-2)] opacity-60" : ""}`}>
+                        <Link href={url({ d, m: d.slice(0, 7) })} className={`mb-0.5 flex items-center justify-between text-xs ${dayColor(d, i)}`}>
+                          <span className={d === today ? "rounded-full bg-[var(--accent)] px-1.5 font-bold text-white" : "font-semibold"}>{view === "week" ? md(d) : Number(d.slice(8))}</span>
+                          {list.length > 0 && <span className="text-[var(--muted)]">{list.length}건</span>}
+                        </Link>
+                        <CellItems more={url({ d, m: d.slice(0, 7) })}>
+                          {list.map((it) => (
+                            <Chip key={it.key} it={it} />
+                          ))}
+                        </CellItems>
+                      </div>
+                    );
+                  })}
+                </div>
+              </FillHeight>
             </div>
           )}
           <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
