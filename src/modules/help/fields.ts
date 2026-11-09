@@ -647,6 +647,18 @@ export const FIELD_HELP = {
   "tpl.title": { label: "서식 이름", hint: "고를 때 보이는 이름", example: "임시 휴무 안내" },
   "tpl.purpose": { label: "용도", hint: "정보성 안내 / 광고(마케팅)" },
   "tpl.body": { label: "문구", hint: "#{고객명} #{차량번호} #{업체명} #{업체전화} 를 쓸 수 있습니다", example: "#{고객명} 고객님, #{업체명}입니다.", maxLength: 1000, templates: ["#{고객명} 고객님, #{업체명}입니다.", "문의: #{업체전화}"] },
+  "task.title": { label: "할 일(제목)", hint: "무엇을 하라는지 한 줄로", example: "도장 부스 필터 교체 후 사진 보고" },
+  "task.body": { label: "내용", hint: "방법·주의할 점·기준", maxLength: 1000 },
+  "task.assignees": { label: "받는 사람", hint: "여러 명 고를 수 있습니다(사람마다 따로 보고)" },
+  "task.dueOn": { label: "기한", hint: "이날까지 결과보고", detail: "기한이 지나면 매일 아침 받은 사람과 지시한 사람에게 알림이 가고, 내 할 일에 '늦은 일'로 뜹니다." },
+  "task.urgent": { label: "중요도", hint: "긴급이면 내 할 일 '오늘 할 일'에 바로 올라갑니다" },
+  "task.needPhoto": { label: "보고 방법", hint: "사진 필수면 완료 보고에 사진이 있어야 합니다" },
+  "task.result": { label: "결과", hint: "다 했으면 완료, 못 했으면 못함(이유를 적음)" },
+  "task.report": { label: "보고 내용", hint: "무엇을 했는지, 못 했으면 이유", example: "필터 교체 완료, 차압 120Pa → 60Pa", maxLength: 1000, templates: ["지시대로 완료했습니다.", "부품이 없어 못 했습니다. 입고 예정일:"] },
+  "task.forwardTo": { label: "전달할 사람", hint: "이 일을 맡길 사람(들)", detail: "전달받은 사람들의 보고를 내가 모두 확인하면 그 보고가 지시한 사람에게 저절로 올라갑니다." },
+  "task.note": { label: "전달 메모", hint: "덧붙일 말", example: "오전 중에 끝내 주세요" },
+  "task.returnNote": { label: "보완할 점", hint: "무엇이 부족한지", example: "교체 후 차압 사진도 올려 주세요" },
+  "task.roles": { label: "업무지시를 내릴 수 있는 역할", hint: "대표는 늘 포함", detail: "고르지 않은 역할도 받은 지시를 아래로 전달할 수는 있습니다." },
 } satisfies Record<string, FieldHelp>;
 
 export type FieldHelpKey = keyof typeof FIELD_HELP;

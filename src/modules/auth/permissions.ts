@@ -37,6 +37,7 @@ export const PERMS = {
   "complaint.contact": { area: "고객·상담", label: "불만 접수 안내·고객 동의·만족 확인·종결", std: "STD-06 5절", roles: ["advisor", "plant_manager", "owner"], note: "불만 접수는 누구나" },
   "complaint.judge": { area: "품질", label: "불만 현물 확인·보증 판정", std: "STD-06 5.3~5.4", roles: ["quality", "plant_manager", "owner"] },
   "complaint.compensate": { area: "품질", label: "불만 보상·환불 승인", std: "STD-06 5.7·부록 B", roles: ["owner"] },
+  "task.issue": { area: "업무지시", label: "업무지시 내리기", std: "사용자 지시 2026-11-09", roles: ["owner", "plant_manager"], note: "기본값. 대표가 이 화면 아래 '업무지시 권한'에서 역할을 더하거나 뺌. 받은 지시를 아래로 전달하는 것은 누구나" },
   "account.manage": { area: "설정", label: "계정·역할·비밀번호·잠금", std: "설계 9.1", roles: ["owner"] },
   "settings.edit": { area: "설정", label: "정비소 정보·영업일·정책값·전결·공임표·연동 설정", std: "부록 B·D", roles: ["owner"] },
 } satisfies Record<string, Perm>;

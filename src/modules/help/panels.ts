@@ -263,6 +263,13 @@ export const PANEL_HELP = {
   "sms.tpl.list": { title: "문자 서식", body: "문자 발송에서 불러 쓰는 문구입니다. 고치거나 지울 수 있습니다." },
   "sms.tpl.new": { title: "새 서식", body: "자주 보내는 문구를 서식으로 만들어 두면 매번 다시 쓰지 않습니다." },
   "sms.kakao": { title: "알림톡 문구(고정)", body: "예약 확인·견적·완료 안내·설문 같은 알림톡은 카카오 심사를 받은 문구 그대로 앱이 저절로 보냅니다." },
+  "task.list": { title: "지시 목록", body: "받은 지시는 내 상태를, 보낸 지시는 확인할 보고 수를 보여 줍니다. 기한이 지난 것은 빨간 글씨입니다." },
+  "task.new": { title: "지시 내용", body: "할 일·받는 사람·기한을 정합니다. 수리 건·설비·부적합 화면에서 열면 관련 건이 붙습니다." },
+  "task.detail": { title: "지시 내용", body: "지시한 사람이 적은 내용과 관련 건입니다." },
+  "task.flow": { title: "진행", body: "누가 누구에게 주었는지(전달 사슬)와 읽음·보고·확인 상태를 보여 줍니다." },
+  "task.report": { title: "결과보고", body: "일을 마치면 완료·못함과 한 일을 적어 보고합니다. 직접 못 하면 아래에서 다른 사람에게 전달합니다." },
+  "task.confirm": { title: "보고 확인", body: "보고를 보고 '확인(끝)'을 누르거나, 부족하면 보완을 요청해 다시 할 일로 돌립니다." },
+  "perm.task": { title: "업무지시 권한", body: "새 업무지시를 내릴 수 있는 역할을 정합니다. 바꾸면 바로 적용됩니다." },
 } satisfies Record<string, PanelHelp>;
 
 export type PanelHelpKey = keyof typeof PANEL_HELP;

@@ -24,6 +24,7 @@ function refHref(type: string | null, id: string | null) {
   if (type === "equipment") return `/equipment/${id}`;
   if (type === "equipment_failure") return `/equipment/failures/${id}`;
   if (type === "five_s_zone") return `/five-s/${id.slice(0, 1)}`;
+  if (type === "complaint") return `/complaints/${id}`;
   return null;
 }
 
@@ -56,9 +57,14 @@ export default async function NcPage({ params, searchParams }: { params: Promise
         help="nc.detail"
         sub={`${NC_SOURCES[n.source as keyof typeof NC_SOURCES]} · 발생 ${fmtTime(n.occurredAt)} · 발견 ${nm(n.foundBy)}`}
         actions={
-          <Link href="/nc" className="text-sm text-[var(--accent)]">
-            ← 부적합 목록
-          </Link>
+          <span className="flex gap-3">
+            <Link href={`/tasks/new?${new URLSearchParams({ refType: "nonconformance", refId: n.id, refLabel: `${n.docNo} ${n.content.slice(0, 20)}` }).toString()}`} className="text-sm text-[var(--accent)]">
+              업무지시
+            </Link>
+            <Link href="/nc" className="text-sm text-[var(--accent)]">
+              ← 부적합 목록
+            </Link>
+          </span>
         }
       >
         {n.docNo} <Badge tone={NC_TONE[n.status as NcStatus]}>{NC_STATUS[n.status as NcStatus]}</Badge> {n.major && <Badge tone="danger">중대</Badge>}

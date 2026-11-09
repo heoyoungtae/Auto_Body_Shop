@@ -7,3 +7,4 @@ export * from "./staff";
 export * from "./equipment";
 export * from "./quality";
 export * from "./cs";
+export * from "./task";

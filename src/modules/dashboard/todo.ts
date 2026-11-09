@@ -22,6 +22,7 @@ import { can } from "@/modules/auth/permissions";
 import { listOpenFailures, todayBoard } from "@/modules/equipment/service";
 import { listNc } from "@/modules/quality/nc";
 import { listComplaints } from "@/modules/cs/service";
+import { taskTodos } from "@/modules/task/service";
 import { MIN_WAGE_CHECK_FROM, MIN_WAGE_TODO_FROM, nextMinWage } from "@/modules/staff/min-wage";
 import { NC_SOURCES } from "@/modules/quality/rules";
 import { fiveSBoard, myZonesToday } from "@/modules/quality/five-s";
@@ -189,6 +190,9 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
       if (cpOwner && c.satisfied === false && c.status !== "closed") out.push({ key: `cpm-${c.id}`, when: "today", what: `불만 고객 미수용(대표 면담): ${label}`, detail: c.closeNote ?? undefined, href, action: "열기" });
     }
   }
+
+  // 업무지시: 받은 일·확인할 보고·기한 지난 지시
+  out.push(...(await taskTodos(db, user, today)));
 
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });
 

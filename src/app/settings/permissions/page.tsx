@@ -1,17 +1,37 @@
 import { PERM_KEYS, PERMS } from "@/modules/auth/permissions";
 import { ROLE_LABEL, ROLES } from "@/modules/auth/roles";
+import { getDb } from "@/db/runtime";
+import { assignRoles } from "@/modules/task/service";
+import { AssistForm } from "../../_assist";
+import { CheckGroup } from "../../_input";
 import { requireUser } from "../../_lib/session";
-import { Card, PageTitle } from "../../_ui";
+import { SubmitButton } from "../../_submit";
+import { Card, ErrorBox, Notice, PageTitle } from "../../_ui";
+import { saveTaskRolesAction } from "../../tasks/actions";
 
 /** 권한표: 업무 × 역할. 앱의 권한 검사가 이 표를 그대로 읽는다 */
-export default async function PermissionsPage() {
+export default async function PermissionsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
+  const q = await searchParams;
   const user = await requireUser();
+  const taskRoles = await assignRoles(await getDb());
   const areas = [...new Set(PERM_KEYS.map((k) => PERMS[k].area))];
   return (
     <>
       <PageTitle help="settings.permissions" sub="업무마다 할 수 있는 역할입니다. 사내 표준서의 책임과 권한을 옮긴 것이며, 화면과 서버가 이 표대로 막습니다. 사람에게 주는 역할은 '직원·역할'에서 정합니다.">
         권한표
       </PageTitle>
+      <ErrorBox message={q.error} />
+      {q.notice && <Notice>{q.notice}</Notice>}
+      {user.roles.includes("owner") && (
+        <div className="mt-4">
+          <Card title="업무지시 권한" help={{ kind: "panel", id: "perm.task" }}>
+            <AssistForm id="task-roles" action={saveTaskRolesAction} className="space-y-3">
+              <CheckGroup help="task.roles" name="roles" defaultChecked={taskRoles} options={ROLES.filter((r) => r !== "owner").map((r) => ({ value: r, label: ROLE_LABEL[r] }))} />
+              <SubmitButton variant="secondary">저장</SubmitButton>
+            </AssistForm>
+          </Card>
+        </div>
+      )}
       <div className="mt-4">
         <Card title="업무별 권한" help={{ kind: "panel", id: "perm.matrix" }}>
           <div className="overflow-x-auto">
@@ -35,7 +55,7 @@ export default async function PermissionsPage() {
                     </td>
                   </tr>
                   {PERM_KEYS.filter((k) => PERMS[k].area === a).map((k) => {
-                    const p = PERMS[k];
+                    const p = k === "task.issue" ? { ...PERMS[k], roles: taskRoles } : PERMS[k];
                     return (
                       <tr key={k}>
                         <td className="py-1.5 pr-2">{p.label}</td>

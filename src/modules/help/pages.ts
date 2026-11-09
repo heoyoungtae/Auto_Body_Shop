@@ -666,6 +666,25 @@ export const PAGE_HELP = {
     steps: ["'새 서식'에 이름·용도·문구를 적습니다.", "문자 발송에서 서식을 골라 불러옵니다."],
     tips: ["#{고객명} #{차량번호} #{업체명} #{업체전화} 는 보낼 때 고객마다 바뀝니다.", "(광고)·무료수신거부는 쓰지 않습니다. 보낼 때 저절로 붙습니다."],
   },
+  tasks: {
+    title: "업무지시",
+    purpose: "지시를 내리고, 받은 사람이 하고 나서 결과를 보고하게 합니다. 지시는 받은 사람의 내 할 일에 올라갑니다.",
+    who: "지시: 권한표 '업무지시' 역할(기본 대표·공장장) · 받기·전달·보고: 모든 직원",
+    steps: ["'업무지시 하기'로 할 일·받는 사람·기한을 정합니다.", "받은 사람은 내 할 일에서 열어 하고, 결과를 보고합니다(직접 못 하면 전달).", "지시한 사람이 보고를 확인하거나 보완을 요청합니다."],
+    tips: ["전달받은 사람들의 보고를 전달한 사람이 모두 확인하면, 그 보고가 처음 지시한 사람에게 저절로 올라갑니다."],
+  },
+  "tasks.new": {
+    title: "업무지시 하기",
+    purpose: "할 일을 지시합니다.",
+    who: "권한표 '업무지시' 역할",
+    steps: ["할 일과 내용을 적습니다.", "받는 사람과 기한을 고릅니다.", "사진 보고가 필요하면 '사진 필수'를 고릅니다."],
+  },
+  "tasks.detail": {
+    title: "업무지시",
+    purpose: "지시 한 건의 내용과 진행, 보고와 확인을 봅니다.",
+    who: "지시한 사람 · 받은 사람 · 전달한 사람 · 대표",
+    steps: ["받은 사람: 사진을 올리고 결과를 보고하거나 다른 사람에게 전달합니다.", "준 사람: 보고를 확인하거나 보완을 요청합니다."],
+  },
 } satisfies Record<string, PageHelp>;
 
 export type PageHelpKey = keyof typeof PAGE_HELP;
@@ -691,6 +710,9 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/calendar": "settings.calendar",
   "/messages/send": "messages.send",
   "/messages/templates": "messages.templates",
+  "/tasks": "tasks",
+  "/tasks/new": "tasks.new",
+  "/tasks/[id]": "tasks.detail",
   "/messages/log": "messages.log",
   "/consults": "consults",
   "/consults/new": "consults.new",

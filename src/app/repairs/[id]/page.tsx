@@ -90,7 +90,14 @@ export default async function RepairDetail({ params, searchParams }: { params: P
             에서 불러옴
           </>
         }
-        actions={<Badge tone={r.status === "intake" ? "warn" : "accent"}>{RO_STATUS_LABEL[r.status]}</Badge>}
+        actions={
+          <span className="flex items-center gap-3">
+            <Link href={`/tasks/new?${new URLSearchParams({ refType: "repair_order", refId: r.id, refLabel: `${r.docNo} ${v.plateNo}` }).toString()}`} className="text-sm text-[var(--accent)]">
+              업무지시
+            </Link>
+            <Badge tone={r.status === "intake" ? "warn" : "accent"}>{RO_STATUS_LABEL[r.status]}</Badge>
+          </span>
+        }
       >
         수리 건 {r.docNo}
       </PageTitle>
