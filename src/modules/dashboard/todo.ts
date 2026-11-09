@@ -21,6 +21,7 @@ import { consentPanel } from "./service";
 import { can } from "@/modules/auth/permissions";
 import { listOpenFailures, todayBoard } from "@/modules/equipment/service";
 import { listNc } from "@/modules/quality/nc";
+import { listComplaints } from "@/modules/cs/service";
 import { NC_SOURCES } from "@/modules/quality/rules";
 import { fiveSBoard, myZonesToday } from "@/modules/quality/five-s";
 import { isBusinessDay } from "@/modules/platform/business-days";
@@ -169,6 +170,23 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
     if (n.status === "planned" && n.assigneeId === user.id) out.push({ key: `nca-${n.id}`, when: n.dueOn && n.dueOn < today ? "late" : "today", what: `시정 조치: ${label}`, detail: `기한 ${n.dueOn}`, href, action: "조치 적기" });
     if (handle && n.status === "open") out.push({ key: `nco-${n.id}`, when: "today", what: `부적합 처리 결정: ${label}`, detail: "원인 분석·시정 조치·담당·기한을 정합니다", href, action: "결정하기" });
     if (handle && n.status === "done") out.push({ key: `ncv-${n.id}`, when: "soon", what: `효과 확인·종결: ${label}`, detail: "재발이 없으면 종결합니다", href, action: "확인하기" });
+  }
+
+  // 불만·보증(STD-06): 상담원은 접수 안내·고객 동의·종결, 품질 담당은 판정, 대표는 보상 승인
+  const cpContact = can(user, "complaint.contact");
+  const cpJudge = can(user, "complaint.judge");
+  const cpOwner = can(user, "complaint.compensate");
+  if (cpContact || cpJudge || cpOwner) {
+    for (const { c, plateNo } of await listComplaints(db, "open")) {
+      const href = `/complaints/${c.id}`;
+      const label = `${c.docNo} ${plateNo ?? c.who ?? ""} ${c.content.slice(0, 30)}`;
+      if (cpContact && c.status === "received") out.push({ key: `cpk-${c.id}`, when: c.ackDue < today ? "late" : "today", what: `불만 접수 안내: ${label}`, detail: `기한 ${c.ackDue}${c.urgent ? " · 긴급" : ""}`, href, action: "안내하기" });
+      if (cpJudge && c.status === "acked") out.push({ key: `cpj-${c.id}`, when: c.judgeDue < today ? "late" : c.judgeDue === today ? "today" : "soon", what: `불만 현물 확인·판정: ${label}`, detail: `기한 ${c.judgeDue}`, href, action: "판정하기" });
+      if (cpContact && c.status === "judged") out.push({ key: `cpa-${c.id}`, when: c.replyDue < today ? "late" : "today", what: `불만 판정 설명·고객 동의: ${label}`, detail: `회신 기한 ${c.replyDue}`, href, action: "동의 받기" });
+      if (cpContact && c.status === "agreed" && c.satisfied !== false) out.push({ key: `cpc-${c.id}`, when: c.replyDue < today ? "late" : "soon", what: `불만 처리 뒤 만족 확인·종결: ${label}`, detail: c.resolution === "warranty_repair" ? "보증 수리 출고 뒤 종결" : undefined, href, action: "종결하기" });
+      if (cpOwner && (c.compWon || c.compNote) && !c.compApprovedAt) out.push({ key: `cpo-${c.id}`, when: "today", what: `불만 보상 승인: ${label}`, detail: `${c.compNote ?? ""}${c.compWon ? ` ${c.compWon.toLocaleString("ko-KR")}원` : ""}`, href, action: "승인하기" });
+      if (cpOwner && c.satisfied === false && c.status !== "closed") out.push({ key: `cpm-${c.id}`, when: "today", what: `불만 고객 미수용(대표 면담): ${label}`, detail: c.closeNote ?? undefined, href, action: "열기" });
+    }
   }
 
   if (unread > 0) out.push({ key: "unread", when: "soon", what: `안 읽은 알림 ${unread}건`, href: "/notifications", action: "알림 보기" });

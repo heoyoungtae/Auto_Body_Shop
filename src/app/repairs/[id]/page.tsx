@@ -27,6 +27,8 @@ import { PhotoSlots } from "../photo-slots";
 import { SignaturePad } from "../signature-pad";
 import { claimOf } from "@/modules/repair/claims";
 import { CLAIM_STATUS_LABEL } from "@/modules/repair/claim-rules";
+import { complaintsFor } from "@/modules/cs/service";
+import { CP_STATUS } from "@/modules/cs/rules";
 
 const opts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }));
 const WARNING_LIGHTS = ["없음", "엔진 점검", "타이어 공기압", "에어백", "ABS·제동", "배터리·충전", "엔진오일 압력", "냉각수 온도"];
@@ -45,7 +47,7 @@ export default async function RepairDetail({ params, searchParams }: { params: P
   const user = await requireUser();
   const db = await getDb();
   const r = await getRepair(db, id);
-  const [estimates, wos, claim] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id), claimOf(db, id)]);
+  const [estimates, wos, claim, cps] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id), claimOf(db, id), complaintsFor(db, id)]);
   const policy = await loadPolicy(db, seoulDate());
   const canWrite = can(user, "repair.write");
   const canDiagnose = can(user, "diag.write");
@@ -218,7 +220,22 @@ export default async function RepairDetail({ params, searchParams }: { params: P
                       {r.status === "ready" ? "출고하기" : "출고 기록"}
                     </Link>
                   )}
+                  {r.status === "delivered" && (
+                    <Link href={`/complaints/new?ro=${r.id}`} className={buttonClass("secondary")}>
+                      불만·보증 접수
+                    </Link>
+                  )}
                 </div>
+                {cps.length > 0 && (
+                  <p className="mt-2 text-sm">
+                    불만·보증:{" "}
+                    {cps.map((x) => (
+                      <Link key={x.id} href={`/complaints/${x.id}`} className="mr-2 text-[var(--accent)]">
+                        {x.docNo}({CP_STATUS[x.status as keyof typeof CP_STATUS]})
+                      </Link>
+                    ))}
+                  </p>
+                )}
               </Card>
             )}
             {(r.status === "working" || wos.length > 0) && (

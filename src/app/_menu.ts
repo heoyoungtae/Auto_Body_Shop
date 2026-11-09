@@ -37,8 +37,8 @@ export const MENU: MenuGroup[] = [
     label: "고객",
     items: [
       { label: "고객·차량", perm: ["customer.write"], href: "/customers", std: "STD-13" },
-      { label: "보증 수리", perm: ["customer.write", "work.assign"], phase: "2차", std: "STD-06.2" },
-      { label: "만족도·불만", perm: ["customer.write", "nc.handle"], phase: "2차", std: "STD-06" },
+      { label: "보증 수리", perm: ["complaint.contact", "complaint.judge", "work.assign"], href: "/complaints?f=warranty", std: "STD-06.4" },
+      { label: "만족도·불만", href: "/complaints", std: "STD-06" },
     ],
   },
   {
