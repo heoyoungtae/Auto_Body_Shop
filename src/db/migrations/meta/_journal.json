@@ -169,6 +169,13 @@
       "when": 1794222084395,
       "tag": "0023_std07_fixture",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794230514922,
+      "tag": "0024_schedule",
+      "breakpoints": true
     }
   ]
 }

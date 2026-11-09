@@ -47,6 +47,7 @@ export const PERMS = {
   "outsource.notice": { area: "구매·자재", label: "외주 반출 전 고객 알림·반출입 기록", std: "STD-07 8.2", roles: ["advisor", "plant_manager", "owner"] },
   "fixture.manage": { area: "구매·자재", label: "비품 대장 등록·고치기·연 1회 실물 확인·처분", std: "STD-07 9절", roles: ["accounting", "owner"], note: "자산 비품(정책값 기준 금액 이상) 처분은 대표. 위치·사용자 변경은 사용자 본인도 함" },
   "task.issue": { area: "업무지시", label: "업무지시 내리기", std: "사용자 지시 2026-11-09", roles: ["owner", "plant_manager"], note: "기본값. 대표가 이 화면 아래 '업무지시 권한'에서 역할을 더하거나 뺌. 받은 지시를 아래로 전달하는 것은 누구나" },
+  "schedule.shop": { area: "일정", label: "사내 공용 일정 올리기", std: "사용자 지시 2026-11-09", roles: ["owner", "plant_manager", "advisor", "quality", "safety", "accounting"], note: "고치기·취소는 올린 사람과 대표. 개인 일정은 누구나 자기 것만" },
   "account.manage": { area: "설정", label: "계정·역할·비밀번호·잠금", std: "설계 9.1", roles: ["owner"] },
   "settings.edit": { area: "설정", label: "정비소 정보·영업일·정책값·전결·공임표·연동 설정", std: "부록 B·D", roles: ["owner"] },
 } satisfies Record<string, Perm>;

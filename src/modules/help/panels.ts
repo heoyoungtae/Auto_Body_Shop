@@ -304,6 +304,11 @@ export const PANEL_HELP = {
   "fx.check": { title: "실물 확인", body: "연 1회(12월) 실물을 확인합니다. 분실·파손은 경위를 적으면 대표에게 보고됩니다." },
   "fx.dispose": { title: "처분", body: "불요품 처분 결재 뒤 매각·폐기·기증합니다. 전산 비품은 자료 완전 삭제를 확인해야 합니다." },
   "fx.events": { title: "이력", body: "등록·이동·수령·확인·분실·처분 기록입니다." },
+  "schedule.calendar": { title: "달력", body: "파란 줄은 사내 공용, 초록 줄은 내 일정, 회색 줄은 자동 일정, 빨간 줄은 휴무·공휴일입니다. 칸에 다 못 보이면 '+숫자'가 나오니 날짜를 눌러 오른쪽에서 봅니다.", tips: ["주 보기는 그 주 일정을 모두 보여 줍니다.", "목록 보기는 이달 일정을 날짜순으로 보여 줍니다."] },
+  "schedule.day": { title: "그날 일정", body: "고른 날의 공용·개인·자동 일정 전부입니다. 누르면 원래 화면으로 갑니다." },
+  "schedule.form": { title: "일정 내용", body: "종류·이름·날짜는 꼭 적습니다. 시각을 비우면 하루 종일 일정입니다." },
+  "schedule.info": { title: "일정", body: "공용·개인 구분, 날짜·시각·참석자·반복·알림과 누가 올리고 고쳤는지입니다." },
+  "schedule.cancel": { title: "취소", body: "일정을 지우지 않고 취소로 표시합니다. 공용 일정은 이유를 적으면 참석자에게 알림이 갑니다." },
 } satisfies Record<string, PanelHelp>;
 
 export type PanelHelpKey = keyof typeof PANEL_HELP;

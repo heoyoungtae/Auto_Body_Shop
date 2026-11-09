@@ -752,6 +752,19 @@ export const FIELD_HELP = {
   "fx.disposeMethod": { label: "처분 방법", hint: "매각·폐기·기증" },
   "fx.disposeNote": { label: "처분 근거", hint: "불요품 처분 결재 번호나 이유", example: "모터 고장, 수리비가 새 제품보다 비쌈" },
   "fx.dataWiped": { label: "자료 삭제", hint: "저장장치 자료를 완전히 지웠는지", detail: "고객·직원 개인정보가 남지 않게 초기화하거나 저장장치를 물리적으로 파기한 뒤 처분합니다(STD-13)." },
+  "schedule.kind": { label: "일정 종류", hint: "달력 색과 묶음을 정합니다", detail: "단체 휴무는 공용 일정에만 있고 달력에 빨갛게 보입니다. 가게 문을 닫는 날이면 설정 › 영업일·휴무일에도 넣어야 예약·기한 계산에서 빠집니다." },
+  "schedule.title": { label: "일정 이름", hint: "달력에 보일 이름", example: "월간 안전 교육", maxLength: 80, templates: ["주간 회의", "월간 안전 교육", "도료 업체 방문", "소방 점검", "내부 심사"] },
+  "schedule.startOn": { label: "시작일", hint: "일정표에서 고른 날이 채워져 옵니다" },
+  "schedule.endOn": { label: "끝나는 날", hint: "하루짜리면 비워 두세요(시작일과 같음)", detail: "여러 날 이어지는 일정(교육 2일 등)일 때만 적습니다. 31일을 넘길 수 없습니다. 반복 일정은 하루짜리만 됩니다." },
+  "schedule.startTime": { label: "시작 시각", hint: "비우면 하루 종일" },
+  "schedule.endTime": { label: "끝 시각", hint: "모르면 비워 두세요" },
+  "schedule.place": { label: "장소", hint: "칸을 누르면 자주 쓰는 곳이 나옵니다", example: "사무실" },
+  "schedule.attendees": { label: "참석자", hint: "아무도 고르지 않으면 전 직원", detail: "고른 사람에게 새 일정·변경·취소 알림이 가고, 그 사람 달력에는 진하게 보입니다. 공용 일정은 참석자가 아니어도 모든 직원 달력에 흐리게 보입니다." },
+  "schedule.note": { label: "메모", hint: "준비물·안건 등", example: "안건: 11월 재작업 사례, 보호구 착용", maxLength: 1000 },
+  "schedule.repeat": { label: "반복", hint: "정기 회의·교육은 한 번만 올리고 반복으로", detail: "매월(같은 날)에서 31일처럼 없는 날은 그달 마지막 날로 잡힙니다. 반복 일정을 취소하면 앞으로의 반복이 모두 없어집니다." },
+  "schedule.repeatUntil": { label: "반복 끝나는 날", hint: "비우면 계속 반복" },
+  "schedule.remindDays": { label: "미리 알림", hint: "그날 아침 알림이 갑니다", detail: "공용 일정은 참석자(비우면 전 직원)에게, 개인 일정은 나에게 알림이 갑니다. 매일 아침 일정 작업이 보냅니다." },
+  "schedule.cancelReason": { label: "취소 이유", hint: "공용 일정은 꼭 적습니다(참석자 알림에 들어갑니다)", example: "강사 사정으로 다음 주로 미룸", templates: ["다음 주로 미룸", "업체 사정으로 취소"] },
 } satisfies Record<string, FieldHelp>;
 
 export type FieldHelpKey = keyof typeof FIELD_HELP;

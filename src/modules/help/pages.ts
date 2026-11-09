@@ -803,6 +803,25 @@ export const PAGE_HELP = {
     who: "회계 담당",
     steps: ["'인쇄'를 누릅니다.", "비품에 붙이고 비품 화면에서 '라벨 붙였음'을 누릅니다."],
   },
+  schedule: {
+    title: "일정표",
+    purpose: "사내 공용 일정과 내 개인 일정, 다른 화면에서 저절로 올라오는 일정(입고 예약·출고 약속·휴가·점검 기한 등)을 한 달력에서 봅니다.",
+    who: "모든 직원 · 공용 일정 올리기: 권한표 '공용 일정 올리기'(기본 대표·공장장·상담원·품질·안전환경·회계)",
+    steps: ["월·주·목록으로 바꿔 봅니다. ◀ ▶로 달을 넘기고 '오늘'로 돌아옵니다.", "날짜를 누르면 오른쪽에 그날 일정이 모두 나옵니다.", "'+ 공용' 또는 '+ 개인'으로 그날 일정을 올립니다.", "위 단추(사내 공용·내 일정·자동 일정)로 보일 것을 켜고 끕니다."],
+    tips: ["개인 일정은 나만 봅니다. 대표도 남의 개인 일정은 볼 수 없습니다.", "자동 일정은 내 역할로 볼 수 있는 것만 나옵니다. 누르면 원래 화면으로 갑니다.", "휴가는 결재가 끝난 것만 나옵니다."],
+  },
+  "schedule.new": {
+    title: "일정 올리기",
+    purpose: "사내 공용 일정이나 개인 일정을 올립니다.",
+    who: "공용: 권한표 '공용 일정 올리기' 역할 · 개인: 모든 직원",
+    steps: ["종류와 이름을 정합니다.", "날짜와 시각을 적습니다(시각을 비우면 종일).", "공용이면 참석자를 고릅니다(비우면 전 직원).", "정기 일정이면 반복을, 필요하면 미리 알림을 정합니다."],
+  },
+  "schedule.detail": {
+    title: "일정",
+    purpose: "일정 한 건의 내용을 보고 고치거나 취소합니다.",
+    who: "공용: 모든 직원이 보고, 올린 사람과 대표가 고침 · 개인: 본인만",
+    steps: ["내용을 확인합니다.", "바뀌면 아래 '고치기'에서 저장합니다(공용은 날짜·시각·장소가 바뀌면 참석자에게 알림).", "없어지면 이유를 적고 취소합니다(지우지 않고 취소 표시로 남음)."],
+  },
 } satisfies Record<string, PageHelp>;
 
 export type PageHelpKey = keyof typeof PAGE_HELP;
@@ -850,6 +869,9 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/fixtures/[id]": "fixtures.detail",
   "/fixtures/check": "fixtures.check",
   "/fixtures/labels": "fixtures.labels",
+  "/schedule": "schedule",
+  "/schedule/new": "schedule.new",
+  "/schedule/[id]": "schedule.detail",
   "/messages/log": "messages.log",
   "/consults": "consults",
   "/consults/new": "consults.new",
