@@ -48,6 +48,7 @@ export const DEFAULT_POLICY = {
   "five_s.cleanup_minutes": { value: 15, unit: "분", label: "작업 종료 전 청소 시간", clause: "8.10" },
   "five_s.red_tag_days": { value: 30, unit: "일", label: "불요품(빨간 딱지) 보류", clause: "8.10" },
   "proposal.reply_days": { value: 14, unit: "일", label: "개선 제안 회신", clause: "8.12" },
+  "stock.count_diff_pct": { value: 2, unit: "% 초과", label: "재고 실사 차이(부적합 등록)", clause: "7.3", max: 100 },
   "asset.register_min": { value: 500_000, unit: "원 이상", label: "자산 비품 기준 금액", clause: "7.5" },
   "payroll.attendance_close_day": { value: 3, unit: "일(매월)", label: "근태 확정일", clause: "11.4", min: 1, max: 28 },
   "payroll.pay_day": { value: 10, unit: "일(매월)", label: "급여 지급일", clause: "11.5", min: 1, max: 28 },

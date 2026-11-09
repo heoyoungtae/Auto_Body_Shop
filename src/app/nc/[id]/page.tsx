@@ -25,6 +25,8 @@ function refHref(type: string | null, id: string | null) {
   if (type === "equipment_failure") return `/equipment/failures/${id}`;
   if (type === "five_s_zone") return `/five-s/${id.slice(0, 1)}`;
   if (type === "complaint") return `/complaints/${id}`;
+  if (type === "purchase_order") return `/purchases/${id}`;
+  if (type === "stock_count") return "/stock/count";
   return null;
 }
 

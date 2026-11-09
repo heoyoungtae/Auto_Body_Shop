@@ -81,8 +81,10 @@ export const MENU: MenuGroup[] = [
     id: "purchase",
     label: "구매·자재",
     items: [
-      { label: "협력업체", roles: ["owner", "plant_manager", "accounting"], phase: "2차", std: "STD-07.1" },
-      { label: "발주·외주", roles: ["owner", "plant_manager", "accounting"], phase: "2차", std: "STD-07" },
+      { label: "협력업체", perm: ["supplier.manage", "supplier.approve"], href: "/suppliers", std: "STD-07.4" },
+      { label: "발주·입고", perm: ["purchase.order", "purchase.receive", "purchase.invoice"], href: "/purchases", std: "STD-07.5~6" },
+      { label: "재고", perm: ["stock.use", "stock.manage"], href: "/stock", std: "STD-07.7" },
+      { label: "외주", perm: ["purchase.order", "outsource.notice"], href: "/outsource", std: "STD-07.8" },
       { label: "비품·자산", roles: ["owner", "plant_manager", "accounting"], phase: "2차", std: "STD-07.5" },
     ],
   },

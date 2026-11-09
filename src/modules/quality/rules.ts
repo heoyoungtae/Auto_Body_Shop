@@ -3,6 +3,8 @@
 export const NC_SOURCES = {
   inspect: "검사 불합격",
   complaint: "고객 불만",
+  receipt: "입고 불량",
+  stock: "재고 차이",
   audit: "내부심사",
   goal: "목표 미달",
   legal: "법규 미흡",

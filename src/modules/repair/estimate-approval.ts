@@ -15,6 +15,7 @@ import { loadPolicy } from "@/modules/platform/policy";
 import { sniffImage, storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { koDateTime } from "@/modules/customer/rules";
+import { draftFromEstimate } from "@/modules/purchase/order";
 import { EstimateError, getEstimate } from "./estimate";
 import { APPROVAL_METHOD, approvalGroups, approvalOutcome, totals, type ApprovalMethod } from "./estimate-rules";
 
@@ -109,7 +110,9 @@ async function apply(db: Db, id: string, groupKeys: string[], rec: Record_, now:
   await writeAudit(db, { actorId: rec.recordedBy, action: `estimate.${outcome}`, entityType: "estimate", entityId: e.docNo, after: { method: rec.method, by: rec.approverName.trim(), ref: rec.ref, approvedTotal: ok, groups: `${groups.filter((g) => groupKeys.includes(g.key)).length}/${groups.length}` } });
   const msg = outcome === "declined" ? `견적 승인 안 함: ${e.docNo}(${e.ro.docNo}) — 고객에게 사유를 묻고 차량 반출을 안내하세요` : `견적 ${outcome === "accepted" ? "승인" : "일부 승인"}: ${e.docNo}(${e.ro.docNo}) ${won(ok)} — 작업을 준비하세요`;
   for (const role of ["advisor", "plant_manager"] as const) await notifyRole(db, role, msg, `est-answer-${e.docNo}-${role}`, `/repairs/${e.repairOrderId}/estimate/${id}`);
-  return { outcome, approvedTotal: ok };
+  // STD-07 5.1: 승인한 부품 줄로 발주서(작성 중)를 저절로 만든다
+  const poId = outcome === "declined" ? null : await draftFromEstimate(db, id, rec.recordedBy, now);
+  return { outcome, approvedTotal: ok, poId };
 }
 
 async function storeSignature(docNo: string, png: Uint8Array | null) {

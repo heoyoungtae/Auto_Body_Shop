@@ -28,6 +28,10 @@ import { SignaturePad } from "../signature-pad";
 import { claimOf } from "@/modules/repair/claims";
 import { CLAIM_STATUS_LABEL } from "@/modules/repair/claim-rules";
 import { complaintsFor } from "@/modules/cs/service";
+import { ordersOfRo } from "@/modules/purchase/order";
+import { outsourceOfRo } from "@/modules/purchase/outsource";
+import { usedOnRo } from "@/modules/purchase/stock";
+import { OS_STATUS, OS_TONE, OUT_TYPES, PO_STATUS, PO_TONE, type OsStatus, type OutType, type PoStatus } from "@/modules/purchase/rules";
 import { CP_STATUS } from "@/modules/cs/rules";
 
 const opts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }));
@@ -47,7 +51,7 @@ export default async function RepairDetail({ params, searchParams }: { params: P
   const user = await requireUser();
   const db = await getDb();
   const r = await getRepair(db, id);
-  const [estimates, wos, claim, cps] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id), claimOf(db, id), complaintsFor(db, id)]);
+  const [estimates, wos, claim, cps, pos, oss, used] = await Promise.all([listEstimates(db, id), workOrdersOfRo(db, id), claimOf(db, id), complaintsFor(db, id), ordersOfRo(db, id), outsourceOfRo(db, id), usedOnRo(db, id)]);
   const policy = await loadPolicy(db, seoulDate());
   const canWrite = can(user, "repair.write");
   const canDiagnose = can(user, "diag.write");
@@ -271,6 +275,52 @@ export default async function RepairDetail({ params, searchParams }: { params: P
                   )}
                 </Card>
               </div>
+            )}
+            {(pos.length > 0 || oss.length > 0 || used.length > 0 || (["working", "inspecting"].includes(r.status) && (can(user, "purchase.order") || can(user, "stock.use")))) && (
+              <Card title="부품·자재·외주" help={{ kind: "panel", id: "ro.purchase" }}>
+                <ul className="divide-y divide-[var(--line)] text-sm">
+                  {pos.map((o) => (
+                    <li key={o.id} className="flex flex-wrap items-center gap-2 py-2">
+                      <Link href={`/purchases/${o.id}`} className="font-medium text-[var(--accent)] hover:underline">
+                        {o.docNo}
+                      </Link>
+                      <span>부품 발주</span>
+                      <Badge tone={PO_TONE[o.status as PoStatus]}>{PO_STATUS[o.status as PoStatus]}</Badge>
+                      {(o.replyDueOn ?? o.dueOn) && <span className="ml-auto">도착 {o.replyDueOn ?? o.dueOn}</span>}
+                    </li>
+                  ))}
+                  {oss.map((j) => (
+                    <li key={j.id} className="flex flex-wrap items-center gap-2 py-2">
+                      <Link href={`/outsource/${j.id}`} className="font-medium text-[var(--accent)] hover:underline">
+                        {j.docNo}
+                      </Link>
+                      <span>
+                        외주 {OUT_TYPES[j.workType as OutType]} · {j.supplierName}
+                      </span>
+                      <Badge tone={OS_TONE[j.status as OsStatus]}>{OS_STATUS[j.status as OsStatus]}</Badge>
+                      <span className="ml-auto">납기 {j.dueOn}</span>
+                    </li>
+                  ))}
+                  {used.length > 0 && <li className="py-2 text-xs text-[var(--muted)]">쓴 자재: {used.map((u) => `${u.name} ${-u.m.qty}${u.unit}`).join(", ")}</li>}
+                </ul>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {can(user, "purchase.order") && ["working", "inspecting", "estimating"].includes(r.status) && (
+                    <>
+                      <Link href={`/purchases/new?ro=${r.id}`} className={buttonClass("secondary")}>
+                        부품 발주 더하기
+                      </Link>
+                      <Link href={`/outsource/new?ro=${r.id}`} className={buttonClass("secondary")}>
+                        외주 의뢰
+                      </Link>
+                    </>
+                  )}
+                  {can(user, "stock.use") && ["working", "inspecting"].includes(r.status) && (
+                    <Link href={`/stock/use?ro=${r.id}`} className={buttonClass("secondary")}>
+                      자재 사용 기록
+                    </Link>
+                  )}
+                </div>
+              </Card>
             )}
             {(r.status === "estimating" || estimates.length > 0) && (
               <Card title="견적" help={{ kind: "panel", id: "ro.estimates" }}>
