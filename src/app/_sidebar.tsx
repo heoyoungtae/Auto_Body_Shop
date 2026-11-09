@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Role } from "@/modules/auth/roles";
+import { can } from "@/modules/auth/permissions";
 import { MENU, TOP, type MenuItem } from "./_menu";
 
 const NavCtx = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({ open: false, setOpen: () => {} });
@@ -68,7 +69,8 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   // 지금 화면이 든 묶음은 펼친다(저장하지 않음 — 다른 화면으로 가면 원래대로)
   const [here, setHere] = useState<string | undefined>(() => groupOf(path));
   useEffect(() => setHere(groupOf(path)), [path]);
-  const visible = (i: MenuItem) => (!i.roles || i.roles.some((r) => roles.includes(r))) && (future || i.href);
+  const allowed = (i: MenuItem) => (!i.roles || i.roles.some((r) => roles.includes(r))) && (!i.perm || i.perm.some((k) => can({ roles }, k)));
+  const visible = (i: MenuItem) => allowed(i) && (future || i.href);
   const isOpen = (id: string) => opened.includes(id) || here === id;
   const toggle = (id: string) => {
     if (isOpen(id)) {
