@@ -40,6 +40,8 @@ export const PERMS = {
   "audit.approve": { area: "품질", label: "내부심사 보고서 승인", std: "F-Q-08", roles: ["owner"] },
   "safety.manage": { area: "안전·환경", label: "위험성평가 작성·확정, 화학물질 목록·MSDS 관리, 사고 종결·법정 신고 기록", std: "STD-09", roles: ["safety", "owner"], note: "MSDS 보기와 사고·아차사고 보고는 누구나" },
   "incident.investigate": { area: "안전·환경", label: "사고·아차사고 조사(원인·재발 방지), 다친 사람·부상 내용 보기", std: "STD-09 9절", roles: ["safety", "plant_manager", "owner"] },
+  "gift.send": { area: "고객·상담", label: "기프티콘 보내기(이벤트 경품·감사)", std: "STD-06", roles: ["owner", "plant_manager", "advisor"], note: "건당 상한·월 예산 안에서. 불만 보상 기프티콘은 대표만" },
+  "gift.view": { area: "고객·상담", label: "기프티콘 발송 이력 보기", std: "STD-06", roles: ["owner", "plant_manager", "advisor", "accounting"] },
   "nc.handle": { area: "품질", label: "부적합 원인 분석·시정 조치 지정·효과 확인·종결", std: "STD-Q Q.9", roles: ["quality", "plant_manager", "owner"], note: "부적합 발행은 누구나. 조치 담당은 자기 조치를 적음" },
   "nc.approve": { area: "품질", label: "중대 부적합 종결 승인", std: "F-Q-10", roles: ["owner"] },
   "five_s.audit": { area: "설비", label: "3정5S 구역 담당 지정·월간 평가", std: "STD-08 11·14절", roles: ["plant_manager", "owner"], note: "일일 점검은 구역 담당(대행자)이 함" },

@@ -1,5 +1,5 @@
 // 문자관리 — 문자 대행사·카카오 알림톡·기프티콘 공급사 설정과 발송 이력(미래모터스 설정을 참고).
-import { index, integer, jsonb, pgTable, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { appUser } from "./platform";
 
 /**
@@ -47,3 +47,37 @@ export const smsTemplate = pgTable("sms_template", {
   updatedBy: uuid("updated_by").references(() => appUser.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * 기프티콘 발송(GF-). purpose: event 이벤트 경품 · thanks 감사(소개·후기) · complaint 불만 보상 · other 기타.
+ * 이벤트·감사는 광고 수신 동의 고객에게만(동의 문구 기준), 불만 보상은 대표만 보낸다.
+ * 받는 번호는 암호화, 쿠폰 핀번호는 저장하지 않는다(공급사가 MMS로 직접 보냄). status: sent · failed · cancelled
+ */
+export const giftSend = pgTable(
+  "gift_send",
+  {
+    id: serial("id").primaryKey(),
+    docNo: text("doc_no").notNull(),
+    customerId: uuid("customer_id"),
+    customerName: text("customer_name").notNull(),
+    toEnc: text("to_enc").notNull(),
+    toMasked: text("to_masked").notNull(),
+    purpose: text("purpose").notNull(),
+    reason: text("reason").notNull(),
+    complaintId: uuid("complaint_id"),
+    goodsCode: text("goods_code").notNull(),
+    goodsName: text("goods_name").notNull(),
+    price: integer("price").notNull(),
+    provider: text("provider").notNull(),
+    trId: text("tr_id").notNull(),
+    orderNo: text("order_no"),
+    status: text("status").notNull(),
+    error: text("error"),
+    sentBy: uuid("sent_by").references(() => appUser.id),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+    cancelledBy: uuid("cancelled_by").references(() => appUser.id),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+  },
+  (t) => [uniqueIndex("gift_send_tr_uq").on(t.trId), index("gift_send_customer_idx").on(t.customerId, t.sentAt)],
+);

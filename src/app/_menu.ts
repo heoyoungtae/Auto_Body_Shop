@@ -50,8 +50,8 @@ export const MENU: MenuGroup[] = [
       { label: "문자 발송", perm: ["consult.write"], href: "/messages/send", std: "STD-01" },
       { label: "발송 이력", perm: ["consult.write"], href: "/messages/log" },
       { label: "문구 서식", perm: ["consult.write"], href: "/messages/templates" },
-      { label: "기프티콘 발송", phase: "2차", std: "STD-06", roles: ["owner", "plant_manager", "advisor"] },
-      { label: "기프티콘 이력", phase: "2차", roles: ["owner", "plant_manager", "advisor", "accounting"] },
+      { label: "기프티콘 발송", perm: ["gift.send"], href: "/gifts/send", std: "STD-06" },
+      { label: "기프티콘 이력", perm: ["gift.view"], href: "/gifts" },
     ],
   },
   {

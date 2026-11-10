@@ -2970,6 +2970,55 @@ export const FIELD_HELP = {
     example: "조색실 2번 통",
     maxLength: 200,
   },
+  "gift.q": {
+    label: "고객 찾기",
+    hint: "이름이나 전화번호 끝 4자리",
+    detail:
+      "고객 대장에서 찾습니다. 고르면 동의 상태와 최근 발송 내역이 바로 보입니다.",
+    example: "김민수 또는 1234",
+  },
+  "gift.purpose": {
+    label: "보내는 목적",
+    hint: "이벤트·감사는 마케팅 수신 동의가 있어야 합니다",
+    detail:
+      "불만 보상은 대표만 고르며, 어떤 고객 불만(F-12-02)에 대한 보상인지 함께 남깁니다.",
+  },
+  "gift.complaintId": {
+    label: "보상할 불만 건",
+    hint: "이 고객의 불만 접수 건 중에서 고릅니다",
+    detail: "보상 내역이 불만 처리 기록과 이어져 나중에 대조할 수 있습니다.",
+  },
+  "gift.reason": {
+    label: "보내는 사유",
+    hint: "누가 봐도 왜 보냈는지 알 수 있게",
+    detail:
+      "감사(audit) 기록과 이력에 남습니다. 회계 담당이 월말에 대조합니다.",
+    example: "리뷰 작성 감사, 도장 재작업 지연 사과",
+    maxLength: 200,
+  },
+  "gift.goodsCode": {
+    label: "상품",
+    hint: "공급사 상품 목록에서 고릅니다(1시간마다 새로 받음)",
+    detail:
+      "건당 상한을 넘는 상품은 대표만 보낼 수 있습니다. 쿠폰 번호(PIN)는 앱에 저장하지 않습니다.",
+  },
+  "gift.message": {
+    label: "함께 보낼 문구",
+    hint: "비우면 기본 문구로 보냅니다",
+    example: "항상 믿고 맡겨 주셔서 감사합니다.",
+    maxLength: 200,
+  },
+  "gift.dupOk": {
+    label: "최근 발송 있어도 보냄",
+    hint: "같은 고객에게 정해진 기간 안에 이미 보낸 적이 있을 때만 나옵니다",
+    detail: "중복 확인 기간은 설정 › 문자·기프티콘에서 바꿉니다.",
+  },
+  "gift.cancelReason": {
+    label: "취소 사유",
+    hint: "잘못 보냈거나 고객이 받지 못한 경우 등",
+    detail: "고객이 아직 쓰지 않은 쿠폰만 공급사에서 취소됩니다.",
+    maxLength: 200,
+  },
   "tool.name": {
     label: "품명",
     hint: "무슨 치공구인지",

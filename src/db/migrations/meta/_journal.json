@@ -232,6 +232,13 @@
       "when": 1794343589830,
       "tag": "0032_environment",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794344156440,
+      "tag": "0033_gift_send",
+      "breakpoints": true
     }
   ]
 }

@@ -2,12 +2,19 @@
 // 미래모터스의 3종(예약 확인·예약 하루 전·정비 완료)을 외관수리 흐름(표준서 STD-01~06)에 맞춰 늘렸다.
 // 문구는 카카오 검수에서 바뀔 수 있으니, 승인된 문구와 같게 여기도 고친다. 정보성만 가능(광고 불가).
 
-export type KakaoTemplate = { title: string; usage: string; std: string; vars: string[]; text: string };
+export type KakaoTemplate = {
+  title: string;
+  usage: string;
+  std: string;
+  vars: string[];
+  text: string;
+};
 
 export const KAKAO_TEMPLATES = {
   consent_request: {
     title: "개인정보 동의 요청",
-    usage: "상담 때 동의를 그 자리에서 못 받았을 때(동의 받은 방법 '문자로 동의 요청')",
+    usage:
+      "상담 때 동의를 그 자리에서 못 받았을 때(동의 받은 방법 '문자로 동의 요청')",
     std: "STD-13",
     vars: ["고객명", "업체명", "동의링크", "기한", "업체전화"],
     text: "#{고객명} 고객님, #{업체명}입니다.\n상담 내용 기록과 예약·견적 안내를 위해 개인정보 수집·이용 동의가 필요합니다.\n\n아래 링크에서 내용을 확인하고 동의해 주세요(#{기한} 안).\n#{동의링크}\n\n동의하지 않으시면 연락처는 저장하지 않고 지웁니다.\n문의: #{업체전화}",
@@ -30,14 +37,30 @@ export const KAKAO_TEMPLATES = {
     title: "견적 안내",
     usage: "견적 확정 뒤 고객 승인 요청",
     std: "STD-03",
-    vars: ["고객명", "업체명", "차량번호", "견적금액", "유효기간", "확인링크", "업체전화"],
+    vars: [
+      "고객명",
+      "업체명",
+      "차량번호",
+      "견적금액",
+      "유효기간",
+      "확인링크",
+      "업체전화",
+    ],
     text: "#{고객명} 고객님, #{업체명}입니다.\n#{차량번호} 차량의 수리 견적을 안내드립니다.\n\n■ 견적금액: #{견적금액}\n■ 유효기간: #{유효기간}까지\n\n아래 링크에서 내용을 확인하고 승인해 주세요.\n#{확인링크}\n문의: #{업체전화}",
   },
   extra_work: {
     title: "추가 작업 승인 요청",
     usage: "작업 중 견적을 넘는 추가 작업이 생겼을 때(정책값 '견적 초과 허용')",
     std: "STD-05.3",
-    vars: ["고객명", "업체명", "차량번호", "추가내용", "추가금액", "확인링크", "업체전화"],
+    vars: [
+      "고객명",
+      "업체명",
+      "차량번호",
+      "추가내용",
+      "추가금액",
+      "확인링크",
+      "업체전화",
+    ],
     text: "#{고객명} 고객님, #{업체명}입니다.\n#{차량번호} 수리 중 추가 작업이 필요해 승인을 요청드립니다.\n\n■ 추가 내용: #{추가내용}\n■ 추가 금액: #{추가금액}\n\n아래 링크에서 확인 후 승인 또는 거절해 주세요. 승인 전에는 추가 작업을 하지 않습니다.\n#{확인링크}\n문의: #{업체전화}",
   },
   ready_notice: {
@@ -59,7 +82,11 @@ export const KAKAO_TEMPLATES = {
 export type KakaoKey = keyof typeof KAKAO_TEMPLATES;
 export const KAKAO_KEYS = Object.keys(KAKAO_TEMPLATES) as KakaoKey[];
 
-export const renderKakao = (key: KakaoKey, v: Record<string, string>) => KAKAO_TEMPLATES[key].text.replace(/#\{([^}]+)\}/g, (m, k: string) => v[k] ?? m);
+export const renderKakao = (key: KakaoKey, v: Record<string, string>) =>
+  KAKAO_TEMPLATES[key].text.replace(
+    /#\{([^}]+)\}/g,
+    (m, k: string) => v[k] ?? m,
+  );
 
 /** 테스트 발송에 쓰는 보기 값 */
 export const SAMPLE_VARS: Record<string, string> = {

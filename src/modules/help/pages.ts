@@ -1819,6 +1819,28 @@ export const PAGE_HELP = {
       "다음 달 5일까지 안전환경 담당이 운영 일지에 확인 서명합니다.",
     ],
   },
+  gifts: {
+    title: "기프티콘 이력",
+    purpose:
+      "고객에게 보낸 기프티콘을 달별로 보고, 잘못 보낸 것은 취소합니다(STD-12 고객 감사·보상).",
+    who: "보기: 대표·공장장·상담·회계 · 취소: 보낸 사람·대표",
+    steps: [
+      "위에서 달을 고르면 그 달에 보낸 내역과 합계가 나옵니다.",
+      "잘못 보낸 건은 '취소'에 사유를 적습니다.",
+      "회계 담당은 월말에 공급사 청구서와 합계를 대조합니다.",
+    ],
+  },
+  "gifts.send": {
+    title: "기프티콘 보내기",
+    purpose:
+      "이벤트·감사·불만 보상으로 고객에게 모바일 쿠폰을 보냅니다. 동의·중복·예산을 앱이 먼저 확인합니다.",
+    who: "대표·공장장·상담 담당(불만 보상은 대표)",
+    steps: [
+      "고객을 이름이나 전화번호 끝자리로 찾아 고릅니다.",
+      "동의 상태와 최근 발송을 확인합니다.",
+      "목적·사유·상품을 고르고 '보내기'를 누릅니다.",
+    ],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -1920,6 +1942,8 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/hazards/new": "hazards.new",
   "/hazards/[id]": "hazards.detail",
   "/environment": "environment",
+  "/gifts": "gifts",
+  "/gifts/send": "gifts.send",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",
