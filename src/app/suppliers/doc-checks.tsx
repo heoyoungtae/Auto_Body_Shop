@@ -44,11 +44,11 @@ function DocRow({ doc, checked, saved }: { doc: SupplierDoc; checked: boolean; s
   return (
     <li className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--line)] px-3 py-2 has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-soft)]">
       <label className="flex min-w-56 flex-1 items-center gap-2 text-sm">
-        <input type="checkbox" name="docs" value={doc} checked={on} onChange={(e) => setOn(e.currentTarget.checked)} className="h-4 w-4" />
+        <input type="checkbox" data-assist="group" name="docs" value={doc} checked={on} onChange={(e) => setOn(e.currentTarget.checked)} className="h-4 w-4" />
         {SUPPLIER_DOCS[doc].label}
         {saved > 0 && <span className="text-xs text-[var(--muted)]">· 저장된 파일 {saved}개</span>}
       </label>
-      <input ref={input} type="file" name={`file_${doc}`} accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => pick(e.currentTarget.files)} />
+      <input ref={input} type="file" data-assist="upload" name={`file_${doc}`} accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => pick(e.currentTarget.files)} />
       <button type="button" disabled={busy} onClick={() => input.current?.click()} className="rounded border border-dashed border-[var(--line-strong)] px-2 py-1 text-xs hover:bg-[var(--accent-soft)] disabled:opacity-50">
         {busy ? "줄이는 중…" : names.length ? "다시 고르기" : "+ 파일 붙이기"}
       </button>
