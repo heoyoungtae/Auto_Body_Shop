@@ -2673,6 +2673,231 @@ export const FIELD_HELP = {
     example: "9장 현장 확인 기록 보충",
     maxLength: 200,
   },
+  "inc.kind": {
+    label: "구분",
+    hint: "다쳤거나 피해가 났으면 사고, 다칠 뻔했으면 아차사고",
+    detail:
+      "아차사고도 꼭 보고합니다. 보고한 사람을 탓하지 않습니다(STD-09 9.6).",
+  },
+  "inc.occurredOn": { label: "일어난 날", hint: "오늘이 골라져 있습니다" },
+  "inc.occurredTime": { label: "일어난 시각", hint: "대략이면 됩니다" },
+  "inc.place": {
+    label: "장소",
+    hint: "구역이나 설비",
+    example: "C 도장 부스",
+    detail: "칸을 누르면 구역 목록이 나옵니다.",
+    maxLength: 60,
+  },
+  "inc.process": { label: "공정", hint: "무슨 작업 중이었는지" },
+  "inc.description": {
+    label: "경위",
+    hint: "무엇을 하다가 어떻게 됐는지",
+    example: "리프트로 차를 올리던 중 받침 패드가 미끄러져 차량이 기울었음",
+    maxLength: 1000,
+  },
+  "inc.severity": {
+    label: "부상 정도",
+    hint: "다친 사람이 없으면 '부상 없음'",
+    detail:
+      "휴업(하루 이상 일을 못 함)이나 중대(사망·중상)는 법정 신고 대상인지 확인합니다. 중대재해는 즉시 보고해야 합니다.",
+  },
+  "inc.injured": {
+    label: "다친 사람",
+    hint: "이름(직원·외주·고객)",
+    detail:
+      "암호화해 저장하고 안전환경 담당·공장장·대표와 보고한 사람만 봅니다.",
+    maxLength: 60,
+  },
+  "inc.injury": {
+    label: "부상 내용",
+    hint: "어디를 어떻게 다쳤는지",
+    example: "왼손 검지 베임, 병원 2바늘",
+    detail: "건강 정보라 암호화해 저장합니다.",
+    maxLength: 200,
+  },
+  "inc.damage": {
+    label: "물적 피해",
+    hint: "차량·설비·자재 피해",
+    example: "고객 차량 앞 범퍼 긁힘",
+    maxLength: 200,
+  },
+  "inc.immediate": {
+    label: "응급 조치",
+    hint: "바로 한 일",
+    example: "작업 중지, 전원 차단, 구급함 소독",
+    maxLength: 200,
+  },
+  "inc.cause": {
+    label: "원인",
+    hint: "왜 일어났는지(사람·방법·설비·재료·환경)",
+    example: "받침 패드 마모, 들기 전 위치 확인 절차 없음",
+    detail:
+      "왜를 다섯 번 물어 근본 원인까지 적습니다. 부적합 보고서의 원인 분석과 같이 씁니다.",
+    maxLength: 500,
+  },
+  "inc.prevention": {
+    label: "재발 방지",
+    hint: "같은 일이 다시 안 생기게 할 대책",
+    example: "패드 교체, 리프트 일일 점검에 패드 상태 추가, 교육",
+    maxLength: 500,
+  },
+  "inc.legalNeeded": {
+    label: "법정 신고",
+    hint: "관할 노동관서 등에 신고할 사고인지",
+    detail:
+      "휴업·중대 사고는 '신고 대상'이 골라져 있습니다. 산업재해조사표 제출 기준과 기한은 법규 대장(산업안전보건법)에서 확인합니다.",
+  },
+  "inc.legalReportedOn": {
+    label: "신고한 날",
+    hint: "신고 대상이면 꼭 적습니다",
+  },
+  "inc.legalNote": {
+    label: "판단 근거·신고 메모",
+    hint: "대상 아님으로 본 이유나 접수 번호",
+    example: "휴업 1일, 3일 미만이라 조사표 대상 아님",
+    maxLength: 200,
+  },
+  "inc.hazardReview": {
+    label: "위험성평가 검토",
+    hint: "수시 평가를 했는지",
+    example: "HA-2611-0002 수시 평가로 반영 / 기존 평가에 이미 있음, 변경 없음",
+    detail:
+      "사고가 나면 위험성평가를 다시 봅니다(STD-09 4.5). '이 사고로 수시 위험성평가 시작'을 누르면 경위가 채워진 평가가 열립니다.",
+    maxLength: 200,
+  },
+  "chem.name": {
+    label: "제품명",
+    hint: "용기·MSDS의 제품명 그대로",
+    example: "2K 우레탄 클리어 HS",
+    maxLength: 80,
+  },
+  "chem.maker": { label: "제조사", hint: "만든 회사", maxLength: 60 },
+  "chem.category": {
+    label: "분류",
+    hint: "무엇에 쓰는 물질인지",
+    detail:
+      "고르면 9.3 표에 따라 필요한 보호구와 인화성이 채워지고, 같은 분류의 지난 보관 장소를 불러옵니다.",
+  },
+  "chem.hazards": {
+    label: "주요 유해 성분",
+    hint: "MSDS 3번 항목의 주요 성분",
+    example: "이소시아네이트, 자일렌, 아세트산 부틸",
+    maxLength: 200,
+  },
+  "chem.monthlyUse": {
+    label: "월 사용량",
+    hint: "대략",
+    example: "4L",
+    maxLength: 30,
+  },
+  "chem.location": {
+    label: "보관 장소",
+    hint: "어디에 두는지",
+    example: "위험물 보관함 2칸",
+    detail:
+      "인화성 물질은 위험물 보관함(환기·접지)에 둡니다. 작업장으로는 그날 쓸 양만 꺼냅니다.",
+    maxLength: 60,
+  },
+  "chem.flammable": {
+    label: "인화성",
+    hint: "MSDS 2번 항목에 인화성 표시가 있는지",
+    detail:
+      "인화성이면 위험물 보관함에 두고, 저장량은 지정수량 미만으로 유지합니다(법규 대장 위험물안전관리법).",
+  },
+  "chem.ppe": {
+    label: "필요 보호구",
+    hint: "취급할 때 꼭 쓸 것",
+    detail:
+      "분류에 맞춰 골라 두었습니다. MSDS 8번 항목(노출 방지·개인 보호구)을 보고 고칩니다.",
+  },
+  "chem.msdsRevisedOn": {
+    label: "MSDS 개정일",
+    hint: "MSDS 맨 끝의 작성·개정 일자",
+    detail: "공급처에서 새 판을 받으면 파일과 함께 바꿉니다.",
+  },
+  "chem.trainedOn": {
+    label: "MSDS 교육일",
+    hint: "취급자에게 교육한 날",
+    detail:
+      "새 물질을 들이면 취급자에게 MSDS 교육을 합니다(9.2). 교육 이수는 교육 기록(F-11-03)에도 남깁니다.",
+  },
+  "chem.note": {
+    label: "메모",
+    hint: "참고할 것(소분 용기 위치 등)",
+    maxLength: 300,
+  },
+  "haz.kind": {
+    label: "종류",
+    hint: "최초(개업 전) · 정기(매년 1월) · 수시(변경·사고)",
+  },
+  "haz.reason": {
+    label: "이유·변경 내용",
+    hint: "수시 평가면 무엇이 바뀌었는지",
+    example: "수용성 베이스코트로 바꿈",
+    maxLength: 300,
+  },
+  "haz.participants": {
+    label: "참여 작업자",
+    hint: "면담·관찰에 참여한 사람",
+    detail:
+      "근로자가 평가에 참여해야 합니다. 확정하면 이 사람들에게 결과가 공유됩니다.",
+  },
+  "haz.copy": {
+    label: "시작 방법",
+    hint: "지난 평가를 불러와 바뀐 것만 고치는 것이 빠릅니다",
+    detail:
+      "대책을 끝낸 줄은 잔류 점수로, 한 대책은 '현재 관리'에 더해 불러옵니다.",
+  },
+  "haz.process": { label: "공정", hint: "어느 작업에서 생기는 위험인지" },
+  "haz.hazard": {
+    label: "유해·위험 요인",
+    hint: "무엇 때문에 다칠 수 있는지",
+    example: "이소시아네이트 흡입",
+    maxLength: 120,
+  },
+  "haz.current": {
+    label: "현재 관리",
+    hint: "지금 하고 있는 대비",
+    example: "도장 부스 배기, 방독 마스크",
+    maxLength: 200,
+  },
+  "haz.likelihood": { label: "가능성", hint: "1 드묾 · 2 가끔 · 3 자주" },
+  "haz.severity": {
+    label: "중대성",
+    hint: "1 가벼운 부상 · 2 치료·휴업 · 3 중상·사망·화재",
+  },
+  "haz.measureType": {
+    label: "대책 종류",
+    hint: "위에 있을수록 먼저",
+    detail:
+      "제거 → 대체(저VOC·수용성 도료) → 공학적(부스 배기·국소 배기) → 관리적(절차·교육) → 보호구 순으로 찾습니다(STD-09 4.3).",
+  },
+  "haz.measure": {
+    label: "감소 대책",
+    hint: "무엇을 할지",
+    example: "조색실 국소 배기 후드 설치",
+    maxLength: 200,
+  },
+  "haz.ownerId": {
+    label: "대책 담당",
+    hint: "대책을 실행할 사람",
+    detail: "기한 7일 전부터 그 사람 내 할 일에 뜹니다.",
+  },
+  "haz.due": { label: "대책 기한", hint: "언제까지 끝낼지" },
+  "haz.result": {
+    label: "한 일",
+    hint: "대책을 어떻게 실행했는지",
+    example: "후드 설치 11/25, 풍속 확인",
+    maxLength: 200,
+  },
+  "haz.residualL": {
+    label: "대책 뒤 가능성",
+    hint: "평가 점수를 불러와 두었습니다",
+  },
+  "haz.residualS": {
+    label: "대책 뒤 중대성",
+    hint: "평가 점수를 불러와 두었습니다",
+  },
   "tool.name": {
     label: "품명",
     hint: "무슨 치공구인지",

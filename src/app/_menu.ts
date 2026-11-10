@@ -94,7 +94,9 @@ export const MENU: MenuGroup[] = [
     id: "safety",
     label: "안전·환경",
     items: [
-      { label: "안전 점검", roles: ["owner", "plant_manager", "safety"], phase: "2차", std: "STD-09" },
+      { label: "사고·아차사고", href: "/incidents", std: "STD-09.6" },
+      { label: "화학물질·MSDS", href: "/chemicals", std: "STD-09.2" },
+      { label: "위험성평가", href: "/hazards", std: "STD-09.1" },
       { label: "환경 관리", roles: ["owner", "plant_manager", "safety"], phase: "2차", std: "STD-10" },
     ],
   },

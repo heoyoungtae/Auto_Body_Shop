@@ -1712,6 +1712,101 @@ export const PAGE_HELP = {
       "대표는 승인하거나 보완을 요청합니다.",
     ],
   },
+  incidents: {
+    title: "사고·아차사고",
+    purpose:
+      "다치거나 다칠 뻔한 일을 보고하고 원인과 재발 방지를 기록합니다(F-09-03, STD-09 9절).",
+    who: "보고: 누구나 · 조사: 공장장·안전환경 담당 · 종결: 안전환경 담당·대표",
+    steps: [
+      "부상자 구호가 먼저, 화재·중상은 119가 먼저입니다.",
+      "'사고 보고'나 '아차사고 보고'를 누르고 경위를 적습니다(당일).",
+      "공장장·안전환경 담당이 24시간 안에 원인과 재발 방지를 적습니다.",
+      "법정 신고 여부와 위험성평가 검토를 적고 종결합니다.",
+    ],
+  },
+  "incidents.new": {
+    title: "사고·아차사고 보고",
+    purpose:
+      "다쳤거나 다칠 뻔한 일을 바로 보고합니다. 보고한 사람을 탓하지 않습니다.",
+    who: "누구나",
+    steps: [
+      "사고인지 아차사고인지 고릅니다.",
+      "언제·어디서·무엇을 하다가 어떻게 됐는지 적습니다.",
+      "다친 사람이 있으면 부상 정도와 내용을 적습니다(암호화 저장).",
+    ],
+  },
+  "incidents.detail": {
+    title: "사고·아차사고 보고서",
+    purpose: "한 건의 경위·원인·재발 방지·신고·위험성평가 검토를 봅니다.",
+    who: "조사: 공장장·안전환경 담당 · 종결: 안전환경 담당·대표",
+    steps: [
+      "원인(왜를 다섯 번)과 재발 방지 대책을 적습니다.",
+      "'이 사고로 수시 위험성평가 시작'으로 평가를 다시 봅니다.",
+      "법정 신고 여부를 정하고 종결합니다.",
+    ],
+  },
+  chemicals: {
+    title: "화학물질·MSDS",
+    purpose:
+      "작업장에서 쓰는 도료·시너·경화제·퍼티·세정제의 목록과 MSDS입니다(F-09-02, STD-09 5절). 누구나 MSDS를 열어 봅니다.",
+    who: "보기: 누구나 · 등록·MSDS: 안전환경 담당·대표 · 교육 기록: 공장장도",
+    steps: [
+      "쓰기 전에 MSDS에서 위험과 필요 보호구를 확인합니다.",
+      "새 물질은 반입 전에 MSDS를 받아 등록합니다.",
+      "등록하면 공장장이 취급자에게 MSDS 교육을 하고 교육일을 적습니다.",
+    ],
+  },
+  "chemicals.new": {
+    title: "화학물질 등록",
+    purpose: "새 화학물질을 목록에 올리고 MSDS를 붙입니다.",
+    who: "안전환경 담당 · 대표",
+    steps: [
+      "제품명·분류를 적으면 보호구와 인화성이 채워집니다.",
+      "보관 장소를 적습니다(인화성은 위험물 보관함).",
+      "MSDS 파일을 골라 등록합니다.",
+    ],
+  },
+  "chemicals.detail": {
+    title: "화학물질",
+    purpose: "한 물질의 MSDS·보호구·보관·교육을 봅니다.",
+    who: "보기: 누구나 · 고치기: 안전환경 담당·대표",
+    steps: [
+      "MSDS를 열어 위험과 보호구를 확인합니다.",
+      "새 판을 받으면 'MSDS 새 판으로 바꾸기'를 합니다.",
+    ],
+  },
+  hazards: {
+    title: "위험성평가",
+    purpose:
+      "공정별 유해·위험 요인을 가능성×중대성으로 매기고 4점 이상은 감소 대책을 세웁니다(F-09-01, STD-09 4절).",
+    who: "작성·확정: 안전환경 담당·대표 · 보기: 누구나(확정분) · 대책 기록: 대책 담당",
+    steps: [
+      "개업 전 최초, 매년 1월 정기, 변경·사고 때 수시로 '평가 시작'을 합니다.",
+      "작업자 면담·현장 관찰로 줄을 고치고 더합니다.",
+      "4점 이상은 대책·담당·기한을 정하고 확정합니다.",
+      "대책 담당은 실행하고 잔류 점수를 적습니다.",
+    ],
+  },
+  "hazards.new": {
+    title: "위험성평가 시작",
+    purpose: "평가 종류와 참여 작업자를 정하고 지난 평가를 불러옵니다.",
+    who: "안전환경 담당 · 대표",
+    steps: [
+      "종류(최초·정기·수시)를 고릅니다.",
+      "참여 작업자를 고릅니다.",
+      "지난 평가 줄을 불러와 시작합니다.",
+    ],
+  },
+  "hazards.detail": {
+    title: "위험성평가표",
+    purpose: "평가표 줄과 대책·잔류 위험을 봅니다.",
+    who: "작성: 안전환경 담당·대표 · 대책: 대책 담당",
+    steps: [
+      "줄마다 '고치기'로 점수·대책을 고칩니다.",
+      "모든 4점 이상 줄에 대책이 있으면 확정합니다.",
+      "대책을 하면 '대책 끝'과 잔류 점수를 적습니다.",
+    ],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -1803,6 +1898,15 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/audits": "audits",
   "/audits/new": "audits.new",
   "/audits/[id]": "audits.detail",
+  "/incidents": "incidents",
+  "/incidents/new": "incidents.new",
+  "/incidents/[id]": "incidents.detail",
+  "/chemicals": "chemicals",
+  "/chemicals/new": "chemicals.new",
+  "/chemicals/[id]": "chemicals.detail",
+  "/hazards": "hazards",
+  "/hazards/new": "hazards.new",
+  "/hazards/[id]": "hazards.detail",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",
