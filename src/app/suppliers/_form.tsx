@@ -4,7 +4,8 @@ import { CheckGroup, NumberField, TextAreaField, TextField } from "../_input";
 
 type S = { name: string; bizNo: string | null; kinds: string[]; items: string | null; contactName: string | null; phone: string | null; email: string | null; leadDays: number | null; returnTerms: string | null; docs: string[]; note: string | null };
 
-export function SupplierFields({ s }: { s?: S }) {
+/** noNote: 메모 칸을 빼고 그린다(입금 계좌 칸 뒤에 SupplierNote 를 따로 둘 때) */
+export function SupplierFields({ s, noNote }: { s?: S; noNote?: boolean }) {
   return (
     <>
       <TextField help="sup.name" name="name" required defaultValue={s?.name} />
@@ -25,9 +26,15 @@ export function SupplierFields({ s }: { s?: S }) {
       <div className="md:col-span-2">
         <CheckGroup help="sup.docs" name="docs" defaultChecked={s?.docs ?? []} options={Object.entries(SUPPLIER_DOCS).map(([value, d]) => ({ value, label: d.label }))} />
       </div>
-      <div className="md:col-span-2">
-        <TextAreaField help="sup.note" name="note" rows={2} defaultValue={s?.note ?? ""} />
-      </div>
+      {!noNote && <SupplierNote s={s} />}
     </>
+  );
+}
+
+export function SupplierNote({ s }: { s?: S }) {
+  return (
+    <div className="md:col-span-2">
+      <TextAreaField help="sup.note" name="note" rows={2} defaultValue={s?.note ?? ""} />
+    </div>
   );
 }
