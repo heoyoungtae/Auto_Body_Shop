@@ -64,7 +64,7 @@ export const MENU: MenuGroup[] = [
       { label: "예방정비", perm: ["equip.check"], href: "/equipment/pm", std: "STD-08.6" },
       { label: "측정 장비 교정", perm: ["equip.calibrate"], href: "/equipment?f=gauge", std: "STD-08.3" },
       { label: "3정5S 점검", href: "/five-s", std: "STD-08.8~11" },
-      { label: "치공구", perm: ["equip.check"], phase: "2차", std: "STD-08.7" },
+      { label: "치공구", perm: ["equip.check"], href: "/tools", std: "STD-08.7" },
       { label: "개선 제안", phase: "2차", std: "STD-08.12" },
     ],
   },

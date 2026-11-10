@@ -193,3 +193,29 @@ export function pmKpi(input: { due: number; done: number; failures: number; down
     mtbfDays: input.failures ? Math.round((input.periodDays / input.failures) * 10) / 10 : null,
   };
 }
+
+// ── 치공구(STD-08 8.7, F-08-08) ──
+export const TOOL_KEEP = { board: "공용(쉐도우 보드)", personal: "개인 공구함" } as const;
+export type ToolKeep = keyof typeof TOOL_KEEP;
+export const TOOL_STATUS = { ok: "사용 가능", repair: "수리 중", lost: "분실", disposed: "폐기" } as const;
+export type ToolStatus = keyof typeof TOOL_STATUS;
+export const TOOL_TONE: Record<ToolStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { ok: "ok", repair: "warn", lost: "danger", disposed: "neutral" };
+/** 분기 점검 결과(10.4): 마모·파손·누락 */
+export const TOOL_CHECK = { ok: "양호", worn: "마모", broken: "파손", missing: "누락(없음)" } as const;
+export type ToolCheck = keyof typeof TOOL_CHECK;
+/** 불량이면 결정: 수리·교체·폐기, 또는 지켜봄(마모가 가벼울 때) */
+export const TOOL_DECISION = { keep: "그대로 씀(지켜봄)", repair: "수리", replace: "교체(새로 구입)", dispose: "폐기" } as const;
+export type ToolDecision = keyof typeof TOOL_DECISION;
+
+export function nextToolNo(existing: string[]) {
+  const n = existing.map((x) => Number(/^TL-(\d+)$/.exec(x)?.[1] ?? 0)).reduce((a, b) => Math.max(a, b), 0) + 1;
+  return `TL-${String(n).padStart(3, "0")}`;
+}
+
+/** 'YYYY-MM-DD' → 'YYYY-Qn' */
+export function quarterOf(date: string) {
+  return `${date.slice(0, 4)}-Q${Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1}`;
+}
+
+/** 분기 마지막 달인지(3·6·9·12월): 이 달에 점검을 마친다 */
+export const quarterEndMonth = (date: string) => Number(date.slice(5, 7)) % 3 === 0;

@@ -259,3 +259,57 @@ export const pmTask = pgTable(
   },
   (t) => [index("pm_task_due").on(t.dueOn), uniqueIndex("pm_task_item_due_uq").on(t.itemId, t.dueOn)],
 );
+
+/**
+ * 치공구 대장(F-08-08, STD-08 8.7). no: 관리 번호(TL-001).
+ * keep: board 공용(쉐도우 보드 정위치) · personal 개인 공구함(holderId).
+ * special: 고가·특수 치공구 → 반출할 때 반출자·시각·반납 시각을 남긴다(outBy·outAt·outNote 는 지금 반출 중인 것).
+ * status: ok 사용 가능 · repair 수리 중 · lost 분실 · disposed 폐기
+ */
+export const tool = pgTable(
+  "tool",
+  {
+    id: id(),
+    no: text("no").notNull(),
+    name: text("name").notNull(),
+    spec: text("spec"),
+    purchasedOn: text("purchased_on"),
+    location: text("location"),
+    keep: text("keep").notNull().default("board"),
+    holderId: uuid("holder_id").references(() => appUser.id),
+    managerId: uuid("manager_id").references(() => appUser.id),
+    special: boolean("special").notNull().default(false),
+    status: text("status").notNull().default("ok"),
+    outBy: uuid("out_by").references(() => appUser.id),
+    outAt: timestamp("out_at", { withTimezone: true }),
+    outNote: text("out_note"),
+    labeledAt: timestamp("labeled_at", { withTimezone: true }),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("tool_no_uq").on(t.no)],
+);
+
+/**
+ * 치공구 이력: register 등록 · edit 고침 · out 반출 · return 반납 · check 분기 점검(result·decision) · lost 분실 · found 되찾음 ·
+ * repaired 수리 끝 · label 라벨 · dispose 폐기. quarter: 분기 점검이면 'YYYY-Qn'
+ */
+export const toolEvent = pgTable(
+  "tool_event",
+  {
+    id: id(),
+    toolId: uuid("tool_id")
+      .notNull()
+      .references(() => tool.id),
+    kind: text("kind").notNull(),
+    result: text("result"),
+    decision: text("decision"),
+    quarter: text("quarter"),
+    detail: text("detail"),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tool_event_tool_idx").on(t.toolId, t.at)],
+);
