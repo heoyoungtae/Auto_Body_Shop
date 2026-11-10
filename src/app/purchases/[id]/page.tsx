@@ -6,7 +6,7 @@ import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { getOrder } from "@/modules/purchase/order";
 import { lateForRepair, PO_KINDS, PO_STATUS, PO_TONE, RECEIPT_CHECKS, SENT_VIA, SUPPLIER_STATUS, type PoKind, type PoStatus, type SupplierStatus } from "@/modules/purchase/rules";
 import { listStock } from "@/modules/purchase/stock";
-import { supplierOptions } from "@/modules/purchase/supplier";
+import { supplierBank, supplierOptions } from "@/modules/purchase/supplier";
 import { PART_CODES } from "@/modules/repair/estimate-rules";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
@@ -15,6 +15,7 @@ import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { PhotoStrip } from "../../photo-strip";
+import { BankLine } from "../../suppliers/bank-line";
 import { orderAction, removeReceiptPhotoAction, uploadReceiptPhotoAction } from "../actions";
 
 const STEPS: PoStatus[] = ["draft", "review", "approved", "sent", "received"];
@@ -37,6 +38,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
   const approverRole = o.approverRole as Role | null;
   const canApprove = status === "review" && approverRole && (user.roles.includes(approverRole) || user.roles.includes("owner")) && (o.createdBy !== user.id || user.roles.includes("owner"));
   const [sups, stock] = draft ? await Promise.all([supplierOptions(db, o.kind === "repair" ? "parts" : undefined), o.kind === "stock" ? listStock(db, "all") : Promise.resolve([])]) : [[], []];
+  const bank = sup && can(user, "supplier.bank") && (status === "partial" || status === "received") ? await supplierBank(db, user, sup.id) : undefined;
   const lineName = new Map(lines.map((l) => [l.id, l.name]));
   const anyPaint = lines.some((l) => l.stockItemId && items.get(l.stockItemId)?.expiryTracked);
   const left = lines.filter((l) => l.qty > l.receivedQty);
@@ -348,6 +350,12 @@ export default async function PurchasePage({ params, searchParams }: { params: P
 
         {(status === "partial" || status === "received") && (
           <Card title="세금계산서·거래명세서" help={{ kind: "panel", id: "po.invoice" }}>
+            {bank !== undefined && sup && (
+              <div className="mb-3 rounded-md bg-[var(--surface-2)] p-2">
+                <p className="mb-1 text-xs text-[var(--muted)]">대금 입금 계좌(협력업체 대장에서 불러옴)</p>
+                <BankLine bank={bank} supplierId={sup.id} />
+              </div>
+            )}
             {o.invoiceNo ? (
               <dl className="text-sm">
                 {row("번호", o.invoiceNo)}

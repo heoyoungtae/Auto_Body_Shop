@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { EVAL_ITEMS } from "@/modules/purchase/rules";
-import { confirmAnnual, createSupplier, decideSupplier, evaluateAnnual, evaluateInitial, stopSupplier, updateSupplier, type SupplierInput } from "@/modules/purchase/supplier";
+import { confirmAnnual, createSupplier, decideSupplier, evaluateAnnual, evaluateInitial, setSupplierBank, stopSupplier, updateSupplier, verifySupplierBank, type SupplierInput } from "@/modules/purchase/supplier";
 import { UserError } from "@/modules/platform/errors";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
@@ -45,6 +45,7 @@ export async function supplierAction(form: FormData) {
   const s = str(form);
   const id = s("id");
   const back = `/suppliers/${id}`;
+  const anchor = ["bank", "bankVerify"].includes(s("intent")) ? "#bank" : "";
   let msg = "저장했습니다";
   try {
     const db = await getDb();
@@ -67,9 +68,20 @@ export async function supplierAction(form: FormData) {
       const stop = s("stop") === "1";
       await stopSupplier(db, user, id, stop, s("stopReason"));
       msg = stop ? "거래를 중지했습니다" : "거래를 다시 엽니다";
+    } else if (intent === "bank") {
+      const remove = s("remove") === "1";
+      const r = await setSupplierBank(db, user, id, { bankName: s("bankName"), accountNo: s("accountNo"), holder: s("holder"), remove });
+      msg = remove
+        ? "입금 계좌를 지웠습니다. 대표에게 알렸습니다"
+        : !r.changed
+          ? "바뀐 것이 없습니다"
+          : `입금 계좌를 저장했습니다. 다른 사람(대표)이 업체에 전화로 확인하면 지급에 씁니다${r.mismatch ? " — 예금주가 업체 이름과 다릅니다. 통장 사본을 다시 보세요" : ""}`;
+    } else if (intent === "bankVerify") {
+      await verifySupplierBank(db, user, id, s("verifyNote"));
+      msg = "계좌를 확인했습니다. 이제 지급 화면에 '확인됨'으로 나옵니다";
     } else throw new UserError("알 수 없는 요청");
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }
-  redirect(noticeUrl(back, msg));
+  redirect(noticeUrl(back, msg) + anchor);
 }

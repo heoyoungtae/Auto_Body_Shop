@@ -12,8 +12,37 @@ export const SUPPLIER_DOCS = {
   msds: { label: "MSDS(물질안전보건자료)", need: ["paint"] },
   license: { label: "인허가(정비업·폐기물 처리 등)", need: ["outsource", "waste"] },
   insurance: { label: "보험 가입(배상 책임)", need: ["outsource"] },
+  bankbook: { label: "통장 사본(입금 계좌)", need: [] },
 } as const satisfies Record<string, { label: string; need: SupplierKind[] }>;
 export type SupplierDoc = keyof typeof SUPPLIER_DOCS;
+
+/** 입금 계좌 은행 고르기 도우미(목록에 없으면 직접 적음) */
+export const BANKS = [
+  "KB국민", "신한", "우리", "하나", "NH농협", "IBK기업", "SC제일", "한국씨티", "카카오뱅크", "토스뱅크", "케이뱅크",
+  "부산", "경남", "대구(iM뱅크)", "광주", "전북", "제주", "수협", "새마을금고", "신협", "우체국", "산업", "지역농축협",
+] as const;
+
+/** 계좌번호: 숫자만 10~16자리. 하이픈·띄어쓰기는 빼고 저장 */
+export function bankAccountIssue(no: string): string | null {
+  const d = no.replace(/[\s-]/g, "");
+  if (!/^\d+$/.test(d)) return "계좌번호는 숫자와 - 만 적습니다";
+  if (d.length < 10 || d.length > 16) return "계좌번호는 숫자 10~16자리입니다";
+  return null;
+}
+
+/** 화면에 보일 가린 번호: 앞 3자리·끝 4자리만 */
+export function maskAccount(no: string): string {
+  const d = no.replace(/\D/g, "");
+  return `${d.slice(0, 3)}${"*".repeat(Math.max(0, d.length - 7))}${d.slice(-4)}`;
+}
+
+/** 예금주가 업체 이름과 많이 다르면 저장 전에 경고(법인 표기·띄어쓰기는 무시) */
+export function holderMismatch(holder: string, supplierName: string): boolean {
+  const n = (x: string) => x.replace(/\(주\)|㈜|주식회사|\(유\)|유한회사|\s|[()]/g, "").toLowerCase();
+  const h = n(holder);
+  const s = n(supplierName);
+  return !!h && !!s && !h.includes(s) && !s.includes(h);
+}
 
 export const SUPPLIER_STATUS = { candidate: "후보(평가 전)", proposed: "등록 승인 대기", registered: "등록", rejected: "등록 안 함", stopped: "거래 중지" } as const;
 export type SupplierStatus = keyof typeof SUPPLIER_STATUS;

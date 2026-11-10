@@ -176,6 +176,13 @@
       "when": 1794230514922,
       "tag": "0024_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794307107939,
+      "tag": "0025_supplier_bank",
+      "breakpoints": true
     }
   ]
 }

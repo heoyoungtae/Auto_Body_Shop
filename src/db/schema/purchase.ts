@@ -33,6 +33,19 @@ export const supplier = pgTable(
     approvedBy: uuid("approved_by").references(() => appUser.id),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     stopReason: text("stop_reason"),
+    /**
+     * 대금 입금 계좌. 계좌번호는 민감 키로 암호화(bankAccountEnc), 화면·감사 기록에는 가린 번호(bankAccountMasked)만.
+     * 바꾸면 확인(bankVerified*)이 풀리고, 계좌 권한자가 업체에 전화로 확인해야 지급에 씁니다(계좌 바꿔치기 사기 방지).
+     */
+    bankName: text("bank_name"),
+    bankAccountEnc: text("bank_account_enc"),
+    bankAccountMasked: text("bank_account_masked"),
+    bankHolder: text("bank_holder"),
+    bankChangedBy: uuid("bank_changed_by").references(() => appUser.id),
+    bankChangedAt: timestamp("bank_changed_at", { withTimezone: true }),
+    bankVerifiedBy: uuid("bank_verified_by").references(() => appUser.id),
+    bankVerifiedAt: timestamp("bank_verified_at", { withTimezone: true }),
+    bankVerifyNote: text("bank_verify_note"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

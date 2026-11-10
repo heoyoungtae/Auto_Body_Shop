@@ -5,7 +5,7 @@ import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { getOutsource } from "@/modules/purchase/outsource";
 import { OS_STATUS, OS_STEPS, OS_TONE, OUT_TYPES, type OsStatus, type OutType } from "@/modules/purchase/rules";
-import { supplierOptions } from "@/modules/purchase/supplier";
+import { supplierBank, supplierOptions } from "@/modules/purchase/supplier";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
 import { NumberField, TextAreaField, TextField } from "../../_input";
@@ -14,6 +14,7 @@ import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { PhotoStrip } from "../../photo-strip";
 import { outsourceAction, removeOsPhotoAction, uploadOsPhotoAction } from "../actions";
+import { BankLine } from "../../suppliers/bank-line";
 import { OutsourceFields } from "../_fields";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -35,6 +36,7 @@ export default async function OutsourcePage({ params, searchParams }: { params: 
   const nm = (u: string | null) => (u ? (names.get(u) ?? "-") : "-");
   const approverRole = j.approverRole as Role | null;
   const canApprove = status === "review" && approverRole && (user.roles.includes(approverRole) || user.roles.includes("owner")) && (j.createdBy !== user.id || user.roles.includes("owner"));
+  const bank = can(user, "supplier.bank") && ["requested", "out", "returned", "accepted"].includes(status) ? await supplierBank(db, user, sup.id) : undefined;
   const sups = status === "draft" && order ? await supplierOptions(db, "outsource") : [];
   const row = (k: string, v: React.ReactNode) => (
     <div className="flex gap-2 py-1">
@@ -196,6 +198,12 @@ export default async function OutsourcePage({ params, searchParams }: { params: 
           {status === "requested" && j.dueOn < today && <p className="mt-2 text-sm font-semibold text-[var(--danger)]">납기({j.dueOn})가 지났습니다. 업체에 확인하세요.</p>}
         </Card>
 
+        {bank !== undefined && (
+          <Card title="대금 지급 계좌" help={{ kind: "panel", id: "sup.bank" }}>
+            <p className="mb-1 text-xs text-[var(--muted)]">외주 금액 {won(j.amountWon)} · {sup.name}(협력업체 대장에서 불러옴)</p>
+            <BankLine bank={bank} supplierId={sup.id} />
+          </Card>
+        )}
         {["requested", "out", "returned", "accepted"].includes(status) && (
           <Card title="결과 사진·보정 성적서" help={{ kind: "panel", id: "os.photos" }}>
             <PhotoStrip fields={{ id }} upload={uploadOsPhotoAction} remove={removeOsPhotoAction} photos={j.resultPhotos} editable={status !== "accepted" && (order || notice)} label="외주 결과" />

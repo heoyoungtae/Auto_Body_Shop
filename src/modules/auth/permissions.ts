@@ -41,6 +41,7 @@ export const PERMS = {
   "supplier.approve": { area: "구매·자재", label: "협력업체 등록 승인·정기 평가 확정·거래 중지", std: "STD-07 4절·부록 B", roles: ["owner"] },
   "purchase.order": { area: "구매·자재", label: "발주 요청·발주서 보내기·외주 의뢰·외주 결과 확인", std: "STD-07 5·8절", roles: ["plant_manager", "owner"], note: "승인은 전결 규정 '발주·외주'(50만 원 이하 공장장, 넘으면 대표). 공장장 본인 요청은 대표" },
   "purchase.receive": { area: "구매·자재", label: "입고 검수(수량·외관 확인)", std: "STD-07 6절", roles: ["technician", "plant_manager", "owner"] },
+  "supplier.bank": { area: "구매·자재", label: "협력업체 입금 계좌 보기(전체 번호)·등록·변경 확인", std: "STD-07 4절·STD-12", roles: ["accounting", "owner"] },
   "purchase.invoice": { area: "구매·자재", label: "세금계산서·거래명세서 연결", std: "STD-07 6.5·STD-12", roles: ["accounting", "owner"] },
   "stock.use": { area: "구매·자재", label: "자재 사용 기록", std: "STD-07 7절", roles: ["technician", "plant_manager", "owner"] },
   "stock.manage": { area: "구매·자재", label: "재고 품목 등록·안전 재고·실사·폐기", std: "STD-07 7절", roles: ["plant_manager", "owner"] },

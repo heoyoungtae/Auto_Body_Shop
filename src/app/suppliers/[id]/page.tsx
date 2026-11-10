@@ -15,7 +15,7 @@ import {
   type PoStatus,
   type SupplierStatus,
 } from "@/modules/purchase/rules";
-import { getSupplier } from "@/modules/purchase/supplier";
+import { getSupplier, supplierBank } from "@/modules/purchase/supplier";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
 import { NumberField, RadioRow, TextAreaField, TextField } from "../../_input";
@@ -24,6 +24,8 @@ import { SubmitButton } from "../../_submit";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { supplierAction } from "../actions";
 import { SupplierFields } from "../_form";
+import { BankFields } from "../bank-fields";
+import { BankLine } from "../bank-line";
 
 /** 협력업체 한 곳(F-07-01): 정보·서류, 등록 평가 → 대표 승인, 정기 평가 → 대표 확정, 거래 중지 */
 export default async function SupplierPage({
@@ -42,6 +44,8 @@ export default async function SupplierPage({
   const { s, evals, names, stats, suggested, orders, year, missing } = r;
   const manage = can(user, "supplier.manage");
   const approve = can(user, "supplier.approve");
+  const bankPerm = can(user, "supplier.bank");
+  const bank = await supplierBank(db, user, id);
   const status = s.status as SupplierStatus;
   const nm = (u: string | null) => (u ? (names.get(u) ?? "-") : "-");
   const december = seoulDate().slice(5, 7) === "12";
@@ -146,6 +150,48 @@ export default async function SupplierPage({
             </details>
           )}
         </Card>
+
+        <div id="bank" className="scroll-mt-4">
+          <Card title="입금 계좌" help={{ kind: "panel", id: "sup.bank" }}>
+            <BankLine bank={bank} supplierId={id} here />
+            {bank && <p className="mt-1 text-xs text-[var(--muted)]">넣은·바꾼 사람 {nm(bank.changedBy)} · {fmtTime(bank.changedAt)}{!bankPerm && " · 전체 번호는 회계 담당·대표만 봅니다"}</p>}
+            {bankPerm && bank && !bank.verified && (bank.changedBy !== user.id || user.roles.includes("owner")) && (
+              <AssistForm id={`sup-bankv-${id}`} action={supplierAction} className="mt-3 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="id" value={id} />
+                <input type="hidden" name="intent" value="bankVerify" />
+                <div className="min-w-64 flex-1">
+                  <TextField help="sup.bankVerifyNote" name="verifyNote" required />
+                </div>
+                <SubmitButton>전화로 확인함</SubmitButton>
+              </AssistForm>
+            )}
+            {bankPerm && bank && !bank.verified && bank.changedBy === user.id && !user.roles.includes("owner") && (
+              <p className="mt-2 text-sm text-[var(--muted)]">계좌를 넣은 사람이 아닌 대표가 업체에 전화로 확인합니다.</p>
+            )}
+            {bankPerm && (
+              <details className="mt-3" open={!bank}>
+                <summary className="cursor-pointer text-sm text-[var(--accent)]">{bank ? "계좌 바꾸기" : "계좌 넣기"}</summary>
+                <AssistForm id={`sup-bank-${id}`} action={supplierAction} className="mt-3 grid gap-3 md:grid-cols-2">
+                  <input type="hidden" name="id" value={id} />
+                  <input type="hidden" name="intent" value="bank" />
+                  <BankFields supplierName={s.name} bankName={bank?.bankName ?? ""} holder={bank?.holder ?? ""} hasAccount={!!bank} />
+                  <p className="text-xs text-[var(--muted)] md:col-span-2">통장 사본을 받아 보고 넣으세요. 받은 사본은 &apos;확인한 서류 › 통장 사본&apos;에 체크합니다.</p>
+                  <div className="md:col-span-2">
+                    <SubmitButton>저장</SubmitButton>
+                  </div>
+                </AssistForm>
+                {bank && (
+                  <AssistForm id={`sup-bankdel-${id}`} action={supplierAction} className="mt-2">
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="intent" value="bank" />
+                    <input type="hidden" name="remove" value="1" />
+                    <SubmitButton variant="secondary">계좌 지우기</SubmitButton>
+                  </AssistForm>
+                )}
+              </details>
+            )}
+          </Card>
+        </div>
 
         {(status === "candidate" ||
           status === "rejected" ||

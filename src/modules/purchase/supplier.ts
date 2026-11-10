@@ -5,6 +5,7 @@
 import { and, desc, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, purchaseLine, purchaseOrder, purchaseReceipt, supplier, supplierEval } from "@/db/schema";
+import { decrypt, encrypt } from "@/modules/auth/crypto";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
@@ -14,6 +15,9 @@ import { loadPolicy } from "@/modules/platform/policy";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import {
   annualOutcome,
+  bankAccountIssue,
+  holderMismatch,
+  maskAccount,
   EMERGENCY_DAYS,
   EVAL_ITEMS,
   evalIssues,
@@ -217,6 +221,113 @@ export async function confirmAnnual(db: Db, actor: Actor, evalId: string, now = 
   return outcome;
 }
 
+/**
+ * 입금 계좌 등록·변경(계좌 권한: 회계·대표). 번호는 민감 키로 암호화하고 감사 기록에는 가린 번호만 남긴다.
+ * 바꾸면 확인이 풀리고 대표에게 알림이 간다(계좌 바꿔치기 사기 방지). remove 면 계좌를 지운다.
+ */
+export async function setSupplierBank(db: Db, actor: Actor, id: string, input: { bankName: string; accountNo: string; holder: string; remove?: boolean }, now = new Date()) {
+  if (!can(actor, "supplier.bank")) throw new SupplierError("입금 계좌는 회계 담당·대표가 넣습니다");
+  const s = await supRow(db, id);
+  const clear = !!input.remove;
+  if (clear && !s.bankAccountEnc) throw new SupplierError("지울 계좌가 없습니다");
+  const bankName = input.bankName.trim();
+  const typed = input.accountNo.replace(/[\s-]/g, "");
+  // 번호 칸을 비우면 지금 번호를 그대로 둔다(은행·예금주만 고칠 때)
+  const no = typed || (s.bankAccountEnc ? decrypt(s.bankAccountEnc) : "");
+  const holder = input.holder.trim();
+  if (!clear) {
+    if (!bankName) throw new SupplierError("은행을 골라 주세요");
+    if (!no) throw new SupplierError("계좌번호를 적어 주세요");
+    const issue = bankAccountIssue(no);
+    if (issue) throw new SupplierError(issue);
+    if (!holder) throw new SupplierError("예금주를 적어 주세요(통장 사본과 같게)");
+  }
+  const same = !clear && s.bankAccountEnc && s.bankName === bankName && s.bankHolder === holder && decrypt(s.bankAccountEnc) === no;
+  if (same) return { changed: false, mismatch: holderMismatch(holder, s.name) };
+  const masked = clear ? null : maskAccount(no);
+  await db
+    .update(supplier)
+    .set({
+      bankName: clear ? null : bankName,
+      bankAccountEnc: clear ? null : encrypt(no, "sensitive"),
+      bankAccountMasked: masked,
+      bankHolder: clear ? null : holder,
+      bankChangedBy: actor.id,
+      bankChangedAt: now,
+      bankVerifiedBy: null,
+      bankVerifiedAt: null,
+      bankVerifyNote: null,
+      updatedAt: now,
+    })
+    .where(eq(supplier.id, id));
+  const before = s.bankAccountMasked ? `${s.bankName} ${s.bankAccountMasked} ${s.bankHolder}` : null;
+  const after = masked ? `${bankName} ${masked} ${holder}` : null;
+  await writeAudit(db, { actorId: actor.id, action: "supplier.bank", entityType: "supplier", entityId: id, before: { account: before }, after: { account: after } });
+  if (before)
+    await notifyRole(db, "owner", `협력업체 입금 계좌 ${clear ? "삭제" : "변경"}: ${s.name} ${before} → ${after ?? "없음"} — 업체에 전화로 확인하세요`, `sup-bank-${id}-${now.getTime()}`, `/suppliers/${id}`);
+  return { changed: true, mismatch: !clear && holderMismatch(holder, s.name) };
+}
+
+/** 계좌 확인: 업체 대표 번호로 전화해 계좌를 확인했음을 남긴다. 바꾼 사람이 아닌 다른 사람이(대표는 본인 것도 가능) */
+export async function verifySupplierBank(db: Db, actor: Actor, id: string, note: string, now = new Date()) {
+  if (!can(actor, "supplier.bank")) throw new SupplierError("계좌 확인은 회계 담당·대표가 합니다");
+  const s = await supRow(db, id);
+  if (!s.bankAccountEnc) throw new SupplierError("확인할 계좌가 없습니다");
+  if (s.bankVerifiedAt) throw new SupplierError("이미 확인한 계좌입니다");
+  if (!note.trim()) throw new SupplierError("누구와 어떻게 확인했는지 적어 주세요(예: 업체 대표 번호로 전화, 김부장 확인)");
+  if (s.bankChangedBy === actor.id && !actor.roles.includes("owner")) throw new SupplierError("계좌를 넣은 사람이 아닌 다른 사람(대표)이 확인합니다");
+  await db.update(supplier).set({ bankVerifiedBy: actor.id, bankVerifiedAt: now, bankVerifyNote: note.trim(), updatedAt: now }).where(eq(supplier.id, id));
+  await writeAudit(db, { actorId: actor.id, action: "supplier.bank_verify", entityType: "supplier", entityId: id, after: { account: `${s.bankName} ${s.bankAccountMasked}`, note: note.trim() } });
+}
+
+export type SupplierBank = {
+  bankName: string;
+  masked: string;
+  /** 전체 번호(계좌 권한이 있을 때만) */
+  full: string | null;
+  holder: string;
+  verified: boolean;
+  verifiedAt: Date | null;
+  verifiedBy: string | null;
+  verifiedByName: string | null;
+  verifyNote: string | null;
+  changedAt: Date | null;
+  changedBy: string | null;
+};
+
+/** 지급·정산 화면에서 불러 쓸 입금 계좌. 권한이 없으면 가린 번호만 */
+export function bankView(actor: Actor, s: typeof supplier.$inferSelect): SupplierBank | null {
+  if (!s.bankAccountEnc || !s.bankName || !s.bankAccountMasked) return null;
+  return {
+    bankName: s.bankName,
+    masked: s.bankAccountMasked,
+    full: can(actor, "supplier.bank") ? decrypt(s.bankAccountEnc) : null,
+    holder: s.bankHolder ?? "",
+    verified: !!s.bankVerifiedAt,
+    verifiedAt: s.bankVerifiedAt,
+    verifiedBy: s.bankVerifiedBy,
+    verifiedByName: null,
+    verifyNote: s.bankVerifyNote,
+    changedAt: s.bankChangedAt,
+    changedBy: s.bankChangedBy,
+  };
+}
+
+export async function supplierBank(db: Db, actor: Actor, id: string) {
+  const b = bankView(actor, await supRow(db, id));
+  if (b?.verifiedBy) b.verifiedByName = (await db.select({ name: appUser.name }).from(appUser).where(eq(appUser.id, b.verifiedBy)))[0]?.name ?? null;
+  return b;
+}
+
+/** 내 할 일(계좌 권한): 바뀌고 아직 확인 안 한 입금 계좌 */
+export async function supplierBankTodos(db: Db, actor: Actor) {
+  if (!can(actor, "supplier.bank")) return [];
+  const rows = await db.select({ id: supplier.id, name: supplier.name, enc: supplier.bankAccountEnc, verifiedAt: supplier.bankVerifiedAt, changedBy: supplier.bankChangedBy }).from(supplier);
+  return rows
+    .filter((s) => s.enc && !s.verifiedAt && (s.changedBy !== actor.id || actor.roles.includes("owner")))
+    .map((s) => ({ key: `sup-bank-${s.id}`, when: "today" as const, what: `협력업체 입금 계좌 확인: ${s.name}`, detail: "업체 대표 번호로 전화해 은행·번호·예금주를 확인", href: `/suppliers/${s.id}#bank`, action: "확인하기" }));
+}
+
 export type SupplierFilter = "registered" | "candidate" | "stopped" | "all";
 
 export async function listSuppliers(db: Db, filter: SupplierFilter = "registered") {
@@ -239,7 +350,7 @@ export async function supplierOptions(db: Db, kind?: string) {
 export async function getSupplier(db: Db, id: string, now = new Date()) {
   const s = await supRow(db, id);
   const evals = await db.select().from(supplierEval).where(eq(supplierEval.supplierId, id)).orderBy(desc(supplierEval.evaluatedAt));
-  const uids = [...new Set([s.createdBy, s.approvedBy, ...evals.flatMap((e) => [e.evaluatedBy, e.confirmedBy])].filter((x): x is string => !!x))];
+  const uids = [...new Set([s.createdBy, s.approvedBy, s.bankChangedBy, s.bankVerifiedBy, ...evals.flatMap((e) => [e.evaluatedBy, e.confirmedBy])].filter((x): x is string => !!x))];
   const names = new Map((uids.length ? await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(inArray(appUser.id, uids)) : []).map((u) => [u.id, u.name]));
   const year = Number(seoulDate(now).slice(0, 4));
   const stats = await supplierStats(db, id, year);
@@ -249,7 +360,7 @@ export async function getSupplier(db: Db, id: string, now = new Date()) {
     .where(eq(purchaseOrder.supplierId, id))
     .orderBy(desc(purchaseOrder.createdAt))
     .limit(20);
-  return { s, evals, names, stats, suggested: suggestScores(stats), orders, year, missing: missingDocs(s.kinds, s.docs) };
+  return { s: { ...s, bankAccountEnc: null }, hasBank: !!s.bankAccountEnc, evals, names, stats, suggested: suggestScores(stats), orders, year, missing: missingDocs(s.kinds, s.docs) };
 }
 
 /** 내 할 일: 대표 등록 승인·정기 평가 확정, 공장장 긴급 사용 뒤 등록 평가, 12월 정기 평가 */
