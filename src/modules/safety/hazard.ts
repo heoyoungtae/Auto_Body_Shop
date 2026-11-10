@@ -107,14 +107,12 @@ export async function startAssessment(
         })
       : INITIAL_HAZARDS;
     for (const x of src)
-      await db
-        .insert(hazardRow)
-        .values({
-          assessmentId: r.id,
-          ...x,
-          score: x.likelihood * x.severity,
-          createdAt: now,
-        });
+      await db.insert(hazardRow).values({
+        assessmentId: r.id,
+        ...x,
+        score: x.likelihood * x.severity,
+        createdAt: now,
+      });
     rows = src.length;
   }
   await writeAudit(db, {

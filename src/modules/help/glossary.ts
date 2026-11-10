@@ -113,6 +113,11 @@ export const POLICY_HELP: Record<PolicyKey, string> = {
     "인허가·자격·검사 만료 몇 일 전에 첫 알림을 보낼지.",
   "legal.alert_days_second": "만료 몇 일 전에 두 번째 알림을 보낼지.",
   "legal.review_months": "법규 대장의 법령 개정 여부를 확인하는 주기.",
+  "waste.designated_days":
+    "지정폐기물(폐도료·폐시너·폐유·폐필터 등)을 보관할 수 있는 최대 날수. 첫 발생분부터 셉니다. 법정 한도는 법규 대장(폐기물관리법)에서 확인합니다.",
+  "waste.alert_days": "보관 한도 몇 일 전부터 위탁 처리하라고 알릴지.",
+  "env.filter_change_days":
+    "도장 부스 필터·활성탄을 바꾸는 기본 주기. 차압이 기준을 넘으면 주기 전이라도 바꿉니다.",
   "supplier.improve_below":
     "협력업체 평가 점수가 이 값 미만이면 개선 요청을 냅니다.",
   "supplier.stop_below":

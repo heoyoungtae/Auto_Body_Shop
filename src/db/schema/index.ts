@@ -11,3 +11,4 @@ export * from "./task";
 export * from "./purchase";
 export * from "./schedule";
 export * from "./safety";
+export * from "./environment";

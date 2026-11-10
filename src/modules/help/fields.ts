@@ -2898,6 +2898,78 @@ export const FIELD_HELP = {
     label: "대책 뒤 중대성",
     hint: "평가 점수를 불러와 두었습니다",
   },
+  "env.kind": {
+    label: "한 일",
+    hint: "필터·활성탄 교체, 자가측정, 유수분리조 점검, 누출 처리",
+    detail:
+      "자가측정 결과는 안전환경 담당이 올립니다. 대량 누출은 사고·아차사고로도 보고합니다.",
+  },
+  "env.equipmentId": {
+    label: "부스",
+    hint: "필터·활성탄을 바꾼 부스",
+    detail: "설비 대장의 도장 부스입니다. 하나뿐이면 골라져 있습니다.",
+  },
+  "env.on": { label: "한 날", hint: "오늘이 골라져 있습니다" },
+  "env.detail": {
+    label: "내용",
+    hint: "무엇을 어떻게 했는지",
+    example: "프리필터·천장 필터 교체, 차압 280Pa → 90Pa",
+    maxLength: 200,
+  },
+  "env.wasteKg": {
+    label: "나온 폐기물(kg)",
+    hint: "폐필터·흡수포 무게",
+    detail:
+      "적으면 폐기물 관리대장에 '발생'으로 함께 들어갑니다(교체는 폐필터·활성탄, 누출은 흡수포).",
+    maxLength: 10,
+  },
+  "env.result": {
+    label: "측정 결과",
+    hint: "자가측정이면 항목·값·기준 적합 여부",
+    example: "먼지 12mg/S㎥(기준 50), THC 적합 — ○○측정 성적서 2026-115",
+    maxLength: 300,
+  },
+  "env.signNote": {
+    label: "확인 의견",
+    hint: "운영 일지를 보고 남길 말",
+    example: "11/14 차압 높음 → 당일 필터 교체 확인",
+    maxLength: 200,
+  },
+  "waste.item": {
+    label: "품목",
+    hint: "어떤 폐기물인지(지정·일반·재활용)",
+    detail:
+      "섞지 말고 품목별로 나눠 담습니다(STD-10 6.1). 지정폐기물은 뚜껑 있는 전용 용기에, 품목·보관 시작일 표지를 붙입니다.",
+  },
+  "waste.qty": {
+    label: "양(kg)",
+    hint: "저울로 잰 무게",
+    example: "12.5",
+    detail: "올바로시스템과 같은 단위(kg)로 적습니다.",
+    maxLength: 10,
+  },
+  "waste.on": { label: "발생한 날", hint: "보관을 시작한 날" },
+  "waste.outOn": { label: "인계한 날", hint: "위탁 업체가 가져간 날" },
+  "waste.supplierId": {
+    label: "위탁 업체",
+    hint: "허가받은 수집·운반·처리 업체",
+    detail:
+      "협력업체에 '폐기물 위탁'으로 등록되고 허가증을 확인한 업체만 고를 수 있습니다.",
+  },
+  "waste.slipNo": {
+    label: "전자인계서 번호",
+    hint: "올바로시스템 인계서 번호",
+    example: "2026-1110-000123",
+    detail:
+      "지정폐기물은 꼭 적습니다. 인계 당일 올바로에 입력하고 관리대장 수량과 같은지 확인합니다(STD-10 6.4).",
+    maxLength: 40,
+  },
+  "waste.note": {
+    label: "메모",
+    hint: "참고할 것",
+    example: "조색실 2번 통",
+    maxLength: 200,
+  },
   "tool.name": {
     label: "품명",
     hint: "무슨 치공구인지",

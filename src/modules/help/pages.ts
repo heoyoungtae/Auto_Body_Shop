@@ -1807,6 +1807,18 @@ export const PAGE_HELP = {
       "대책을 하면 '대책 끝'과 잔류 점수를 적습니다.",
     ],
   },
+  environment: {
+    title: "환경 관리",
+    purpose:
+      "도장 방지시설 운영 일지(F-10-01)와 폐기물 관리대장(F-10-02)을 관리하고, 환경측면을 리스크·기회 대장에 올립니다(STD-10).",
+    who: "교체·발생 기록: 현장 직원 · 인계·자가측정·확인 서명: 안전환경 담당·대표",
+    steps: [
+      "도장 부스 가동일마다 설비 운전 일지에 가동 시각·차압·필터 상태·도료 사용량을 적습니다.",
+      "필터·활성탄을 바꾸면 '기록'에서 교체를 적습니다(폐필터 무게도).",
+      "폐기물은 담을 때 '발생 기록', 업체가 가져가면 '위탁 인계'를 적습니다.",
+      "다음 달 5일까지 안전환경 담당이 운영 일지에 확인 서명합니다.",
+    ],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -1907,6 +1919,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/hazards": "hazards",
   "/hazards/new": "hazards.new",
   "/hazards/[id]": "hazards.detail",
+  "/environment": "environment",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",
