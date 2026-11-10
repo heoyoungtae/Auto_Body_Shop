@@ -2516,6 +2516,163 @@ export const FIELD_HELP = {
       "대장에 적힌 증빙을 불러와 두었습니다. '대상 아님'이 아니면 꼭 적습니다.",
     maxLength: 200,
   },
+  "risk.kind": {
+    label: "구분",
+    hint: "나쁜 일인지 좋은 기회인지",
+    detail:
+      "리스크는 일어나면 손해가 나는 일(재작업·사고·민원), 기회는 잡으면 좋아지는 일(새 거래처, 장비 도입, 절감)입니다.",
+  },
+  "risk.content": {
+    label: "내용",
+    hint: "무엇이 일어날 수 있는지",
+    example: "건조 부스 온도 센서 고장으로 도막 경화 불량",
+    maxLength: 300,
+  },
+  "risk.chapter": {
+    label: "관련 장",
+    hint: "표준서 어느 장의 일인지",
+    detail: "분기 검토·내부심사 때 장별로 모아 봅니다.",
+  },
+  "risk.control": {
+    label: "현재 관리",
+    hint: "지금 이미 하고 있는 대비",
+    example: "일일 점검표에 온도 확인",
+    maxLength: 200,
+  },
+  "risk.likelihood": {
+    label: "가능성",
+    hint: "1 드묾(연 1회 미만) · 2 가끔(분기 1회쯤) · 3 자주(월 1회 이상)",
+    detail: "지금의 관리를 하고 있다는 전제로 얼마나 자주 일어날지 매깁니다.",
+  },
+  "risk.impact": {
+    label: "영향",
+    hint: "1 작음(바로 고침) · 2 중간(재작업·고객 불만) · 3 큼(사고·법 위반·큰 손해)",
+    detail:
+      "가능성 × 영향이 정책값(기본 6점) 이상이면 대표에게 알림이 가고 대응 계획을 정해야 합니다(설정 › 정책값).",
+  },
+  "risk.plan": {
+    label: "대응 계획",
+    hint: "무엇을 해서 점수를 낮출지",
+    example: "온도 기록계 설치, 센서 연 1회 교정",
+    maxLength: 300,
+  },
+  "risk.ownerId": {
+    label: "대응 담당",
+    hint: "계획을 실행할 사람",
+    detail: "고르면 그 사람에게 알림이 가고 기한 7일 전부터 내 할 일에 뜹니다.",
+  },
+  "risk.due": { label: "대응 기한", hint: "언제까지 끝낼지" },
+  "risk.result": {
+    label: "대응 결과",
+    hint: "무엇을 했고 어떻게 됐는지",
+    example: "기록계 설치(11/20), 2주간 온도 이탈 없음",
+    maxLength: 300,
+  },
+  "risk.resLikelihood": {
+    label: "대응 뒤 가능성",
+    hint: "대응하고 나서 다시 매김",
+    detail:
+      "지금 점수를 불러와 두었습니다. 대응으로 낮아졌으면 고칩니다. 아직 기준 이상이면 대표에게 알림이 갑니다.",
+  },
+  "risk.resImpact": {
+    label: "대응 뒤 영향",
+    hint: "대응하고 나서 다시 매김",
+    detail: "지금 점수를 불러와 두었습니다.",
+  },
+  "risk.reason": {
+    label: "이유",
+    hint: "종료하거나 다시 여는 이유",
+    example: "해당 설비 철거로 더는 해당 없음",
+    maxLength: 200,
+  },
+  "risk.reviewNote": {
+    label: "검토 의견",
+    hint: "대장 전체를 보고 남길 말",
+    example: "도장 부스 화재 점수 2로 올림, 다음 분기 소화설비 보강",
+    detail:
+      "검토를 기록하면 그 분기 현황(관리·대응 중·고점수 건수)이 함께 저장되어 경영검토 자료가 됩니다.",
+    maxLength: 500,
+  },
+  "audit.plannedOn": {
+    label: "심사일",
+    hint: "심사하는 날",
+    detail:
+      "11월 중으로 잡습니다(Q.7). 심사일 7일 전부터 심사자 내 할 일에 뜹니다.",
+  },
+  "audit.criteria": {
+    label: "심사 기준",
+    hint: "무엇을 기준으로 보는지",
+    example: "사내 표준서, ISO 9001·14001·45001 해당 조항",
+    maxLength: 200,
+  },
+  "audit.scope": {
+    label: "심사 범위(장)",
+    hint: "이번에 볼 표준서 장",
+    detail:
+      "올해 아직 심사 범위에 들어가지 않은 장을 미리 골라 두었습니다. 한 해에 모든 장이 한 번은 들어가야 합니다. 여러 번에 나눠도 됩니다.",
+  },
+  "audit.auditorId": {
+    label: "사내 심사자",
+    hint: "심사할 사람",
+    detail:
+      "자기 업무를 심사하지 않도록 피심사자와 겹치면 저장되지 않습니다. 외부 심사원이면 비워 둡니다.",
+  },
+  "audit.externalAuditor": {
+    label: "외부 심사원",
+    hint: "외부에 맡길 때 이름·소속",
+    example: "○○품질컨설팅 김심사",
+    detail: "적으면 품질 담당이 심사원의 결과를 대신 기록합니다.",
+    maxLength: 60,
+  },
+  "audit.auditeeIds": {
+    label: "피심사자",
+    hint: "심사받는 업무의 담당자",
+    detail:
+      "고른 사람에게 '기록을 준비해 달라'는 알림이 갑니다. 심사자는 여기에 들어갈 수 없습니다.",
+  },
+  "audit.chapter": {
+    label: "장",
+    hint: "어느 장을 봤는지",
+    detail: "기록이 없는 장이 먼저 골라져 있습니다.",
+  },
+  "audit.target": {
+    label: "조항",
+    hint: "세부 조항이나 업무",
+    example: "4.3 조색 기록",
+    maxLength: 80,
+  },
+  "audit.evidence": {
+    label: "확인한 기록·현장",
+    hint: "무엇을 보고 판단했는지",
+    example: "작업 지시서 RO-2611-0012~0020 조색 기록 9건, 도장 부스 현장",
+    maxLength: 300,
+  },
+  "audit.verdict": {
+    label: "판정",
+    hint: "적합 · 개선 권고 · 부적합",
+    detail:
+      "부적합을 고르면 부적합 보고서(F-Q-10)가 바로 발행되어 원인 분석·시정 조치로 넘어갑니다. 개선 권고는 기록만 남습니다.",
+  },
+  "audit.findingText": {
+    label: "발견 사항",
+    hint: "기준과 무엇이 다른지",
+    example: "조색 시편 비교 사진이 3건 빠짐",
+    detail: "개선 권고·부적합이면 꼭 적습니다.",
+    maxLength: 300,
+  },
+  "audit.summary": {
+    label: "종합 의견·좋은 점",
+    hint: "심사 전체 소감",
+    example:
+      "기록 관리는 잘 되어 있음. 도장 공정 시편 사진 누락이 반복되어 지침 보완 필요",
+    maxLength: 1000,
+  },
+  "audit.returnReason": {
+    label: "보완할 것",
+    hint: "심사자에게 돌려보내는 이유",
+    example: "9장 현장 확인 기록 보충",
+    maxLength: 200,
+  },
   "tool.name": {
     label: "품명",
     hint: "무슨 치공구인지",

@@ -1,5 +1,15 @@
 // 부적합·시정 조치(F-Q-10, STD-Q Q.9)와 3정5S 점검(F-08-05, STD-08 11~14절)
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
 
 /** 부적합·시정 조치 보고서 F-Q-10 */
@@ -37,7 +47,10 @@ export const nonconformance = pgTable(
     plannedAt: timestamp("planned_at", { withTimezone: true }),
     /** 조치 담당이 한 일 */
     actionDone: text("action_done"),
-    actionPhotos: jsonb("action_photos").$type<string[]>().notNull().default([]),
+    actionPhotos: jsonb("action_photos")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     actionAt: timestamp("action_at", { withTimezone: true }),
     /** 효과 확인 */
     effectOn: text("effect_on"),
@@ -49,9 +62,15 @@ export const nonconformance = pgTable(
     closedBy: uuid("closed_by").references(() => appUser.id),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: createdAt(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
-  (t) => [uniqueIndex("nonconformance_no_uq").on(t.docNo), index("nonconformance_ref").on(t.refType, t.refId), index("nonconformance_status").on(t.status)],
+  (t) => [
+    uniqueIndex("nonconformance_no_uq").on(t.docNo),
+    index("nonconformance_ref").on(t.refType, t.refId),
+    index("nonconformance_status").on(t.status),
+  ],
 );
 
 /** 현장 구역과 담당(8.8) */
@@ -64,7 +83,9 @@ export const fiveSZone = pgTable("five_s_zone", {
   /** 기준 사진('이 상태가 정상') */
   refPhoto: text("ref_photo"),
   active: boolean("active").notNull().default(true),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /** 일일 점검 F-08-05 */
@@ -135,7 +156,9 @@ export const legalItem = pgTable(
     note: text("note"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [index("legal_item_due_idx").on(t.nextDue)],
 );
@@ -165,12 +188,120 @@ export const legalEvent = pgTable(
 );
 
 /** 연간 준수 평가 확정(F-Q-07): 대표가 한 해 평가를 확정한다 */
-export const legalEvalYear = pgTable(
-  "legal_eval_year",
+export const legalEvalYear = pgTable("legal_eval_year", {
+  year: integer("year").primaryKey(),
+  confirmedBy: uuid("confirmed_by").references(() => appUser.id),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  summary: text("summary"),
+});
+
+/**
+ * 리스크·기회 대장(F-Q-03, 총람 Q.4). kind: risk 리스크 · opp 기회. score = likelihood(1~3) × impact(1~3).
+ * 점수가 정책값(기본 6) 이상이면 대표에게 알리고 대응 계획(plan·ownerId·due)을 정한다.
+ * status: open 관리 중 · acting 대응 중 · done 대응 끝(잔여 점수 다시 매김) · closed 해당 없음(종료)
+ */
+export const riskItem = pgTable(
+  "risk_item",
   {
-    year: integer("year").primaryKey(),
-    confirmedBy: uuid("confirmed_by").references(() => appUser.id),
-    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
-    summary: text("summary"),
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    kind: text("kind").notNull().default("risk"),
+    content: text("content").notNull(),
+    chapter: text("chapter"),
+    likelihood: integer("likelihood").notNull(),
+    impact: integer("impact").notNull(),
+    score: integer("score").notNull(),
+    control: text("control"),
+    plan: text("plan"),
+    ownerId: uuid("owner_id").references(() => appUser.id),
+    due: text("due"),
+    result: text("result"),
+    status: text("status").notNull().default("open"),
+    source: text("source"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
+  (t) => [
+    uniqueIndex("risk_item_no_uq").on(t.docNo),
+    index("risk_item_status_idx").on(t.status),
+  ],
+);
+
+/** 리스크 이력: create · edit(점수 변화) · plan 대응 계획 · done 대응 끝 · close · reopen */
+export const riskEvent = pgTable(
+  "risk_event",
+  {
+    id: id(),
+    riskId: uuid("risk_id")
+      .notNull()
+      .references(() => riskItem.id),
+    kind: text("kind").notNull(),
+    detail: text("detail"),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("risk_event_idx").on(t.riskId, t.at)],
+);
+
+/** 분기 대표 검토(Q.4): quarter "2026-Q4" */
+export const riskReview = pgTable("risk_review", {
+  quarter: text("quarter").primaryKey(),
+  by: uuid("by").references(() => appUser.id),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  summary: text("summary"),
+  note: text("note"),
+});
+
+/**
+ * 내부심사 계획·보고서(F-Q-08, 총람 Q.7). 연 1회(11월) 모든 장을 심사한다. 심사자는 자기 업무를 심사하지 않는다(auditeeIds에 없어야 함).
+ * 외부 심사원이면 auditorId 없이 externalAuditor 이름을 적고 품질 담당이 대신 기록한다.
+ * status: planned 계획 · reported 보고(대표 승인 대기) · approved 승인
+ */
+export const internalAudit = pgTable(
+  "internal_audit",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    year: integer("year").notNull(),
+    plannedOn: text("planned_on").notNull(),
+    scope: jsonb("scope").$type<string[]>().notNull().default([]),
+    auditorId: uuid("auditor_id").references(() => appUser.id),
+    externalAuditor: text("external_auditor"),
+    auditeeIds: jsonb("auditee_ids").$type<string[]>().notNull().default([]),
+    criteria: text("criteria"),
+    status: text("status").notNull().default("planned"),
+    summary: text("summary"),
+    reportedAt: timestamp("reported_at", { withTimezone: true }),
+    approvedBy: uuid("approved_by").references(() => appUser.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("internal_audit_no_uq").on(t.docNo),
+    index("internal_audit_year_idx").on(t.year),
+  ],
+);
+
+/** 심사 발견 사항: verdict ok 적합 · improve 개선 권고 · nc 부적합(F-Q-10 자동 발행) */
+export const auditFinding = pgTable(
+  "audit_finding",
+  {
+    id: id(),
+    auditId: uuid("audit_id")
+      .notNull()
+      .references(() => internalAudit.id),
+    chapter: text("chapter").notNull(),
+    target: text("target"),
+    evidence: text("evidence").notNull(),
+    finding: text("finding"),
+    verdict: text("verdict").notNull(),
+    ncId: uuid("nc_id"),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("audit_finding_idx").on(t.auditId)],
 );
