@@ -3099,6 +3099,48 @@ export const FIELD_HELP = {
     hint: "다른 달로 옮기는 것이면 취소 말고 계획 달을 고치세요",
     maxLength: 200,
   },
+  "pay.ym": {
+    label: "급여 달",
+    hint: "계산할 달(보통 지난달). 근태 확정일 뒤에 계산합니다",
+    detail:
+      "서명한 근로계약서와 결재가 끝난 근태(연장·결근·지각 등)로 계산합니다. 결재 중인 근태는 빠지니 확정된 뒤 '다시 계산'을 누르세요.",
+  },
+  "pay.incomeTax": {
+    label: "소득세(원)",
+    hint: "국세청 근로소득 간이세액표에서 찾은 금액. 지방소득세(10%)는 앱이 계산합니다",
+    detail:
+      "다음 달부터는 이 값을 불러옵니다. 과세 급여나 가족 수가 바뀌면 다시 찾아 넣으세요.",
+    example: "45670",
+  },
+  "pay.family": {
+    label: "공제 대상 가족 수",
+    hint: "본인 포함(간이세액표 열). 근로소득 원천징수 신고서 기준",
+    example: "1",
+  },
+  "pay.extraKind": { label: "구분", hint: "더 주는 것인지 떼는 것인지" },
+  "pay.extraName": {
+    label: "항목 이름",
+    hint: "명세서에 나갈 이름",
+    example: "성과급, 지난달 정산",
+    maxLength: 30,
+  },
+  "pay.extraAmount": {
+    label: "금액(원)",
+    hint: "원 단위, 양수로 적습니다",
+    example: "100000",
+  },
+  "pay.extraReason": {
+    label: "사유",
+    hint: "명세서 계산 방법 칸에 나갑니다(잘못 지급한 금액 정산은 사유 필수, STD-11 5.5)",
+    example: "10월 연장수당 누락분",
+    maxLength: 100,
+  },
+  "pay.returnReason": {
+    label: "돌려보내는 이유",
+    hint: "회계 담당이 무엇을 고칠지 알 수 있게",
+    maxLength: 200,
+  },
+  "pay.paidOn": { label: "지급일", hint: "계좌로 보낸 날(오늘 이후는 안 됨)" },
   "tool.name": {
     label: "품명",
     hint: "무슨 치공구인지",

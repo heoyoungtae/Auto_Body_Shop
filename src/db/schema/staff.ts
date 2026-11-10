@@ -164,3 +164,52 @@ export const trainingAttendee = pgTable(
   },
   (t) => [uniqueIndex("training_attendee_uq").on(t.trainingId, t.userId)],
 );
+
+/**
+ * 급여대장(F-11-05) 한 달 치. 상태: draft(회계 계산) → submitted(대표 승인 대기) → approved → paid.
+ * 사람별 금액은 payslip 에 암호화해 두고, 여기에는 합계만 둔다.
+ */
+export const payrollRun = pgTable("payroll_run", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  docNo: text("doc_no").notNull().unique(),
+  ym: text("ym").notNull().unique(),
+  status: text("status").notNull().default("draft"),
+  payDate: text("pay_date").notNull(),
+  headcount: integer("headcount").notNull().default(0),
+  totalGross: integer("total_gross").notNull().default(0),
+  totalDeduct: integer("total_deduct").notNull().default(0),
+  totalNet: integer("total_net").notNull().default(0),
+  returnReason: text("return_reason"),
+  createdBy: uuid("created_by").references(() => appUser.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  approvedBy: uuid("approved_by").references(() => appUser.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  paidBy: uuid("paid_by").references(() => appUser.id),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** 임금명세서(사람 한 명 한 달). 금액·계산 방법 전부를 dataEnc(SlipData JSON)로 암호화 */
+export const payslip = pgTable(
+  "payslip",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => payrollRun.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    dataEnc: text("data_enc").notNull(),
+    viewedAt: timestamp("viewed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("payslip_run_user_uq").on(t.runId, t.userId)],
+);

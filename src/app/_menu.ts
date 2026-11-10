@@ -4,7 +4,14 @@
 import type { PermKey } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 
-export type MenuItem = { label: string; href?: string; phase?: "1차" | "2차" | "3차"; std?: string; roles?: Role[]; perm?: PermKey[] };
+export type MenuItem = {
+  label: string;
+  href?: string;
+  phase?: "1차" | "2차" | "3차";
+  std?: string;
+  roles?: Role[];
+  perm?: PermKey[];
+};
 export type MenuGroup = { id: string; label: string; items: MenuItem[] };
 
 /** 메뉴 맨 위에 따로 두는 화면(묶음 밖) */
@@ -26,20 +33,60 @@ export const MENU: MenuGroup[] = [
     id: "repair",
     label: "수리 업무",
     items: [
-      { label: "상담·예약", perm: ["consult.write"], href: "/consults", std: "STD-01" },
-      { label: "접수·입고", perm: ["repair.write", "diag.write", "diag.confirm"], href: "/repairs", std: "STD-02" },
-      { label: "견적·고객 승인", perm: ["estimate.write", "estimate.review"], href: "/estimates", std: "STD-03" },
-      { label: "작업·공정", perm: ["work.assign", "work.do"], href: "/work", std: "STD-04" },
-      { label: "검사·출고", perm: ["inspect.do", "delivery.do"], href: "/repairs?f=qc", std: "STD-05" },
-      { label: "보험 청구", perm: ["claim.desk", "claim.money"], href: "/claims", std: "STD-03.6" },
+      {
+        label: "상담·예약",
+        perm: ["consult.write"],
+        href: "/consults",
+        std: "STD-01",
+      },
+      {
+        label: "접수·입고",
+        perm: ["repair.write", "diag.write", "diag.confirm"],
+        href: "/repairs",
+        std: "STD-02",
+      },
+      {
+        label: "견적·고객 승인",
+        perm: ["estimate.write", "estimate.review"],
+        href: "/estimates",
+        std: "STD-03",
+      },
+      {
+        label: "작업·공정",
+        perm: ["work.assign", "work.do"],
+        href: "/work",
+        std: "STD-04",
+      },
+      {
+        label: "검사·출고",
+        perm: ["inspect.do", "delivery.do"],
+        href: "/repairs?f=qc",
+        std: "STD-05",
+      },
+      {
+        label: "보험 청구",
+        perm: ["claim.desk", "claim.money"],
+        href: "/claims",
+        std: "STD-03.6",
+      },
     ],
   },
   {
     id: "customer",
     label: "고객",
     items: [
-      { label: "고객·차량", perm: ["customer.write"], href: "/customers", std: "STD-13" },
-      { label: "보증 수리", perm: ["complaint.contact", "complaint.judge", "work.assign"], href: "/complaints?f=warranty", std: "STD-06.4" },
+      {
+        label: "고객·차량",
+        perm: ["customer.write"],
+        href: "/customers",
+        std: "STD-13",
+      },
+      {
+        label: "보증 수리",
+        perm: ["complaint.contact", "complaint.judge", "work.assign"],
+        href: "/complaints?f=warranty",
+        std: "STD-06.4",
+      },
       { label: "만족도·불만", href: "/complaints", std: "STD-06" },
     ],
   },
@@ -47,10 +94,24 @@ export const MENU: MenuGroup[] = [
     id: "messages",
     label: "문자관리",
     items: [
-      { label: "문자 발송", perm: ["consult.write"], href: "/messages/send", std: "STD-01" },
+      {
+        label: "문자 발송",
+        perm: ["consult.write"],
+        href: "/messages/send",
+        std: "STD-01",
+      },
       { label: "발송 이력", perm: ["consult.write"], href: "/messages/log" },
-      { label: "문구 서식", perm: ["consult.write"], href: "/messages/templates" },
-      { label: "기프티콘 발송", perm: ["gift.send"], href: "/gifts/send", std: "STD-06" },
+      {
+        label: "문구 서식",
+        perm: ["consult.write"],
+        href: "/messages/templates",
+      },
+      {
+        label: "기프티콘 발송",
+        perm: ["gift.send"],
+        href: "/gifts/send",
+        std: "STD-06",
+      },
       { label: "기프티콘 이력", perm: ["gift.view"], href: "/gifts" },
     ],
   },
@@ -58,13 +119,43 @@ export const MENU: MenuGroup[] = [
     id: "facility",
     label: "설비·현장(TPM)",
     items: [
-      { label: "설비 대장", perm: ["equip.check"], href: "/equipment", std: "STD-08.1" },
-      { label: "일상 점검", perm: ["equip.check"], href: "/equipment/checks", std: "STD-08.2" },
-      { label: "윤활", perm: ["equip.check"], href: "/equipment/lube", std: "STD-08.4" },
-      { label: "예방정비", perm: ["equip.check"], href: "/equipment/pm", std: "STD-08.6" },
-      { label: "측정 장비 교정", perm: ["equip.calibrate"], href: "/equipment?f=gauge", std: "STD-08.3" },
+      {
+        label: "설비 대장",
+        perm: ["equip.check"],
+        href: "/equipment",
+        std: "STD-08.1",
+      },
+      {
+        label: "일상 점검",
+        perm: ["equip.check"],
+        href: "/equipment/checks",
+        std: "STD-08.2",
+      },
+      {
+        label: "윤활",
+        perm: ["equip.check"],
+        href: "/equipment/lube",
+        std: "STD-08.4",
+      },
+      {
+        label: "예방정비",
+        perm: ["equip.check"],
+        href: "/equipment/pm",
+        std: "STD-08.6",
+      },
+      {
+        label: "측정 장비 교정",
+        perm: ["equip.calibrate"],
+        href: "/equipment?f=gauge",
+        std: "STD-08.3",
+      },
       { label: "3정5S 점검", href: "/five-s", std: "STD-08.8~11" },
-      { label: "치공구", perm: ["equip.check"], href: "/tools", std: "STD-08.7" },
+      {
+        label: "치공구",
+        perm: ["equip.check"],
+        href: "/tools",
+        std: "STD-08.7",
+      },
       { label: "개선 제안", href: "/suggestions", std: "STD-08.12" },
     ],
   },
@@ -74,19 +165,49 @@ export const MENU: MenuGroup[] = [
     items: [
       { label: "부적합·시정 조치", href: "/nc", std: "STD-Q.9" },
       { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
-      { label: "법규 대장", perm: ["legal.manage", "legal.confirm"], href: "/legal", std: "STD-Q.6" },
+      {
+        label: "법규 대장",
+        perm: ["legal.manage", "legal.confirm"],
+        href: "/legal",
+        std: "STD-Q.6",
+      },
       { label: "리스크·기회", href: "/risks", std: "STD-Q.4" },
-      { label: "내부 심사", perm: ["audit.manage", "audit.approve"], href: "/audits", std: "STD-Q.7" },
+      {
+        label: "내부 심사",
+        perm: ["audit.manage", "audit.approve"],
+        href: "/audits",
+        std: "STD-Q.7",
+      },
     ],
   },
   {
     id: "purchase",
     label: "구매·자재",
     items: [
-      { label: "협력업체", perm: ["supplier.manage", "supplier.approve", "supplier.bank"], href: "/suppliers", std: "STD-07.4" },
-      { label: "발주·입고", perm: ["purchase.order", "purchase.receive", "purchase.invoice"], href: "/purchases", std: "STD-07.5~6" },
-      { label: "재고", perm: ["stock.use", "stock.manage"], href: "/stock", std: "STD-07.7" },
-      { label: "외주", perm: ["purchase.order", "outsource.notice"], href: "/outsource", std: "STD-07.8" },
+      {
+        label: "협력업체",
+        perm: ["supplier.manage", "supplier.approve", "supplier.bank"],
+        href: "/suppliers",
+        std: "STD-07.4",
+      },
+      {
+        label: "발주·입고",
+        perm: ["purchase.order", "purchase.receive", "purchase.invoice"],
+        href: "/purchases",
+        std: "STD-07.5~6",
+      },
+      {
+        label: "재고",
+        perm: ["stock.use", "stock.manage"],
+        href: "/stock",
+        std: "STD-07.7",
+      },
+      {
+        label: "외주",
+        perm: ["purchase.order", "outsource.notice"],
+        href: "/outsource",
+        std: "STD-07.8",
+      },
       { label: "비품·자산", href: "/fixtures", std: "STD-07.9" },
     ],
   },
@@ -104,21 +225,42 @@ export const MENU: MenuGroup[] = [
     id: "people",
     label: "인사·급여",
     items: [
-      { label: "직원 명부·역량표", perm: ["staff.roster", "staff.assess"], href: "/staff", std: "STD-11.2" },
+      {
+        label: "직원 명부·역량표",
+        perm: ["staff.roster", "staff.assess"],
+        href: "/staff",
+        std: "STD-11.2",
+      },
       { label: "계약서·서약서", href: "/staff/docs", std: "F-11-01·F-13-02" },
       { label: "취업규칙", href: "/rules", std: "STD-11" },
       { label: "근태·휴가", href: "/attendance", std: "STD-11.4" },
       { label: "교육 훈련", href: "/training", std: "STD-11.2" },
       { label: "재직증명서", href: "/certificates", std: "STD-11" },
-      { label: "급여", phase: "3차", std: "STD-11.5", roles: ["owner", "accounting"] },
+      {
+        label: "급여대장",
+        perm: ["payroll.view"],
+        href: "/payroll",
+        std: "STD-11.5",
+      },
+      { label: "내 임금명세서", href: "/payroll/me", std: "STD-11.5" },
     ],
   },
   {
     id: "account",
     label: "회계",
     items: [
-      { label: "청구·수납", roles: ["owner", "accounting"], phase: "3차", std: "STD-12" },
-      { label: "지출", roles: ["owner", "accounting", "plant_manager"], phase: "3차", std: "STD-12" },
+      {
+        label: "청구·수납",
+        roles: ["owner", "accounting"],
+        phase: "3차",
+        std: "STD-12",
+      },
+      {
+        label: "지출",
+        roles: ["owner", "accounting", "plant_manager"],
+        phase: "3차",
+        std: "STD-12",
+      },
     ],
   },
   {
@@ -126,15 +268,50 @@ export const MENU: MenuGroup[] = [
     label: "설정",
     items: [
       { label: "사업장 정보", perm: ["settings.edit"], href: "/settings/shop" },
-      { label: "공임 기준표", perm: ["settings.edit"], href: "/settings/labor", std: "F-03-01" },
-      { label: "정책값", perm: ["settings.edit"], href: "/settings/policies", std: "부록 D" },
-      { label: "전결 규정", perm: ["settings.edit"], href: "/settings/delegation", std: "부록 B" },
+      {
+        label: "공임 기준표",
+        perm: ["settings.edit"],
+        href: "/settings/labor",
+        std: "F-03-01",
+      },
+      {
+        label: "정책값",
+        perm: ["settings.edit"],
+        href: "/settings/policies",
+        std: "부록 D",
+      },
+      {
+        label: "전결 규정",
+        perm: ["settings.edit"],
+        href: "/settings/delegation",
+        std: "부록 B",
+      },
       { label: "직원·역할", perm: ["account.manage"], href: "/settings/users" },
-      { label: "권한표", perm: ["settings.edit"], href: "/settings/permissions" },
-      { label: "문자 발송 서비스", perm: ["settings.edit"], href: "/settings/messaging" },
-      { label: "카카오 알림톡", perm: ["settings.edit"], href: "/settings/kakao" },
-      { label: "기프티콘 공급사", perm: ["settings.edit"], href: "/settings/gift" },
-      { label: "영업일·휴무일", perm: ["settings.edit"], href: "/settings/calendar" },
+      {
+        label: "권한표",
+        perm: ["settings.edit"],
+        href: "/settings/permissions",
+      },
+      {
+        label: "문자 발송 서비스",
+        perm: ["settings.edit"],
+        href: "/settings/messaging",
+      },
+      {
+        label: "카카오 알림톡",
+        perm: ["settings.edit"],
+        href: "/settings/kakao",
+      },
+      {
+        label: "기프티콘 공급사",
+        perm: ["settings.edit"],
+        href: "/settings/gift",
+      },
+      {
+        label: "영업일·휴무일",
+        perm: ["settings.edit"],
+        href: "/settings/calendar",
+      },
     ],
   },
   {

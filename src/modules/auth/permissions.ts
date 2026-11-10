@@ -241,6 +241,25 @@ export const PERMS = {
     std: "STD-06",
     roles: ["owner", "plant_manager", "advisor", "accounting"],
   },
+  "payroll.prepare": {
+    area: "인사",
+    label: "급여 계산·급여대장 작성(F-11-05), 지급 기록",
+    std: "STD-11 5절",
+    roles: ["accounting", "owner"],
+  },
+  "payroll.approve": {
+    area: "인사",
+    label: "급여 지급 승인·돌려보내기",
+    std: "부록 B",
+    roles: ["owner"],
+  },
+  "payroll.view": {
+    area: "인사",
+    label: "급여대장·모든 직원 임금명세서 보기",
+    std: "STD-13",
+    roles: ["owner", "accounting"],
+    note: "직원은 자기 명세서만 봄",
+  },
   "training.manage": {
     area: "인사",
     label: "교육 계획 올리기·고치기·취소, 실시 기록(이수자 지정)",

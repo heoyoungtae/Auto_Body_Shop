@@ -1874,6 +1874,47 @@ export const PAGE_HELP = {
       "직무 교육은 효과란을 채웁니다.",
     ],
   },
+  payroll: {
+    title: "급여대장",
+    purpose:
+      "매달 급여를 계산하고 대표 승인을 받아 지급한 뒤 임금명세서를 직원에게 줍니다(F-11-05, STD-11 5절).",
+    who: "계산·지급 기록: 회계 담당 · 승인: 대표 · 보기: 대표·회계 담당",
+    steps: [
+      "근태 확정일(매월 3일) 뒤 지난달을 골라 '계산하기'를 누릅니다.",
+      "사람마다 소득세(간이세액표)와 기타 지급·공제를 확인합니다.",
+      "대표에게 승인을 요청하고, 승인되면 지급일에 계좌로 보낸 뒤 지급 기록을 남깁니다.",
+    ],
+  },
+  "payroll.run": {
+    title: "한 달 급여대장",
+    purpose:
+      "그 달 직원별 지급·공제와 계산 근거를 확인하고 승인·지급까지 처리합니다.",
+    who: "회계 담당·대표",
+    steps: [
+      "이름을 눌러 계산 내역을 확인합니다.",
+      "소득세를 넣고 저장합니다.",
+      "승인 요청 → 대표 승인 → 지급 기록 순서로 진행합니다.",
+    ],
+  },
+  "payroll.slip": {
+    title: "임금명세서",
+    purpose:
+      "한 사람 한 달 치 임금 구성·계산 방법·공제 내역입니다(근로기준법 제48조 2항).",
+    who: "본인(지급 뒤)·대표·회계 담당",
+    steps: [
+      "지급·공제 줄과 계산 방법을 확인합니다.",
+      "인쇄가 필요하면 브라우저 인쇄를 씁니다.",
+    ],
+  },
+  "payroll.me": {
+    title: "내 임금명세서",
+    purpose: "지급된 달의 내 임금명세서를 봅니다.",
+    who: "모든 직원(본인 것만)",
+    steps: [
+      "달을 눌러 명세서를 엽니다.",
+      "이상한 점은 회계 담당에게 물어봅니다.",
+    ],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -1980,6 +2021,10 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/training": "training",
   "/training/new": "training.new",
   "/training/[id]": "training.detail",
+  "/payroll": "payroll",
+  "/payroll/[ym]": "payroll.run",
+  "/payroll/slip/[id]": "payroll.slip",
+  "/payroll/me": "payroll.me",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",
