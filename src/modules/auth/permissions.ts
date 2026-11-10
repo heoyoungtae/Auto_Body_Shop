@@ -260,6 +260,19 @@ export const PERMS = {
     roles: ["owner", "accounting"],
     note: "직원은 자기 명세서만 봄",
   },
+  "review.write": {
+    area: "인사",
+    label: "인사평가 작성(F-11-06), 근거 모으기·면담으로 넘기기",
+    std: "STD-11 6절",
+    roles: ["plant_manager", "owner"],
+    note: "자기 평가는 쓰지 못함. 공장장 평가는 대표가 씀",
+  },
+  "review.confirm": {
+    area: "인사",
+    label: "인사평가 확정·돌려보내기",
+    std: "STD-11 6절",
+    roles: ["owner"],
+  },
   "training.manage": {
     area: "인사",
     label: "교육 계획 올리기·고치기·취소, 실시 기록(이수자 지정)",

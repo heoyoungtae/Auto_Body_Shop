@@ -213,3 +213,82 @@ export const payslip = pgTable(
   },
   (t) => [uniqueIndex("payslip_run_user_uq").on(t.runId, t.userId)],
 );
+
+/**
+ * 인사평가(F-11-06, STD-11 6절): 매년 12월. 앱 기록 근거(evidence, 평가 시작 때 고정) + 항목별 점수(1~5) + 면담.
+ * 상태: draft(공장장 작성) → interview(면담·본인 의견) → confirmed(대표 확정). 확정하면 다음 해 교육 계획에 필요 교육을 올린다.
+ */
+export const perfReview = pgTable(
+  "perf_review",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    docNo: text("doc_no").notNull().unique(),
+    year: integer("year").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    status: text("status").notNull().default("draft"),
+    evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
+    scores: jsonb("scores")
+      .$type<Record<string, number>>()
+      .notNull()
+      .default({}),
+    comments: jsonb("comments")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    total: real("total"),
+    grade: text("grade"),
+    strengths: text("strengths"),
+    improve: text("improve"),
+    trainingNeeds: text("training_needs"),
+    wageNote: text("wage_note"),
+    interviewedOn: text("interviewed_on"),
+    employeeComment: text("employee_comment"),
+    employeeAckAt: timestamp("employee_ack_at", { withTimezone: true }),
+    reviewerId: uuid("reviewer_id").references(() => appUser.id),
+    confirmedBy: uuid("confirmed_by").references(() => appUser.id),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    trainingId: uuid("training_id").references(() => training.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("perf_review_year_user_uq").on(t.year, t.userId)],
+);
+
+export type ExitItem = {
+  done: boolean;
+  by?: string;
+  at?: string;
+  note?: string;
+};
+/**
+ * 퇴직 처리 점검표(F-11-07, STD-11 7절·취업규칙 제42조). 퇴직일·사유와 항목별 확인. open → closed.
+ * 항목: 반납·인계·비밀유지 확인서·계정 잠금·임금·퇴직금 정산(14일 안)·4대 보험 상실 신고·경력증명서.
+ */
+export const exitCheck = pgTable("exit_check", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  docNo: text("doc_no").notNull().unique(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => appUser.id),
+  leftOn: text("left_on").notNull(),
+  reason: text("reason").notNull(),
+  noticeOn: text("notice_on"),
+  settleDue: text("settle_due").notNull(),
+  status: text("status").notNull().default("open"),
+  items: jsonb("items").$type<Record<string, ExitItem>>().notNull().default({}),
+  createdBy: uuid("created_by").references(() => appUser.id),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  closedBy: uuid("closed_by").references(() => appUser.id),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

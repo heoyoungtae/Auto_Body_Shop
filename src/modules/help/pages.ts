@@ -1915,6 +1915,48 @@ export const PAGE_HELP = {
       "이상한 점은 회계 담당에게 물어봅니다.",
     ],
   },
+  reviews: {
+    title: "인사평가",
+    purpose:
+      "매년 12월 직원별 역량·품질·안전 현장 관리·근태·개선 제안을 앱 기록으로 평가하고 면담합니다(F-11-06, STD-11 6절).",
+    who: "작성: 공장장(공장장 평가는 대표) · 면담 확인: 본인 · 확정: 대표",
+    steps: [
+      "12월에 대상자마다 '평가 시작'을 누릅니다.",
+      "근거를 보고 점수·의견을 고친 뒤 면담으로 넘깁니다.",
+      "본인이 면담 확인을 하면 대표가 확정합니다.",
+    ],
+  },
+  "reviews.detail": {
+    title: "인사평가 한 건",
+    purpose: "근거(앱 기록)·점수·면담 내용입니다.",
+    who: "평가자·대표, 본인은 면담 단계부터",
+    steps: [
+      "근거를 확인합니다.",
+      "점수와 의견을 적습니다.",
+      "면담 뒤 본인 확인과 대표 확정을 받습니다.",
+    ],
+  },
+  exit: {
+    title: "퇴직 처리",
+    purpose:
+      "퇴직 처리 점검표(F-11-07)로 반납·인계·비밀유지 확인서·계정 잠금·임금 정산·4대 보험 상실 신고를 빠짐없이 처리합니다.",
+    who: "시작·정산·신고: 회계 담당·대표 · 반납·인계: 공장장",
+    steps: [
+      "직원·사유·퇴직일을 골라 점검표를 엽니다.",
+      "항목마다 확인합니다.",
+      "모두 끝나면 '퇴직 처리 끝'을 누릅니다.",
+    ],
+  },
+  "exit.detail": {
+    title: "퇴직 점검표",
+    purpose: "한 사람의 퇴직 처리 항목과 진행 상황입니다.",
+    who: "대표·공장장·회계 담당",
+    steps: [
+      "남은 반납·인계를 처리합니다.",
+      "퇴직일에 계정을 잠급니다.",
+      "14일 안에 정산하고 확인합니다.",
+    ],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -2025,6 +2067,10 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/payroll/[ym]": "payroll.run",
   "/payroll/slip/[id]": "payroll.slip",
   "/payroll/me": "payroll.me",
+  "/reviews": "reviews",
+  "/reviews/[id]": "reviews.detail",
+  "/staff/exit": "exit",
+  "/staff/exit/[id]": "exit.detail",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",

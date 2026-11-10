@@ -37,6 +37,8 @@ import { hazardTodos } from "@/modules/safety/hazard";
 import { envTodos } from "@/modules/safety/environment";
 import { trainingTodos } from "@/modules/staff/training";
 import { payrollTodos } from "@/modules/staff/payroll";
+import { reviewTodos } from "@/modules/staff/review";
+import { exitTodos } from "@/modules/staff/exit";
 import { incidentTodos } from "@/modules/safety/incident";
 import { upcomingForMe } from "@/modules/schedule/service";
 import { timeLabel } from "@/modules/schedule/rules";

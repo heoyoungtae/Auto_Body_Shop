@@ -3141,6 +3141,85 @@ export const FIELD_HELP = {
     maxLength: 200,
   },
   "pay.paidOn": { label: "지급일", hint: "계좌로 보낸 날(오늘 이후는 안 됨)" },
+  "rv.score": {
+    label: "점수",
+    hint: "5 매우 우수 ~ 1 매우 미흡. 처음에는 앱 기록으로 고른 제안 점수가 들어 있습니다",
+    detail:
+      "5점이나 2점 이하를 주면 근거를 꼭 적습니다. 평균 4.5 이상 S, 3.5 이상 A, 2.5 이상 B, 1.5 이상 C, 그 밑 D.",
+  },
+  "rv.comment": {
+    label: "근거·의견",
+    hint: "점수를 준 이유(5점·2점 이하면 필수)",
+    example: "도장 재작업 0건, 신입 OJT 지도",
+    maxLength: 200,
+  },
+  "rv.strengths": {
+    label: "잘한 점",
+    hint: "면담에서 칭찬할 내용",
+    maxLength: 300,
+  },
+  "rv.improve": {
+    label: "보완할 점",
+    hint: "평균 3.5 미만이면 꼭 적습니다",
+    maxLength: 300,
+  },
+  "rv.trainingNeeds": {
+    label: "필요 교육",
+    hint: "적으면 대표 확정 때 내년 교육 계획(OJT)으로 올라갑니다",
+    example: "알루미늄 판금 OJT",
+    maxLength: 60,
+  },
+  "rv.wageNote": {
+    label: "임금 조정 의견",
+    hint: "대표만 봅니다(본인에게는 안 보임)",
+    example: "기본급 3% 인상 제안",
+    maxLength: 200,
+  },
+  "rv.interviewedOn": { label: "면담일", hint: "평가자와 이야기한 날" },
+  "rv.employeeComment": {
+    label: "본인 의견",
+    hint: "동의하지 않는 부분이 있으면 적어 주세요. 대표가 확정 전에 봅니다",
+    maxLength: 500,
+  },
+  "exit.userId": {
+    label: "퇴직하는 직원",
+    hint: "지금 계정이 열려 있는 직원 중에서 고릅니다",
+  },
+  "exit.reason": {
+    label: "퇴직 사유",
+    hint: "근로자 명부의 퇴직 사유로도 들어갑니다",
+    detail:
+      "해고는 사유와 날짜를 서면으로 알리고 30일 전 예고(또는 30일분 통상임금)가 필요합니다(근로기준법 제26·27조).",
+  },
+  "exit.leftOn": {
+    label: "퇴직일",
+    hint: "마지막 근무일 다음 날이 아니라 고용이 끝나는 날",
+    detail:
+      "이날부터 14일 안에 임금·퇴직금을 정산합니다. 계정은 이날부터 잠글 수 있습니다.",
+  },
+  "exit.noticeOn": {
+    label: "사직 통보일",
+    hint: "본인이 그만두겠다고 알린 날(있으면)",
+    detail: "취업규칙 제39조: 퇴직 희망일 30일 전까지 알려 인계를 돕습니다.",
+  },
+  "exit.settleNote": {
+    label: "지급 내용",
+    hint: "지급한 날과 임금·퇴직금 금액",
+    example: "12-05 임금 1,234,000원·퇴직금 2,800,000원 이체",
+    maxLength: 200,
+  },
+  "exit.insuranceNote": {
+    label: "신고 내용",
+    hint: "4대 사회보험 정보연계센터 상실 신고한 날",
+    example: "12-03 상실 신고(EDI)",
+    maxLength: 200,
+  },
+  "exit.certNote": {
+    label: "발급 내용",
+    hint: "요청이 없으면 '요청 없음'으로 적고 확인합니다",
+    example: "요청 없음",
+    maxLength: 200,
+  },
   "tool.name": {
     label: "품명",
     hint: "무슨 치공구인지",

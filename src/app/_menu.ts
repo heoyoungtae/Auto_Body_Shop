@@ -235,6 +235,13 @@ export const MENU: MenuGroup[] = [
       { label: "취업규칙", href: "/rules", std: "STD-11" },
       { label: "근태·휴가", href: "/attendance", std: "STD-11.4" },
       { label: "교육 훈련", href: "/training", std: "STD-11.2" },
+      { label: "인사평가", href: "/reviews", std: "STD-11.6" },
+      {
+        label: "퇴직 처리",
+        perm: ["staff.roster", "staff.assess"],
+        href: "/staff/exit",
+        std: "STD-11.7",
+      },
       { label: "재직증명서", href: "/certificates", std: "STD-11" },
       {
         label: "급여대장",
