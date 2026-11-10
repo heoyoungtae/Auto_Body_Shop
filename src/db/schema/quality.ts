@@ -106,3 +106,71 @@ export const fiveSMonthly = pgTable(
   },
   (t) => [uniqueIndex("five_s_monthly_uq").on(t.ym, t.zone)],
 );
+
+/**
+ * 법규 대장(F-Q-06, 총람 Q.6). applies: yes 대상 · no 대상 아님 · check 확인 필요(부록 C 초안 그대로).
+ * cycle: none 1회·수시 · monthly · quarterly · half 반기 · yearly. nextDue: 다음 이행 기한.
+ * 인허가·신고증은 permitNo·validUntil(유효기간)을 두고 30일·7일 전에 알린다. revCheckedOn: 마지막 법령 개정 확인일.
+ */
+export const legalItem = pgTable(
+  "legal_item",
+  {
+    id: id(),
+    area: text("area").notNull(),
+    lawName: text("law_name").notNull(),
+    clause: text("clause"),
+    duty: text("duty").notNull(),
+    stdRef: text("std_ref"),
+    applies: text("applies").notNull().default("check"),
+    basis: text("basis"),
+    ownerId: uuid("owner_id").references(() => appUser.id),
+    cycle: text("cycle").notNull().default("none"),
+    nextDue: text("next_due"),
+    evidence: text("evidence"),
+    authority: text("authority"),
+    permitNo: text("permit_no"),
+    validUntil: text("valid_until"),
+    revCheckedOn: text("rev_checked_on"),
+    active: boolean("active").notNull().default(true),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("legal_item_due_idx").on(t.nextDue)],
+);
+
+/**
+ * 법규 이력: create · edit · done 이행(증빙) · revcheck 개정 확인(changed) · inspect 관청 점검 지적(fixDue, ncId) ·
+ * eval 연간 준수 평가(year, result: ok 준수 · lacking 미흡 · na 대상 아님, ncId)
+ */
+export const legalEvent = pgTable(
+  "legal_event",
+  {
+    id: id(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => legalItem.id),
+    kind: text("kind").notNull(),
+    year: integer("year"),
+    result: text("result"),
+    changed: boolean("changed"),
+    fixDue: text("fix_due"),
+    ncId: uuid("nc_id"),
+    detail: text("detail"),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("legal_event_item_idx").on(t.itemId, t.at)],
+);
+
+/** 연간 준수 평가 확정(F-Q-07): 대표가 한 해 평가를 확정한다 */
+export const legalEvalYear = pgTable(
+  "legal_eval_year",
+  {
+    year: integer("year").primaryKey(),
+    confirmedBy: uuid("confirmed_by").references(() => appUser.id),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    summary: text("summary"),
+  },
+);

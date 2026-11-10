@@ -74,7 +74,7 @@ export const MENU: MenuGroup[] = [
     items: [
       { label: "부적합·시정 조치", href: "/nc", std: "STD-Q.9" },
       { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
-      { label: "법규 대장", perm: ["nc.handle", "settings.edit"], phase: "2차", std: "STD-Q.6" },
+      { label: "법규 대장", perm: ["legal.manage", "legal.confirm"], href: "/legal", std: "STD-Q.6" },
       { label: "리스크·내부 심사", perm: ["nc.handle", "settings.edit"], phase: "3차", std: "STD-Q" },
     ],
   },

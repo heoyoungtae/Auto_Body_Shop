@@ -32,6 +32,8 @@ export const PERMS = {
   "suggest.decide": { area: "설비", label: "개선 제안 채택·보류·불채택 회신, 실행·효과 확인", std: "STD-08 8.12", roles: ["plant_manager", "owner"] },
   "equip.calibrate": { area: "설비", label: "측정 장비 교정 기록", std: "STD-08 6절", roles: ["quality", "plant_manager", "owner"] },
   "pm.approve": { area: "설비", label: "예방정비 계획 승인", std: "STD-08 9절", roles: ["owner"] },
+  "legal.manage": { area: "품질", label: "법규 대장 등록·고치기, 이행·개정 확인·관청 점검 기록, 준수 평가 작성", std: "총람 Q.6", roles: ["safety", "owner"] },
+  "legal.confirm": { area: "품질", label: "법규 연간 준수 평가 확정(F-Q-07)", std: "총람 Q.6", roles: ["owner"] },
   "nc.handle": { area: "품질", label: "부적합 원인 분석·시정 조치 지정·효과 확인·종결", std: "STD-Q Q.9", roles: ["quality", "plant_manager", "owner"], note: "부적합 발행은 누구나. 조치 담당은 자기 조치를 적음" },
   "nc.approve": { area: "품질", label: "중대 부적합 종결 승인", std: "F-Q-10", roles: ["owner"] },
   "five_s.audit": { area: "설비", label: "3정5S 구역 담당 지정·월간 평가", std: "STD-08 11·14절", roles: ["plant_manager", "owner"], note: "일일 점검은 구역 담당(대행자)이 함" },
