@@ -273,6 +273,48 @@ export const PERMS = {
     std: "STD-11 6절",
     roles: ["owner"],
   },
+  "money.view": {
+    area: "회계",
+    label: "청구·수납·미수 보기",
+    std: "STD-12",
+    roles: ["owner", "accounting", "plant_manager", "advisor"],
+  },
+  "money.receive": {
+    area: "회계",
+    label: "고객 수납 기록·취소 전표",
+    std: "STD-12 12.1",
+    roles: ["owner", "accounting", "plant_manager", "advisor"],
+  },
+  "money.close_day": {
+    area: "회계",
+    label: "일일 마감(카드·현금 맞추기)",
+    std: "STD-12 12.4",
+    roles: ["owner", "accounting", "advisor"],
+  },
+  "money.close_month": {
+    area: "회계",
+    label: "월 마감 정리·상신",
+    std: "STD-12 12.4",
+    roles: ["owner", "accounting"],
+  },
+  "money.close_approve": {
+    area: "회계",
+    label: "월 마감 승인·돌려보내기",
+    std: "STD-12 12.4",
+    roles: ["owner"],
+  },
+  "expense.draft": {
+    area: "회계",
+    label: "지출 결의서 쓰기",
+    std: "STD-12 12.2",
+    roles: ["owner", "accounting", "plant_manager"],
+  },
+  "expense.pay": {
+    area: "회계",
+    label: "지출 지급·거래처 정산",
+    std: "STD-12 12.2",
+    roles: ["owner", "accounting"],
+  },
   "training.manage": {
     area: "인사",
     label: "교육 계획 올리기·고치기·취소, 실시 기록(이수자 지정)",

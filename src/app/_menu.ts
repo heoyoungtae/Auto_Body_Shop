@@ -258,14 +258,26 @@ export const MENU: MenuGroup[] = [
     items: [
       {
         label: "청구·수납",
-        roles: ["owner", "accounting"],
-        phase: "3차",
+        perm: ["money.view"],
+        href: "/money",
         std: "STD-12",
       },
       {
-        label: "지출",
-        roles: ["owner", "accounting", "plant_manager"],
-        phase: "3차",
+        label: "지출 결의",
+        perm: ["expense.draft", "expense.pay"],
+        href: "/money/expenses",
+        std: "STD-12",
+      },
+      {
+        label: "거래처 정산",
+        perm: ["expense.draft", "expense.pay"],
+        href: "/money/payables",
+        std: "STD-12",
+      },
+      {
+        label: "마감",
+        perm: ["money.close_day", "money.close_month"],
+        href: "/money/close",
         std: "STD-12",
       },
     ],

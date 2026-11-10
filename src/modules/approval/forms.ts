@@ -3,7 +3,12 @@
 import type { DocPrefix } from "../platform/docno";
 import type { StepTemplate } from "./types";
 
-export type FormDef = { code: string; name: string; prefix: DocPrefix; steps: StepTemplate[] };
+export type FormDef = {
+  code: string;
+  name: string;
+  prefix: DocPrefix;
+  steps: StepTemplate[];
+};
 
 export const FORMS = {
   "F-Q-05": {
@@ -34,6 +39,20 @@ export const FORMS = {
     steps: [
       { kind: "draft", label: "신청", assignees: ["drafter"] },
       { kind: "approve", label: "승인", assignees: ["owner"] },
+    ],
+  },
+  // 지출 결의서(STD-12 12.2): 금액에 따라 전결 규정(일반 지출)이 승인자를 정한다. 승인 없이 지급하지 않는다
+  "F-12-01": {
+    code: "F-12-01",
+    name: "지출 결의서",
+    prefix: "EX",
+    steps: [
+      { kind: "draft", label: "결의", assignees: ["drafter"] },
+      {
+        kind: "approve",
+        label: "승인",
+        delegation: { task: "expense", amountField: "amount" },
+      },
     ],
   },
 } satisfies Record<string, FormDef>;

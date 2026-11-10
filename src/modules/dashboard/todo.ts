@@ -39,6 +39,9 @@ import { trainingTodos } from "@/modules/staff/training";
 import { payrollTodos } from "@/modules/staff/payroll";
 import { reviewTodos } from "@/modules/staff/review";
 import { exitTodos } from "@/modules/staff/exit";
+import { receiptTodos } from "@/modules/money/receipts";
+import { expenseTodos } from "@/modules/money/expense";
+import { closeTodos } from "@/modules/money/close";
 import { incidentTodos } from "@/modules/safety/incident";
 import { upcomingForMe } from "@/modules/schedule/service";
 import { timeLabel } from "@/modules/schedule/rules";
@@ -635,6 +638,11 @@ export async function myTodos(
     ...(await envTodos(db, user, today)),
     ...(await trainingTodos(db, user, today)),
     ...(await payrollTodos(db, user, today)),
+    ...(await reviewTodos(db, user, today)),
+    ...(await exitTodos(db, user, today)),
+    ...(await receiptTodos(db, user, today)),
+    ...(await expenseTodos(db, user, today)),
+    ...(await closeTodos(db, user, today)),
   );
 
   // 일정표: 오늘·내일 내 일정(공용 중 나 대상 + 개인)

@@ -267,6 +267,13 @@
       "when": 1794350850251,
       "tag": "0037_exit_check",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794351568207,
+      "tag": "0038_money",
+      "breakpoints": true
     }
   ]
 }
