@@ -8,10 +8,12 @@ export function BankLine({
   bank,
   supplierId,
   here,
+  canVerify = true,
 }: {
   bank: SupplierBank | null;
   supplierId: string;
   here?: boolean;
+  canVerify?: boolean;
 }) {
   if (!bank)
     return (
@@ -49,15 +51,20 @@ export function BankLine({
       )}
       {!bank.verified && (
         <p className="text-xs text-[var(--danger)]">
-          계좌가 새로 들어오거나 바뀌었습니다. 업체 대표 번호로 전화해 확인한 뒤{" "}
-          {here ? (
-            "아래에서"
+          계좌가 새로 들어오거나 바뀌었습니다.{" "}
+          {!canVerify ? (
+            "회계 담당·대표가 업체 대표 번호로 전화해 확인하면 지급에 씁니다."
+          ) : here ? (
+            "업체 대표 번호로 전화해 확인한 뒤 아래에서 '전화로 확인함'을 누르세요."
           ) : (
-            <Link href={`/suppliers/${supplierId}#bank`} className="underline">
-              업체 화면에서
-            </Link>
-          )}{" "}
-          &apos;전화로 확인함&apos;을 누르세요.
+            <>
+              업체 대표 번호로 전화해 확인한 뒤{" "}
+              <Link href={`/suppliers/${supplierId}#bank`} className="underline">
+                업체 화면에서
+              </Link>{" "}
+              &apos;전화로 확인함&apos;을 누르세요.
+            </>
+          )}
         </p>
       )}
     </div>

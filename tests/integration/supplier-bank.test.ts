@@ -66,6 +66,17 @@ describe("협력업체 입금 계좌", () => {
     expect(JSON.stringify(logs)).not.toContain("123456789012");
     expect(JSON.stringify(n)).not.toContain("123456789012");
 
+    // 후보 등록 때 같이 넣기(공장장): 확인 전, 공장장은 가린 번호만, 회계가 확인
+    const base = { bizNo: "", kinds: ["parts"], items: "", contactName: "", phone: "", email: "", leadDays: 2, returnTerms: "", docs: [], note: "" };
+    await expect(createSupplier(db, manager(), { ...base, name: "가나부품" }, now, { bankName: "신한", accountNo: "", holder: "" })).rejects.toThrow(/계좌번호/);
+    const id2 = await createSupplier(db, manager(), { ...base, name: "다라부품" }, now, { bankName: "신한", accountNo: "110-123-456789", holder: "다라부품" });
+    expect((await supplierBank(db, manager(), id2))).toMatchObject({ full: null, masked: "110*****6789", verified: false });
+    const id3 = await createSupplier(db, manager(), { ...base, name: "마바부품" }, now, { bankName: "", accountNo: "", holder: "" });
+    expect(await supplierBank(db, owner(), id3)).toBeNull();
+    await expect(verifySupplierBank(db, manager(), id2, "전화", now)).rejects.toThrow(/회계/);
+    await verifySupplierBank(db, acct(), id2, "업체 대표 번호로 전화", now);
+    expect((await supplierBank(db, acct(), id2))?.full).toBe("110123456789");
+
     await setSupplierBank(db, owner(), id, { bankName: "", accountNo: "", holder: "", remove: true }, new Date(now.getTime() + 2000));
     expect(await supplierBank(db, owner(), id)).toBeNull();
   });

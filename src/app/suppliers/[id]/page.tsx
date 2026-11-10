@@ -153,7 +153,7 @@ export default async function SupplierPage({
 
         <div id="bank" className="scroll-mt-4">
           <Card title="입금 계좌" help={{ kind: "panel", id: "sup.bank" }}>
-            <BankLine bank={bank} supplierId={id} here />
+            <BankLine bank={bank} supplierId={id} here canVerify={bankPerm} />
             {bank && <p className="mt-1 text-xs text-[var(--muted)]">넣은·바꾼 사람 {nm(bank.changedBy)} · {fmtTime(bank.changedAt)}{!bankPerm && " · 전체 번호는 회계 담당·대표만 봅니다"}</p>}
             {bankPerm && bank && !bank.verified && (bank.changedBy !== user.id || user.roles.includes("owner")) && (
               <AssistForm id={`sup-bankv-${id}`} action={supplierAction} className="mt-3 flex flex-wrap items-end gap-2">

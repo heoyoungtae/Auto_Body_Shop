@@ -33,11 +33,12 @@ export async function createSupplierAction(form: FormData) {
   const user = await requireUser();
   let id = "";
   try {
-    id = await createSupplier(await getDb(), user, input(form));
+    const f = str(form);
+    id = await createSupplier(await getDb(), user, input(form), new Date(), { bankName: f("bankName"), accountNo: f("accountNo"), holder: f("holder") });
   } catch (e) {
     redirect(errorUrl("/suppliers/new", userMessage(e)));
   }
-  redirect(noticeUrl(`/suppliers/${id}`, "후보로 등록했습니다. 서류를 확인하고 등록 평가를 하세요"));
+  redirect(noticeUrl(`/suppliers/${id}`, form.get("accountNo") ? "후보로 등록했습니다. 입금 계좌는 회계 담당·대표가 업체에 전화로 확인하면 지급에 씁니다. 서류를 확인하고 등록 평가를 하세요" : "후보로 등록했습니다. 서류를 확인하고 등록 평가를 하세요"));
 }
 
 export async function supplierAction(form: FormData) {

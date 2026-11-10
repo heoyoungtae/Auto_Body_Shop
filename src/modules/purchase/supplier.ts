@@ -78,16 +78,37 @@ function checkInput(i: SupplierInput) {
   };
 }
 
-/** 후보 등록(4.1). 같은 사업자등록번호가 있으면 막는다 */
-export async function createSupplier(db: Db, actor: Actor, input: SupplierInput, now = new Date()) {
+export type BankInput = { bankName: string; accountNo: string; holder: string };
+
+function checkBank(i: BankInput) {
+  const bankName = i.bankName.trim();
+  const no = i.accountNo.replace(/[\s-]/g, "");
+  const holder = i.holder.trim();
+  if (!bankName) throw new SupplierError("은행을 골라 주세요");
+  if (!no) throw new SupplierError("계좌번호를 적어 주세요");
+  const issue = bankAccountIssue(no);
+  if (issue) throw new SupplierError(issue);
+  if (!holder) throw new SupplierError("예금주를 적어 주세요(통장 사본과 같게)");
+  return { bankName, no, holder };
+}
+
+/**
+ * 후보 등록(4.1). 같은 사업자등록번호가 있으면 막는다.
+ * 등록할 때 받은 통장 사본으로 입금 계좌도 같이 넣을 수 있다(처음 한 번). 넣은 사람이 아닌 회계·대표가 전화로 확인해야 지급에 쓴다.
+ */
+export async function createSupplier(db: Db, actor: Actor, input: SupplierInput, now = new Date(), bank?: BankInput) {
   if (!can(actor, "supplier.manage")) throw new SupplierError("협력업체 등록은 공장장·대표가 합니다");
   const v = checkInput(input);
+  const b = bank && (bank.bankName.trim() || bank.accountNo.trim() || bank.holder.trim()) ? checkBank(bank) : null;
   if (v.bizNo) {
     const [dup] = await db.select({ name: supplier.name }).from(supplier).where(eq(supplier.bizNo, v.bizNo));
     if (dup) throw new SupplierError(`같은 사업자등록번호의 업체(${dup.name})가 이미 있습니다`);
   }
-  const [s] = await db.insert(supplier).values({ ...v, createdBy: actor.id, createdAt: now, updatedAt: now }).returning({ id: supplier.id });
-  await writeAudit(db, { actorId: actor.id, action: "supplier.create", entityType: "supplier", entityId: s.id, after: { name: v.name, kinds: v.kinds } });
+  const bankCols = b
+    ? { bankName: b.bankName, bankAccountEnc: encrypt(b.no, "sensitive"), bankAccountMasked: maskAccount(b.no), bankHolder: b.holder, bankChangedBy: actor.id, bankChangedAt: now }
+    : {};
+  const [s] = await db.insert(supplier).values({ ...v, ...bankCols, createdBy: actor.id, createdAt: now, updatedAt: now }).returning({ id: supplier.id });
+  await writeAudit(db, { actorId: actor.id, action: "supplier.create", entityType: "supplier", entityId: s.id, after: { name: v.name, kinds: v.kinds, account: b ? `${b.bankName} ${maskAccount(b.no)} ${b.holder}` : null } });
   return s.id;
 }
 
@@ -235,13 +256,7 @@ export async function setSupplierBank(db: Db, actor: Actor, id: string, input: {
   // 번호 칸을 비우면 지금 번호를 그대로 둔다(은행·예금주만 고칠 때)
   const no = typed || (s.bankAccountEnc ? decrypt(s.bankAccountEnc) : "");
   const holder = input.holder.trim();
-  if (!clear) {
-    if (!bankName) throw new SupplierError("은행을 골라 주세요");
-    if (!no) throw new SupplierError("계좌번호를 적어 주세요");
-    const issue = bankAccountIssue(no);
-    if (issue) throw new SupplierError(issue);
-    if (!holder) throw new SupplierError("예금주를 적어 주세요(통장 사본과 같게)");
-  }
+  if (!clear) checkBank({ bankName, accountNo: no, holder });
   const same = !clear && s.bankAccountEnc && s.bankName === bankName && s.bankHolder === holder && decrypt(s.bankAccountEnc) === no;
   if (same) return { changed: false, mismatch: holderMismatch(holder, s.name) };
   const masked = clear ? null : maskAccount(no);
