@@ -10,6 +10,9 @@ export const storageRoot = () => process.env.STORAGE_DIR ?? join(process.cwd(), 
 /** 받는 형식과 크기 상한 */
 export const IMAGE_TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png" };
 export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+/** 서류(사업자등록증·통장 사본 등): 그림 또는 PDF, 8MB까지 */
+export const DOC_TYPES: Record<string, string> = { ...IMAGE_TYPES, "application/pdf": "pdf" };
+export const MAX_DOC_BYTES = 8 * 1024 * 1024;
 
 const SAFE = /^[a-z0-9][a-z0-9/_.-]*$/;
 
@@ -43,4 +46,11 @@ export function sniffImage(b: Uint8Array): keyof typeof IMAGE_TYPES | null {
   return null;
 }
 
-export const contentTypeOf = (rel: string) => (rel.endsWith(".webp") ? "image/webp" : rel.endsWith(".png") ? "image/png" : rel.endsWith(".jpg") ? "image/jpeg" : "application/octet-stream");
+/** 그림 또는 PDF(%PDF-) */
+export function sniffDoc(b: Uint8Array): keyof typeof DOC_TYPES | null {
+  if (b.length > 5 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46 && b[4] === 0x2d) return "application/pdf";
+  return sniffImage(b);
+}
+
+export const contentTypeOf = (rel: string) =>
+  rel.endsWith(".webp") ? "image/webp" : rel.endsWith(".png") ? "image/png" : rel.endsWith(".jpg") ? "image/jpeg" : rel.endsWith(".pdf") ? "application/pdf" : "application/octet-stream";

@@ -21,7 +21,7 @@ export function BankFields({ supplierName, bankName, holder, hasAccount, optiona
     <>
       <TextField help="sup.bankName" name="bankName" required={need} value={bank} onChange={(e) => setBank(e.currentTarget.value)} suggestions={BANKS.map((b) => ({ value: b }))} />
       <TextField help="sup.bankAccount" name="accountNo" inputMode="numeric" autoComplete="off" required={need && !hasAccount} placeholder={hasAccount ? "비워 두면 지금 번호 그대로" : undefined} value={no} onChange={(e) => setNo(e.currentTarget.value)} />
-      <TextField help="sup.bankHolder" name="holder" required={need} value={h} onChange={(e) => setH(e.currentTarget.value)} from={!holder && h && h === name ? "업체 이름에서 불러옴" : undefined} />
+      <TextField help="sup.bankHolder" name="holder" required={need} value={h} onChange={(e) => setH(e.currentTarget.value)} from={!holder && h && h === name ? "업체 이름" : undefined} />
       <div className="flex items-end">
         {!h && (
           <button type="button" className="text-sm text-[var(--accent)]" onClick={() => setH(readName())}>

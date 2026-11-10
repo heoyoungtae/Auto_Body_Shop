@@ -15,7 +15,7 @@ import {
   type PoStatus,
   type SupplierStatus,
 } from "@/modules/purchase/rules";
-import { getSupplier, supplierBank } from "@/modules/purchase/supplier";
+import { canSeeDocFile, getSupplier, supplierBank } from "@/modules/purchase/supplier";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
 import { NumberField, RadioRow, TextAreaField, TextField } from "../../_input";
@@ -102,21 +102,6 @@ export default async function SupplierPage({
             )}
             {row("보통 납기", s.leadDays != null ? `${s.leadDays}일` : null)}
             {row("반품 조건", s.returnTerms)}
-            {row(
-              "확인한 서류",
-              <span className="flex flex-wrap gap-1">
-                {s.docs.map((d) => (
-                  <Badge key={d} tone="ok">
-                    {SUPPLIER_DOCS[d as keyof typeof SUPPLIER_DOCS]?.label ?? d}
-                  </Badge>
-                ))}
-                {missing.map((d) => (
-                  <Badge key={d} tone="danger">
-                    {SUPPLIER_DOCS[d].label} 필요
-                  </Badge>
-                ))}
-              </span>,
-            )}
             {row("메모", s.note)}
             {row(
               "등록 승인",
@@ -129,6 +114,52 @@ export default async function SupplierPage({
                 status === "rejected" ? "등록 안 한 이유" : "중지 이유",
                 s.stopReason,
               )}
+            {row(
+              "확인한 서류",
+              <div className="space-y-1.5">
+                <span className="flex flex-wrap gap-1">
+                  {s.docs.map((d) => (
+                    <Badge key={d} tone="ok">
+                      {SUPPLIER_DOCS[d as keyof typeof SUPPLIER_DOCS]?.label ?? d}
+                    </Badge>
+                  ))}
+                  {missing.map((d) => (
+                    <Badge key={d} tone="danger">
+                      {SUPPLIER_DOCS[d].label} 필요
+                    </Badge>
+                  ))}
+                </span>
+                {s.docFiles.length > 0 && (
+                  <ul className="space-y-1">
+                    {s.docFiles.map((f) => (
+                      <li key={f.path} className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-[var(--muted)]">{SUPPLIER_DOCS[f.doc as keyof typeof SUPPLIER_DOCS]?.label ?? f.doc}</span>
+                        {canSeeDocFile(user, f.doc) ? (
+                          <a href={`/api/files/${f.path}`} target="_blank" rel="noreferrer" className="text-[var(--accent)] underline">
+                            📎 {f.name}
+                          </a>
+                        ) : (
+                          <span>📎 {f.name}(회계 담당·대표만 봄)</span>
+                        )}
+                        <span className="text-[var(--muted)]">
+                          {nm(f.by)} · {fmtTime(f.at)}
+                        </span>
+                        {(manage || (f.doc === "bankbook" && bankPerm)) && (
+                          <form action={supplierAction}>
+                            <input type="hidden" name="id" value={id} />
+                            <input type="hidden" name="intent" value="docRemove" />
+                            <input type="hidden" name="path" value={f.path} />
+                            <button type="submit" className="text-[var(--danger)]" aria-label={`${f.name} 지우기`}>
+                              지우기
+                            </button>
+                          </form>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>,
+            )}
           </dl>
           {manage && (
             <details className="mt-3">

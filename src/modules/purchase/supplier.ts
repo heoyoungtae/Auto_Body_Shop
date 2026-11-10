@@ -11,6 +11,7 @@ import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
+import { DOC_TYPES, MAX_DOC_BYTES, removeStored, sniffDoc, storeFile } from "@/modules/platform/storage";
 import { loadPolicy } from "@/modules/platform/policy";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import {
@@ -343,6 +344,59 @@ export async function supplierBankTodos(db: Db, actor: Actor) {
     .map((s) => ({ key: `sup-bank-${s.id}`, when: "today" as const, what: `협력업체 입금 계좌 확인: ${s.name}`, detail: "업체 대표 번호로 전화해 은행·번호·예금주를 확인", href: `/suppliers/${s.id}#bank`, action: "확인하기" }));
 }
 
+export type DocUpload = { doc: string; name: string; bytes: Uint8Array };
+const MAX_FILES_PER_DOC = 5;
+
+/** 통장 사본 파일은 계좌 권한자(회계·대표)만 열어 본다 */
+export const canSeeDocFile = (actor: Actor, doc: string) => doc !== "bankbook" || can(actor, "supplier.bank");
+
+/**
+ * 서류 파일 올리기(그림·PDF, 8MB까지, 서류마다 5개까지). 올린 서류는 '확인한 서류'에 자동 체크.
+ * 공장장·대표(업체 관리) 또는 통장 사본이면 회계도 올린다.
+ */
+export async function addSupplierDocFiles(db: Db, actor: Actor, id: string, files: DocUpload[], now = new Date()) {
+  const list = files.filter((f) => f.bytes.length);
+  if (!list.length) return 0;
+  const s = await supRow(db, id);
+  const docFiles = [...s.docFiles];
+  const docs = new Set(s.docs);
+  // 먼저 모두 검사하고(하나라도 틀리면 아무것도 안 올림) 그다음 저장
+  const checked = list.map((f) => {
+    if (!(f.doc in SUPPLIER_DOCS)) throw new SupplierError("알 수 없는 서류입니다");
+    if (!can(actor, "supplier.manage") && !(f.doc === "bankbook" && can(actor, "supplier.bank"))) throw new SupplierError("서류는 공장장·대표가 올립니다(통장 사본은 회계도)");
+    const label = SUPPLIER_DOCS[f.doc as SupplierDoc].label;
+    if (f.bytes.length > MAX_DOC_BYTES) throw new SupplierError(`${label}: 파일이 너무 큽니다(8MB까지)`);
+    const type = sniffDoc(f.bytes);
+    if (!type) throw new SupplierError(`${label}: 사진(JPG·PNG·WEBP)이나 PDF만 올릴 수 있습니다`);
+    if (docFiles.filter((d) => d.doc === f.doc).length + list.filter((x) => x.doc === f.doc).length > MAX_FILES_PER_DOC) throw new SupplierError(`${label}: 파일은 ${MAX_FILES_PER_DOC}개까지입니다`);
+    return { ...f, label, ext: DOC_TYPES[type] };
+  });
+  for (const f of checked) {
+    const path = await storeFile(`sup/${id}/${f.doc}`, f.bytes, f.ext);
+    docFiles.push({ doc: f.doc, path, name: f.name.slice(0, 120) || `${f.label}.${f.ext}`, at: now.toISOString(), by: actor.id });
+    docs.add(f.doc);
+  }
+  await db.update(supplier).set({ docFiles, docs: [...docs], updatedAt: now }).where(eq(supplier.id, id));
+  await writeAudit(db, { actorId: actor.id, action: "supplier.doc_upload", entityType: "supplier", entityId: id, after: { files: list.map((f) => SUPPLIER_DOCS[f.doc as SupplierDoc].label) } });
+  return list.length;
+}
+
+export async function removeSupplierDocFile(db: Db, actor: Actor, id: string, path: string, now = new Date()) {
+  const s = await supRow(db, id);
+  const f = s.docFiles.find((d) => d.path === path);
+  if (!f) throw new SupplierError("파일을 찾을 수 없습니다");
+  if (!can(actor, "supplier.manage") && !(f.doc === "bankbook" && can(actor, "supplier.bank"))) throw new SupplierError("서류는 공장장·대표가 지웁니다");
+  await db.update(supplier).set({ docFiles: s.docFiles.filter((d) => d.path !== path), updatedAt: now }).where(eq(supplier.id, id));
+  await removeStored(path);
+  await writeAudit(db, { actorId: actor.id, action: "supplier.doc_remove", entityType: "supplier", entityId: id, before: { file: `${SUPPLIER_DOCS[f.doc as SupplierDoc]?.label ?? f.doc} ${f.name}` } });
+}
+
+/** 파일 보기 권한: sup/<업체>/bankbook/ 아래는 계좌 권한자만 */
+export function storedFileAllowed(actor: Actor, rel: string) {
+  const m = /^sup\/[^/]+\/([a-z]+)\//.exec(rel);
+  return !m || canSeeDocFile(actor, m[1]);
+}
+
 export type SupplierFilter = "registered" | "candidate" | "stopped" | "all";
 
 export async function listSuppliers(db: Db, filter: SupplierFilter = "registered") {
@@ -365,7 +419,7 @@ export async function supplierOptions(db: Db, kind?: string) {
 export async function getSupplier(db: Db, id: string, now = new Date()) {
   const s = await supRow(db, id);
   const evals = await db.select().from(supplierEval).where(eq(supplierEval.supplierId, id)).orderBy(desc(supplierEval.evaluatedAt));
-  const uids = [...new Set([s.createdBy, s.approvedBy, s.bankChangedBy, s.bankVerifiedBy, ...evals.flatMap((e) => [e.evaluatedBy, e.confirmedBy])].filter((x): x is string => !!x))];
+  const uids = [...new Set([s.createdBy, s.approvedBy, s.bankChangedBy, s.bankVerifiedBy, ...s.docFiles.map((f) => f.by), ...evals.flatMap((e) => [e.evaluatedBy, e.confirmedBy])].filter((x): x is string => !!x))];
   const names = new Map((uids.length ? await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(inArray(appUser.id, uids)) : []).map((u) => [u.id, u.name]));
   const year = Number(seoulDate(now).slice(0, 4));
   const stats = await supplierStats(db, id, year);

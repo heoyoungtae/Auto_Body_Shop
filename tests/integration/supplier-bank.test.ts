@@ -5,7 +5,7 @@ import type { Db } from "@/db/client";
 import { auditLog, notification, supplier } from "@/db/schema";
 import { myTodos } from "@/modules/dashboard/todo";
 import { holderMismatch, maskAccount } from "@/modules/purchase/rules";
-import { createSupplier, getSupplier, setSupplierBank, supplierBank, verifySupplierBank } from "@/modules/purchase/supplier";
+import { addSupplierDocFiles, createSupplier, getSupplier, removeSupplierDocFile, setSupplierBank, storedFileAllowed, supplierBank, verifySupplierBank } from "@/modules/purchase/supplier";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -18,6 +18,7 @@ const now = new Date("2026-11-10T00:00:00Z");
 const owner = () => ({ id: ids.owner, roles: ["owner" as const] });
 const manager = () => ({ id: ids.manager, roles: ["plant_manager" as const] });
 const acct = () => ({ id: ids.account, roles: ["accounting" as const] });
+const tech = () => ({ id: ids.tech1, roles: ["technician" as const] });
 
 describe("협력업체 입금 계좌", () => {
   it("규칙", () => {
@@ -79,5 +80,23 @@ describe("협력업체 입금 계좌", () => {
 
     await setSupplierBank(db, owner(), id, { bankName: "", accountNo: "", holder: "", remove: true }, new Date(now.getTime() + 2000));
     expect(await supplierBank(db, owner(), id)).toBeNull();
+  });
+
+  it("서류 파일: 사진·PDF만, 붙이면 체크, 통장 사본은 회계·대표만 열람", async () => {
+    const id = await createSupplier(db, manager(), { name: "사아부품", bizNo: "", kinds: ["parts"], items: "", contactName: "", phone: "", email: "", leadDays: 2, returnTerms: "", docs: [], note: "" }, now);
+    const pdf = new TextEncoder().encode("%PDF-1.4\n%%EOF");
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+    await expect(addSupplierDocFiles(db, manager(), id, [{ doc: "biz", name: "a.txt", bytes: new TextEncoder().encode("hello") }], now)).rejects.toThrow(/PDF/);
+    await expect(addSupplierDocFiles(db, tech(), id, [{ doc: "biz", name: "a.pdf", bytes: pdf }], now)).rejects.toThrow(/공장장/);
+    expect(await addSupplierDocFiles(db, manager(), id, [{ doc: "biz", name: "사업자등록증.pdf", bytes: pdf }, { doc: "bankbook", name: "통장.png", bytes: png }], now)).toBe(2);
+    const { s } = await getSupplier(db, id, now);
+    expect(s.docs).toEqual(expect.arrayContaining(["biz", "bankbook"]));
+    expect(s.docFiles.map((f) => f.path.split(".").pop())).toEqual(["pdf", "png"]);
+    const bankbook = s.docFiles.find((f) => f.doc === "bankbook")!.path;
+    expect(storedFileAllowed(manager(), bankbook)).toBe(false);
+    expect(storedFileAllowed(acct(), bankbook)).toBe(true);
+    expect(storedFileAllowed(manager(), s.docFiles[0].path)).toBe(true);
+    await removeSupplierDocFile(db, manager(), id, s.docFiles[0].path, now);
+    expect((await getSupplier(db, id, now)).s.docFiles.length).toBe(1);
   });
 });

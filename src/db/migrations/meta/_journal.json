@@ -183,6 +183,13 @@
       "when": 1794307107939,
       "tag": "0025_supplier_bank",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794313961347,
+      "tag": "0026_supplier_doc_files",
+      "breakpoints": true
     }
   ]
 }

@@ -51,7 +51,7 @@ function useKoValidity(label: string, formatMsg?: string, extra?: (el: El) => st
   };
 }
 
-function Shell({
+export function Shell({
   id,
   helpKey,
   label,

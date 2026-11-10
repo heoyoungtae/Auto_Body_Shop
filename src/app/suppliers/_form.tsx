@@ -1,10 +1,11 @@
 // 협력업체 기본 정보 칸(새로 등록·고치기 같이 씀)
-import { SUPPLIER_DOCS, SUPPLIER_KINDS } from "@/modules/purchase/rules";
+import { SUPPLIER_KINDS } from "@/modules/purchase/rules";
 import { CheckGroup, NumberField, TextAreaField, TextField } from "../_input";
+import { DocChecks } from "./doc-checks";
 
 type S = { name: string; bizNo: string | null; kinds: string[]; items: string | null; contactName: string | null; phone: string | null; email: string | null; leadDays: number | null; returnTerms: string | null; docs: string[]; note: string | null };
 
-/** noNote: 메모 칸을 빼고 그린다(입금 계좌 칸 뒤에 SupplierNote 를 따로 둘 때) */
+/** noNote: 메모·서류 칸을 빼고 그린다(입금 계좌 칸 뒤에 SupplierNote·SupplierDocs 를 따로 둘 때) */
 export function SupplierFields({ s, noNote }: { s?: S; noNote?: boolean }) {
   return (
     <>
@@ -23,12 +24,17 @@ export function SupplierFields({ s, noNote }: { s?: S; noNote?: boolean }) {
       <div className="md:col-span-2">
         <TextField help="sup.returnTerms" name="returnTerms" defaultValue={s?.returnTerms ?? ""} />
       </div>
-      <div className="md:col-span-2">
-        <CheckGroup help="sup.docs" name="docs" defaultChecked={s?.docs ?? []} options={Object.entries(SUPPLIER_DOCS).map(([value, d]) => ({ value, label: d.label }))} />
-      </div>
       {!noNote && <SupplierNote s={s} />}
+      {!noNote && <SupplierDocs s={s} />}
     </>
   );
+}
+
+/** 확인한 서류(맨 아래): 체크 + 파일 붙이기 */
+export function SupplierDocs({ s }: { s?: S & { docFiles?: { doc: string }[] } }) {
+  const saved: Record<string, number> = {};
+  for (const f of s?.docFiles ?? []) saved[f.doc] = (saved[f.doc] ?? 0) + 1;
+  return <DocChecks checked={s?.docs ?? []} saved={saved} />;
 }
 
 export function SupplierNote({ s }: { s?: S }) {

@@ -3,6 +3,8 @@ import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, 
 import { appUser, createdAt, id } from "./platform";
 import { estimate, estimateLine, repairOrder } from "./repair";
 
+export type SupplierDocFile = { doc: string; path: string; name: string; at: string; by: string };
+
 /**
  * 협력업체(F-07-01). status: candidate 후보(평가 전·평가 중) / proposed 등록 제안(대표 승인 대기) / registered 등록 /
  * rejected 등록 안 함 / stopped 거래 중지
@@ -23,6 +25,8 @@ export const supplier = pgTable(
     returnTerms: text("return_terms"),
     /** 확인한 서류(사업자등록·단가표·TDS·MSDS·인허가·보험) */
     docs: jsonb("docs").$type<string[]>().notNull().default([]),
+    /** 올린 서류 파일(그림·PDF). 통장 사본(bankbook)은 계좌 권한자만 열어 봄 */
+    docFiles: jsonb("doc_files").$type<SupplierDocFile[]>().notNull().default([]),
     note: text("note"),
     status: text("status").notNull().default("candidate"),
     /** 최근 평가 점수 */
