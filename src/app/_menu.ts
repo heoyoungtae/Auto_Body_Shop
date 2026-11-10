@@ -108,6 +108,7 @@ export const MENU: MenuGroup[] = [
       { label: "계약서·서약서", href: "/staff/docs", std: "F-11-01·F-13-02" },
       { label: "취업규칙", href: "/rules", std: "STD-11" },
       { label: "근태·휴가", href: "/attendance", std: "STD-11.4" },
+      { label: "교육 훈련", href: "/training", std: "STD-11.2" },
       { label: "재직증명서", href: "/certificates", std: "STD-11" },
       { label: "급여", phase: "3차", std: "STD-11.5", roles: ["owner", "accounting"] },
     ],

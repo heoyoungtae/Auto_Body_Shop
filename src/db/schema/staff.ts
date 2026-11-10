@@ -1,5 +1,16 @@
 // 직원 명부(F-11-01 근로자 명부)·역량 표(F-11-02), STD-11. 계정(app_user)에 붙는 인사 기록.
-import { index, integer, jsonb, pgTable, serial, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  real,
+  serial,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { appUser } from "./platform";
 
 export type License = { name: string; no: string; on: string };
@@ -28,7 +39,9 @@ export const staffProfile = pgTable("staff_profile", {
   phoneEnc: text("phone_enc"),
   emergencyEnc: text("emergency_enc"),
   updatedBy: uuid("updated_by").references(() => appUser.id),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 /** 역량 평가 기록(쌓기만 함). 공장장이 매기고 대표가 확인한 것(confirmedAt)이 현재 단계 */
@@ -47,7 +60,9 @@ export const competency = pgTable(
     confirmedBy: uuid("confirmed_by").references(() => appUser.id),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     rejectedAt: timestamp("rejected_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [index("competency_user_skill_idx").on(t.userId, t.skill)],
 );
@@ -83,8 +98,69 @@ export const staffDocument = pgTable(
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     cancelReason: text("cancel_reason"),
     createdBy: uuid("created_by").references(() => appUser.id),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [index("staff_document_user_idx").on(t.userId, t.kind)],
+);
+
+/**
+ * 교육 기록(F-11-03, STD-11 5절): 계획란(연간 계획·월) → 이수란(실시일·시간·강사·이수자 서명) → 효과란(직무 교육, 1개월 뒤).
+ * 상태: planned → done / cancelled. 지우지 않는다.
+ */
+export const training = pgTable(
+  "training",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    docNo: text("doc_no").notNull().unique(),
+    year: integer("year").notNull(),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    /** 계획 달(YYYY-MM). 수시 교육은 비울 수 있음 */
+    plannedMonth: text("planned_month"),
+    plannedHours: real("planned_hours"),
+    target: text("target"),
+    organizerId: uuid("organizer_id").references(() => appUser.id),
+    status: text("status").notNull().default("planned"),
+    heldOn: text("held_on"),
+    hours: real("hours"),
+    instructor: text("instructor"),
+    content: text("content"),
+    effectDue: text("effect_due"),
+    effectMethod: text("effect_method"),
+    effectResult: text("effect_result"),
+    effectNote: text("effect_note"),
+    effectBy: uuid("effect_by").references(() => appUser.id),
+    effectAt: timestamp("effect_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("training_year_idx").on(t.year)],
+);
+
+/** 이수자(교육 한 건 × 직원). 본인이 앱에서 서명(signedAt)해야 이수 확인 */
+export const trainingAttendee = pgTable(
+  "training_attendee",
+  {
+    id: serial("id").primaryKey(),
+    trainingId: uuid("training_id")
+      .notNull()
+      .references(() => training.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    hours: real("hours").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("training_attendee_uq").on(t.trainingId, t.userId)],
 );

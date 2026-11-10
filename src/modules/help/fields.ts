@@ -3019,6 +3019,86 @@ export const FIELD_HELP = {
     detail: "고객이 아직 쓰지 않은 쿠폰만 공급사에서 취소됩니다.",
     maxLength: 200,
   },
+  "tr.kind": {
+    label: "교육 종류",
+    hint: "'법정'이 붙은 것은 법으로 정해진 교육입니다",
+    detail:
+      "직무 교육·표준서 개정 교육·OJT는 실시 1개월 뒤 공장장이 효과를 확인합니다(STD-11 5.3).",
+  },
+  "tr.title": {
+    label: "교육 이름",
+    hint: "칸을 누르면 기본 계획의 교육 이름이 뜹니다",
+    example: "상반기 정기 안전보건교육",
+    maxLength: 80,
+  },
+  "tr.year": { label: "연도", hint: "어느 해 계획에 넣을지", example: "2027" },
+  "tr.plannedMonth": {
+    label: "계획 달",
+    hint: "비우면 수시 교육(채용 시·작업 변경 시)으로 봅니다",
+    detail:
+      "계획 달이 지나도 실시 기록이 없으면 '늦음'으로 표시되고 관리자 할 일에 올라갑니다.",
+  },
+  "tr.plannedHours": {
+    label: "계획 시간",
+    hint: "시간 단위, 30분은 0.5",
+    detail:
+      "정기 안전보건교육 시간은 산업안전보건법 시행규칙 별표 4를 따릅니다(상시 인원에 따른 적용 여부 [확인 필요]).",
+    example: "12",
+  },
+  "tr.target": {
+    label: "대상",
+    hint: "누가 받아야 하는지",
+    example: "전 직원, 도장·조색 담당",
+    maxLength: 80,
+  },
+  "tr.organizerId": {
+    label: "교육 주관자",
+    hint: "실시 기록을 쓸 사람. 지정되면 알림이 갑니다",
+  },
+  "tr.heldOn": { label: "실시일", hint: "교육한 날(오늘 이후는 안 됨)" },
+  "tr.hours": {
+    label: "교육 시간",
+    hint: "실제로 한 시간. 이수자 모두에게 같은 시간으로 기록됩니다",
+    detail: "교육 시간은 근로시간으로 봅니다(취업규칙 제27조).",
+    example: "2",
+  },
+  "tr.instructor": {
+    label: "강사",
+    hint: "사내 강사면 이름·직책, 외부면 기관명",
+    example: "안전보건공단 온라인",
+    maxLength: 60,
+  },
+  "tr.content": {
+    label: "내용·자료",
+    hint: "무엇을 가르쳤는지, 쓴 자료 이름",
+    example: "방독마스크 착용·정화통 교체 실습, MSDS 보는 법",
+    maxLength: 500,
+  },
+  "tr.attendeeIds": {
+    label: "이수자",
+    hint: "교육을 받은 사람을 모두 고릅니다",
+    detail:
+      "저장하면 이수자에게 서명 요청이 갑니다. 본인이 앱에서 서명해야 이수로 셉니다. 처음에는 지난 같은 교육의 이수자를 불러옵니다.",
+  },
+  "tr.effectMethod": {
+    label: "확인 방법",
+    hint: "직무 교육은 실습 평가나 이후 재작업률로 확인합니다",
+  },
+  "tr.effectResult": {
+    label: "결과",
+    hint: "효과 없음이면 재교육 계획이 다음 달에 올라갑니다",
+  },
+  "tr.effectNote": {
+    label: "근거",
+    hint: "점수·건수처럼 확인한 내용을 적습니다",
+    example: "실습 평가 3명 모두 기준 통과, 교육 후 한 달 도장 재작업 0건",
+    maxLength: 300,
+  },
+  "tr.cancelReason": {
+    label: "취소 사유",
+    hint: "다른 달로 옮기는 것이면 취소 말고 계획 달을 고치세요",
+    maxLength: 200,
+  },
   "tool.name": {
     label: "품명",
     hint: "무슨 치공구인지",

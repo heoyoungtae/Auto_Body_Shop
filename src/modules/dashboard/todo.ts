@@ -35,6 +35,7 @@ import { auditTodos } from "@/modules/quality/audit";
 import { chemicalTodos } from "@/modules/safety/chemical";
 import { hazardTodos } from "@/modules/safety/hazard";
 import { envTodos } from "@/modules/safety/environment";
+import { trainingTodos } from "@/modules/staff/training";
 import { incidentTodos } from "@/modules/safety/incident";
 import { upcomingForMe } from "@/modules/schedule/service";
 import { timeLabel } from "@/modules/schedule/rules";
@@ -211,7 +212,7 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
   out.push(...(await taskTodos(db, user, today)));
 
   // 구매·자재·외주(STD-07): 협력업체 승인·평가, 발주 승인·보내기·입고, 재고 미달·유효기간·실사, 외주 진행
-  out.push(...(await supplierTodos(db, user, today)), ...(await supplierBankTodos(db, user)), ...(await orderTodos(db, user, today)), ...(await stockTodos(db, user, today, now)), ...(await outsourceTodos(db, user, today)), ...(await fixtureTodos(db, user, today)), ...(await toolTodos(db, user, today)), ...(await suggestionTodos(db, user, today)), ...(await legalTodos(db, user, today)), ...(await riskTodos(db, user, today)), ...(await auditTodos(db, user, today)), ...(await incidentTodos(db, user, now)), ...(await chemicalTodos(db, user)), ...(await hazardTodos(db, user, today)), ...(await envTodos(db, user, today)));
+  out.push(...(await supplierTodos(db, user, today)), ...(await supplierBankTodos(db, user)), ...(await orderTodos(db, user, today)), ...(await stockTodos(db, user, today, now)), ...(await outsourceTodos(db, user, today)), ...(await fixtureTodos(db, user, today)), ...(await toolTodos(db, user, today)), ...(await suggestionTodos(db, user, today)), ...(await legalTodos(db, user, today)), ...(await riskTodos(db, user, today)), ...(await auditTodos(db, user, today)), ...(await incidentTodos(db, user, now)), ...(await chemicalTodos(db, user)), ...(await hazardTodos(db, user, today)), ...(await envTodos(db, user, today)), ...(await trainingTodos(db, user, today)));
 
   // 일정표: 오늘·내일 내 일정(공용 중 나 대상 + 개인)
   for (const it of await upcomingForMe(db, user, now)) {

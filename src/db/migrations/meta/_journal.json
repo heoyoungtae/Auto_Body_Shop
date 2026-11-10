@@ -239,6 +239,13 @@
       "when": 1794344156440,
       "tag": "0033_gift_send",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794349259195,
+      "tag": "0034_training",
+      "breakpoints": true
     }
   ]
 }

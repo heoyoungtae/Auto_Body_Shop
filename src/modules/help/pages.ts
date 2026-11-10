@@ -1841,6 +1841,39 @@ export const PAGE_HELP = {
       "목적·사유·상품을 고르고 '보내기'를 누릅니다.",
     ],
   },
+  training: {
+    title: "교육 훈련",
+    purpose:
+      "연간 교육 계획을 세우고, 실시·이수 서명·효과 확인을 기록합니다(F-11-03, STD-11 5절).",
+    who: "계획: 대표 · 실시 기록: 대표·공장장·안전환경 담당·교육 주관자 · 서명: 이수자 본인 · 효과 확인: 공장장",
+    steps: [
+      "1월에 대표가 '연간 계획 불러오기'로 법정·직무 교육 계획을 넣고 달·주관자를 정합니다.",
+      "교육한 날 주관자가 실시 기록과 이수자를 적습니다.",
+      "이수자는 내 할 일에서 서명합니다.",
+      "직무 교육은 1개월 뒤 공장장이 효과를 확인합니다.",
+    ],
+  },
+  "training.new": {
+    title: "교육 계획 올리기",
+    purpose:
+      "연간 계획에 없던 수시 교육(채용 시, 작업 내용 변경 시, OJT)이나 계획 한 줄을 추가합니다.",
+    who: "대표·공장장·안전환경 담당",
+    steps: [
+      "종류와 이름을 고릅니다.",
+      "계획 달과 시간, 대상, 주관자를 정합니다.",
+      "올린 뒤 실시하면 같은 화면에서 이수자를 기록합니다.",
+    ],
+  },
+  "training.detail": {
+    title: "교육 기록",
+    purpose: "교육 한 건의 계획란·이수란·효과란입니다.",
+    who: "실시 기록: 주관자·관리자 · 서명: 이수자 · 효과: 공장장",
+    steps: [
+      "교육한 뒤 실시일·시간·강사·이수자를 적습니다.",
+      "이수자는 '서명'을 누릅니다.",
+      "직무 교육은 효과란을 채웁니다.",
+    ],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -1944,6 +1977,9 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/environment": "environment",
   "/gifts": "gifts",
   "/gifts/send": "gifts.send",
+  "/training": "training",
+  "/training/new": "training.new",
+  "/training/[id]": "training.detail",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",
