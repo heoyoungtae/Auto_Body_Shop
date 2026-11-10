@@ -313,3 +313,40 @@ export const toolEvent = pgTable(
   },
   (t) => [index("tool_event_tool_idx").on(t.toolId, t.at)],
 );
+
+/**
+ * 개선 제안(F-08-06 제안란, STD-08 8.12). docNo: SG-연월-순번.
+ * status: submitted 검토 중 · adopted 채택(실행 전) · held 보류 · rejected 불채택 · done 실행·효과 확인 끝
+ */
+export const suggestion = pgTable(
+  "suggestion",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    title: text("title").notNull(),
+    area: text("area"),
+    problem: text("problem").notNull(),
+    proposal: text("proposal").notNull(),
+    effect: text("effect"),
+    photos: jsonb("photos").$type<string[]>().notNull().default([]),
+    proposerId: uuid("proposer_id")
+      .notNull()
+      .references(() => appUser.id),
+    status: text("status").notNull().default("submitted"),
+    /** 결정 기한(제출 + 14일) */
+    replyDue: text("reply_due").notNull(),
+    reply: text("reply"),
+    decidedBy: uuid("decided_by").references(() => appUser.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /** 실행 내용·효과 확인 */
+    doneNote: text("done_note"),
+    effectNote: text("effect_note"),
+    doneBy: uuid("done_by").references(() => appUser.id),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    /** 표준서·지침서 개정 요청(F-Q-05) 문서 번호 */
+    revisionRef: text("revision_ref"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("suggestion_no_uq").on(t.docNo), index("suggestion_status_idx").on(t.status), index("suggestion_proposer_idx").on(t.proposerId)],
+);

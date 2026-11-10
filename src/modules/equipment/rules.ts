@@ -219,3 +219,13 @@ export function quarterOf(date: string) {
 
 /** 분기 마지막 달인지(3·6·9·12월): 이 달에 점검을 마친다 */
 export const quarterEndMonth = (date: string) => Number(date.slice(5, 7)) % 3 === 0;
+
+// ── 개선 제안(STD-08 8.12, F-08-06) ──
+export const SG_STATUS = { submitted: "검토 중", adopted: "채택(실행 전)", held: "보류", rejected: "불채택", done: "실행 끝" } as const;
+export type SgStatus = keyof typeof SG_STATUS;
+export const SG_TONE: Record<SgStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { submitted: "warn", adopted: "accent", held: "neutral", rejected: "danger", done: "ok" };
+/** 공장장 결정(15.2) */
+export const SG_DECISIONS = { adopted: "채택", held: "보류", rejected: "불채택" } as const;
+export type SgDecision = keyof typeof SG_DECISIONS;
+/** 회신 기한: 제출 뒤 14일 */
+export const SG_REPLY_DAYS = 14;

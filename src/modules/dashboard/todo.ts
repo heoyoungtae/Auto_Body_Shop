@@ -28,6 +28,7 @@ import { stockTodos } from "@/modules/purchase/stock";
 import { outsourceTodos } from "@/modules/purchase/outsource";
 import { fixtureTodos } from "@/modules/purchase/fixture";
 import { toolTodos } from "@/modules/equipment/tools";
+import { suggestionTodos } from "@/modules/equipment/suggestion";
 import { upcomingForMe } from "@/modules/schedule/service";
 import { timeLabel } from "@/modules/schedule/rules";
 import { MIN_WAGE_CHECK_FROM, MIN_WAGE_TODO_FROM, nextMinWage } from "@/modules/staff/min-wage";
@@ -203,7 +204,7 @@ export async function myTodos(db: Db, user: { id: string; roles: Role[] }, now =
   out.push(...(await taskTodos(db, user, today)));
 
   // 구매·자재·외주(STD-07): 협력업체 승인·평가, 발주 승인·보내기·입고, 재고 미달·유효기간·실사, 외주 진행
-  out.push(...(await supplierTodos(db, user, today)), ...(await supplierBankTodos(db, user)), ...(await orderTodos(db, user, today)), ...(await stockTodos(db, user, today, now)), ...(await outsourceTodos(db, user, today)), ...(await fixtureTodos(db, user, today)), ...(await toolTodos(db, user, today)));
+  out.push(...(await supplierTodos(db, user, today)), ...(await supplierBankTodos(db, user)), ...(await orderTodos(db, user, today)), ...(await stockTodos(db, user, today, now)), ...(await outsourceTodos(db, user, today)), ...(await fixtureTodos(db, user, today)), ...(await toolTodos(db, user, today)), ...(await suggestionTodos(db, user, today)));
 
   // 일정표: 오늘·내일 내 일정(공용 중 나 대상 + 개인)
   for (const it of await upcomingForMe(db, user, now)) {

@@ -29,6 +29,7 @@ export const PERMS = {
   "cert.approve": { area: "인사", label: "재직증명서 발급 승인(직인)", std: "STD-11", roles: ["owner"] },
   "equip.manage": { area: "설비", label: "설비 대장·윤활 개소·예방정비 계획 쓰기, 고장 확인(사용 재개)", std: "STD-08", roles: ["plant_manager", "owner"] },
   "equip.check": { area: "설비", label: "설비 점검·윤활·운전 일지·고장 신고·예방정비 실적", std: "STD-08", roles: ["technician", "plant_manager", "owner", "safety", "quality"] },
+  "suggest.decide": { area: "설비", label: "개선 제안 채택·보류·불채택 회신, 실행·효과 확인", std: "STD-08 8.12", roles: ["plant_manager", "owner"] },
   "equip.calibrate": { area: "설비", label: "측정 장비 교정 기록", std: "STD-08 6절", roles: ["quality", "plant_manager", "owner"] },
   "pm.approve": { area: "설비", label: "예방정비 계획 승인", std: "STD-08 9절", roles: ["owner"] },
   "nc.handle": { area: "품질", label: "부적합 원인 분석·시정 조치 지정·효과 확인·종결", std: "STD-Q Q.9", roles: ["quality", "plant_manager", "owner"], note: "부적합 발행은 누구나. 조치 담당은 자기 조치를 적음" },

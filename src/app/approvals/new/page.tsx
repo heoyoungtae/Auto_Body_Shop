@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { getDoc } from "@/modules/approval/service";
+import { getSuggestion } from "@/modules/equipment/suggestion";
 import { DEFAULT_DELEGATION, isDelegationTask, loadBands } from "@/modules/platform/delegation";
 import { DEFAULT_POLICY, isPolicyKey, loadPolicy } from "@/modules/platform/policy";
 import { AssistForm } from "../../_assist";
@@ -31,10 +32,24 @@ const bandText = (task: keyof typeof DEFAULT_DELEGATION, bands: { upTo: number |
 
 /**
  * 앞선 기록에서 값을 끌어와 다시 치지 않게 한다.
- * ?from=문서  반려·지난 요청서를 그대로 복사 / ?policy=키  정책값 화면에서 / ?task=업무  전결 화면에서
+ * ?from=문서  반려·지난 요청서를 그대로 복사 / ?policy=키  정책값 화면에서 / ?task=업무  전결 화면에서 / ?suggest=제안  채택한 개선 제안에서
  */
-async function prefill(q: { from?: string; policy?: string; task?: string }): Promise<Prefill> {
+async function prefill(q: { from?: string; policy?: string; task?: string; suggest?: string }): Promise<Prefill> {
   const db = await getDb();
+  if (q.suggest) {
+    try {
+      const { s } = await getSuggestion(db, q.suggest);
+      return {
+        title: s.title,
+        current: s.problem,
+        proposed: s.proposal,
+        reason: [`개선 제안 ${s.docNo} 채택`, s.effectNote ? `효과 확인: ${s.effectNote}` : s.effect ? `기대 효과: ${s.effect}` : null].filter(Boolean).join(" · "),
+        source: s.docNo,
+      };
+    } catch {
+      /* 없는 제안이면 빈 양식 */
+    }
+  }
   if (q.from) {
     try {
       const d = await getDoc(db, q.from);
@@ -59,13 +74,13 @@ async function prefill(q: { from?: string; policy?: string; task?: string }): Pr
   return {};
 }
 
-export default async function NewRevisionRequest({ searchParams }: { searchParams: Promise<{ error?: string; from?: string; policy?: string; task?: string }> }) {
+export default async function NewRevisionRequest({ searchParams }: { searchParams: Promise<{ error?: string; from?: string; policy?: string; task?: string; suggest?: string }> }) {
   const q = await searchParams;
   await requireUser();
   const p = await prefill(q);
   const policy = p.policyKey && isPolicyKey(p.policyKey) ? { key: p.policyKey, def: DEFAULT_POLICY[p.policyKey] as { value: number; unit: string; label: string; min?: number; max?: number }, now: (await loadPolicy(await getDb()))[p.policyKey] } : null;
   // 불러온 값이 있으면 임시 저장본 대신 그 값으로 시작한다
-  const formId = `revision-new${q.from ? `-${q.from}` : q.policy ? `-p-${q.policy}` : q.task ? `-t-${q.task}` : ""}`;
+  const formId = `revision-new${q.from ? `-${q.from}` : q.policy ? `-p-${q.policy}` : q.task ? `-t-${q.task}` : q.suggest ? `-s-${q.suggest}` : ""}`;
   return (
     <div>
       <PageTitle help="approvals.new" sub="F-Q-05 · 사내 표준서 Q.5 문서 관리. 결재: 요청 → 품질 담당 검토 → 대표 승인(부록 B)">
