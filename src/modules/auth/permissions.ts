@@ -315,6 +315,36 @@ export const PERMS = {
     std: "STD-12 12.2",
     roles: ["owner", "accounting"],
   },
+  "qms.context": {
+    area: "품질",
+    label: "조직 상황·이해관계자 검토(F-Q-01)",
+    std: "STD-Q Q.1",
+    roles: ["owner"],
+  },
+  "qms.goal_target": {
+    area: "품질",
+    label: "품질목표 값 정하기·분기 검토 서명",
+    std: "STD-Q Q.3",
+    roles: ["owner"],
+  },
+  "qms.goal_view": {
+    area: "품질",
+    label: "품질목표 관리표 보기",
+    std: "STD-Q Q.3",
+    roles: ["owner", "quality", "plant_manager", "safety"],
+  },
+  "qms.docs": {
+    area: "품질",
+    label: "문서 목록 관리(F-Q-04)",
+    std: "STD-Q Q.5",
+    roles: ["owner", "quality"],
+  },
+  "qms.review": {
+    area: "품질",
+    label: "경영검토(F-Q-09)",
+    std: "STD-Q Q.8",
+    roles: ["owner"],
+  },
   "training.manage": {
     area: "인사",
     label: "교육 계획 올리기·고치기·취소, 실시 기록(이수자 지정)",

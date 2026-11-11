@@ -42,6 +42,8 @@ import { exitTodos } from "@/modules/staff/exit";
 import { receiptTodos } from "@/modules/money/receipts";
 import { expenseTodos } from "@/modules/money/expense";
 import { closeTodos } from "@/modules/money/close";
+import { goalTodos } from "@/modules/quality/goals";
+import { contextTodos, mgmtReviewTodos } from "@/modules/quality/qms";
 import { incidentTodos } from "@/modules/safety/incident";
 import { upcomingForMe } from "@/modules/schedule/service";
 import { timeLabel } from "@/modules/schedule/rules";
@@ -643,6 +645,9 @@ export async function myTodos(
     ...(await receiptTodos(db, user, today)),
     ...(await expenseTodos(db, user, today)),
     ...(await closeTodos(db, user, today)),
+    ...(await goalTodos(db, user, today)),
+    ...(await contextTodos(db, user, today)),
+    ...(await mgmtReviewTodos(db, user, today)),
   );
 
   // 일정표: 오늘·내일 내 일정(공용 중 나 대상 + 개인)

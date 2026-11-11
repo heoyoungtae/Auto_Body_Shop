@@ -60,9 +60,12 @@ const FIELD_LABEL: Record<string, string> = {
   evidence: "증빙",
   payMethod: "지급 방법",
   dueOn: "지급 예정일",
+  docId: "문서 목록",
 };
 /** 저장된 키·숫자를 사람이 읽는 말로 */
 function show(k: string, v: unknown): string {
+  if (k === "docId")
+    return "문서 목록(F-Q-04)에 연결됨 — 승인되면 판이 저절로 오릅니다";
   if (k === "policyKey" && typeof v === "string" && isPolicyKey(v))
     return DEFAULT_POLICY[v].label;
   if (k === "delegationTask" && typeof v === "string" && isDelegationTask(v))

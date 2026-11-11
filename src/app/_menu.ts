@@ -163,7 +163,14 @@ export const MENU: MenuGroup[] = [
     id: "quality",
     label: "품질",
     items: [
+      {
+        label: "품질목표",
+        perm: ["qms.goal_view"],
+        href: "/qms/goals",
+        std: "STD-Q.3",
+      },
       { label: "부적합·시정 조치", href: "/nc", std: "STD-Q.9" },
+      { label: "문서 목록", href: "/qms/docs", std: "STD-Q.5" },
       { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
       {
         label: "법규 대장",
@@ -177,6 +184,18 @@ export const MENU: MenuGroup[] = [
         perm: ["audit.manage", "audit.approve"],
         href: "/audits",
         std: "STD-Q.7",
+      },
+      {
+        label: "조직 상황 검토",
+        perm: ["qms.context", "qms.docs"],
+        href: "/qms/context",
+        std: "STD-Q.1",
+      },
+      {
+        label: "경영검토",
+        perm: ["qms.review", "qms.docs"],
+        href: "/qms/review",
+        std: "STD-Q.8",
       },
     ],
   },

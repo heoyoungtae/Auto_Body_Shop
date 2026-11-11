@@ -2051,6 +2051,61 @@ export const PAGE_HELP = {
     ],
     refs: ["사내 표준서 STD-12 12.4"],
   },
+  "qms.context": {
+    title: "조직 상황 검토",
+    purpose:
+      "해마다 12월 내부·외부 이슈와 이해관계자 요구를 검토합니다(F-Q-01, 총람 Q.1).",
+    who: "대표(품질 담당은 보기)",
+    steps: [
+      "지난해 표를 불러와 바뀐 칸만 고칩니다.",
+      "영향이 큰 이슈는 리스크 대장에 올립니다.",
+      "승인합니다.",
+    ],
+    refs: ["사내 표준서 Q.1", "양식 F-Q-01"],
+  },
+  "qms.goals": {
+    title: "품질목표 관리표",
+    purpose:
+      "품질목표 11개 지표의 달마다 실적을 앱 기록에서 자동 집계합니다(F-Q-02, 총람 Q.3).",
+    who: "보기: 대표·공장장·품질·안전환경 · 목표값·서명: 대표",
+    steps: [
+      "달마다 실적을 봅니다.",
+      "미달 지표는 부적합으로 조치합니다.",
+      "분기가 끝나면 대표가 서명합니다.",
+    ],
+    refs: ["사내 표준서 Q.3", "양식 F-Q-02"],
+  },
+  "qms.docs": {
+    title: "문서 목록",
+    purpose:
+      "표준서·작업 지침서·양식·외부 문서의 현행 판을 관리합니다(F-Q-04, 총람 Q.5).",
+    who: "품질 담당·대표(누구나 보기)",
+    steps: [
+      "처음에 표준서 장·양식 목록을 넣습니다.",
+      "외부 문서를 등록합니다.",
+      "바꿀 문서는 개정 요청서로 올립니다.",
+    ],
+    refs: ["사내 표준서 Q.5", "양식 F-Q-04·F-Q-05"],
+  },
+  "qms.doc": {
+    title: "문서",
+    purpose: "문서 한 건의 현행 판·판 이력·개정 요청서입니다.",
+    who: "품질 담당·대표(누구나 보기)",
+    steps: ["판 이력을 봅니다.", "바꿀 것이 있으면 개정 요청을 누릅니다."],
+    refs: ["사내 표준서 Q.5"],
+  },
+  "qms.review": {
+    title: "경영검토",
+    purpose:
+      "해마다 12월 품질목표·고객·부적합·심사·법규·리스크·협력업체·안전·환경·설비 자료를 보고 다음 해 목표와 개선 과제를 정합니다(F-Q-09, 총람 Q.8).",
+    who: "대표(품질 담당은 보기)",
+    steps: [
+      "앱이 모은 자료를 봅니다.",
+      "항목마다 의견을 적습니다.",
+      "다음 해 목표와 개선 과제를 정하고 확정합니다.",
+    ],
+    refs: ["사내 표준서 Q.8", "양식 F-Q-09"],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -2173,6 +2228,11 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/money/payables": "payables",
   "/money/close": "close",
   "/money/close/[ym]": "close.month",
+  "/qms/context": "qms.context",
+  "/qms/goals": "qms.goals",
+  "/qms/docs": "qms.docs",
+  "/qms/docs/[id]": "qms.doc",
+  "/qms/review": "qms.review",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",

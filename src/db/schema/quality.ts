@@ -5,6 +5,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -305,3 +306,161 @@ export const auditFinding = pgTable(
   },
   (t) => [index("audit_finding_idx").on(t.auditId)],
 );
+
+/**
+ * 조직 상황·이해관계자 검토표(F-Q-01, 총람 Q.1). 해마다 12월 대표가 쓴다. 지난해 표를 불러와 바뀐 칸만 고친다.
+ * issues: 구분(area)·이슈·영향·대응(리스크 대장 등록이면 riskId). parties: 이해관계자·요구·확인 방법·반영할 표준
+ */
+export const contextReview = pgTable("context_review", {
+  year: integer("year").primaryKey(),
+  issues: jsonb("issues")
+    .$type<
+      {
+        area: string;
+        issue: string;
+        impact: string;
+        action: string;
+        riskId?: string | null;
+        riskNo?: string | null;
+      }[]
+    >()
+    .notNull()
+    .default([]),
+  parties: jsonb("parties")
+    .$type<{ party: string; needs: string; check: string; std: string }[]>()
+    .notNull()
+    .default([]),
+  note: text("note"),
+  /** draft 작성 중 · confirmed 승인(대표) */
+  status: text("status").notNull().default("draft"),
+  importedFrom: integer("imported_from"),
+  savedBy: uuid("saved_by").references(() => appUser.id),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull().defaultNow(),
+  confirmedBy: uuid("confirmed_by").references(() => appUser.id),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+});
+
+/** 품질목표(F-Q-02, Q.3) 연도별 목표값. 없으면 표준서 초기 목표 */
+export const qualityGoal = pgTable(
+  "quality_goal",
+  {
+    id: id(),
+    year: integer("year").notNull(),
+    key: text("key").notNull(),
+    target: real("target").notNull(),
+    reason: text("reason"),
+    setBy: uuid("set_by").references(() => appUser.id),
+    setAt: timestamp("set_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("quality_goal_uq").on(t.year, t.key)],
+);
+
+/** 품질목표 월 집계(매월 5일 앞달분을 고정). value 는 지표 단위(%, 점, 시간, 건), 대상이 없으면 null */
+export const goalMonth = pgTable(
+  "goal_month",
+  {
+    id: id(),
+    ym: text("ym").notNull(),
+    key: text("key").notNull(),
+    value: real("value"),
+    numer: real("numer"),
+    denom: real("denom"),
+    target: real("target").notNull(),
+    ok: boolean("ok"),
+    ncId: uuid("nc_id"),
+    computedAt: timestamp("computed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("goal_month_uq").on(t.ym, t.key)],
+);
+
+/** 품질목표 분기 검토 서명(대표) */
+export const goalQuarterSign = pgTable(
+  "goal_quarter_sign",
+  {
+    id: id(),
+    year: integer("year").notNull(),
+    quarter: integer("quarter").notNull(),
+    note: text("note"),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("goal_quarter_uq").on(t.year, t.quarter)],
+);
+
+/**
+ * 문서 목록(F-Q-04, Q.5). kind: std 표준서 · wi 작업 지침서 · form 양식 · external 외부 문서.
+ * 개정 요청서(F-Q-05)가 승인되면 판이 오르고 이전 판은 history 에 '폐기'로 남는다. status: current 현행 · retired 폐지
+ */
+export const docRegister = pgTable(
+  "doc_register",
+  {
+    id: id(),
+    no: text("no").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(),
+    rev: text("rev").notNull(),
+    effectiveOn: text("effective_on"),
+    owner: text("owner"),
+    location: text("location"),
+    source: text("source"),
+    receivedOn: text("received_on"),
+    note: text("note"),
+    status: text("status").notNull().default("current"),
+    history: jsonb("history")
+      .$type<
+        {
+          rev: string;
+          effectiveOn: string | null;
+          until: string;
+          ref: string | null;
+        }[]
+      >()
+      .notNull()
+      .default([]),
+    updatedBy: uuid("updated_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("doc_register_no_uq").on(t.no)],
+);
+
+/**
+ * 경영검토서(F-Q-09, Q.8). 해마다 12월 대표. inputs: 앱이 모은 입력 자료(확정 때 고정), comments: 항목별 검토 의견.
+ * actions: 개선 과제(담당·기한, 지시하면 instructionId). status: draft · confirmed
+ */
+export const mgmtReview = pgTable("mgmt_review", {
+  year: integer("year").primaryKey(),
+  heldOn: text("held_on"),
+  attendees: text("attendees"),
+  inputs: jsonb("inputs")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default({}),
+  comments: jsonb("comments")
+    .$type<Record<string, string>>()
+    .notNull()
+    .default({}),
+  nextGoals: text("next_goals"),
+  resources: text("resources"),
+  actions: jsonb("actions")
+    .$type<
+      {
+        task: string;
+        assigneeId: string | null;
+        dueOn: string | null;
+        instructionId?: string | null;
+        instructionNo?: string | null;
+      }[]
+    >()
+    .notNull()
+    .default([]),
+  status: text("status").notNull().default("draft"),
+  savedBy: uuid("saved_by").references(() => appUser.id),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull().defaultNow(),
+  confirmedBy: uuid("confirmed_by").references(() => appUser.id),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+});
