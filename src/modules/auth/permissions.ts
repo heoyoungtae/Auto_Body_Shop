@@ -345,6 +345,13 @@ export const PERMS = {
     std: "STD-Q Q.8",
     roles: ["owner"],
   },
+  "journal.team": {
+    area: "인사",
+    label: "직원 업무일지 보기",
+    std: "사용자 지시 2026-11-11",
+    roles: ["owner", "plant_manager"],
+    note: "자기 업무일지는 누구나 봄. 이 권한이 있으면 다른 직원 일지와 직원별 요약을 봄",
+  },
   "report.view": {
     area: "경영",
     label: "통계·보고서(일·주·월·분기·연) 보기",

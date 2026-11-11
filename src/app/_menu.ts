@@ -28,6 +28,7 @@ export const MENU: MenuGroup[] = [
       { label: "내 할 일", href: "/todo" },
       { label: "일정표", href: "/schedule" },
       { label: "업무지시", href: "/tasks" },
+      { label: "업무일지", href: "/journal" },
       { label: "결재", href: "/approvals" },
       { label: "알림", href: "/notifications" },
     ],

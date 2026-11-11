@@ -13,3 +13,4 @@ export * from "./schedule";
 export * from "./safety";
 export * from "./environment";
 export * from "./money";
+export * from "./journal";
