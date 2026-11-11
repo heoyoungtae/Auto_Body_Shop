@@ -2,7 +2,7 @@
 // 왼쪽 메뉴. 넓은 화면에서는 늘 보이고, 태블릿·휴대폰에서는 ☰ 단추로 열고 닫는다.
 // 맨 위에 메뉴 찾기 칸(_menu-search-box.tsx)이 있다. 묶음은 기본으로 접혀 있다. 지금 화면이 든 묶음만 저절로 펼친다. 펼친 묶음과 '개발 예정 보기'는 이 기기에 기억한다.
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -15,6 +15,7 @@ import type { Role } from "@/modules/auth/roles";
 import { can } from "@/modules/auth/permissions";
 import { MENU, TOP, type MenuItem } from "./_menu";
 import { MenuSearch, rememberRecent } from "./_menu-search-box";
+import { pickActive } from "./_menu-active";
 
 const NavCtx = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({
   open: false,
@@ -60,24 +61,19 @@ const save = (k: string, v: unknown) => {
   }
 };
 
-/** 지금 화면에 맞는 메뉴: 경로가 가장 길게 겹치는 것 하나 */
+/** 지금 화면에 맞는 메뉴: 경로가 가장 길게 겹치고, ?f= 같은 조건까지 맞는 것 하나(_menu-active.ts) */
 const HREFS = [...TOP, ...MENU.flatMap((g) => g.items)]
   .map((i) => i.href)
   .filter((h): h is string => !!h);
-const activeHref = (path: string) =>
-  HREFS.filter((h) => path === h || path.startsWith(h + "/")).sort(
-    (a, b) => b.length - a.length,
-  )[0];
-const isActive = (path: string, href: string) => activeHref(path) === href;
-const groupOf = (path: string) => {
-  const h = activeHref(path);
-  return h
-    ? MENU.find((g) => g.items.some((i) => i.href === h))?.id
-    : undefined;
-};
+const activeHref = (path: string, search: string) => pickActive(HREFS, path, search);
+const groupOf = (h: string | undefined) =>
+  h ? MENU.find((g) => g.items.some((i) => i.href === h))?.id : undefined;
 
 export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   const path = usePathname();
+  // ?f=warranty 같은 조건도 봐야 '보증 수리'와 '만족도·불만'을 가른다
+  const search = useSearchParams().toString();
+  const current = activeHref(path, search);
   const { open, setOpen } = useContext(NavCtx);
   const [opened, setOpened] = useState<string[]>([]);
   const [future, setFuture] = useState(true);
@@ -87,11 +83,11 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   }, []);
   useEffect(() => setOpen(false), [path, setOpen]);
   // 메뉴 찾기 칸의 '최근에 연 메뉴'
-  useEffect(() => rememberRecent(activeHref(path)), [path]);
+  useEffect(() => rememberRecent(current), [current]);
   const wake = useCallback(() => setOpen(true), [setOpen]);
   // 지금 화면이 든 묶음은 펼친다(저장하지 않음 — 다른 화면으로 가면 원래대로)
-  const [here, setHere] = useState<string | undefined>(() => groupOf(path));
-  useEffect(() => setHere(groupOf(path)), [path]);
+  const [here, setHere] = useState<string | undefined>(() => groupOf(current));
+  useEffect(() => setHere(groupOf(current)), [current]);
   const allowed = (i: MenuItem) =>
     (!i.roles || i.roles.some((r) => roles.includes(r))) &&
     (!i.perm || i.perm.some((k) => can({ roles }, k)));
@@ -140,7 +136,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             <li key={i.label}>
               <Link
                 href={i.href!}
-                aria-current={isActive(path, i.href!) ? "page" : undefined}
+                aria-current={current === i.href ? "page" : undefined}
                 className="flex min-h-10 items-center rounded-md px-3 text-sm font-semibold hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:text-[var(--accent)]"
               >
                 {i.label}
@@ -171,7 +167,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
                         <Link
                           href={i.href}
                           aria-current={
-                            isActive(path, i.href) ? "page" : undefined
+                            current === i.href ? "page" : undefined
                           }
                           className="flex min-h-10 items-center justify-between rounded-md px-3 text-sm hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:font-semibold aria-[current=page]:text-[var(--accent)]"
                         >
