@@ -83,7 +83,7 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
                     <CheckGroup help="qc.passed" name="passed" options={items.map((i) => ({ value: i.key, label: `${i.group}: ${i.label} — ${i.pass}` }))} />
                     <div className="grid gap-3 md:grid-cols-2">
                       {items.some((i) => i.key === "gap") && <TextField help="qc.gapMm" name="gapMm" inputMode="decimal" />}
-                      {items.some((i) => i.key === "film") && <TextField help="qc.filmUm" name="filmUm" inputMode="numeric" />}
+                      {items.some((i) => i.key === "film") && <TextField help="qc.filmUm" name="filmUm" />}
                     </div>
                     <p className="text-xs text-[var(--muted)]">
                       기준: 간극 좌우 차 {L.gapMm}mm 이내 · 도막 {L.filmMin}~{L.filmMax}μm · 사진 {L.photos}장 이상(설정 › 정책값). 체크하지 않은 항목이나 기준 밖의 값이 있으면 불합격입니다.

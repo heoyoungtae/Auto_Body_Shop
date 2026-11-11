@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState, type ComponentProps, type ReactNode
 import { FIELD_HELP, type FieldHelpKey } from "@/modules/help/fields";
 import { HelpButton } from "./_help-drawer";
 import { addDaysIso, dayLabel, koMoney, seoulToday } from "./_format";
+import { applyShape, fieldTraits, numberWidth, selectWidth, textareaRows } from "./_field-traits";
 
 const inputBox =
   "block w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-base shadow-[var(--shadow)] outline-none transition-colors focus:border-[var(--accent)] focus:ring-3 focus:ring-[var(--accent)]/15 aria-[invalid=true]:border-[var(--danger)]";
@@ -117,12 +118,16 @@ export function TextField({
   const h = FIELD_HELP[help];
   const fmt = "format" in h ? h.format : undefined;
   const v = useKoValidity(label ?? h.label, fmt?.message);
+  // 칸 성격(폭·키패드·형식)은 help 키로 정한다. 화면에서 직접 준 속성이 이긴다
+  const t = fieldTraits(help, h, rest.type);
+  const prev = useRef(String(rest.defaultValue ?? rest.value ?? ""));
   return (
     <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
       <input
         id={id}
         name={name}
         required={required}
+        {...t.attrs}
         placeholder={"example" in h ? h.example : undefined}
         pattern={fmt?.pattern}
         maxLength={"maxLength" in h ? h.maxLength : undefined}
@@ -132,14 +137,15 @@ export function TextField({
         {...rest}
         onInvalid={v.onInvalid}
         onInput={(e) => {
-          if (lower) {
-            const el = e.currentTarget;
-            const pos = el.selectionStart;
-            el.value = el.value.toLowerCase();
-            if (pos != null) el.setSelectionRange(pos, pos);
-          }
-          v.revalidate(e.currentTarget);
+          const el = e.currentTarget;
+          const ne = e.nativeEvent as InputEvent;
+          // 한글 조합 중에는 값을 건드리지 않는다(글자가 깨짐)
+          const shape = lower ? "lower" : t.shape;
+          if (shape && !ne.isComposing) applyShape(el, shape, ne.inputType ?? "", prev.current);
+          prev.current = el.value;
+          v.revalidate(el);
         }}
+        style={t.maxWidth ? { maxWidth: t.maxWidth } : undefined}
         className={`h-11 ${inputBox}`}
       />
       {suggestions?.length ? (
@@ -177,6 +183,8 @@ export function TextAreaField({ help, name, label, required, from, defaultValue,
     el.dispatchEvent(new Event("input", { bubbles: true }));
   };
   const templates = "templates" in h ? h.templates : undefined;
+  // 글자 수 상한으로 처음 높이를 정하고, 적는 만큼 늘어난다(최대 24줄쯤)
+  const lines = rows ?? textareaRows(max);
   return (
     <Shell
       id={id}
@@ -214,8 +222,9 @@ export function TextAreaField({ help, name, label, required, from, defaultValue,
         name={name}
         required={required}
         defaultValue={defaultValue}
-        rows={rows}
+        rows={lines}
         maxLength={max}
+        autoComplete="off"
         placeholder={"example" in h ? `예: ${h.example}` : undefined}
         aria-invalid={!!v.error}
         aria-describedby={`${id}-msg`}
@@ -224,7 +233,8 @@ export function TextAreaField({ help, name, label, required, from, defaultValue,
           setCount(e.currentTarget.value.length);
           v.revalidate(e.currentTarget);
         }}
-        className={`min-h-28 py-2 ${inputBox}`}
+        style={{ minHeight: `${lines * 1.5 + 1.1}em` }}
+        className={`max-h-[36em] resize-y py-2 leading-6 [field-sizing:content] ${inputBox}`}
       />
     </Shell>
   );
@@ -268,6 +278,7 @@ export function NumberField({
   });
   const money = unit?.includes("원");
   const live = rangeMsg(num);
+  const width = numberWidth({ unit, max });
   return (
     <Shell
       id={id}
@@ -309,6 +320,7 @@ export function NumberField({
           id={id}
           inputMode="numeric"
           autoComplete="off"
+          enterKeyHint="next"
           required={required}
           defaultValue={defaultValue == null ? "" : defaultValue.toLocaleString("ko-KR")}
           pattern="[0-9,\s]*"
@@ -327,6 +339,7 @@ export function NumberField({
             setNum(n);
             v.revalidate(el);
           }}
+          style={{ maxWidth: width }}
           className={`h-11 text-right tabular-nums ${inputBox}`}
         />
         {unit && <span className="shrink-0 text-sm text-[var(--muted)]">{unit}</span>}
@@ -387,6 +400,7 @@ export function DateField({ help, name, label, required, from, defaultValue, min
           setVal(e.currentTarget.value);
           v.revalidate(e.currentTarget);
         }}
+        style={{ maxWidth: "11em" }}
         className={`h-11 ${inputBox}`}
       />
       {chips && (
@@ -451,7 +465,7 @@ export function PasswordField({ help, name, label, required, rules, matchName, a
         </>
       }
     >
-      <div className="relative">
+      <div className="relative max-w-[20em]">
         <input
           ref={ref}
           id={id}
@@ -500,7 +514,8 @@ export function SelectField({ help, name, label, required, from, defaultValue, o
         aria-describedby={`${id}-msg`}
         onInvalid={v.onInvalid}
         onChange={(e) => v.revalidate(e.currentTarget)}
-        className={`h-11 ${inputBox}`}
+        style={{ maxWidth: selectWidth([...(placeholder != null ? [placeholder] : []), ...options.map((o) => o.label)]) }}
+        className={`h-11 pr-8 ${inputBox}`}
       >
         {placeholder != null && <option value="">{placeholder}</option>}
         {options.map((o) => (

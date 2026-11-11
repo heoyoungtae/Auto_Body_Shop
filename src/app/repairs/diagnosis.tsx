@@ -34,8 +34,8 @@ function DamageFields({ d, repaintUm, options }: { d?: Damage; repaintUm: number
         />
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <TextField help="dmg.filmPanel" name="filmPanel" inputMode="numeric" defaultValue={d?.filmPanel.join(", ") ?? ""} />
-        <TextField help="dmg.filmAdjacent" name="filmAdjacent" inputMode="numeric" defaultValue={d?.filmAdjacent.join(", ") ?? ""} />
+        <TextField help="dmg.filmPanel" name="filmPanel" defaultValue={d?.filmPanel.join(", ") ?? ""} />
+        <TextField help="dmg.filmAdjacent" name="filmAdjacent" defaultValue={d?.filmAdjacent.join(", ") ?? ""} />
       </div>
       <MethodHint repaintUm={repaintUm} options={options} />
       <div className="grid gap-4 md:grid-cols-3">
