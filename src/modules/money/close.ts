@@ -25,6 +25,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { seoulDate } from "@/modules/platform/time";
 import { EXPENSE_FORM, listExpenses, payables } from "./expense";
+import { accruedIn, balancesAt } from "./payable";
 import { customerReceivables, insurerReceivables } from "./receipts";
 import { AR_DUN_DAYS, EXP_CATEGORIES, isYm, prevYm, ymRange } from "./rules";
 
@@ -210,7 +211,12 @@ export type MonthSummary = {
     byCategory: { category: string; label: string; won: number }[];
     payroll: number;
   };
-  payables: { toDraft: number; toPay: number };
+  /** toDraft 아직 지급 결의 안 한 외상, toPay 결의·승인했는데 지급 전(지금 기준). balance 그 기간 마지막 날 기준 잔액(예전 자료엔 없음) */
+  payables: {
+    toDraft: number;
+    toPay: number;
+    balance?: { trade: number; other: number; card: number; bySupplier: { name: string; trade: number; other: number }[] };
+  };
   selfApproved: { kind: string; docNo: string; title: string; won: number }[];
   dayIssues: {
     unclosed: string[];
@@ -346,10 +352,21 @@ export async function rangeSummary(
         won: o.totalWon,
       });
 
+  // 계정별 매입·비용(발생 기준): 외상은 입고(세금계산서)한 날, 결의서로 승인한 지출은 증빙 날짜(없으면 결의한 날),
+  // 예전 방식(발주서마다 결의)은 지급한 날. 지급 결의(settle)는 이미 외상으로 센 것을 갚는 것이라 넣지 않는다
   const cats = new Map<string, number>();
-  for (const e of paidExp)
-    for (const part of e.split?.length ? e.split : [{ category: e.category, won: e.amountWon }])
-      cats.set(part.category, (cats.get(part.category) ?? 0) + part.won);
+  const addCat = (parts: { category: string; won: number }[]) => {
+    for (const part of parts) cats.set(part.category, (cats.get(part.category) ?? 0) + part.won);
+  };
+  for (const x of await accruedIn(db, range.from, range.to)) addCat(x.split.length ? x.split : [{ category: x.category, won: x.amountWon }]);
+  for (const e of await listExpenses(db, "all")) {
+    if (e.status === "cancelled" || e.status === "draft" || e.status === "rejected" || e.status === "in_progress") continue;
+    const parts = e.split?.length ? e.split : [{ category: e.category, won: e.amountWon }];
+    if (e.sourceKind === "none") {
+      const on = e.evidenceOn ?? seoulDate(e.createdAt);
+      if (on >= range.from && on <= range.to) addCat(parts);
+    } else if ((e.sourceKind === "po" || e.sourceKind === "outsource") && e.paidOn && e.paidOn >= range.from && e.paidOn <= range.to) addCat(parts);
+  }
   const closes = await db
     .select()
     .from(dailyClose)
@@ -425,6 +442,7 @@ export async function rangeSummary(
     payables: {
       toDraft: sum(pay, (p) => p.toDraft),
       toPay: sum(pay, (p) => p.toPay),
+      balance: await balancesAt(db, range.to),
     },
     selfApproved,
     dayIssues: {

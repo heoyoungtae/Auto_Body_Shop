@@ -1,9 +1,10 @@
 // 협력업체 기본 정보 칸(새로 등록·고치기 같이 씀)
+import { PAY_TERMS } from "@/modules/money/rules";
 import { SUPPLIER_KINDS } from "@/modules/purchase/rules";
-import { CheckGroup, NumberField, TextAreaField, TextField } from "../_input";
+import { CheckGroup, NumberField, RadioRow, TextAreaField, TextField } from "../_input";
 import { DocChecks } from "./doc-checks";
 
-type S = { name: string; bizNo: string | null; kinds: string[]; items: string | null; contactName: string | null; phone: string | null; email: string | null; leadDays: number | null; returnTerms: string | null; docs: string[]; note: string | null };
+type S = { payTerm?: string; payDay?: number | null; name: string; bizNo: string | null; kinds: string[]; items: string | null; contactName: string | null; phone: string | null; email: string | null; leadDays: number | null; returnTerms: string | null; docs: string[]; note: string | null };
 
 /** noNote: 메모·서류 칸을 빼고 그린다(입금 계좌 칸 뒤에 SupplierNote·SupplierDocs 를 따로 둘 때) */
 export function SupplierFields({ s, noNote }: { s?: S; noNote?: boolean }) {
@@ -24,6 +25,8 @@ export function SupplierFields({ s, noNote }: { s?: S; noNote?: boolean }) {
       <div className="md:col-span-2">
         <TextField help="sup.returnTerms" name="returnTerms" defaultValue={s?.returnTerms ?? ""} />
       </div>
+      <RadioRow help="sup.payTerm" name="payTerm" required defaultValue={s?.payTerm ?? "next_end"} options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))} />
+      <NumberField help="sup.payDay" name="payDay" unit="일" min={1} max={31} defaultValue={s?.payDay ?? null} />
       {!noNote && <SupplierNote s={s} />}
       {!noNote && <SupplierDocs s={s} />}
     </>

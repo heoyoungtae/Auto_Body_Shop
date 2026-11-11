@@ -9,10 +9,12 @@ import {
   expense,
   outsourceJob,
   purchaseLine,
+  payable,
   purchaseOrder,
   stockItem,
   supplier,
 } from "@/db/schema";
+import { payableGroups, payableTodos, settleTargets, syncPayables, type PayableRow } from "./payable";
 import { itemExpCategory } from "@/modules/purchase/rules";
 import {
   createDraft,
@@ -75,7 +77,8 @@ async function liveBySource(db: Db, sourceIds: string[]) {
 }
 
 export type Source = {
-  kind: "po" | "outsource";
+  /** settle: 업체별 지급 결의(id = 업체). po·outsource 는 예전 방식(발주서마다 결의) 기록을 보여 줄 때만 */
+  kind: "po" | "outsource" | "settle";
   id: string;
   docNo: string;
   supplierId: string | null;
@@ -93,10 +96,13 @@ export type Source = {
   invoiceOn: string | null;
   on: string | null;
   partial: boolean;
+  /** settle: 묶을 채무 */
+  payables?: PayableRow[];
 };
 
 /** 결의할 근거 전표: 입고 끝(또는 일부 입고)한 발주서, 결과를 수용한 외주 의뢰서. onlyOpen 이면 남은 금액이 있는 것만 */
-export async function expenseSources(
+/** 예전 방식(발주서·외주 의뢰서마다 결의) 근거. 이미 쓴 결의의 근거를 보여 줄 때만 쓴다 */
+async function legacySources(
   db: Db,
   onlyOpen = true,
 ): Promise<Source[]> {
@@ -193,10 +199,59 @@ export async function expenseSources(
   );
 }
 
-export async function sourceOf(db: Db, kind: string, id: string) {
+/** 지급 결의 근거(업체 한 곳의 채무 묶음). ids 를 주면 그것만, 없으면 아직 결의 안 한 것 전부 */
+async function settleSource(db: Db, supplierId: string, ids: string[]): Promise<Source | null> {
+  const t = await settleTargets(db, supplierId, ids);
+  if (t.error) throw new ExpenseError(t.error);
+  const picked = ids.length ? t.picked : t.open;
+  if (!picked.length) return null;
+  const total = picked.reduce((a, x) => a + x.amountWon, 0);
+  const supply = picked.reduce((a, x) => a + x.supplyWon, 0);
+  const split = splitByShare(
+    picked.flatMap((x) => (x.split.length ? x.split : [{ category: x.category, won: x.amountWon }])),
+    total,
+  );
+  const invoices = [...new Set(picked.map((x) => x.invoiceNo).filter((x): x is string => !!x))];
+  return {
+    kind: "settle",
+    id: supplierId,
+    docNo: picked.map((x) => x.sourceNo).join(", "),
+    supplierId,
+    supplierName: picked[0].payeeName,
+    category: split[0]?.category ?? picked[0].category,
+    split,
+    totalWon: total,
+    supplyWon: supply,
+    usedWon: 0,
+    remainWon: total,
+    invoiceNo: invoices.join(", ") || null,
+    invoiceOn: null,
+    on: picked.map((x) => x.dueOn).sort()[0] ?? null,
+    partial: false,
+    payables: picked,
+  };
+}
+
+/** 지급 결의할 업체들(아직 결의 안 한 채무가 있는 곳) */
+export async function expenseSources(db: Db, now = new Date()): Promise<Source[]> {
+  const { groups } = await payableGroups(db, now);
+  const out: Source[] = [];
+  for (const g of groups) {
+    if (!g.supplierId || g.toSettle <= 0) continue;
+    const s = await settleSource(db, g.supplierId, []);
+    if (s) out.push(s);
+  }
+  return out.sort((a, b) => (a.on ?? "").localeCompare(b.on ?? ""));
+}
+
+export async function sourceOf(db: Db, kind: string, id: string, payableIds: string[] = []) {
+  if (kind === "settle") {
+    await syncPayables(db);
+    return settleSource(db, id, payableIds);
+  }
   if (kind !== "po" && kind !== "outsource") return null;
   return (
-    (await expenseSources(db, false)).find(
+    (await legacySources(db, false)).find(
       (s) => s.kind === kind && s.id === id,
     ) ?? null
   );
@@ -219,6 +274,8 @@ export type ExpenseInput = {
   files: Upload[];
   /** 반려된 결의를 고쳐 다시 올릴 때 원래 결의(취소된다) */
   fromId?: string;
+  /** 지급 결의(settle): 묶을 채무. 비우면 그 업체의 아직 결의 안 한 것 전부 */
+  payableIds?: string[];
 };
 
 async function saveFiles(id: string, actor: Actor, files: Upload[], now: Date) {
@@ -251,7 +308,8 @@ export async function createExpense(
 ) {
   if (!can(actor, "expense.draft"))
     throw new ExpenseError("지출 결의서는 공장장·회계 담당·대표가 씁니다");
-  if (!isExpCategory(input.category))
+  // 지급 결의는 고른 채무의 계정을 따르므로 비워도 된다
+  if (!isExpCategory(input.category) && !(input.sourceKind === "settle" && !input.category))
     throw new ExpenseError("지출 계정을 골라 주세요");
   if (!isEvidenceKind(input.evidenceKind))
     throw new ExpenseError("증빙 종류를 골라 주세요");
@@ -276,7 +334,19 @@ export async function createExpense(
   let src: Source | null = null;
   const sourceKind =
     input.sourceKind in SOURCE_KINDS ? input.sourceKind : "none";
-  if (sourceKind !== "none") {
+  if ((sourceKind === "po" || sourceKind === "outsource") && !input.fromId)
+    throw new ExpenseError(
+      "발주서·외주 대금은 입고하면 외상매입금·미지급금이 됩니다. '외상매입금·미지급금' 화면에서 업체별 지급 결의로 냅니다",
+    );
+  if (sourceKind === "settle") {
+    src = await sourceOf(db, "settle", input.sourceId, input.payableIds ?? []);
+    if (!src)
+      throw new ExpenseError("지급 결의할 외상매입금·미지급금이 없습니다");
+    if (Math.abs(amount - src.totalWon) > 10)
+      throw new ExpenseError(
+        `고른 외상매입금·미지급금 합계는 ${won(src.totalWon)}입니다. 공급가·부가세가 세금계산서와 다르면 업체에 확인하고, 일부만 내려면 낼 것만 골라 다시 쓰세요`,
+      );
+  } else if (sourceKind !== "none") {
     src = await sourceOf(db, sourceKind, input.sourceId);
     if (!src)
       throw new ExpenseError(
@@ -320,7 +390,11 @@ export async function createExpense(
   const category = src ? input.category || src.category : input.category;
   // 근거 전표의 계정이 섞여 있고 계정을 바꾸지 않았으면 계정별로 나눠 둔다(월 마감 계정별 합계)
   const split = src && category === src.category ? splitByShare(src.split, amount) : [];
-  const usePurpose = purpose || `${src!.docNo} ${SOURCE_KINDS[src!.kind]} 대금`;
+  const usePurpose =
+    purpose ||
+    (src!.kind === "settle"
+      ? `${src!.supplierName} 외상 대금 ${src!.payables?.length ?? 0}건(${src!.docNo})`
+      : `${src!.docNo} ${SOURCE_KINDS[src!.kind]} 대금`);
 
   if (input.fromId)
     await cancelExpense(db, actor, input.fromId, "고쳐서 다시 올림", now, true);
@@ -368,7 +442,7 @@ export async function createExpense(
       evidenceKind: input.evidenceKind,
       evidenceNo: input.evidenceNo.trim() || null,
       evidenceOn: input.evidenceOn || null,
-      dueOn: input.dueOn || null,
+      dueOn: input.dueOn || (src?.kind === "settle" ? src.on : null) || null,
       payMethod: input.payMethod,
       createdBy: actor.id,
     })
@@ -378,6 +452,25 @@ export async function createExpense(
       .update(expense)
       .set({ files: await saveFiles(row.id, actor, input.files, now) })
       .where(eq(expense.id, row.id));
+  if (src?.kind === "settle" && src.payables?.length) {
+    await db
+      .update(payable)
+      .set({ settleExpenseId: row.id })
+      .where(inArray(payable.id, src.payables.map((x) => x.id)));
+    // 계산서 번호가 없는 발주서·채무에 결의서의 계산서 번호를 붙인다(월 합계 세금계산서 한 장)
+    if (input.evidenceKind === "tax_invoice" && input.evidenceNo.trim() && input.evidenceOn) {
+      const poIds = src.payables.filter((x) => x.sourceKind === "po" && !x.invoiceNo).map((x) => x.sourceId);
+      if (poIds.length)
+        await db
+          .update(purchaseOrder)
+          .set({ invoiceNo: input.evidenceNo.trim(), invoiceOn: input.evidenceOn, invoiceBy: actor.id, updatedAt: now })
+          .where(and(inArray(purchaseOrder.id, poIds), isNull(purchaseOrder.invoiceNo)));
+      await db
+        .update(payable)
+        .set({ invoiceNo: input.evidenceNo.trim() })
+        .where(and(inArray(payable.id, src.payables.map((x) => x.id)), isNull(payable.invoiceNo)));
+    }
+  }
   // 발주서에 세금계산서가 아직 안 붙었으면 결의서의 계산서 번호를 붙인다(같은 값을 두 번 적지 않게)
   if (
     src?.kind === "po" &&
@@ -645,7 +738,9 @@ export async function getExpense(db: Db, actor: Actor, id: string) {
     ).map((u) => [u.id, u.name]),
   );
   const nm = (x: string | null) => (x ? (names.get(x) ?? "?") : "");
-  const src = e.sourceId ? await sourceOf(db, e.sourceKind, e.sourceId) : null;
+  const src = e.sourceId && e.sourceKind !== "settle" ? await sourceOf(db, e.sourceKind, e.sourceId) : null;
+  // 지급 결의가 묶은 외상
+  const settled = e.sourceKind === "settle" ? await db.select().from(payable).where(eq(payable.settleExpenseId, e.id)).orderBy(payable.dueOn) : [];
   return {
     e,
     doc,
@@ -653,68 +748,26 @@ export async function getExpense(db: Db, actor: Actor, id: string) {
     bank: s ? bankView(actor, s) : null,
     supplierStatus: s?.status ?? null,
     src,
+    settled,
     createdByName: nm(e.createdBy),
     paidByName: nm(e.paidBy),
     cancelledByName: nm(e.cancelledBy),
   };
 }
 
-/** 거래처 정산: 업체마다 결의할 근거(아직 결의 안 한 금액)와 승인했는데 지급 안 한 금액 */
-export async function payables(db: Db) {
-  const sources = await expenseSources(db, true);
+/** 업체별 지급 상황(월 마감·대시보드 요약): 아직 지급 결의 안 한 채무(toDraft)와 결의·승인했는데 지급 전(toPay) */
+export async function payables(db: Db, now = new Date()) {
+  const { groups, direct } = await payableGroups(db, now);
   const unpaid = await listExpenses(db, "unpaid");
-  const pending = (await listExpenses(db, "open")).filter(
-    (x) => x.status === "in_progress" || x.status === "draft",
-  );
-  const ids = [
-    ...new Set(
-      [
-        ...sources.map((s) => s.supplierId),
-        ...unpaid.map((u) => u.supplierId),
-      ].filter((x): x is string => !!x),
-    ),
-  ];
-  const sups = ids.length
-    ? await db.select().from(supplier).where(inArray(supplier.id, ids))
-    : [];
-  const byKey = new Map<
-    string,
-    {
-      supplierId: string | null;
-      name: string;
-      sources: Source[];
-      unpaid: typeof unpaid;
-      inApproval: number;
-      bankVerified: boolean | null;
-    }
-  >();
-  const slot = (sid: string | null, name: string) => {
-    const k = sid ?? `name:${name}`;
-    if (!byKey.has(k)) {
-      const s = sups.find((x) => x.id === sid);
-      byKey.set(k, {
-        supplierId: sid,
-        name: s?.name ?? name,
-        sources: [],
-        unpaid: [],
-        inApproval: 0,
-        bankVerified: s ? !!s.bankAccountEnc && !!s.bankVerifiedAt : null,
-      });
-    }
-    return byKey.get(k)!;
-  };
-  for (const s of sources) slot(s.supplierId, s.supplierName).sources.push(s);
-  for (const u of unpaid) slot(u.supplierId, u.payeeName).unpaid.push(u);
-  for (const p of pending)
-    if (byKey.has(p.supplierId ?? `name:${p.payeeName}`))
-      slot(p.supplierId, p.payeeName).inApproval += p.amountWon;
-  return [...byKey.values()]
-    .map((g) => ({
-      ...g,
-      toDraft: g.sources.reduce((a, s) => a + s.remainWon, 0),
-      toPay: g.unpaid.reduce((a, u) => a + u.amountWon, 0),
-    }))
-    .sort((a, b) => b.toDraft + b.toPay - (a.toDraft + a.toPay));
+  const rows = groups.map((g) => ({
+    supplierId: g.supplierId,
+    name: g.name,
+    toDraft: g.toSettle,
+    toPay: unpaid.filter((u) => u.supplierId && u.supplierId === g.supplierId && u.sourceKind === "settle").reduce((a, u) => a + u.amountWon, 0),
+  }));
+  const directPay = direct.filter((d) => d.e.paidAt == null).reduce((a, d) => a + d.e.amountWon, 0);
+  if (directPay) rows.push({ supplierId: null, name: "결의서로 승인한 지출", toDraft: 0, toPay: directPay });
+  return rows;
 }
 
 /** 내 할 일: 지급할 결의(회계), 결의할 근거 전표(결의 권한), 반려·증빙 못 받은 내 결의 */
@@ -751,18 +804,8 @@ export async function expenseTodos(db: Db, actor: Actor, today: string) {
       });
     }
   }
-  if (can(actor, "expense.draft")) {
-    const srcs = await expenseSources(db, true);
-    if (srcs.length)
-      out.push({
-        key: "exp-sources",
-        when: "soon",
-        what: `지출 결의할 전표 ${srcs.length}건(${won(srcs.reduce((a, s) => a + s.remainWon, 0))})`,
-        detail: "입고 끝난 발주서·수용한 외주 의뢰서",
-        href: "/money/payables",
-        action: "거래처 정산",
-      });
-  }
+  // 지급 기한이 다가온 외상매입금·미지급금(업체별)
+  out.push(...(await payableTodos(db, actor, today)));
   for (const x of open.filter((r) => r.createdBy === actor.id)) {
     if (x.status === "rejected")
       out.push({

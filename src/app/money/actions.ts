@@ -86,12 +86,14 @@ export async function createExpenseAction(form: FormData) {
       payMethod: s("payMethod"),
       files: await uploads(form),
       fromId: s("fromId") || undefined,
+      payableIds: form.getAll("p").map(String).filter(Boolean),
     });
     id = r.id;
     docNo = r.docNo;
   } catch (e) {
     const q = new URLSearchParams();
     for (const k of ["src", "from"]) if (s(k)) q.set(k, s(k));
+    for (const p of form.getAll("p")) q.append("p", String(p));
     redirect(
       errorUrl(`/money/expenses/new${q.size ? `?${q}` : ""}`, userMessage(e)),
     );

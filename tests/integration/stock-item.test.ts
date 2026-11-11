@@ -140,7 +140,7 @@ describe("성적서·인증서", () => {
 });
 
 describe("지출 계정", () => {
-  it("발주서에 도료·소모품이 섞이면 지출 결의를 품목 계정별로 나눈다", async () => {
+  it("발주서에 도료·소모품이 섞이면 외상과 지급 결의를 품목 계정별로 나눈다", async () => {
     const sup = await createSupplier(db, manager(), { name: "한빛도료", bizNo: "", kinds: ["paint"], items: "", contactName: "", phone: "", email: "", leadDays: null, returnTerms: "", docs: [], note: "" }, now);
     const paint = await saveItem(db, manager(), null, base(), now);
     const tape = await saveItem(db, manager(), null, base({ name: "마스킹테이프", kind: "consumable", unit: "롤" }), now);
@@ -149,13 +149,13 @@ describe("지출 계정", () => {
       { orderId: po.id, seq: 1, name: "베이스", qty: 4, unitWon: 50_000, stockItemId: paint, receivedQty: 4 },
       { orderId: po.id, seq: 2, name: "테이프", qty: 20, unitWon: 5_000, stockItemId: tape, receivedQty: 20 },
     ]);
-    const src = (await expenseSources(db)).find((s) => s.id === po.id)!;
+    const src = (await expenseSources(db)).find((s) => s.id === sup)!;
     expect(src.category).toBe("paint");
     expect(src.split).toEqual([
       { category: "paint", won: 220_000 },
       { category: "consumable", won: 110_000 },
     ]);
-    const x = await createExpense(db, manager(), { category: "paint", supplierId: "", payeeName: "", sourceKind: "po", sourceId: po.id, purpose: "", supplyWon: 300_000, vatWon: 30_000, evidenceKind: "pending", evidenceNo: "", evidenceOn: "", dueOn: "", payMethod: "transfer", files: [] }, now);
+    const x = await createExpense(db, manager(), { category: "paint", supplierId: "", payeeName: "", sourceKind: "settle", sourceId: sup, purpose: "", supplyWon: 300_000, vatWon: 30_000, evidenceKind: "pending", evidenceNo: "", evidenceOn: "", dueOn: "", payMethod: "transfer", files: [] }, now);
     const [e] = await db.select().from(schema.expense).where(eq(schema.expense.id, x.id));
     expect(e.split).toEqual(src.split);
   });

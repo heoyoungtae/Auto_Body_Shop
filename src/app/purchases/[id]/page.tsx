@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PAY_TERMS, payTermLabel } from "@/modules/money/rules";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
@@ -93,6 +94,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
             {o.replyDueOn && row("업체 회신 납기", <span className={late ? "font-bold text-[var(--danger)]" : ""}>{o.replyDueOn}{late ? " — 출고 약속보다 늦음" : ""}</span>)}
             {row("금액", `${won(o.supplyWon)} + 부가세 = ${won(o.totalWon)}`)}
             {!draft && row("메모", o.note)}
+            {!draft && o.payTerm && row("결제 조건", payTermLabel(o.payTerm, o.payDay))}
             {o.returnNote && status === "draft" && row("되돌림", <span className="text-[var(--danger)]">{o.returnNote}</span>)}
             {o.cancelReason && row("취소 이유", o.cancelReason)}
           </dl>
@@ -102,6 +104,22 @@ export default async function PurchasePage({ params, searchParams }: { params: P
               <input type="hidden" name="intent" value="header" />
               <SelectField help="po.supplierId" name="supplierId" defaultValue={o.supplierId ?? ""} placeholder="업체 고르기" options={sups.map((s) => ({ value: s.id, label: `${s.name}${s.status === "registered" ? "" : ` (${SUPPLIER_STATUS[s.status as SupplierStatus]}${s.emergencyOn ? " · 긴급 사용함" : ""})`}${s.leadDays != null ? ` · 보통 ${s.leadDays}일` : ""}` }))} />
               <DateField help="po.dueOn" name="dueOn" min={today} defaultValue={o.dueOn ?? ""} from={o.estimateId && o.dueOn ? "출고 약속일" : undefined} quick={["tomorrow", "week"]} />
+              {(() => {
+                const sp = sups.find((x) => x.id === o.supplierId);
+                return (
+                  <>
+                    <SelectField
+                      help="po.payTerm"
+                      name="payTerm"
+                      defaultValue={o.payTerm ?? ""}
+                      placeholder={sp ? `업체 조건 따름(${payTermLabel(sp.payTerm, sp.payDay)})` : "업체 조건 따름"}
+                      from={!o.payTerm && sp ? "업체" : undefined}
+                      options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))}
+                    />
+                    <NumberField help="po.payDay" name="payDay" unit="일" min={1} max={31} defaultValue={o.payDay ?? null} />
+                  </>
+                );
+              })()}
               <div className="md:col-span-2">
                 <TextAreaField help="po.note" name="note" rows={2} defaultValue={o.note ?? ""} />
               </div>

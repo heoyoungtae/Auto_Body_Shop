@@ -130,6 +130,8 @@ export async function quickSupplierAction(form: FormData): Promise<{ ok: true; i
       returnTerms: "",
       docs: [],
       note: "재고 품목 등록 중 간이 등록",
+      payTerm: s("payTerm") || undefined,
+      payDay: s("payDay") ? num(s("payDay")) : null,
     });
     return { ok: true, id, name };
   } catch (e) {

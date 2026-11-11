@@ -13,6 +13,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { DOC_TYPES, MAX_DOC_BYTES, removeStored, sniffDoc, storeFile } from "@/modules/platform/storage";
 import { loadPolicy } from "@/modules/platform/policy";
+import { isPayTerm } from "@/modules/money/rules";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import {
   annualOutcome,
@@ -54,6 +55,9 @@ export type SupplierInput = {
   returnTerms: string;
   docs: string[];
   note: string;
+  /** 결제 조건(비우면 익월 말 / 고칠 때는 그대로) */
+  payTerm?: string;
+  payDay?: number | null;
 };
 
 function checkInput(i: SupplierInput) {
@@ -64,7 +68,12 @@ function checkInput(i: SupplierInput) {
   if (biz && biz.length !== 10) throw new SupplierError("사업자등록번호는 숫자 10자리입니다");
   if (i.leadDays != null && (!Number.isInteger(i.leadDays) || i.leadDays < 0 || i.leadDays > 90)) throw new SupplierError("보통 납기는 0~90일로 적어 주세요");
   const docs = i.docs.filter((d): d is SupplierDoc => d in SUPPLIER_DOCS);
+  if (i.payTerm && !isPayTerm(i.payTerm)) throw new SupplierError("결제 조건을 골라 주세요");
+  if (i.payTerm === "next_day" && (i.payDay == null || !Number.isInteger(i.payDay) || i.payDay < 1 || i.payDay > 31))
+    throw new SupplierError("'익월 ○일'이면 결제일(1~31)을 적어 주세요");
+  const pay = i.payTerm ? { payTerm: i.payTerm, payDay: i.payTerm === "next_day" ? i.payDay! : null } : {};
   return {
+    ...pay,
     name: i.name.trim(),
     bizNo: biz ? `${biz.slice(0, 3)}-${biz.slice(3, 5)}-${biz.slice(5)}` : null,
     kinds,
@@ -409,7 +418,7 @@ export async function listSuppliers(db: Db, filter: SupplierFilter = "registered
 /** 발주·외주에서 고를 업체(등록 + 후보). kind 를 주면 그 분야만 */
 export async function supplierOptions(db: Db, kind?: string) {
   const rows = await db
-    .select({ id: supplier.id, name: supplier.name, status: supplier.status, kinds: supplier.kinds, emergencyOn: supplier.emergencyOn, leadDays: supplier.leadDays })
+    .select({ id: supplier.id, name: supplier.name, status: supplier.status, kinds: supplier.kinds, emergencyOn: supplier.emergencyOn, leadDays: supplier.leadDays, payTerm: supplier.payTerm, payDay: supplier.payDay })
     .from(supplier)
     .where(inArray(supplier.status, ["registered", "candidate", "proposed"]))
     .orderBy(supplier.name);

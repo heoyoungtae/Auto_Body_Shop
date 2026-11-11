@@ -54,11 +54,11 @@ export default async function ExpensesPage({
     <>
       <PageTitle
         help="expenses"
-        sub="돈을 내보내려면 근거 전표(입고 끝난 발주서·수용한 외주 의뢰서, 없으면 이 결의서)와 증빙이 있어야 하고, 전결 규정대로 승인받은 뒤에 지급합니다."
+        sub="발주서·외주 대금은 입고하면 외상매입금이 되어 '외상매입금·미지급금'에서 업체별 지급 결의로 내고, 그 밖의 지출은 이 결의서로 승인받습니다. 증빙이 있고 전결 규정대로 승인받은 뒤에만 지급합니다."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link href="/money/payables" className={buttonClass("secondary")}>
-              거래처 정산
+              외상매입금·미지급금
             </Link>
             {can(user, "expense.draft") && (
               <Link href="/money/expenses/new" className={buttonClass()}>

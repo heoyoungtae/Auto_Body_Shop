@@ -151,10 +151,28 @@ export default async function MonthClosePage({
           />
           <Row k="급여(지급일 기준, 지급 총액)" v={won(s.expenses.payroll)} />
           <Row
-            k="미지급(결의할 · 지급할)"
+            k="지급 결의할 · 지급할(지금)"
             v={`${won(s.payables.toDraft)} · ${won(s.payables.toPay)}`}
           />
         </dl>
+        {s.payables.balance && (
+          <div className="mt-3 text-sm">
+            <p>
+              <b>말일 잔액</b> 외상매입금 {won(s.payables.balance.trade)} · 미지급금 {won(s.payables.balance.other)} · 미지급금(카드) {won(s.payables.balance.card)}
+            </p>
+            {s.payables.balance.bySupplier.length > 0 && (
+              <ul className="mt-1 flex flex-wrap gap-2 text-xs">
+                {s.payables.balance.bySupplier.map((b) => (
+                  <li key={b.name}>
+                    <Badge>
+                      {b.name} {won(b.trade + b.other)}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         {s.expenses.byCategory.length > 0 && (
           <ul className="mt-3 flex flex-wrap gap-2 text-xs">
             {s.expenses.byCategory.map((c) => (

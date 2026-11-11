@@ -2024,15 +2024,28 @@ export const PAGE_HELP = {
     refs: ["사내 표준서 STD-12 12.2"],
   },
   payables: {
-    title: "거래처 정산",
+    title: "외상매입금·미지급금",
     purpose:
-      "업체마다 결의할 금액과 지급할 금액을 모아 보고, 바로 결의서로 이어 씁니다.",
+      "입고 검수가 끝나 생긴 외상매입금·미지급금을 업체별로 모아 보고, 기한이 된 것을 업체별 지급 결의 한 장으로 냅니다.",
     who: "공장장·회계 담당·대표",
     steps: [
-      "업체별로 남은 전표를 봅니다.",
-      "'결의서 쓰기'로 이어 씁니다.",
-      "계좌 확인 전인 업체는 먼저 확인합니다.",
+      "위 칸에서 전체 잔액과 기한 지남·이번 달·다음 달 낼 돈을 봅니다.",
+      "업체를 눌러 거래처 원장을 열고, 낼 것을 골라 '지급 결의서 쓰기'를 누릅니다.",
+      "결재가 끝나면 회계 담당이 확인된 계좌로 지급합니다. 계좌 확인 전인 업체는 먼저 확인합니다.",
     ],
+    terms: ["외상매입금", "미지급금", "결제 조건"],
+    refs: ["사내 표준서 STD-12 12.2"],
+  },
+  "payables.supplier": {
+    title: "거래처 원장",
+    purpose: "한 업체의 외상이 생기고(입고) 갚은(지급) 기록과 잔액을 보고, 낼 것을 골라 지급 결의서를 씁니다.",
+    who: "공장장·회계 담당·대표",
+    steps: [
+      "이번 달 기한이거나 지난 것이 미리 골라져 있습니다. 필요하면 더 고르거나 뺍니다.",
+      "'고른 것으로 지급 결의서 쓰기'를 누르면 금액·계정·세금계산서 번호를 불러온 결의서가 열립니다.",
+      "월 합계 세금계산서 번호를 적으면 계산서가 없던 발주서에도 같이 붙습니다.",
+    ],
+    terms: ["외상매입금", "결제 조건"],
     refs: ["사내 표준서 STD-12 12.2"],
   },
   close: {
@@ -2264,6 +2277,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/money/expenses/new": "expenses.new",
   "/money/expenses/[id]": "expenses.detail",
   "/money/payables": "payables",
+  "/money/payables/[id]": "payables.supplier",
   "/money/close": "close",
   "/money/close/[ym]": "close.month",
   "/qms/context": "qms.context",

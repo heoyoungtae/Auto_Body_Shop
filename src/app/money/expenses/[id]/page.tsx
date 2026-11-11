@@ -60,7 +60,7 @@ export default async function ExpensePage({
   } catch (e) {
     return <ErrorBox message={userMessage(e)} />;
   }
-  const { e, doc, status, bank, src } = g;
+  const { e, doc, status, bank, src, settled } = g;
   const mine = e.createdBy === user.id;
   const payer = can(user, "expense.pay");
   const live = status !== "paid" && status !== "cancelled";
@@ -106,7 +106,23 @@ export default async function ExpensePage({
           <div>
             <dt className="text-xs text-[var(--muted)]">근거 전표</dt>
             <dd>
-              {e.sourceNo ? (
+              {e.sourceKind === "settle" ? (
+                <>
+                  <Link href={`/money/payables/${e.sourceId}`} className="text-[var(--accent)]">
+                    {SOURCE_KINDS.settle} {settled.length}건
+                  </Link>
+                  <ul className="mt-1 text-xs">
+                    {settled.map((x) => (
+                      <li key={x.id}>
+                        <Link href={x.sourceKind === "po" ? `/purchases/${x.sourceId}` : `/outsource/${x.sourceId}`} className="text-[var(--accent)]">
+                          {x.sourceNo}
+                        </Link>{" "}
+                        입고 {x.accruedOn} · 기한 {x.dueOn} · {won(x.amountWon)}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : e.sourceNo ? (
                 <Link
                   href={
                     e.sourceKind === "po"

@@ -24,6 +24,8 @@ function input(form: FormData): SupplierInput {
     returnTerms: s("returnTerms"),
     docs: form.getAll("docs").map(String),
     note: s("note"),
+    payTerm: s("payTerm") || undefined,
+    payDay: s("payDay").replace(/[^\d]/g, "") ? Number(s("payDay").replace(/[^\d]/g, "")) : null,
   };
 }
 
