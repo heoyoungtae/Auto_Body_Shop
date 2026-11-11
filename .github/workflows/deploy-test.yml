@@ -1,10 +1,10 @@
 name: 테스트 서버 배포
-# main 에 병합되면(또는 수동 실행) 테스트 서버에 올린다.
+# 기본 브랜치(지금은 claude/project-thread-asspnw, 나중에 main)에 병합되면(또는 수동 실행) 테스트 서버에 올린다.
 # 저장소 변수 TEST_SERVER_HOST(공인 IP)와 비밀값 TEST_SERVER_SSH_KEY(SSH 개인 키)가 있어야 돈다. deploy/README.md 참고.
 # 선택: 비밀값 BACKUP_PAR_URL(Object Storage 사전 인증 요청 주소)을 넣으면 서버 .env 에 넣어 백업을 올린다.
 on:
   push:
-    branches: [main]
+    branches: [main, claude/project-thread-asspnw]
   workflow_dispatch:
 concurrency: deploy-test
 jobs:
