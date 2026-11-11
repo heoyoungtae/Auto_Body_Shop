@@ -1,10 +1,11 @@
 "use client";
 // 왼쪽 메뉴. 넓은 화면에서는 늘 보이고, 태블릿·휴대폰에서는 ☰ 단추로 열고 닫는다.
-// 묶음은 기본으로 접혀 있다. 지금 화면이 든 묶음만 저절로 펼친다. 펼친 묶음과 '개발 예정 보기'는 이 기기에 기억한다.
+// 맨 위에 메뉴 찾기 칸(_menu-search-box.tsx)이 있다. 묶음은 기본으로 접혀 있다. 지금 화면이 든 묶음만 저절로 펼친다. 펼친 묶음과 '개발 예정 보기'는 이 기기에 기억한다.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -13,6 +14,7 @@ import {
 import type { Role } from "@/modules/auth/roles";
 import { can } from "@/modules/auth/permissions";
 import { MENU, TOP, type MenuItem } from "./_menu";
+import { MenuSearch, rememberRecent } from "./_menu-search-box";
 
 const NavCtx = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({
   open: false,
@@ -84,6 +86,9 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
     setFuture(load("menu:future", true));
   }, []);
   useEffect(() => setOpen(false), [path, setOpen]);
+  // 메뉴 찾기 칸의 '최근에 연 메뉴'
+  useEffect(() => rememberRecent(activeHref(path)), [path]);
+  const wake = useCallback(() => setOpen(true), [setOpen]);
   // 지금 화면이 든 묶음은 펼친다(저장하지 않음 — 다른 화면으로 가면 원래대로)
   const [here, setHere] = useState<string | undefined>(() => groupOf(path));
   useEffect(() => setHere(groupOf(path)), [path]);
@@ -129,6 +134,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             ×
           </button>
         </div>
+        <MenuSearch allowed={allowed} future={future} onWake={wake}>
         <ul className="space-y-0.5 px-2 pt-3">
           {TOP.filter(allowed).map((i) => (
             <li key={i.label}>
@@ -194,6 +200,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             </div>
           );
         })}
+        </MenuSearch>
         <label className="mx-4 mt-4 flex min-h-10 cursor-pointer items-center gap-2 text-xs text-[var(--muted)]">
           <input
             type="checkbox"

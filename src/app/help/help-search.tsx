@@ -6,8 +6,9 @@ import { HelpButton } from "../_help-drawer";
 
 export type HelpItem = { kind: string; title: string; body: string; href?: string };
 
-export function HelpSearch({ items }: { items: HelpItem[] }) {
-  const [q, setQ] = useState("");
+export function HelpSearch({ items, initial = "" }: { items: HelpItem[]; initial?: string }) {
+  // 메뉴 찾기에서 못 찾고 넘어오면 그 말이 채워져 있다(/help?q=…)
+  const [q, setQ] = useState(initial);
   const [kind, setKind] = useState("전체");
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const kinds = ["전체", ...Array.from(new Set(items.map((i) => i.kind)))];

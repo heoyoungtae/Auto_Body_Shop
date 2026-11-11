@@ -7,7 +7,8 @@ import { requireUser } from "../_lib/session";
 import { Card, PageTitle } from "../_ui";
 import { HelpSearch, type HelpItem } from "./help-search";
 
-export default async function HelpPage() {
+export default async function HelpPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams;
   const user = await requireUser();
   const hrefOf = Object.fromEntries(Object.entries(ROUTE_HELP).map(([route, key]) => [key, route.includes("[") ? null : route]));
   const items: HelpItem[] = [
@@ -79,7 +80,7 @@ export default async function HelpPage() {
             <li>긴 양식은 적는 중 이 기기에 임시 저장되어, 창을 닫았다 와도 &lsquo;되살리기&rsquo;로 이어 쓸 수 있습니다.</li>
           </ul>
         </Card>
-        <HelpSearch items={items} />
+        <HelpSearch key={q ?? ""} items={items} initial={q} />
       </div>
     </>
   );
