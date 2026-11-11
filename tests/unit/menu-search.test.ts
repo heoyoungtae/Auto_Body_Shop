@@ -1,6 +1,6 @@
 // 메뉴 찾기(사이드 메뉴 맨 위 검색칸) 규칙 — 사용자 확정 2026-11-11
 import { describe, expect, it } from "vitest";
-import { ALL_ENTRIES, MENU_ALIAS, chosung, findIn, normalize, qwertyToHangul, searchMenu } from "@/app/_menu-search";
+import { ALL_ENTRIES, MENU_ALIAS, SUB_ENTRIES, chosung, findIn, normalize, qwertyToHangul, searchMenu } from "@/app/_menu-search";
 
 const first = (q: string) => searchMenu(q)[0]?.label;
 const labels = (q: string) => searchMenu(q).map((h) => h.label);
@@ -75,5 +75,29 @@ describe("메뉴 찾기", () => {
     expect(names.size).toBe(ALL_ENTRIES.length); // 이름이 겹치면 별칭이 엉킨다
     for (const n of names) expect(MENU_ALIAS[n]?.length, `${n} 의 별칭이 없습니다`).toBeGreaterThan(0);
     for (const n of Object.keys(MENU_ALIAS)) expect(names.has(n), `${n} 는 메뉴에 없습니다`).toBe(true);
+  });
+});
+
+describe("메뉴 안 화면 찾기(사용자 지적 2026-11-11 '품목·품목등록이 안 걸러진다')", () => {
+  it("품목·품목등록으로 재고 품목 등록 화면과 재고 메뉴가 나온다", () => {
+    for (const q of ["품목", "품목등록", "품목 등록", "ㅍㅁㄷㄹ", "vnaahr"]) {
+      const l = labels(q);
+      expect(l, q).toContain("재고 품목 등록");
+      expect(l, q).toContain("재고");
+    }
+    const h = searchMenu("품목등록")[0];
+    expect(h.label).toBe("재고 품목 등록");
+    expect(h.href).toBe("/stock/new");
+    expect(h.parent).toBe("재고");
+    expect(h.perm).toEqual(expect.arrayContaining(["stock.use", "stock.manage"])); // 권한은 재고 메뉴를 따른다
+  });
+  it("메뉴 이름과 똑같이 맞으면 메뉴가 안 화면보다 앞", () => {
+    expect(labels("재고")[0]).toBe("재고");
+  });
+  it("표준서 번호·묶음 이름으로는 안 화면까지 늘어놓지 않는다", () => {
+    expect(searchMenu("STD-08").every((h) => !h.parent)).toBe(true);
+  });
+  it("메뉴 밖 화면(로그인)과 번호 들어간 화면은 없다", () => {
+    expect(SUB_ENTRIES.some((e) => e.href === "/login" || e.href!.includes("["))).toBe(false);
   });
 });

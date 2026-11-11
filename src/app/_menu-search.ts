@@ -2,6 +2,7 @@
 // 메뉴 이름·묶음 이름·표준서 번호·별칭(직원들이 흔히 쓰는 다른 말)으로 찾는다.
 // 초성(ㄱㅈ → 견적), 치는 중인 글자(견저 → 견적), 한/영을 깜빡하고 친 영문 자판(ruswjr → 견적)도 알아듣는다.
 // 띄어쓰기와 '·' 같은 기호는 무시한다. 권한 거르기는 이 파일이 아니라 사이드바(_sidebar.tsx)의 allowed 가 맡는다.
+import { PAGE_HELP, ROUTE_HELP } from "@/modules/help/pages";
 import { MENU, TOP, type MenuItem } from "./_menu";
 
 /** 메뉴 이름 → 별칭. 새 메뉴를 만들면 여기에도 직원들이 부를 만한 말을 적는다(테스트가 모든 메뉴에 있는지 본다). */
@@ -47,7 +48,7 @@ export const MENU_ALIAS: Record<string, string[]> = {
   경영검토: ["경영회의", "경영"],
   협력업체: ["거래처", "업체", "공급업체", "협력사", "계좌"],
   "발주·입고": ["발주", "주문", "구매", "부품주문"],
-  재고: ["부품", "자재", "재고조사", "페인트"],
+  재고: ["품목", "품목등록", "부품", "부품등록", "자재", "자재등록", "재고조사", "페인트", "도료"],
   외주: ["외주수리", "위탁"],
   "비품·자산": ["비품", "자산"],
   "사고·아차사고": ["사고", "산재", "아차"],
@@ -171,7 +172,12 @@ export function findIn(text: string, q: string): number {
   return -1;
 }
 
-export type MenuEntry = MenuItem & { group?: string; groupId?: string };
+export type MenuEntry = MenuItem & {
+  group?: string;
+  groupId?: string;
+  /** 메뉴 안의 화면(예: 재고 › 재고 품목 등록)이면 그 메뉴 이름 */
+  parent?: string;
+};
 export type MenuHit = MenuEntry & {
   score: number;
   /** 메뉴 이름에서 맞은 글자 자리(굵게 표시). 별칭·번호로 맞으면 없음 */
@@ -182,6 +188,21 @@ export type MenuHit = MenuEntry & {
 
 /** 메뉴 전체(맨 위 화면 + 묶음 안 화면)를 한 줄로 */
 export const ALL_ENTRIES: MenuEntry[] = [...TOP.map((i) => ({ ...i })), ...MENU.flatMap((g) => g.items.map((i) => ({ ...i, group: g.label, groupId: g.id })))];
+
+/**
+ * 메뉴에는 없지만 메뉴 안에서 들어가는 화면(등록·점검·사용 등). 화면 도움말 제목으로 찾게 한다.
+ * 예: '품목 등록'은 재고 화면 안의 단추라 메뉴 이름에 없지만, 화면 제목 '재고 품목 등록'으로 찾아 바로 연다.
+ * 보이는 권한은 그 화면이 든 메뉴를 따른다. 번호가 들어가는 화면([id])과 메뉴 밖 화면(로그인·고객용)은 뺀다.
+ */
+export const SUB_ENTRIES: MenuEntry[] = Object.entries(ROUTE_HELP)
+  .filter(([route]) => !route.includes("["))
+  .flatMap(([route, key]) => {
+    if (ALL_ENTRIES.some((e) => e.href?.split("?")[0] === route)) return [];
+    const parent = ALL_ENTRIES.filter((e) => e.href && !e.href.includes("?") && route.startsWith(e.href + "/")).sort((a, b) => b.href!.length - a.href!.length)[0];
+    if (!parent) return [];
+    const { title } = PAGE_HELP[key] as { title: string };
+    return [{ label: title, href: route, group: parent.group, groupId: parent.groupId, std: parent.std, perm: parent.perm, roles: parent.roles, parent: parent.label }];
+  });
 
 /** 이름의 normalize 한 글자 자리를 원래 글자 자리로 바꾼다(굵게 표시용) */
 function markOf(label: string, start: number, len: number) {
@@ -196,11 +217,13 @@ function markOf(label: string, start: number, len: number) {
 function scoreWord(e: MenuEntry, w: string): { score: number; mark?: { start: number; end: number }; via?: string } {
   const label = normalize(e.label);
   const at = findIn(label, w);
-  if (at >= 0) return { score: (at === 0 ? 100 : 80) - Math.min(at, 10), mark: markOf(e.label, at, [...w].length) };
+  if (at >= 0) return { score: (at === 0 ? 100 : 80) - Math.min(at, 10) - (e.parent ? 5 : 0), mark: markOf(e.label, at, [...w].length) };
   for (const a of MENU_ALIAS[e.label] ?? []) {
     const p = findIn(normalize(a), w);
     if (p >= 0) return { score: p === 0 ? 60 : 50, via: a };
   }
+  // 메뉴 안 화면은 제목으로만 찾는다(번호·묶음으로는 그 메뉴가 나오면 충분하다). 같은 점수면 메뉴가 앞에
+  if (e.parent) return { score: 0 };
   if (e.std && findIn(normalize(e.std), w) >= 0) return { score: 45, via: e.std };
   if (e.group && findIn(normalize(e.group), w) >= 0) return { score: 30, via: e.group };
   return { score: 0 };
@@ -225,7 +248,7 @@ function scoreQuery(e: MenuEntry, raw: string) {
 }
 
 /** 찾기: 맞는 메뉴를 점수 높은 순으로(같으면 메뉴 순서). 거르기(권한·개발 예정)는 부르는 쪽에서 */
-export function searchMenu(q: string, entries: MenuEntry[] = ALL_ENTRIES): MenuHit[] {
+export function searchMenu(q: string, entries: MenuEntry[] = [...ALL_ENTRIES, ...SUB_ENTRIES]): MenuHit[] {
   return entries
     .map((e, order) => ({ e, order, r: scoreQuery(e, q) }))
     .filter((x) => x.r)

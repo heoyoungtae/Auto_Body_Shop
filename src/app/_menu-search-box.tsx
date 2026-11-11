@@ -228,7 +228,7 @@ function Label({ h }: { h: MenuHit }) {
 
 /** 이름 아래 작은 글씨: 묶음 › 표준서 번호, 별칭으로 맞았으면 그 말 */
 function Where({ h }: { h: MenuHit }) {
-  const bits = [h.group, h.std].filter(Boolean).join(" · ");
+  const bits = [h.group, h.parent && `${h.parent} 안 화면`, h.std].filter(Boolean).join(" · ");
   const via = h.via && h.via !== h.std && h.via !== h.group ? `‘${h.via}’로 찾음` : "";
   if (!bits && !via) return null;
   return (
