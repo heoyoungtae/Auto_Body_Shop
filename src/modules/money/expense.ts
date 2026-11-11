@@ -10,8 +10,10 @@ import {
   outsourceJob,
   purchaseLine,
   purchaseOrder,
+  stockItem,
   supplier,
 } from "@/db/schema";
+import { itemExpCategory } from "@/modules/purchase/rules";
 import {
   createDraft,
   getDoc,
@@ -41,6 +43,7 @@ import {
   isExpCategory,
   isExpPayMethod,
   PO_KIND_CATEGORY,
+  splitByShare,
   SOURCE_KINDS,
   vatOf,
   vatProblem,
@@ -78,6 +81,8 @@ export type Source = {
   supplierId: string | null;
   supplierName: string;
   category: string;
+  /** 계정이 섞인 발주서: 계정별 금액(근거 금액 기준, 큰 것부터). 하나면 빈 배열 */
+  split: { category: string; won: number }[];
   /** 근거 금액(부가세 포함). 발주서가 일부 입고면 들어온 만큼 */
   totalWon: number;
   supplyWon: number;
@@ -111,6 +116,11 @@ export async function expenseSources(
           ),
         )
     : [];
+  // 재고 품목 줄은 품목의 지출 계정을 따른다(도료·소모품·부품)
+  const itemIds = [...new Set(lines.map((l) => l.stockItemId).filter((x): x is string => !!x))];
+  const itemCat = new Map(
+    (itemIds.length ? await db.select({ id: stockItem.id, kind: stockItem.kind, expCategory: stockItem.expCategory }).from(stockItem).where(inArray(stockItem.id, itemIds)) : []).map((i) => [i.id, itemExpCategory(i)]),
+  );
   const oss = await db
     .select({ j: outsourceJob, supplierName: supplier.name })
     .from(outsourceJob)
@@ -133,13 +143,20 @@ export async function expenseSources(
       o.status === "received" ? o.supplyWon : Math.min(o.supplyWon, got);
     const total = o.status === "received" ? o.totalWon : supply + vatOf(supply);
     const u = usedOf(o.id);
+    const baseCat = PO_KIND_CATEGORY[o.kind] ?? "parts";
+    const parts = ls.map((l) => ({
+      category: (l.stockItemId && itemCat.get(l.stockItemId)) || baseCat,
+      won: (o.status === "received" ? l.qty : Math.max(0, l.receivedQty - l.rejectedQty)) * l.unitWon,
+    }));
+    const split = splitByShare(parts, total);
     out.push({
       kind: "po",
       id: o.id,
       docNo: o.docNo,
       supplierId: o.supplierId,
       supplierName: supplierName ?? "(업체 없음)",
-      category: PO_KIND_CATEGORY[o.kind] ?? "parts",
+      category: split[0]?.category ?? parts.find((p) => p.won > 0)?.category ?? baseCat,
+      split,
       totalWon: total,
       supplyWon: supply,
       usedWon: u,
@@ -160,6 +177,7 @@ export async function expenseSources(
       supplierId: j.supplierId,
       supplierName,
       category: "outsource",
+      split: [],
       totalWon: j.amountWon,
       supplyWon: supply,
       usedWon: u,
@@ -300,6 +318,8 @@ export async function createExpense(
   if (!payeeName)
     throw new ExpenseError("받는 곳(업체·사람)을 고르거나 적어 주세요");
   const category = src ? input.category || src.category : input.category;
+  // 근거 전표의 계정이 섞여 있고 계정을 바꾸지 않았으면 계정별로 나눠 둔다(월 마감 계정별 합계)
+  const split = src && category === src.category ? splitByShare(src.split, amount) : [];
   const usePurpose = purpose || `${src!.docNo} ${SOURCE_KINDS[src!.kind]} 대금`;
 
   if (input.fromId)
@@ -335,6 +355,7 @@ export async function createExpense(
       docNo: doc.docNo,
       approvalDocId: doc.id,
       category,
+      split,
       supplierId,
       payeeName,
       sourceKind,

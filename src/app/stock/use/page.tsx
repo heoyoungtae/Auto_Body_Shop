@@ -41,7 +41,7 @@ export default async function StockUsePage({ searchParams }: { searchParams: Pro
             <input type="hidden" name="intent" value="use" />
             <input type="hidden" name="back" value={back} />
             <div className="md:col-span-2">
-              <SelectField help="st.item" name="itemId" required defaultValue={q.item ?? ""} placeholder="자재 고르기" options={items.map((i) => ({ value: i.id, label: `${i.name}${i.spec ? ` ${i.spec}` : ""} · 남은 ${i.qty}${i.unit}${i.location ? ` · ${i.location}` : ""}` }))} />
+              <SelectField help="st.item" name="itemId" required defaultValue={q.item ?? ""} placeholder="자재 고르기" options={items.map((i) => ({ value: i.id, label: `${i.name}${i.spec ? ` ${i.spec}` : ""} · 남은 ${i.qty}${i.unit}${i.location ? ` · ${i.location}` : ""}${i.windDown ? ` · 소진 후 중지${i.replacedByName ? `(다 쓰면 대신 ${i.replacedByName})` : ""}` : ""}` }))} />
             </div>
             <NumberField help="st.qty" name="qty" required min={1} defaultValue={1} />
             <SelectField help="st.roId" name="repairOrderId" defaultValue={q.ro ?? ""} placeholder="공용(수리 건 없음)" options={working.map((r) => ({ value: r.id, label: `${r.plateNo} ${r.model ?? ""} · ${r.docNo}` }))} />

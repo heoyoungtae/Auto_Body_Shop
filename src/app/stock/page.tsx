@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
-import { STOCK_KINDS, suggestOrderQty, type StockKind } from "@/modules/purchase/rules";
+import { STOCK_KINDS, STOP_REASONS, suggestOrderQty, type StockKind, type StopReason } from "@/modules/purchase/rules";
 import { listStock, type StockFilter } from "@/modules/purchase/stock";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../_assist";
@@ -18,6 +18,8 @@ const TABS: [StockFilter, string][] = [
   ["paint", "도료"],
   ["consumable", "소모품"],
   ["part", "상비 부품"],
+  ["docs", "문서 기한"],
+  ["stopped", "사용 중지"],
 ];
 
 /** 재고(STD-07 7절): 품목·수량·안전 재고·유효기간, 미달 품목 발주 요청 */
@@ -100,6 +102,14 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                           {r.name}
                         </Link>
                         {r.spec && <span className="ml-1 text-xs text-[var(--muted)]">{r.spec}</span>}
+                        {r.windDown && <Badge tone="warn">소진 후 중지</Badge>}
+                        {r.docState && <Badge tone={r.docState === "expired" ? "danger" : "warn"}>{r.docState === "expired" ? "문서 기한 지남" : "문서 기한 임박"}</Badge>}
+                        {(r.windDown || !r.active) && r.stopReason && (
+                          <span className="block text-xs text-[var(--muted)]">
+                            {STOP_REASONS[r.stopReason as StopReason] ?? r.stopReason}
+                            {r.replacedByName && ` → 대신 ${r.replacedByName}`}
+                          </span>
+                        )}
                       </td>
                       <td className="pr-2 text-xs">{STOCK_KINDS[r.kind as StockKind]}</td>
                       <td className="pr-2 text-xs">{r.location ?? "-"}</td>
@@ -128,7 +138,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
               </table>
             </div>
           ) : (
-            <Empty>{f === "all" ? "등록된 재고 품목이 없습니다. 도료·소모품부터 등록하세요." : "해당하는 품목이 없습니다."}</Empty>
+            <Empty>{f === "all" ? "등록된 재고 품목이 없습니다. 도료·소모품부터 등록하세요." : f === "stopped" ? "사용 중지한 품목이 없습니다." : "해당하는 품목이 없습니다."}</Empty>
           )}
         </Card>
       </div>

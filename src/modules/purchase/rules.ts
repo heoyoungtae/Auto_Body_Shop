@@ -152,6 +152,49 @@ export const EXPIRY_ALERT_DAYS = 30;
 export const COUNT_KINDS = { monthly: "월말 실사(도료·고가 소모품)", quarterly: "분기 말 전체 실사" } as const;
 export type CountKind = keyof typeof COUNT_KINDS;
 
+/** 단가를 적은 방식. 저장은 늘 공급가(부가세 뺀 값) */
+export const VAT_MODES = { excluded: "부가세 별도", included: "부가세 포함", none: "부가세 없음(면세·간이)" } as const;
+export type VatMode = keyof typeof VAT_MODES;
+export const isVatMode = (s: string): s is VatMode => s in VAT_MODES;
+/** 적은 단가 → 공급가·부가세·합계. 포함이면 1.1로 나눠 원 단위 반올림 */
+export function splitVat(won: number, mode: VatMode) {
+  if (mode === "none") return { supply: won, vat: 0, total: won };
+  if (mode === "included") {
+    const supply = Math.round(won / (1 + VAT));
+    return { supply, vat: won - supply, total: won };
+  }
+  const vat = Math.round(won * VAT);
+  return { supply: won, vat, total: won + vat };
+}
+/** 저장된 공급가를 적은 방식대로 다시 보여 줄 값(고치기 화면) */
+export const shownUnitWon = (supply: number, mode: VatMode) => (mode === "included" ? supply + Math.round(supply * VAT) : supply);
+
+/** 한 단위의 용량·중량 단위 */
+export const PACK_UNITS = ["ml", "L", "g", "kg"] as const;
+export const isPackUnit = (s: string): s is (typeof PACK_UNITS)[number] => (PACK_UNITS as readonly string[]).includes(s);
+
+/** 구분 → 지출 계정 기본값(money/rules EXP_CATEGORIES 키) */
+export const KIND_EXP_CATEGORY: Record<StockKind, string> = { paint: "paint", consumable: "consumable", part: "parts" };
+export const itemExpCategory = (i: { kind: string; expCategory: string | null }) => i.expCategory || KIND_EXP_CATEGORY[i.kind as StockKind] || "consumable";
+
+/** 사용 중지 사유 */
+export const STOP_REASONS = { discontinued: "단종(더 안 나옴)", replaced: "대체품으로 바꿈", unused: "더 안 씀", other: "기타" } as const;
+export type StopReason = keyof typeof STOP_REASONS;
+export const isStopReason = (s: string): s is StopReason => s in STOP_REASONS;
+
+/** 품목 문서(MSDS 는 화학물질 목록에서) */
+export const ITEM_DOC_KINDS = { coa: "시험성적서", icp: "ICP 성적서(유해물질)", cert: "인증서", other: "기타" } as const;
+export type ItemDocKind = keyof typeof ITEM_DOC_KINDS;
+export const isItemDocKind = (s: string): s is ItemDocKind => s in ITEM_DOC_KINDS;
+export const DOC_RESULTS = { pass: "적합", fail: "부적합" } as const;
+/** 문서 유효기간 상태: 지남 / 30일 안에 끝남 / 괜찮음 / 기한 없음 */
+export function docExpiry(expiresOn: string | null, today: string, soon: string): "expired" | "soon" | "ok" | "none" {
+  if (!expiresOn) return "none";
+  if (expiresOn < today) return "expired";
+  if (expiresOn <= soon) return "soon";
+  return "ok";
+}
+
 export const belowSafety = (i: { qty: number; safetyQty: number }) => i.safetyQty > 0 && i.qty < i.safetyQty;
 /** 안전 재고까지 채우고 한 번 더 쓸 만큼(안전 재고의 두 배까지) 발주 제안 */
 export const suggestOrderQty = (i: { qty: number; safetyQty: number }) => Math.max(0, i.safetyQty * 2 - i.qty);

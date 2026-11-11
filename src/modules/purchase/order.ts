@@ -141,6 +141,20 @@ export async function saveOrderLine(db: Db, actor: Actor, orderId: string, lineI
   const o = await poRow(db, orderId);
   mustDraft(o);
   const v = lineValues(input);
+  let keepItem: string | null = null;
+  if (lineId) {
+    const [l0] = await db.select({ s: purchaseLine.stockItemId }).from(purchaseLine).where(and(eq(purchaseLine.id, lineId), eq(purchaseLine.orderId, orderId)));
+    keepItem = l0?.s ?? null;
+  }
+  // 사용 중지·소진 후 중지 품목은 새로 발주하지 않는다(이미 있는 줄을 고치는 것은 괜찮다)
+  if (v.stockItemId && v.stockItemId !== keepItem) {
+    const [it] = await db.select().from(stockItem).where(eq(stockItem.id, v.stockItemId));
+    if (!it) throw new PurchaseError("재고 품목을 찾을 수 없습니다");
+    if (!it.active || it.windDown) {
+      const [rep] = it.replacedById ? await db.select({ name: stockItem.name }).from(stockItem).where(eq(stockItem.id, it.replacedById)) : [];
+      throw new PurchaseError(`${it.name}은(는) ${it.active ? "소진 후 중지" : "사용 중지"} 품목이라 발주하지 않습니다${rep ? `. 대신 ${rep.name}을(를) 고르세요` : ""}`);
+    }
+  }
   if (lineId) {
     const [l] = await db.select().from(purchaseLine).where(and(eq(purchaseLine.id, lineId), eq(purchaseLine.orderId, orderId)));
     if (!l) throw new PurchaseError("줄을 찾을 수 없습니다");

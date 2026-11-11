@@ -1,7 +1,8 @@
 // 구매·자재·외주(STD-07): 협력업체 대장·평가 F-07-01, 발주서·입고 검수 F-07-02, 재고, 외주 의뢰 F-07-03
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, doublePrecision, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
 import { estimate, estimateLine, repairOrder } from "./repair";
+import { chemical } from "./safety";
 
 export type SupplierDocFile = { doc: string; path: string; name: string; at: string; by: string };
 
@@ -195,11 +196,58 @@ export const stockItem = pgTable(
     /** 유효기간 관리(도료·퍼티·경화제) */
     expiryTracked: boolean("expiry_tracked").notNull().default(false),
     supplierId: uuid("supplier_id").references(() => supplier.id),
+    /** 단가를 적은 방식: excluded 부가세 별도 · included 부가세 포함(공급가로 바꿔 unitWon 에 저장) · none 부가세 없음(면세·간이과세 업체). unitWon 은 늘 공급가 */
+    vatMode: text("vat_mode").notNull().default("excluded"),
+    /** 한 단위(캔·통)의 용량·중량. 예: 4 L, 1 kg. 조색 사용량 환산·화학물질 월 사용량에 씀 */
+    packAmount: doublePrecision("pack_amount"),
+    packUnit: text("pack_unit"),
+    /** 지출 계정(money/rules EXP_CATEGORIES). 비우면 구분에서 정한다(도료→도료, 소모품→소모품, 상비 부품→부품) */
+    expCategory: text("exp_category"),
+    /** 화학물질 목록(F-09-02) 연결. MSDS 는 그쪽 한 곳에서 관리한다 */
+    chemicalId: uuid("chemical_id").references(() => chemical.id),
+    /** false = 사용 중지(목록·발주·사용에서 빠짐) */
     active: boolean("active").notNull().default(true),
+    /** 소진 후 중지: 새 발주는 막고 남은 것은 쓴다. 0이 되면 사용 중지로 바뀜 */
+    windDown: boolean("wind_down").notNull().default(false),
+    /** 중지 사유: discontinued 단종 · replaced 대체품으로 바꿈 · unused 안 씀 · other 기타 */
+    stopReason: text("stop_reason"),
+    stopNote: text("stop_note"),
+    replacedById: uuid("replaced_by_id").references((): AnyPgColumn => stockItem.id),
+    stoppedBy: uuid("stopped_by").references(() => appUser.id),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
   },
   (t) => [index("stock_item_kind_idx").on(t.kind)],
+);
+
+/**
+ * 품목 문서: 시험성적서·ICP 성적서·인증서 등. MSDS 는 화학물질 목록에서 관리하므로 여기 두지 않는다.
+ * kind: coa 시험성적서 · icp ICP 성적서(유해물질) · cert 인증서 · other 기타. result: pass 적합 · fail 부적합 · null 해당 없음.
+ * lot 이 있으면 그 로트에만 해당하는 성적서. active=false 는 새 판으로 바뀌었거나 뺀 문서(지우지 않고 남긴다)
+ */
+export const stockItemDoc = pgTable(
+  "stock_item_doc",
+  {
+    id: id(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => stockItem.id),
+    kind: text("kind").notNull(),
+    title: text("title"),
+    issuer: text("issuer"),
+    issuedOn: text("issued_on"),
+    expiresOn: text("expires_on"),
+    result: text("result"),
+    lot: text("lot"),
+    path: text("path"),
+    fileName: text("file_name"),
+    note: text("note"),
+    active: boolean("active").notNull().default(true),
+    uploadedBy: uuid("uploaded_by").references(() => appUser.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("stock_item_doc_item_idx").on(t.itemId)],
 );
 
 /** 유효기간이 있는 품목의 로트별 남은 수량(선입선출: 유효기간 빠른 것부터 뺀다) */
