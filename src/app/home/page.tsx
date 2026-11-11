@@ -33,6 +33,10 @@ import {
 } from "@/modules/quality/rules";
 import { inspectTodos } from "@/modules/repair/inspect";
 import { myTodos } from "@/modules/dashboard/todo";
+import { seoulDate } from "@/modules/platform/time";
+import { todayRow } from "@/modules/staff/punch";
+import { punchInAction } from "../attendance/actions";
+import { SubmitButton } from "../_submit";
 import { dayLabel } from "../_format";
 import { requireUser } from "../_lib/session";
 import {
@@ -70,6 +74,7 @@ export default async function HomePage({
   const db = await getDb();
   const ids = panelsFor(user.roles);
   const has = (p: PanelId) => ids.includes(p);
+  const punch = await todayRow(db, user.id, seoulDate());
   const [todos, day, todo, mine, notes, intake, due, consents, month] =
     await Promise.all([
       myTodos(db, user),
@@ -725,6 +730,15 @@ export default async function HomePage({
         }
         actions={
           <>
+            {!punch ? (
+              <form action={punchInAction}>
+                <SubmitButton>출근</SubmitButton>
+              </form>
+            ) : !punch.outAt ? (
+              <Link href={`/journal?d=${seoulDate()}#close`} className={buttonClass("secondary")}>
+                퇴근(업무일지 마감)
+              </Link>
+            ) : null}
             <Link
               href="/todo"
               className={buttonClass(

@@ -12,13 +12,16 @@ export const LEAVE_KINDS = {
   late: { label: "지각", unit: "time", deduct: 0, ahead: false, hint: "늦게 출근(사후 신고)" },
   family: { label: "경조휴가", unit: "day", deduct: 0, ahead: false, hint: "결혼·장례 등. 유급, 연차에서 빼지 않음(취업규칙 제18조)" },
   absent: { label: "결근", unit: "day", deduct: 0, ahead: false, hint: "알리지 못하고 빠짐(사후 신고)" },
-  overtime: { label: "연장근무", unit: "time", deduct: 0, ahead: true, hint: "정해진 시간 뒤 더 일함. 미리 신청" },
+  overtime: { label: "연장근무", unit: "time", deduct: 0, ahead: true, hint: "정해진 시간 뒤나 쉬는 날 더 일함. 미리 신청(급하면 7일 안 사후 신청)" },
+  punch_fix: { label: "출퇴근 정정", unit: "time", deduct: 0, ahead: false, hint: "출근·퇴근을 못 눌렀거나 틀렸을 때. 시작=출근, 끝=퇴근" },
 } as const;
 export type LeaveKind = keyof typeof LEAVE_KINDS;
 export const isLeaveKind = (k: string): k is LeaveKind => k in LEAVE_KINDS;
 
 /** 주 연장근로 한도(근로기준법 제53조) */
 export const WEEKLY_OVERTIME_MAX = 12;
+/** 급한 연장근무를 사후에 신청할 수 있는 기간(일). 사후 신청은 '사후'로 표시되고 승인자가 인정 여부를 정한다 */
+export const OVERTIME_AFTER_DAYS = 7;
 /** 사후 신고를 받는 기간(일) */
 export const LATE_REPORT_DAYS = 30;
 /** 병가 진단서가 필요한 일수 */
@@ -100,5 +103,7 @@ export function leaveSummary(d: { leaveKind?: unknown; fromDate?: unknown; toDat
   if (!k) return "";
   if (k.unit === "day") return `${k.label} ${d.fromDate}${d.toDate && d.toDate !== d.fromDate ? ` ~ ${d.toDate}` : ""} (${d.days}일)`;
   if (k.unit === "half") return `${k.label} ${d.fromDate}`;
-  return `${k.label} ${d.fromDate} ${d.fromTime}~${d.toTime} (${d.hours}시간)`;
+  if (d.leaveKind === "punch_fix") return `${k.label} ${d.fromDate} 출근 ${d.fromTime} · 퇴근 ${d.toTime}`;
+  const tag = (d as { after?: unknown }).after ? " 사후" : (d as { orderedBy?: unknown }).orderedBy ? " 지시" : "";
+  return `${k.label}${tag} ${d.fromDate} ${d.fromTime}~${d.toTime} (${d.hours}시간)`;
 }

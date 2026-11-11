@@ -46,6 +46,10 @@ export type SlipData = {
     absentDays: number;
     sickDays: number;
     shortHours: number;
+    /** 승인된 연장·휴일근로 시간(신청 기준). 인정 시간과 다르면 차이를 명세서에 보인다 */
+    otApproved?: number;
+    /** 승인 없이 더 일한 시간(수당 없음, 최저임금 점검용) */
+    unapproved?: number;
   };
   pays: PayLine[];
   deducts: PayLine[];
@@ -121,11 +125,15 @@ function businessDays(cal: ShopCalendar, from: string, to: string) {
   return n;
 }
 
-/** 근태(승인된 F-11-04)를 그 달 시간으로 모은다 */
+/**
+ * 근태(승인된 F-11-04)를 그 달 시간으로 모은다.
+ * actual 을 주면 연장·휴일근로는 승인 시각과 실제 출퇴근이 겹치는 부분만(분 단위) 센다(사용자 결정 2026-11-11).
+ */
 export function summarizeAttendance(
   leaves: AttLeave[],
   ym: string,
   cal: ShopCalendar,
+  actual?: (day: string) => { from: number; to: number } | null | undefined,
 ) {
   const { from, to } = monthRange(ym);
   const a = {
@@ -136,13 +144,29 @@ export function summarizeAttendance(
     absentDays: 0,
     sickDays: 0,
     shortHours: 0,
+    otApproved: 0,
   };
   for (const l of leaves) {
     if (l.toDate < from || l.fromDate > to) continue;
     if (l.leaveKind === "overtime") {
       if (l.fromDate < from) continue;
-      const h = l.hours;
-      a.night += nightHours(l.fromTime, l.toTime);
+      a.otApproved += l.hours;
+      let h = l.hours;
+      let fromTime = l.fromTime;
+      let toTime = l.toTime;
+      if (actual) {
+        const s = hm(l.fromTime);
+        const e = hm(l.toTime);
+        const sp = actual(l.fromDate);
+        const st = sp && s != null ? Math.max(s, sp.from) : 0;
+        const en = sp && e != null ? Math.min(e, sp.to) : 0;
+        if (!sp || en <= st) continue;
+        h = Math.round(((en - st) / 60) * 100) / 100;
+        const t = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+        fromTime = t(st);
+        toTime = t(en);
+      }
+      a.night += nightHours(fromTime, toTime);
       if (closedReason(cal, l.fromDate) != null) {
         a.holiday += Math.min(h, 8);
         a.holidayOver8 += Math.max(0, h - 8);
@@ -161,7 +185,8 @@ export function summarizeAttendance(
     )
       a.shortHours += l.hours;
   }
-  return a;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  return { ...a, overtime: r2(a.overtime), night: r2(a.night), holiday: r2(a.holiday), holidayOver8: r2(a.holidayOver8), otApproved: r2(a.otApproved) };
 }
 
 /**
@@ -359,6 +384,22 @@ export function computeSlip(input: {
     warnings.push(
       `통상시급 ${won(hourly)}이 최저임금 ${won(pol.minWage)}보다 적습니다. 계약서를 고쳐야 합니다`,
     );
+  const recog = att.overtime + att.holiday + att.holidayOver8;
+  if (att.otApproved != null && att.otApproved - recog > 0.01)
+    warnings.push(
+      `승인된 연장·휴일근로 ${att.otApproved}시간 중 실제 출퇴근과 겹친 ${Math.round(recog * 100) / 100}시간만 인정했습니다. 출퇴근이 빠진 날은 '출퇴근 정정'이 확정되면 다시 계산하세요`,
+    );
+  if (att.unapproved) {
+    warnings.push(
+      `승인 없이 더 일한 ${att.unapproved}시간은 수당에 넣지 않았습니다. 공장장이 알고 일을 시킨 시간이면 사후 승인을 받아 다시 계산하세요`,
+    );
+    const fixedPay = baseFull + t.allowances.reduce((s, a) => s + a.amount, 0);
+    const eff = n.monthHours ? fixedPay / (n.monthHours + att.unapproved) : 0;
+    if (eff && eff < pol.minWage)
+      warnings.push(
+        `승인 없는 시간까지 치면 시간당 ${won(eff)}로 최저임금 ${won(pol.minWage)}보다 적습니다. 실제로 일한 시간이면 수당을 주어야 합니다(최저임금법 제6조)`,
+      );
+  }
   if (gross - deductTotal < 0)
     warnings.push("공제가 지급보다 큽니다. 공제 항목을 확인하세요");
   return {

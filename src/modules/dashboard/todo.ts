@@ -23,6 +23,7 @@ import { listNc } from "@/modules/quality/nc";
 import { listComplaints } from "@/modules/cs/service";
 import { taskTodos } from "@/modules/task/service";
 import { journalTodos } from "@/modules/journal/entry";
+import { punchTodos } from "@/modules/staff/punch";
 import { supplierBankTodos, supplierTodos } from "@/modules/purchase/supplier";
 import { orderTodos } from "@/modules/purchase/order";
 import { stockTodos } from "@/modules/purchase/stock";
@@ -622,6 +623,8 @@ export async function myTodos(
   // 업무지시: 받은 일·확인할 보고·기한 지난 지시
   out.push(...(await taskTodos(db, user, today)));
   out.push(...(await journalTodos(db, user, now)));
+  // 출퇴근: 출근 누르기, 빠진 날 정정, 승인 없는 연장 사후 신청, 지각 신고, 받은 연장 지시
+  out.push(...(await punchTodos(db, user, now)));
 
   // 구매·자재·외주(STD-07): 협력업체 승인·평가, 발주 승인·보내기·입고, 재고 미달·유효기간·실사, 외주 진행
   out.push(

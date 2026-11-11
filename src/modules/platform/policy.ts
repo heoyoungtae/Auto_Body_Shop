@@ -376,6 +376,14 @@ export const DEFAULT_POLICY = {
     label: "주간 근로시간 경고",
     clause: "11.4",
   },
+  "work.overstay_minutes": {
+    value: 30,
+    unit: "분",
+    label: "승인 없이 늦게 남음 판단",
+    clause: "11.4",
+    min: 0,
+    max: 180,
+  },
   "hr.headcount_5plus": {
     value: 1,
     unit: "(1=5명 이상, 0=5명 미만)",

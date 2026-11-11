@@ -6,6 +6,7 @@ import { ROLE_LABEL } from "@/modules/auth/roles";
 import { confirmRoleFor, entryStatuses, getEntry, JOURNAL_STATUS, tomorrowPlan, type JournalStatus } from "@/modules/journal/entry";
 import { buildJournal, canViewJournal, journalUsers, teamJournal } from "@/modules/journal/service";
 import { addDays, seoulDate } from "@/modules/platform/time";
+import { todayRow } from "@/modules/staff/punch";
 import { dayLabel } from "../_format";
 import { DateField, SelectField } from "../_input";
 import { requireUser } from "../_lib/session";
@@ -36,6 +37,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
   ]);
   if (j instanceof Error) return <ErrorBox message={j.message} />;
   const mine = target === user.id;
+  const punch = mine && date === today ? await todayRow(db, user.id, today) : null;
   const plan = mine ? await tomorrowPlan(db, user, target, date) : null;
   const cRole = confirmRoleFor(j.user.roles);
   const confirmerLabel = cRole ? ROLE_LABEL[cRole] : null;
@@ -179,7 +181,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         </div>
       </div>
 
-      {mine ? <MyEntryPanel e={entry} day={date} plan={plan!} confirmerLabel={confirmerLabel} /> : <OtherEntryPanel e={entry} day={date} userId={target} canReview={canReview} confirmerLabel={confirmerLabel} />}
+      {mine ? <MyEntryPanel e={entry} day={date} plan={plan!} confirmerLabel={confirmerLabel} punchOpen={mine && date === today && punch != null && !punch.outAt} /> : <OtherEntryPanel e={entry} day={date} userId={target} canReview={canReview} confirmerLabel={confirmerLabel} />}
 
       {summary && (
         <Card title={`직원별 요약 · ${date}`} help={{ kind: "panel", id: "journal.team" }}>
