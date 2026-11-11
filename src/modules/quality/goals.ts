@@ -126,8 +126,16 @@ type Calc = {
   denom: number | null;
 };
 
-async function delivered(db: Db, ym: string) {
-  const s = span(ym);
+type Span = ReturnType<typeof span>;
+/** 날짜 범위(YYYY-MM-DD ~ YYYY-MM-DD)를 지표 계산 범위로 */
+export const spanOf = (from: string, to: string): Span => ({
+  from,
+  to,
+  start: new Date(`${from}T00:00:00+09:00`),
+  end: new Date(`${to}T23:59:59.999+09:00`),
+});
+
+async function delivered(db: Db, s: Span) {
   return db
     .select({
       roId: repairStatement.repairOrderId,
@@ -152,7 +160,16 @@ export async function computeGoal(
   key: GoalKey,
   now = new Date(),
 ): Promise<Calc> {
-  const s = span(ym);
+  return computeGoalSpan(db, span(ym), key, now);
+}
+
+/** 아무 기간으로 지표 계산(통계·보고서). 3정5S 는 기간에 걸친 달의 평균 */
+export async function computeGoalSpan(
+  db: Db,
+  s: Span,
+  key: GoalKey,
+  now = new Date(),
+): Promise<Calc> {
   const ratio = (n: number, d: number): Calc => ({
     value: pct(n, d),
     numer: n,
@@ -160,7 +177,7 @@ export async function computeGoal(
   });
   switch (key) {
     case "rework": {
-      const d = await delivered(db, ym);
+      const d = await delivered(db, s);
       if (!d.length) return ratio(0, 0);
       const fails = await db
         .select({ ro: inspection.repairOrderId })
@@ -177,7 +194,7 @@ export async function computeGoal(
       return ratio(new Set(fails.map((f) => f.ro)).size, d.length);
     }
     case "warranty": {
-      const d = await delivered(db, ym);
+      const d = await delivered(db, s);
       const w = await db
         .select({ id: complaint.id })
         .from(complaint)
@@ -191,7 +208,7 @@ export async function computeGoal(
       return ratio(w.length, d.length);
     }
     case "ontime": {
-      const d = await delivered(db, ym);
+      const d = await delivered(db, s);
       if (!d.length) return ratio(0, 0);
       const wos = await db
         .select({ ro: workOrder.repairOrderId, due: workOrder.dueDate })
@@ -220,7 +237,7 @@ export async function computeGoal(
       return ratio(n, den);
     }
     case "overrun": {
-      const d = await delivered(db, ym);
+      const d = await delivered(db, s);
       if (!d.length) return ratio(0, 0);
       const ests = await db
         .select()
@@ -342,7 +359,12 @@ export async function computeGoal(
       const rows = await db
         .select({ t: fiveSMonthly.total })
         .from(fiveSMonthly)
-        .where(eq(fiveSMonthly.ym, ym));
+        .where(
+          and(
+            gte(fiveSMonthly.ym, s.from.slice(0, 7)),
+            lte(fiveSMonthly.ym, s.to.slice(0, 7)),
+          ),
+        );
       const sum = rows.reduce((a, r) => a + r.t, 0);
       return {
         value: rows.length ? sum / rows.length : null,

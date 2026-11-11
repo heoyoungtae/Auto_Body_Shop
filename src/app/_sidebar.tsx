@@ -3,16 +3,27 @@
 // 묶음은 기본으로 접혀 있다. 지금 화면이 든 묶음만 저절로 펼친다. 펼친 묶음과 '개발 예정 보기'는 이 기기에 기억한다.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Role } from "@/modules/auth/roles";
 import { can } from "@/modules/auth/permissions";
 import { MENU, TOP, type MenuItem } from "./_menu";
 
-const NavCtx = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({ open: false, setOpen: () => {} });
+const NavCtx = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({
+  open: false,
+  setOpen: () => {},
+});
 
 export function NavProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  return <NavCtx.Provider value={{ open, setOpen }}>{children}</NavCtx.Provider>;
+  return (
+    <NavCtx.Provider value={{ open, setOpen }}>{children}</NavCtx.Provider>
+  );
 }
 
 export function MenuButton() {
@@ -48,12 +59,19 @@ const save = (k: string, v: unknown) => {
 };
 
 /** 지금 화면에 맞는 메뉴: 경로가 가장 길게 겹치는 것 하나 */
-const HREFS = [...TOP, ...MENU.flatMap((g) => g.items)].map((i) => i.href).filter((h): h is string => !!h);
-const activeHref = (path: string) => HREFS.filter((h) => path === h || path.startsWith(h + "/")).sort((a, b) => b.length - a.length)[0];
+const HREFS = [...TOP, ...MENU.flatMap((g) => g.items)]
+  .map((i) => i.href)
+  .filter((h): h is string => !!h);
+const activeHref = (path: string) =>
+  HREFS.filter((h) => path === h || path.startsWith(h + "/")).sort(
+    (a, b) => b.length - a.length,
+  )[0];
 const isActive = (path: string, href: string) => activeHref(path) === href;
 const groupOf = (path: string) => {
   const h = activeHref(path);
-  return h ? MENU.find((g) => g.items.some((i) => i.href === h))?.id : undefined;
+  return h
+    ? MENU.find((g) => g.items.some((i) => i.href === h))?.id
+    : undefined;
 };
 
 export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
@@ -69,7 +87,9 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   // 지금 화면이 든 묶음은 펼친다(저장하지 않음 — 다른 화면으로 가면 원래대로)
   const [here, setHere] = useState<string | undefined>(() => groupOf(path));
   useEffect(() => setHere(groupOf(path)), [path]);
-  const allowed = (i: MenuItem) => (!i.roles || i.roles.some((r) => roles.includes(r))) && (!i.perm || i.perm.some((k) => can({ roles }, k)));
+  const allowed = (i: MenuItem) =>
+    (!i.roles || i.roles.some((r) => roles.includes(r))) &&
+    (!i.perm || i.perm.some((k) => can({ roles }, k)));
   const visible = (i: MenuItem) => allowed(i) && (future || i.href);
   const isOpen = (id: string) => opened.includes(id) || here === id;
   const toggle = (id: string) => {
@@ -86,7 +106,13 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   };
   return (
     <>
-      {open && <div className="fixed inset-0 z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} aria-hidden />}
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          onClick={() => setOpen(false)}
+          aria-hidden
+        />
+      )}
       <nav
         id="side-menu"
         aria-label="메뉴"
@@ -94,12 +120,17 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
       >
         <div className="flex min-h-14 items-center justify-between border-b border-[var(--line)] px-3 lg:hidden">
           <span className="font-semibold">메뉴</span>
-          <button type="button" onClick={() => setOpen(false)} aria-label="메뉴 닫기" className="inline-flex size-10 items-center justify-center rounded-md text-lg hover:bg-[var(--surface-2)]">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="메뉴 닫기"
+            className="inline-flex size-10 items-center justify-center rounded-md text-lg hover:bg-[var(--surface-2)]"
+          >
             ×
           </button>
         </div>
         <ul className="space-y-0.5 px-2 pt-3">
-          {TOP.map((i) => (
+          {TOP.filter(allowed).map((i) => (
             <li key={i.label}>
               <Link
                 href={i.href!}
@@ -133,11 +164,17 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
                       {i.href ? (
                         <Link
                           href={i.href}
-                          aria-current={isActive(path, i.href) ? "page" : undefined}
+                          aria-current={
+                            isActive(path, i.href) ? "page" : undefined
+                          }
                           className="flex min-h-10 items-center justify-between rounded-md px-3 text-sm hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:font-semibold aria-[current=page]:text-[var(--accent)]"
                         >
                           {i.label}
-                          {i.href === "/notifications" && unread > 0 && <span className="rounded-full bg-[var(--danger)] px-1.5 text-xs text-white">{unread}</span>}
+                          {i.href === "/notifications" && unread > 0 && (
+                            <span className="rounded-full bg-[var(--danger)] px-1.5 text-xs text-white">
+                              {unread}
+                            </span>
+                          )}
                         </Link>
                       ) : (
                         <span
@@ -145,7 +182,9 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
                           className="flex min-h-10 items-center justify-between rounded-md px-3 text-sm text-[var(--muted)] opacity-70"
                         >
                           {i.label}
-                          <span className="rounded bg-[var(--surface-2)] px-1.5 text-[10px]">{i.phase}</span>
+                          <span className="rounded bg-[var(--surface-2)] px-1.5 text-[10px]">
+                            {i.phase}
+                          </span>
                         </span>
                       )}
                     </li>

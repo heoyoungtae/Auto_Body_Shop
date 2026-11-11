@@ -2106,6 +2106,13 @@ export const PAGE_HELP = {
     ],
     refs: ["사내 표준서 Q.8", "양식 F-Q-09"],
   },
+  "reports": {
+    title: "통계·보고서",
+    purpose: "일·주·월·분기·연 기간별로 영업·매출·품질·고객·설비·안전 현황을 모아 앞 기간과 비교합니다. 따로 입력하는 값은 없고 모든 숫자는 앞선 전표에서 계산합니다.",
+    who: "대표·공장장·품질 담당·회계 담당(매출·수금은 청구·수납 보기 권한)",
+    steps: ["기간 종류(일·주·월·분기·연)를 고릅니다.", "◀ 앞 / 뒤 ▶ 또는 날짜로 기간을 옮깁니다.", "앞 기간과 비교한 변화(초록 좋아짐·빨강 나빠짐)를 봅니다.", "필요하면 인쇄하거나 엑셀(CSV)로 내려받습니다."],
+    refs: ["사내 표준서 Q.3·Q.8", "STD-12 12.4"],
+  },
   schedule: {
     title: "일정표",
     purpose:
@@ -2233,6 +2240,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/qms/docs": "qms.docs",
   "/qms/docs/[id]": "qms.doc",
   "/qms/review": "qms.review",
+  "/reports": "reports",
   "/suggestions": "suggestions",
   "/suggestions/new": "suggestions.new",
   "/suggestions/[id]": "suggestions.detail",

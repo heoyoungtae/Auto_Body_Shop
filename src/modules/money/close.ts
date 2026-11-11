@@ -98,20 +98,18 @@ export async function closeDay(
     throw new CloseError(
       `전표와 ${cardDiff ? `카드 ${won(cardDiff)}` : ""}${cardDiff && cashDiff ? " · " : ""}${cashDiff ? `현금 ${won(cashDiff)}` : ""} 차이가 납니다. 빠진 전표가 있으면 먼저 적고, 그래도 다르면 이유를 적어 주세요`,
     );
-  await db
-    .insert(dailyClose)
-    .values({
-      day,
-      cardWon: t.card,
-      cashWon: t.cash,
-      transferWon: t.transfer,
-      cardTerminalWon: input.cardTerminalWon,
-      cashCountedWon: input.cashCountedWon,
-      diffWon: diff,
-      note: input.note.trim() || null,
-      closedBy: actor.id,
-      closedAt: now,
-    });
+  await db.insert(dailyClose).values({
+    day,
+    cardWon: t.card,
+    cashWon: t.cash,
+    transferWon: t.transfer,
+    cardTerminalWon: input.cardTerminalWon,
+    cashCountedWon: input.cashCountedWon,
+    diffWon: diff,
+    note: input.note.trim() || null,
+    closedBy: actor.id,
+    closedAt: now,
+  });
   await writeAudit(db, {
     actorId: actor.id,
     action: "close.day",
@@ -223,7 +221,14 @@ export type MonthSummary = {
 /** 한 달 모아 보기(마감 자료). 미수·미지급은 지금 기준 */
 export async function monthSummary(db: Db, ym: string): Promise<MonthSummary> {
   if (!isYm(ym)) throw new CloseError("달을 확인해 주세요(YYYY-MM)");
-  const range = ymRange(ym);
+  return { ym, ...(await rangeSummary(db, ymRange(ym))) };
+}
+
+/** 아무 기간(일·주·월·분기·연) 모아 보기. 통계·보고서도 이것을 쓴다. 미수·미지급은 지금 기준 */
+export async function rangeSummary(
+  db: Db,
+  range: { from: string; to: string },
+): Promise<Omit<MonthSummary, "ym">> {
   const { start, end } = tsRange(range.from, range.to);
   const st = await db
     .select({ s: repairStatement, insurance: repairOrder.insurance })
@@ -364,7 +369,6 @@ export async function monthSummary(db: Db, ym: string): Promise<MonthSummary> {
   const poWon = sum(pos, (o) => o.totalWon);
   const osWon = sum(oss, (o) => o.amountWon);
   return {
-    ym,
     range,
     sales: {
       count: st.length,

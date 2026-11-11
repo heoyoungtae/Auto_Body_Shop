@@ -345,6 +345,13 @@ export const PERMS = {
     std: "STD-Q Q.8",
     roles: ["owner"],
   },
+  "report.view": {
+    area: "경영",
+    label: "통계·보고서(일·주·월·분기·연) 보기",
+    std: "STD-Q Q.10",
+    roles: ["owner", "plant_manager", "quality", "accounting"],
+    note: "매출·수금 영역은 '청구·수납·미수 보기' 권한이 있어야 보임",
+  },
   "training.manage": {
     area: "인사",
     label: "교육 계획 올리기·고치기·취소, 실시 기록(이수자 지정)",
