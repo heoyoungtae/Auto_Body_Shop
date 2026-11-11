@@ -51,6 +51,9 @@ export const supplier = pgTable(
     bankVerifiedBy: uuid("bank_verified_by").references(() => appUser.id),
     bankVerifiedAt: timestamp("bank_verified_at", { withTimezone: true }),
     bankVerifyNote: text("bank_verify_note"),
+    /** 결제 조건: now 즉시 · month_end 당월 말 · next_end 익월 말 · next_day 익월 payDay일. 발주서가 불러온다 */
+    payTerm: text("pay_term").notNull().default("next_end"),
+    payDay: integer("pay_day"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -106,6 +109,9 @@ export const purchaseOrder = pgTable(
     /** 요청 납기와 업체가 회신한 납기 */
     dueOn: text("due_on"),
     replyDueOn: text("reply_due_on"),
+    /** 결제 조건(업체 값을 불러오고 건마다 바꿀 수 있음). 비어 있으면 업체 값 */
+    payTerm: text("pay_term"),
+    payDay: integer("pay_day"),
     note: text("note"),
     approverRole: text("approver_role"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),

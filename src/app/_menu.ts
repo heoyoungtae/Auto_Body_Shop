@@ -292,7 +292,7 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
-        label: "거래처 정산",
+        label: "외상매입금·미지급금",
         perm: ["expense.draft", "expense.pay"],
         href: "/money/payables",
         std: "STD-12",

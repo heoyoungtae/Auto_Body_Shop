@@ -13,6 +13,7 @@ import {
   repairStatement,
 } from "@/db/schema";
 import { act } from "@/modules/approval/service";
+import { listPayables, supplierLedger } from "@/modules/money/payable";
 import { myTodos } from "@/modules/dashboard/todo";
 import {
   closeDay,
@@ -281,7 +282,7 @@ describe("지출 결의", () => {
     ...over,
   });
 
-  it("입고 끝난 발주서에서 불러오고, 남은 금액을 넘지 않으며, 승인·증빙·확인 계좌가 있어야 지급한다", async () => {
+  it("입고 끝난 발주서는 외상매입금이 되고, 업체별 지급 결의는 합계와 같아야 하며, 승인·증빙·확인 계좌가 있어야 지급한다", async () => {
     const sid = await supplierWithBank(false);
     const [po] = await db
       .insert(purchaseOrder)
@@ -296,12 +297,16 @@ describe("지출 결의", () => {
         createdBy: ids.manager,
       })
       .returning();
-    const src = (await expenseSources(db)).find((s) => s.id === po.id)!;
+    const src = (await expenseSources(db)).find((s) => s.id === sid)!;
     expect(src).toMatchObject({
+      kind: "settle",
       remainWon: 220_000,
       category: "consumable",
       supplierName: "한빛도료",
     });
+    // 입고 2026-11-10, 결제 조건 기본 익월 말 → 12-31(목)
+    const [pb] = await listPayables(db, sid);
+    expect(pb).toMatchObject({ kind: "trade", accruedOn: "2026-11-10", dueOn: "2026-12-31", amountWon: 220_000, status: "open" });
     expect((await payables(db))[0]).toMatchObject({
       name: "한빛도료",
       toDraft: 220_000,
@@ -316,14 +321,17 @@ describe("지출 결의", () => {
         db,
         manager(),
         base({
-          sourceKind: "po",
-          sourceId: po.id,
+          sourceKind: "settle",
+          sourceId: sid,
           supplyWon: 300_000,
           vatWon: 30_000,
         }),
         now,
       ),
-    ).rejects.toThrow(/남은 금액/);
+    ).rejects.toThrow(/합계는 220,000원/);
+    await expect(
+      createExpense(db, manager(), base({ sourceKind: "po", sourceId: po.id }), now),
+    ).rejects.toThrow(/외상매입금·미지급금/);
     await expect(
       createExpense(
         db,
@@ -336,8 +344,8 @@ describe("지출 결의", () => {
       db,
       manager(),
       base({
-        sourceKind: "po",
-        sourceId: po.id,
+        sourceKind: "settle",
+        sourceId: sid,
         evidenceKind: "pending",
         evidenceNo: "",
         evidenceOn: "",
@@ -351,14 +359,13 @@ describe("지출 결의", () => {
       .from(approvalDoc)
       .where(eq(approvalDoc.id, x.approvalDocId));
     expect(doc.status).toBe("in_progress");
+    expect(x.docNo).toMatch(/^EX-/);
+    expect((await listPayables(db, sid))[0].status).toBe("in_progress");
+    // 이미 묶인 외상은 다시 결의하지 않는다
     await expect(
-      createExpense(
-        db,
-        manager(),
-        base({ sourceKind: "po", sourceId: po.id }),
-        now,
-      ),
-    ).rejects.toThrow(/남은 금액/);
+      createExpense(db, manager(), base({ sourceKind: "settle", sourceId: sid }), now),
+    ).rejects.toThrow(/없습니다/);
+    expect((await getExpense(db, acct(), x.id)).e.dueOn).toBe("2026-12-31");
     await expect(
       payExpense(db, acct(), x.id, { paidOn: "2026-11-10", note: "" }, now),
     ).rejects.toThrow(/승인/);
@@ -399,9 +406,16 @@ describe("지출 결의", () => {
       /지급한/,
     );
     expect(await expenseSources(db)).toEqual([]);
+    expect((await listPayables(db, sid))[0]).toMatchObject({ status: "paid", paidOn: "2026-11-10" });
+    const led = await supplierLedger(db, sid, now);
+    expect(led!.balance).toBe(0);
+    expect(led!.ledger.map((l) => [l.plus, l.minus])).toEqual([
+      [0, 220_000],
+      [220_000, 0],
+    ]);
   });
 
-  it("근거 전표 없는 결의, 회수·취소, 계산서 번호는 발주서에 붙는다", async () => {
+  it("근거 전표 없는 결의, 회수·취소, 지급 결의의 계산서 번호는 발주서에 붙고, 결의를 취소하면 외상이 풀린다", async () => {
     const x = await createExpense(
       db,
       acct(),
@@ -436,12 +450,12 @@ describe("지출 결의", () => {
         receivedAt: now,
       })
       .returning();
-    await createExpense(
+    const y = await createExpense(
       db,
       acct(),
       base({
-        sourceKind: "po",
-        sourceId: po.id,
+        sourceKind: "settle",
+        sourceId: sid,
         supplyWon: 100_000,
         vatWon: 10_000,
         evidenceNo: "2611-777",
@@ -449,11 +463,15 @@ describe("지출 결의", () => {
       }),
       now,
     );
+    expect((await getExpense(db, acct(), y.id)).settled.map((p) => p.sourceNo)).toEqual(["PO-2611-0010"]);
     const [after] = await db
       .select()
       .from(purchaseOrder)
       .where(eq(purchaseOrder.id, po.id));
     expect(after.invoiceNo).toBe("2611-777");
+    await cancelExpense(db, acct(), y.id, "금액 확인", now);
+    expect((await listPayables(db, sid))[0]).toMatchObject({ status: "open", invoiceNo: "2611-777" });
+    expect((await expenseSources(db)).map((x) => x.id)).toEqual([sid]);
   });
 });
 

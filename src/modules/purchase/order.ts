@@ -3,6 +3,7 @@
 // 작성(공장장) → 승인(전결 '발주·외주': 금액별) → 발주서 보내기(승인 전에는 못 보냄) → 납기 회신 → 입고 검수(합격분 재고·차량 연결, 불합격분 반품 대기) → 세금계산서 연결.
 import { and, asc, desc, eq, inArray, isNotNull, ne, notInArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
+import { isPayTerm } from "@/modules/money/rules";
 import { appUser, customer, estimate, estimateLine, purchaseLine, purchaseOrder, purchaseReceipt, repairOrder, stockItem, stockLot, stockMove, supplier, vehicle, workOrder } from "@/db/schema";
 import { rolesOf } from "@/modules/approval/line";
 import { can } from "@/modules/auth/permissions";
@@ -54,7 +55,8 @@ export async function roDueDate(db: Db, roId: string) {
   return e?.d ?? null;
 }
 
-export type OrderHeader = { supplierId: string; dueOn: string; note: string };
+/** payTerm 을 비우면 업체 결제 조건을 따른다 */
+export type OrderHeader = { supplierId: string; dueOn: string; note: string; payTerm?: string; payDay?: number | null };
 
 export async function createOrder(db: Db, actor: Actor, input: { kind: "repair" | "stock"; repairOrderId?: string | null; supplierId?: string | null; dueOn?: string | null; note?: string; lines?: LineInput[] }, now = new Date()) {
   mustOrder(actor);
@@ -123,7 +125,13 @@ export async function saveOrderHeader(db: Db, actor: Actor, id: string, input: O
     if (!s) throw new PurchaseError("업체를 찾을 수 없습니다");
     if (s.status === "stopped" || s.status === "rejected") throw new PurchaseError(`${s.name}은(는) 거래할 수 없는 업체입니다`);
   }
-  await db.update(purchaseOrder).set({ supplierId: input.supplierId || null, dueOn: input.dueOn || null, note: clean(input.note), updatedAt: now }).where(eq(purchaseOrder.id, id));
+  const term = input.payTerm || null;
+  if (term && !isPayTerm(term)) throw new PurchaseError("결제 조건을 골라 주세요");
+  if (term === "next_day" && (input.payDay == null || input.payDay < 1 || input.payDay > 31)) throw new PurchaseError("'익월 ○일'이면 결제일(1~31)을 적어 주세요");
+  await db
+    .update(purchaseOrder)
+    .set({ supplierId: input.supplierId || null, dueOn: input.dueOn || null, note: clean(input.note), payTerm: term, payDay: term === "next_day" ? input.payDay! : null, updatedAt: now })
+    .where(eq(purchaseOrder.id, id));
 }
 
 export type LineInput = { name: string; partNo?: string; spec?: string; partCode?: string | null; qty: number; unitWon: number; stockItemId?: string | null; note?: string };

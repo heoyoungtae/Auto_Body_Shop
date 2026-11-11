@@ -50,7 +50,7 @@ export async function orderAction(form: FormData) {
     const db = await getDb();
     // 같은 양식에 '줄 지우기' 같은 다른 단추가 있으면 누른 단추 값이 맨 뒤에 온다
     const intent = form.getAll("intent").map(String).pop();
-    if (intent === "header") await saveOrderHeader(db, user, id, { supplierId: s("supplierId"), dueOn: s("dueOn"), note: s("note") });
+    if (intent === "header") await saveOrderHeader(db, user, id, { supplierId: s("supplierId"), dueOn: s("dueOn"), note: s("note"), payTerm: s("payTerm"), payDay: s("payDay") ? num(s("payDay")) : null });
     else if (intent === "line") {
       await saveOrderLine(db, user, id, s("lineId") || null, { name: s("name"), partNo: s("partNo"), spec: s("spec"), partCode: s("partCode") || null, qty: num(s("qty")), unitWon: num(s("unitWon")), stockItemId: s("stockItemId") || null });
       msg = s("lineId") ? "줄을 고쳤습니다" : "품목을 넣었습니다";

@@ -34,7 +34,7 @@ const opts = (o: Record<string, string>) =>
 export default async function NewExpensePage({
   searchParams,
 }: {
-  searchParams: Promise<{ src?: string; from?: string; error?: string }>;
+  searchParams: Promise<{ src?: string; from?: string; error?: string; p?: string | string[] }>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
@@ -46,7 +46,9 @@ export default async function NewExpensePage({
     );
   const db = await getDb();
   const [kind, sid] = (q.src ?? "").split(":");
-  const src = kind && sid ? await sourceOf(db, kind, sid) : null;
+  const pick = (Array.isArray(q.p) ? q.p : q.p ? [q.p] : []).filter(Boolean);
+  let srcError = "";
+  const src = kind && sid ? await sourceOf(db, kind, sid, pick).catch((e: Error) => ((srcError = e.message), null)) : null;
   const old = q.from
     ? ((await getExpense(db, user, q.from).catch(() => null))?.e ?? null)
     : null;
@@ -68,14 +70,14 @@ export default async function NewExpensePage({
     <>
       <PageTitle
         help="expenses.new"
-        sub="근거 전표를 고르면 업체·금액·세금계산서 번호를 불러옵니다. 승인자는 금액에 따라 전결 규정(일반 지출)이 정합니다."
+        sub="발주서·외주 대금은 '외상매입금·미지급금'에서 업체별로 고른 외상을 불러와 지급 결의합니다. 그 밖의 지출은 근거 전표 없이 씁니다. 승인자는 금액에 따라 전결 규정(일반 지출)이 정합니다."
       >
         지출 결의서 쓰기
       </PageTitle>
-      <ErrorBox message={q.error} />
+      <ErrorBox message={q.error ?? (srcError || undefined)} />
       {sources.length > 0 && (
         <Card
-          title="근거 전표에서 불러오기"
+          title="지급 결의할 업체(외상매입금·미지급금)"
           help={{ kind: "panel", id: "exp.sources" }}
         >
           <ul className="divide-y divide-[var(--line)] text-sm">
@@ -85,12 +87,13 @@ export default async function NewExpensePage({
                   href={`/money/expenses/new?src=${s.kind}:${s.id}`}
                   className="font-medium text-[var(--accent)]"
                 >
-                  {s.docNo}
+                  {s.supplierName}
                 </Link>
-                <span>{s.supplierName}</span>
-                <span>남음 {won(s.remainWon)}</span>
-                <Badge>{SOURCE_KINDS[s.kind]}</Badge>
-                {s.partial && <Badge tone="warn">일부 입고</Badge>}
+                <span>{won(s.remainWon)}</span>
+                <span className="text-xs text-[var(--muted)]">{s.payables?.length ?? 0}건 · 가까운 기한 {s.on ?? "-"}</span>
+                <Link href={`/money/payables/${s.id}`} className="text-xs text-[var(--accent)]">
+                  골라서 내기
+                </Link>
                 {s.invoiceNo && (
                   <span className="text-xs text-[var(--muted)]">
                     계산서 {s.invoiceNo}
@@ -127,6 +130,26 @@ export default async function NewExpensePage({
             value={src?.id ?? old?.sourceId ?? ""}
           />
           {q.src && <input type="hidden" name="src" value={q.src} />}
+          {src?.kind === "settle" &&
+            src.payables?.map((x) => <input key={x.id} type="hidden" name="p" value={x.id} />)}
+          {src?.kind === "settle" && (
+            <div className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs md:col-span-2">
+              <p className="mb-1 font-medium">
+                묶는 외상 {src.payables?.length ?? 0}건 · 합계 {won(src.totalWon)}{" "}
+                <Link href={`/money/payables/${src.id}`} className="text-[var(--accent)]">
+                  다시 고르기
+                </Link>
+              </p>
+              <ul className="space-y-0.5">
+                {src.payables?.map((x) => (
+                  <li key={x.id}>
+                    {x.sourceNo} · 입고 {x.accruedOn} · 기한 {x.dueOn} · {won(x.amountWon)}
+                    {x.invoiceNo ? ` · 계산서 ${x.invoiceNo}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {old && <input type="hidden" name="fromId" value={old.id} />}
           {old && <input type="hidden" name="from" value={old.id} />}
           {src ? (
@@ -204,8 +227,9 @@ export default async function NewExpensePage({
           />
           {src && (
             <p className="text-xs text-[var(--muted)] md:col-span-2">
-              이 전표의 남은 금액 {won(remain)}(근거 {won(src.totalWon)}, 이미
-              결의 {won(src.usedWon)})을 넘을 수 없습니다.
+              {src.kind === "settle"
+                ? `공급가 + 부가세는 고른 외상 합계 ${won(src.totalWon)}와 같아야 합니다(세금계산서 금액과 대조).`
+                : `이 전표의 남은 금액 ${won(remain)}(근거 ${won(src.totalWon)}, 이미 결의 ${won(src.usedWon)})을 넘을 수 없습니다.`}
             </p>
           )}
           <div className="md:col-span-2">
@@ -244,7 +268,8 @@ export default async function NewExpensePage({
           <DateField
             help="exp.dueOn"
             name="dueOn"
-            defaultValue={old?.dueOn ?? ""}
+            defaultValue={old?.dueOn ?? (src?.kind === "settle" ? (src.on && src.on >= seoulDate() ? src.on : seoulDate()) : "")}
+            from={src?.kind === "settle" ? "결제 조건" : undefined}
             min={seoulDate()}
             quick={["today", "week", "nextMonth"]}
           />

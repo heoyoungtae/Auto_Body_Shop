@@ -157,3 +157,37 @@ export const monthClose = pgTable(
   },
   (t) => [uniqueIndex("month_close_ym_uq").on(t.ym)],
 );
+
+/**
+ * 외상매입금·미지급금(채무). 입고 검수가 끝난 발주서·결과를 수용한 외주 의뢰서에서 저절로 생긴다(입고·세금계산서 날짜).
+ * kind: trade 외상매입금(부품·도료·소모품 등 본업 매입) · other 미지급금(설비·공구 등 그 밖의 매입).
+ * 업체별 지급 결의(expense.sourceKind = settle)에 묶이면 settleExpenseId 가 생기고, 그 결의를 지급하면 갚은 것이다.
+ * 결의를 취소하면 다시 풀린다. 금액은 부가세 포함
+ */
+export const payable = pgTable(
+  "payable",
+  {
+    id: id(),
+    kind: text("kind").notNull(),
+    supplierId: uuid("supplier_id").references(() => supplier.id),
+    payeeName: text("payee_name").notNull(),
+    /** po 발주서 · outsource 외주 의뢰서 */
+    sourceKind: text("source_kind").notNull(),
+    sourceId: uuid("source_id").notNull(),
+    sourceNo: text("source_no").notNull(),
+    category: text("category").notNull(),
+    split: jsonb("split").$type<{ category: string; won: number }[]>().notNull().default([]),
+    supplyWon: integer("supply_won").notNull(),
+    vatWon: integer("vat_won").notNull(),
+    amountWon: integer("amount_won").notNull(),
+    /** 채무가 생긴 날(입고일, 세금계산서가 먼저면 그 날) */
+    accruedOn: text("accrued_on").notNull(),
+    /** 결제 조건으로 계산한 지급 기한(은행 쉬는 날이면 바로 앞 영업일) */
+    dueOn: text("due_on").notNull(),
+    payTerm: text("pay_term").notNull(),
+    invoiceNo: text("invoice_no"),
+    settleExpenseId: uuid("settle_expense_id").references(() => expense.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("payable_supplier_idx").on(t.supplierId), index("payable_source_idx").on(t.sourceId), index("payable_settle_idx").on(t.settleExpenseId)],
+);

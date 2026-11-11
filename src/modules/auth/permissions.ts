@@ -311,7 +311,7 @@ export const PERMS = {
   },
   "expense.pay": {
     area: "회계",
-    label: "지출 지급·거래처 정산",
+    label: "지출 지급·외상매입금 지급",
     std: "STD-12 12.2",
     roles: ["owner", "accounting"],
   },

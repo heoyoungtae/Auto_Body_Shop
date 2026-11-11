@@ -116,6 +116,7 @@ export const isExpPayMethod = (s: string): s is ExpPayMethod =>
 export const SOURCE_KINDS = {
   po: "발주서",
   outsource: "외주 의뢰서",
+  settle: "외상매입금·미지급금 지급",
   none: "근거 전표 없음(결의서로 승인)",
 } as const;
 export type SourceKind = keyof typeof SOURCE_KINDS;
@@ -194,3 +195,54 @@ export const daysBetween = (a: string, b: string) =>
   Math.round(
     (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 864e5,
   );
+
+// ── 외상매입금·미지급금 ──
+/** 결제 조건 */
+export const PAY_TERMS = { now: "즉시(입고 때)", month_end: "당월 말", next_end: "익월 말", next_day: "익월 ○일" } as const;
+export type PayTerm = keyof typeof PAY_TERMS;
+export const isPayTerm = (s: string): s is PayTerm => s in PAY_TERMS;
+export const payTermLabel = (t: string, day: number | null) => (t === "next_day" ? `익월 ${day ?? "?"}일` : (PAY_TERMS[t as PayTerm] ?? t));
+
+const lastDayOf = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+};
+const nextYm = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+};
+
+/** 결제 조건으로 정한 날(휴일 조정 전). 익월 ○일이 그 달에 없으면(31일 등) 그 달 말일 */
+export function termDate(accruedOn: string, term: PayTerm, day: number | null): string {
+  const ym = accruedOn.slice(0, 7);
+  if (term === "now") return accruedOn;
+  if (term === "month_end") return lastDayOf(ym);
+  const n = nextYm(ym);
+  if (term === "next_end") return lastDayOf(n);
+  const d = Math.min(Math.max(1, day ?? 10), 31);
+  const last = lastDayOf(n);
+  return `${n}-${String(d).padStart(2, "0")}` > last ? last : `${n}-${String(d).padStart(2, "0")}`;
+}
+
+/** 은행이 쉬는 날이면 바로 앞 영업일로 당긴다. isOpen: 은행 영업일인지 */
+export function backToBusinessDay(iso: string, isOpen: (d: string) => boolean): string {
+  let t = Date.parse(`${iso}T00:00:00Z`);
+  for (let i = 0; i < 15 && !isOpen(new Date(t).toISOString().slice(0, 10)); i++) t -= 864e5;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+/** 외상매입금(trade)인지 미지급금(other)인지: 본업 매입(부품·도료·소모품)은 외상매입금, 외주 가공은 정책값을 따른다 */
+export const TRADE_CATEGORIES = ["parts", "paint", "consumable"] as const;
+export function payableKind(category: string, outsourceTrade: boolean): "trade" | "other" {
+  if ((TRADE_CATEGORIES as readonly string[]).includes(category)) return "trade";
+  if (category === "outsource") return outsourceTrade ? "trade" : "other";
+  return "other";
+}
+export const PAYABLE_KINDS = { trade: "외상매입금", other: "미지급금", card: "미지급금(카드)" } as const;
+
+/** 카드로 쓴 날 → 카드 대금 빠지는 날(다음 달 payDay일, 은행 쉬는 날이면 다음 영업일이지만 여기서는 그 날로 본다) */
+export function cardDueOn(usedOn: string, payDay: number): string {
+  const n = nextYm(usedOn.slice(0, 7));
+  const d = Math.min(Math.max(1, payDay), 28);
+  return `${n}-${String(d).padStart(2, "0")}`;
+}
