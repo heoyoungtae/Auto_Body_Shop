@@ -5,7 +5,7 @@ import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { getOrder } from "@/modules/purchase/order";
 import { lateForRepair, PO_KINDS, PO_STATUS, PO_TONE, RECEIPT_CHECKS, SENT_VIA, SUPPLIER_STATUS, type PoKind, type PoStatus, type SupplierStatus } from "@/modules/purchase/rules";
-import { listStock } from "@/modules/purchase/stock";
+import { orderableStock } from "@/modules/purchase/stock";
 import { supplierBank, supplierOptions } from "@/modules/purchase/supplier";
 import { PART_CODES } from "@/modules/repair/estimate-rules";
 import { seoulDate } from "@/modules/platform/time";
@@ -37,7 +37,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
   const nm = (u: string | null) => (u ? (names.get(u) ?? "-") : "-");
   const approverRole = o.approverRole as Role | null;
   const canApprove = status === "review" && approverRole && (user.roles.includes(approverRole) || user.roles.includes("owner")) && (o.createdBy !== user.id || user.roles.includes("owner"));
-  const [sups, stock] = draft ? await Promise.all([supplierOptions(db, o.kind === "repair" ? "parts" : undefined), o.kind === "stock" ? listStock(db, "all") : Promise.resolve([])]) : [[], []];
+  const [sups, stock] = draft ? await Promise.all([supplierOptions(db, o.kind === "repair" ? "parts" : undefined), o.kind === "stock" ? orderableStock(db) : Promise.resolve([])]) : [[], []];
   const bank = sup && can(user, "supplier.bank") && (status === "partial" || status === "received") ? await supplierBank(db, user, sup.id) : undefined;
   const lineName = new Map(lines.map((l) => [l.id, l.name]));
   const anyPaint = lines.some((l) => l.stockItemId && items.get(l.stockItemId)?.expiryTracked);

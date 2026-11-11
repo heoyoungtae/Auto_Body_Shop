@@ -348,7 +348,8 @@ export async function rangeSummary(
 
   const cats = new Map<string, number>();
   for (const e of paidExp)
-    cats.set(e.category, (cats.get(e.category) ?? 0) + e.amountWon);
+    for (const part of e.split?.length ? e.split : [{ category: e.category, won: e.amountWon }])
+      cats.set(part.category, (cats.get(part.category) ?? 0) + part.won);
   const closes = await db
     .select()
     .from(dailyClose)

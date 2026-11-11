@@ -171,6 +171,12 @@ export default async function NewExpensePage({
             from={fromSrc}
             options={opts(EXP_CATEGORIES)}
           />
+          {src && src.split.length > 1 && (
+            <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs md:col-span-2">
+              {src.docNo}에 계정이 섞여 있어 품목 계정대로 나눠 잡습니다:{" "}
+              {src.split.map((p) => `${EXP_CATEGORIES[p.category as keyof typeof EXP_CATEGORIES] ?? p.category} ${won(p.won)}`).join(" · ")}. 계정을 바꾸면 고른 계정 하나로 전액 잡습니다.
+            </p>
+          )}
           <SelectField
             help="exp.payMethod"
             name="payMethod"

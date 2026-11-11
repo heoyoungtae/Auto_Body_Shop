@@ -1,17 +1,20 @@
 // 재고와 보관(STD-07 7절): 품목·안전 재고, 입고(발주 검수에서), 사용 기록(선입선출), 유효기간 알림·폐기, 실사
 import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, repairOrder, stockCount, stockItem, stockLot, stockMove, supplier } from "@/db/schema";
+import { alias } from "drizzle-orm/pg-core";
+import { appUser, chemical, repairOrder, stockCount, stockItem, stockItemDoc, stockLot, stockMove, supplier } from "@/db/schema";
+import { isExpCategory } from "@/modules/money/rules";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
+import { DOC_TYPES, MAX_DOC_BYTES, sniffDoc, storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { issueNc } from "@/modules/quality/nc";
 import { createOrder } from "./order";
-import { belowSafety, COUNT_KINDS, countDiff, EXPIRY_ALERT_DAYS, fifoTake, isStockKind, suggestOrderQty, type CountKind } from "./rules";
+import { belowSafety, COUNT_KINDS, countDiff, docExpiry, EXPIRY_ALERT_DAYS, fifoTake, isItemDocKind, isPackUnit, isStockKind, isStopReason, isVatMode, ITEM_DOC_KINDS, KIND_EXP_CATEGORY, splitVat, STOP_REASONS, suggestOrderQty, type CountKind, type StockKind, type VatMode } from "./rules";
 
 export class StockError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -23,7 +26,28 @@ async function itemRow(db: Db, id: string) {
   return i;
 }
 
-export type ItemInput = { name: string; kind: string; spec: string; unit: string; location: string; safetyQty: number; unitWon: number; expiryTracked: boolean; supplierId: string; openingQty?: number; openingExpiresOn?: string };
+/**
+ * unitWon 은 vatMode 대로 적은 값(포함이면 부가세 포함 금액). 저장은 공급가로 바꿔서 한다.
+ * expCategory 를 비우면 구분에서 정한다. chemicalId 는 화학물질 목록(MSDS) 연결
+ */
+export type ItemInput = {
+  name: string;
+  kind: string;
+  spec: string;
+  unit: string;
+  location: string;
+  safetyQty: number;
+  unitWon: number;
+  vatMode?: string;
+  packAmount?: number | null;
+  packUnit?: string;
+  expCategory?: string;
+  chemicalId?: string;
+  expiryTracked: boolean;
+  supplierId: string;
+  openingQty?: number;
+  openingExpiresOn?: string;
+};
 
 export async function saveItem(db: Db, actor: Actor, id: string | null, input: ItemInput, now = new Date()) {
   if (!can(actor, "stock.manage")) throw new StockError("재고 품목은 공장장·대표가 정합니다");
@@ -32,7 +56,40 @@ export async function saveItem(db: Db, actor: Actor, id: string | null, input: I
   if (!input.unit.trim()) throw new StockError("단위를 골라 주세요");
   if (!Number.isInteger(input.safetyQty) || input.safetyQty < 0) throw new StockError("안전 재고는 0 이상입니다");
   if (!Number.isInteger(input.unitWon) || input.unitWon < 0) throw new StockError("단가를 확인해 주세요");
-  const v = { name: input.name.trim(), kind: input.kind, spec: clean(input.spec), unit: input.unit.trim(), location: clean(input.location), safetyQty: input.safetyQty, unitWon: input.unitWon, expiryTracked: input.expiryTracked, supplierId: input.supplierId || null, updatedAt: now };
+  const vatMode: VatMode = input.vatMode ? (isVatMode(input.vatMode) ? input.vatMode : (() => { throw new StockError("단가의 부가세 방식을 골라 주세요"); })()) : "excluded";
+  const pack = input.packAmount ?? null;
+  if (pack != null && (!Number.isFinite(pack) || pack <= 0 || pack > 100_000)) throw new StockError("용량·중량은 0보다 큰 숫자로 적어 주세요");
+  if (pack != null && !isPackUnit(input.packUnit ?? "")) throw new StockError("용량·중량의 단위(ml·L·g·kg)를 골라 주세요");
+  const expCategory = input.expCategory || null;
+  if (expCategory && !isExpCategory(expCategory)) throw new StockError("지출 계정을 골라 주세요");
+  const chemicalId = input.chemicalId || null;
+  if (chemicalId) {
+    const [c] = await db.select({ active: chemical.active }).from(chemical).where(eq(chemical.id, chemicalId));
+    if (!c) throw new StockError("연결할 화학물질을 찾을 수 없습니다");
+  }
+  if (input.supplierId) {
+    const [sp] = await db.select({ status: supplier.status, name: supplier.name }).from(supplier).where(eq(supplier.id, input.supplierId));
+    if (!sp) throw new StockError("주 거래 업체를 찾을 수 없습니다");
+    if (sp.status === "stopped" || sp.status === "rejected") throw new StockError(`${sp.name}은(는) 거래하지 않는 업체입니다. 다른 업체를 고르세요`);
+  }
+  const v = {
+    name: input.name.trim(),
+    kind: input.kind,
+    spec: clean(input.spec),
+    unit: input.unit.trim(),
+    location: clean(input.location),
+    safetyQty: input.safetyQty,
+    unitWon: splitVat(input.unitWon, vatMode).supply,
+    vatMode,
+    packAmount: pack,
+    packUnit: pack != null ? input.packUnit! : null,
+    // 구분 기본값과 같으면 비워 둔다(나중에 기본값을 바꾸면 따라가게)
+    expCategory: expCategory === KIND_EXP_CATEGORY[input.kind as StockKind] ? null : expCategory,
+    chemicalId,
+    expiryTracked: input.expiryTracked,
+    supplierId: input.supplierId || null,
+    updatedAt: now,
+  };
   if (id) {
     const before = await itemRow(db, id);
     if (before.expiryTracked && !v.expiryTracked && before.qty > 0) throw new StockError("남은 재고가 있는 동안에는 유효기간 관리를 끌 수 없습니다");
@@ -55,16 +112,56 @@ export async function saveItem(db: Db, actor: Actor, id: string | null, input: I
   return newId;
 }
 
-export async function deactivateItem(db: Db, actor: Actor, id: string) {
+export type StopInput = { reason: string; note?: string; replacedById?: string };
+
+/**
+ * 사용 중지. 남은 수량이 없으면 바로 중지, 있으면 '소진 후 중지'(새 발주는 막고 남은 것은 쓴다. 0이 되면 중지).
+ * 과거 기록·단가는 지우지 않는다. 대체 품목을 고르면 발주·사용 화면에서 '대신 ○○'로 안내한다
+ */
+export async function stopItem(db: Db, actor: Actor, id: string, input: StopInput, now = new Date()) {
   if (!can(actor, "stock.manage")) throw new StockError("재고 품목은 공장장·대표가 정합니다");
   const i = await itemRow(db, id);
-  if (i.qty > 0) throw new StockError("남은 수량이 있으면 뺄 수 없습니다. 실사로 0을 만든 뒤 빼세요");
-  await db.update(stockItem).set({ active: false, updatedAt: new Date() }).where(eq(stockItem.id, id));
+  if (!i.active) throw new StockError("이미 사용 중지한 품목입니다");
+  if (!isStopReason(input.reason)) throw new StockError("중지 사유를 골라 주세요");
+  if (input.reason === "other" && !clean(input.note)) throw new StockError("기타 사유를 적어 주세요");
+  const rep = input.replacedById || null;
+  if (input.reason === "replaced" && !rep) throw new StockError("바꿀 대체 품목을 골라 주세요");
+  if (rep) {
+    if (rep === id) throw new StockError("대체 품목은 다른 품목이어야 합니다");
+    const r = await itemRow(db, rep);
+    if (!r.active || r.windDown) throw new StockError(`${r.name}도 사용 중지(예정) 품목입니다. 쓰는 품목을 고르세요`);
+  }
+  const now0 = i.qty <= 0;
+  await db
+    .update(stockItem)
+    .set({ active: !now0, windDown: !now0, stopReason: input.reason, stopNote: clean(input.note), replacedById: rep, stoppedBy: actor.id, stoppedAt: now, updatedAt: now })
+    .where(eq(stockItem.id, id));
+  await writeAudit(db, { actorId: actor.id, action: now0 ? "stock.item_stop" : "stock.item_wind_down", entityType: "stock_item", entityId: id, after: { name: i.name, reason: STOP_REASONS[input.reason], qty: i.qty, replacedBy: rep } });
+  return now0 ? ("stopped" as const) : ("windDown" as const);
+}
+
+/** 다시 쓰기: 사용 중지·소진 후 중지를 푼다 */
+export async function resumeItem(db: Db, actor: Actor, id: string, now = new Date()) {
+  if (!can(actor, "stock.manage")) throw new StockError("재고 품목은 공장장·대표가 정합니다");
+  const i = await itemRow(db, id);
+  if (i.active && !i.windDown) throw new StockError("쓰고 있는 품목입니다");
+  await db.update(stockItem).set({ active: true, windDown: false, stopReason: null, stopNote: null, replacedById: null, stoppedBy: null, stoppedAt: null, updatedAt: now }).where(eq(stockItem.id, id));
+  await writeAudit(db, { actorId: actor.id, action: "stock.item_resume", entityType: "stock_item", entityId: id, before: { stopReason: i.stopReason, windDown: i.windDown }, after: { name: i.name } });
+}
+
+/** 예전 이름(수량 0일 때 빼기). 사유 '더 안 씀'으로 중지한다 */
+export const deactivateItem = (db: Db, actor: Actor, id: string) => stopItem(db, actor, id, { reason: "unused" });
+
+/** 소진 후 중지 품목이 0이 되면 사용 중지로 바꾼다 */
+async function finishWindDown(db: Db, id: string, qty: number, now: Date) {
+  if (qty > 0) return;
+  await db.update(stockItem).set({ active: false, windDown: false, updatedAt: now }).where(and(eq(stockItem.id, id), eq(stockItem.windDown, true)));
 }
 
 /** 안전 재고 아래로 떨어지면(5.2) 공장장에게 알린다(하루 한 번) */
-async function safetyAlert(db: Db, i: { id: string; name: string; qty: number; safetyQty: number; unit: string }, now: Date) {
-  if (!belowSafety(i)) return false;
+async function safetyAlert(db: Db, i: { id: string; name: string; qty: number; safetyQty: number; unit: string; windDown?: boolean; active?: boolean }, now: Date) {
+  // 소진 후 중지·중지 품목은 다시 사지 않으므로 알리지 않는다
+  if (i.windDown || i.active === false || !belowSafety(i)) return false;
   await notifyRole(db, "plant_manager", `안전 재고 미달: ${i.name} ${i.qty}${i.unit}(안전 ${i.safetyQty}${i.unit}) — 발주 요청을 만드세요`, `stock-low-${i.id}-${seoulDate(now)}`, `/stock?f=low`);
   return true;
 }
@@ -101,6 +198,7 @@ export async function useStock(db: Db, actor: Actor, input: { itemId: string; qt
     await tx.insert(stockMove).values({ itemId: i.id, qty: -input.qty, reason: "use", ref: roDoc, repairOrderId: input.repairOrderId || null, lot: lotNames.join(",") || null, note: clean(input.note), by: actor.id, at: now });
   });
   const after = { ...i, qty: i.qty - input.qty };
+  await finishWindDown(db, i.id, after.qty, now);
   const low = await safetyAlert(db, after, now);
   return { left: after.qty, low };
 }
@@ -117,6 +215,7 @@ export async function discardLot(db: Db, actor: Actor, lotId: string, note: stri
     await tx.insert(stockMove).values({ itemId: i.id, qty: -l.qty, reason: "discard", lot: l.lot, note: clean(note) ?? `유효기간 ${l.expiresOn} 경과 — 지정 폐기물로 처리`, by: actor.id, at: now });
   });
   await writeAudit(db, { actorId: actor.id, action: "stock.discard", entityType: "stock_item", entityId: i.id, after: { lot: l.lot, qty: l.qty, expiresOn: l.expiresOn } });
+  await finishWindDown(db, i.id, Math.max(0, i.qty - l.qty), now);
   await safetyAlert(db, { ...i, qty: Math.max(0, i.qty - l.qty) }, now);
 }
 
@@ -150,6 +249,7 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
         }
       }
       await tx.update(stockItem).set({ qty: l.actual, updatedAt: now }).where(eq(stockItem.id, it.id));
+      if (it.windDown && l.actual <= 0) await tx.update(stockItem).set({ active: false, windDown: false }).where(eq(stockItem.id, it.id));
       await tx.insert(stockMove).values({ itemId: it.id, qty: diff, reason: "count", note: `${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual}`, by: actor.id, at: now });
     }
     return c.id;
@@ -171,6 +271,8 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
 export async function orderLowStock(db: Db, actor: Actor, itemIds: string[], now = new Date()) {
   if (!itemIds.length) throw new StockError("발주할 품목을 골라 주세요");
   const items = await db.select().from(stockItem).where(inArray(stockItem.id, itemIds));
+  const off = items.filter((i) => !i.active || i.windDown);
+  if (off.length) throw new StockError(`사용 중지(예정) 품목은 발주하지 않습니다: ${off.map((i) => i.name).join(", ")}`);
   const groups = new Map<string, typeof items>();
   for (const i of items) groups.set(i.supplierId ?? "", [...(groups.get(i.supplierId ?? "") ?? []), i]);
   const ids: string[] = [];
@@ -191,27 +293,138 @@ export async function orderLowStock(db: Db, actor: Actor, itemIds: string[], now
   return ids;
 }
 
-export type StockFilter = "all" | "low" | "expiry" | "paint" | "consumable" | "part";
+export type StockFilter = "all" | "low" | "expiry" | "paint" | "consumable" | "part" | "stopped" | "docs";
 
 export async function listStock(db: Db, filter: StockFilter = "all", now = new Date()) {
   const today = seoulDate(now);
   const soon = addDays(today, EXPIRY_ALERT_DAYS);
-  const items = await db.select({ i: stockItem, supplierName: supplier.name }).from(stockItem).leftJoin(supplier, eq(supplier.id, stockItem.supplierId)).where(eq(stockItem.active, true)).orderBy(stockItem.kind, stockItem.name);
+  const rep = alias(stockItem, "rep");
+  const items = await db
+    .select({ i: stockItem, supplierName: supplier.name, replacedByName: rep.name })
+    .from(stockItem)
+    .leftJoin(supplier, eq(supplier.id, stockItem.supplierId))
+    .leftJoin(rep, eq(rep.id, stockItem.replacedById))
+    .where(eq(stockItem.active, filter !== "stopped"))
+    .orderBy(stockItem.kind, stockItem.name);
   const lots = await db.select().from(stockLot).where(gt(stockLot.qty, 0)).orderBy(asc(stockLot.expiresOn));
   const lotsOf = new Map<string, typeof lots>();
   for (const l of lots) lotsOf.set(l.itemId, [...(lotsOf.get(l.itemId) ?? []), l]);
-  const rows = items.map(({ i, supplierName }) => {
+  const docs = await db.select({ itemId: stockItemDoc.itemId, expiresOn: stockItemDoc.expiresOn }).from(stockItemDoc).where(eq(stockItemDoc.active, true));
+  const docState = new Map<string, "expired" | "soon">();
+  for (const d of docs) {
+    const st = docExpiry(d.expiresOn, today, soon);
+    if (st === "expired") docState.set(d.itemId, "expired");
+    else if (st === "soon" && docState.get(d.itemId) !== "expired") docState.set(d.itemId, "soon");
+  }
+  const rows = items.map(({ i, supplierName, replacedByName }) => {
     const ls = lotsOf.get(i.id) ?? [];
-    return { ...i, supplierName, lots: ls, expired: ls.filter((l) => l.expiresOn < today), expiring: ls.filter((l) => l.expiresOn >= today && l.expiresOn <= soon), low: belowSafety(i) };
+    return {
+      ...i,
+      supplierName,
+      replacedByName,
+      lots: ls,
+      expired: ls.filter((l) => l.expiresOn < today),
+      expiring: ls.filter((l) => l.expiresOn >= today && l.expiresOn <= soon),
+      // 소진 후 중지 품목은 다시 사지 않으므로 미달로 보지 않는다
+      low: !i.windDown && belowSafety(i),
+      docState: docState.get(i.id) ?? null,
+    };
   });
-  return rows.filter((r) => (filter === "all" ? true : filter === "low" ? r.low : filter === "expiry" ? r.expired.length || r.expiring.length : r.kind === filter));
+  return rows.filter((r) =>
+    filter === "all" || filter === "stopped" ? true : filter === "low" ? r.low : filter === "expiry" ? r.expired.length || r.expiring.length : filter === "docs" ? !!r.docState : r.kind === filter,
+  );
 }
+
+/** 발주에 넣을 수 있는 품목(쓰는 중, 소진 후 중지 아님) */
+export const orderableStock = async (db: Db) => (await listStock(db, "all")).filter((r) => !r.windDown);
 
 export async function getItem(db: Db, id: string) {
   const i = await itemRow(db, id);
   const lots = await db.select().from(stockLot).where(and(eq(stockLot.itemId, id), gt(stockLot.qty, 0))).orderBy(asc(stockLot.expiresOn));
   const moves = await db.select({ m: stockMove, by: appUser.name }).from(stockMove).leftJoin(appUser, eq(appUser.id, stockMove.by)).where(eq(stockMove.itemId, id)).orderBy(desc(stockMove.at)).limit(50);
-  return { i, lots, moves };
+  const docs = await db.select({ d: stockItemDoc, by: appUser.name }).from(stockItemDoc).leftJoin(appUser, eq(appUser.id, stockItemDoc.uploadedBy)).where(eq(stockItemDoc.itemId, id)).orderBy(desc(stockItemDoc.active), desc(stockItemDoc.createdAt));
+  const [chem] = i.chemicalId ? await db.select().from(chemical).where(eq(chemical.id, i.chemicalId)) : [];
+  const [rep] = i.replacedById ? await db.select({ id: stockItem.id, name: stockItem.name }).from(stockItem).where(eq(stockItem.id, i.replacedById)) : [];
+  const [stopper] = i.stoppedBy ? await db.select({ name: appUser.name }).from(appUser).where(eq(appUser.id, i.stoppedBy)) : [];
+  // 이 품목을 대체품으로 가리키는 중지 품목
+  const replaces = await db.select({ id: stockItem.id, name: stockItem.name }).from(stockItem).where(eq(stockItem.replacedById, id));
+  return { i, lots, moves, docs, chem: chem ?? null, replacedBy: rep ?? null, stoppedByName: stopper?.name ?? null, replaces };
+}
+
+// ── 품목 문서(시험성적서·ICP 성적서·인증서). MSDS 는 화학물질 목록(F-09-02)에서 ──
+export type DocUpload = { name: string; bytes: Uint8Array };
+export type ItemDocInput = { kind: string; title: string; issuer: string; issuedOn: string; expiresOn: string; result: string; lot: string; note: string; replaceId?: string };
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 문서 올리기. 같은 종류의 앞 판을 고르면(replaceId) 앞 판은 '지난 판'으로 남긴다 */
+export async function addItemDoc(db: Db, actor: Actor, itemId: string, input: ItemDocInput, file: DocUpload | null, now = new Date()) {
+  if (!can(actor, "stock.manage")) throw new StockError("품목 문서는 공장장·대표가 올립니다");
+  const i = await itemRow(db, itemId);
+  if (!isItemDocKind(input.kind)) throw new StockError("문서 종류를 골라 주세요");
+  if (input.issuedOn && !DATE.test(input.issuedOn)) throw new StockError("발행일을 확인해 주세요");
+  if (input.expiresOn && !DATE.test(input.expiresOn)) throw new StockError("유효기간을 확인해 주세요");
+  if (input.issuedOn && input.issuedOn > seoulDate(now)) throw new StockError("발행일은 오늘이나 그 전입니다");
+  if (input.issuedOn && input.expiresOn && input.expiresOn < input.issuedOn) throw new StockError("유효기간이 발행일보다 빠릅니다");
+  if (input.result && input.result !== "pass" && input.result !== "fail") throw new StockError("판정을 골라 주세요");
+  if (input.kind === "other" && !clean(input.title)) throw new StockError("기타 문서는 문서 이름을 적어 주세요");
+  if (!file?.bytes.length) throw new StockError("문서 파일(PDF나 사진)을 골라 주세요");
+  if (file.bytes.length > MAX_DOC_BYTES) throw new StockError("파일이 너무 큽니다(8MB까지)");
+  const type = sniffDoc(file.bytes);
+  if (!type) throw new StockError("PDF나 사진(JPG·PNG·WEBP)만 올릴 수 있습니다");
+  if (input.replaceId) {
+    const [old] = await db.select().from(stockItemDoc).where(and(eq(stockItemDoc.id, input.replaceId), eq(stockItemDoc.itemId, itemId)));
+    if (!old) throw new StockError("바꿀 앞 판을 찾을 수 없습니다");
+  }
+  const path = await storeFile(`stock/${itemId}`, file.bytes, DOC_TYPES[type]);
+  const [d] = await db
+    .insert(stockItemDoc)
+    .values({
+      itemId,
+      kind: input.kind,
+      title: clean(input.title),
+      issuer: clean(input.issuer),
+      issuedOn: input.issuedOn || null,
+      expiresOn: input.expiresOn || null,
+      result: input.result || null,
+      lot: clean(input.lot),
+      path,
+      fileName: file.name.slice(0, 120) || `${ITEM_DOC_KINDS[input.kind]}.${DOC_TYPES[type]}`,
+      note: clean(input.note),
+      uploadedBy: actor.id,
+      createdAt: now,
+    })
+    .returning({ id: stockItemDoc.id });
+  if (input.replaceId) await db.update(stockItemDoc).set({ active: false }).where(eq(stockItemDoc.id, input.replaceId));
+  await writeAudit(db, { actorId: actor.id, action: "stock.doc_add", entityType: "stock_item", entityId: itemId, after: { item: i.name, kind: ITEM_DOC_KINDS[input.kind], result: input.result || null, expiresOn: input.expiresOn || null, replaced: input.replaceId ?? null } });
+  // 부적합 성적서는 그 품목을 쓰기 전에 공장장이 보게 알린다
+  if (input.result === "fail") await notifyRole(db, "plant_manager", `부적합 ${ITEM_DOC_KINDS[input.kind]}: ${i.name}${input.lot ? `(로트 ${input.lot})` : ""} — 사용 전 확인하세요`, `stock-doc-fail-${d.id}`, `/stock/${itemId}`);
+  return d.id;
+}
+
+/** 문서 빼기(잘못 올림 등). 지우지 않고 지난 판으로 남긴다 */
+export async function retireItemDoc(db: Db, actor: Actor, docId: string) {
+  if (!can(actor, "stock.manage")) throw new StockError("품목 문서는 공장장·대표가 정합니다");
+  const [d] = await db.select().from(stockItemDoc).where(eq(stockItemDoc.id, docId));
+  if (!d) throw new StockError("문서를 찾을 수 없습니다");
+  await db.update(stockItemDoc).set({ active: false }).where(eq(stockItemDoc.id, docId));
+  await writeAudit(db, { actorId: actor.id, action: "stock.doc_retire", entityType: "stock_item", entityId: d.itemId, after: { doc: d.fileName } });
+  return d.itemId;
+}
+
+/** 화학물질 고르기 목록(쓰는 것만) */
+export async function chemicalOptions(db: Db) {
+  return db.select({ id: chemical.id, name: chemical.name, maker: chemical.maker, hasMsds: chemical.msdsPath }).from(chemical).where(eq(chemical.active, true)).orderBy(chemical.name);
+}
+
+/** 대체 품목 고르기 목록(쓰는 품목, 자기 빼고) */
+export async function replacementOptions(db: Db, exceptId: string) {
+  return (await orderableStock(db)).filter((r) => r.id !== exceptId).map((r) => ({ id: r.id, name: r.name, spec: r.spec }));
+}
+
+/** 직전에 등록한 품목의 단가 방식(다음 등록 때 그대로 불러온다) */
+export async function lastVatMode(db: Db): Promise<VatMode> {
+  const [r] = await db.select({ m: stockItem.vatMode }).from(stockItem).orderBy(desc(stockItem.createdAt)).limit(1);
+  return r && isVatMode(r.m) ? r.m : "excluded";
 }
 
 export async function listCounts(db: Db) {
@@ -240,7 +453,18 @@ export async function stockDailyAlerts(db: Db, now = new Date()) {
       await notifyRole(db, "plant_manager", `유효기간 지남(사용 금지): ${r.name}${l.lot ? `(로트 ${l.lot})` : ""} ${l.qty}${r.unit} — 폐기 처리하세요`, `stock-expd-${l.id}`, `/stock/${r.id}`);
     }
   }
-  return `재고 미달 ${low}·유효기간 ${exp}건 (${today})`;
+  // 품목 문서(성적서·인증서) 유효기간 30일 전·지남
+  const soon = addDays(today, EXPIRY_ALERT_DAYS);
+  const docs = await db.select({ d: stockItemDoc, name: stockItem.name }).from(stockItemDoc).innerJoin(stockItem, eq(stockItem.id, stockItemDoc.itemId)).where(and(eq(stockItemDoc.active, true), eq(stockItem.active, true)));
+  let doc = 0;
+  for (const { d, name } of docs) {
+    const st = docExpiry(d.expiresOn, today, soon);
+    if (st !== "expired" && st !== "soon") continue;
+    doc++;
+    const what = d.kind === "other" && d.title ? d.title : ITEM_DOC_KINDS[d.kind as keyof typeof ITEM_DOC_KINDS];
+    await notifyRole(db, "plant_manager", st === "expired" ? `${name} ${what} 유효기간 지남(${d.expiresOn}) — 새 판을 업체에 요청해 올리세요` : `${name} ${what} 유효기간 ${d.expiresOn}까지 — 새 판을 업체에 요청하세요`, `stock-doc-${st}-${d.id}`, `/stock/${d.itemId}`);
+  }
+  return `재고 미달 ${low}·유효기간 ${exp}·문서 기한 ${doc}건 (${today})`;
 }
 
 /** 내 할 일: 공장장 — 안전 재고 미달, 유효기간 지난 로트, 월말·분기 말 실사 */
@@ -251,6 +475,8 @@ export async function stockTodos(db: Db, actor: Actor, today: string, now = new 
   if (!rows.length) return out;
   const low = rows.filter((r) => r.low);
   if (low.length) out.push({ key: "stock-low", when: "today", what: `안전 재고 미달 ${low.length}개 품목`, detail: low.slice(0, 4).map((r) => `${r.name} ${r.qty}/${r.safetyQty}${r.unit}`).join(", "), href: "/stock?f=low", action: "발주 요청 만들기" });
+  const docDue = rows.filter((r) => r.docState);
+  if (docDue.length) out.push({ key: "stock-docs", when: docDue.some((r) => r.docState === "expired") ? "late" : "soon", what: `성적서·인증서 기한 ${docDue.length}개 품목`, detail: docDue.slice(0, 4).map((r) => `${r.name}${r.docState === "expired" ? "(지남)" : ""}`).join(", "), href: "/stock?f=docs", action: "새 판 받아 올리기" });
   const expired = rows.filter((r) => r.expired.length);
   if (expired.length) out.push({ key: "stock-expired", when: "late", what: `유효기간 지난 자재 ${expired.length}개 품목(사용 금지)`, detail: expired.slice(0, 4).map((r) => r.name).join(", "), href: "/stock?f=expiry", action: "폐기 처리" });
   // 월말 실사: 그 달 마지막 3일부터, 이번 달에 실사 기록이 없으면

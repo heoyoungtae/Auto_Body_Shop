@@ -75,6 +75,8 @@ export const expense = pgTable(
       .notNull()
       .references(() => approvalDoc.id),
     category: text("category").notNull(),
+    /** 한 결의에 계정이 섞이면(예: 발주서에 도료와 소모품) 계정별 금액(부가세 포함). 비어 있으면 category 하나로 전액 */
+    split: jsonb("split").$type<{ category: string; won: number }[]>().notNull().default([]),
     supplierId: uuid("supplier_id").references(() => supplier.id),
     payeeName: text("payee_name").notNull(),
     sourceKind: text("source_kind").notNull().default("none"),

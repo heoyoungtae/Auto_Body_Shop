@@ -67,6 +67,20 @@ export type ExpCategory = keyof typeof EXP_CATEGORIES;
 export const isExpCategory = (s: string): s is ExpCategory =>
   s in EXP_CATEGORIES;
 
+/**
+ * 계정별 몫을 금액에 맞춰 나눈다(원 단위, 끝수는 가장 큰 몫에). 계정이 하나뿐이면 빈 배열(= category 하나로 전액)
+ * parts 의 won 은 비율로만 쓴다(공급가든 합계든 같음)
+ */
+export function splitByShare(parts: { category: string; won: number }[], amount: number): { category: string; won: number }[] {
+  const merged = new Map<string, number>();
+  for (const p of parts) if (p.won > 0) merged.set(p.category, (merged.get(p.category) ?? 0) + p.won);
+  if (merged.size < 2) return [];
+  const total = [...merged.values()].reduce((a, b) => a + b, 0);
+  const out = [...merged.entries()].sort((a, b) => b[1] - a[1]).map(([category, w]) => ({ category, won: Math.floor((amount * w) / total) }));
+  out[0].won += amount - out.reduce((a, b) => a + b.won, 0);
+  return out;
+}
+
 /** 발주 종류 → 지출 계정 */
 export const PO_KIND_CATEGORY: Record<string, ExpCategory> = {
   repair: "parts",

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
+import { chemicalOptions, lastVatMode } from "@/modules/purchase/stock";
 import { supplierOptions } from "@/modules/purchase/supplier";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
@@ -16,12 +17,12 @@ export default async function NewStockItemPage({ searchParams }: { searchParams:
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
-  const sups = await supplierOptions(db);
+  const [sups, chems, vm] = await Promise.all([supplierOptions(db), chemicalOptions(db), lastVatMode(db)]);
   return (
     <>
       <PageTitle
         help="stock.new"
-        sub="도료·소모품·상비 부품을 재고로 관리하려면 먼저 품목을 등록합니다. 지금 있는 수량을 적으면 기초 재고로 들어갑니다."
+        sub="도료·소모품·상비 부품을 재고로 관리하려면 먼저 품목을 등록합니다. 지금 있는 수량을 적으면 기초 재고로 들어갑니다. 성적서·인증서는 등록한 뒤 품목 화면에서 올립니다."
         actions={
           <Link href="/stock" className="text-sm text-[var(--accent)]">
             ← 재고
@@ -34,7 +35,7 @@ export default async function NewStockItemPage({ searchParams }: { searchParams:
       {can(user, "stock.manage") ? (
         <Card title="품목" help={{ kind: "panel", id: "stock.item" }}>
           <AssistForm id="stock-new" action={saveItemAction} className="grid gap-3 md:grid-cols-2">
-            <ItemFields suppliers={sups} />
+            <ItemFields suppliers={sups} chemicals={chems} vatModeDefault={vm} canAddSupplier={can(user, "supplier.manage")} canAddChemical={can(user, "safety.manage")} />
             <NumberField help="st.openingQty" name="openingQty" min={0} defaultValue={0} />
             <DateField help="st.openingExpiresOn" name="openingExpiresOn" min={seoulDate()} quick={[]} />
             <div className="md:col-span-2">
