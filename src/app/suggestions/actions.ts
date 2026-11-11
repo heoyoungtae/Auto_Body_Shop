@@ -1,4 +1,5 @@
 "use server";
+import { linkSuggestion } from "@/modules/journal/entry";
 // 개선 제안(STD-08 8.12, F-08-06) 화면의 서버 동작
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -18,7 +19,10 @@ export async function submitSuggestionAction(form: FormData) {
   const user = await requireUser();
   let r = { id: "", docNo: "" };
   try {
-    r = await submitSuggestion(await getDb(), user, input(form));
+    const db = await getDb();
+    r = await submitSuggestion(db, user, input(form));
+    const jd = String(form.get("journalDay") ?? "");
+    if (jd) await linkSuggestion(db, user, jd, r.docNo);
   } catch (e) {
     redirect(errorUrl("/suggestions/new", userMessage(e)));
   }

@@ -76,3 +76,47 @@ describe("업무일지", () => {
     await expect(buildJournal(db, tech(), ids.tech1, "11/10")).rejects.toThrow(/YYYY-MM-DD/);
   });
 });
+
+describe("내가 적는 칸·마감·확인", () => {
+  const blank = { notes: "", tomorrow: "", offApp: [], suggestionText: "", safety: "", safetyNote: "" };
+  const day = "2026-11-10";
+  const later = new Date("2026-11-10T09:00:00Z"); // 18:00 KST
+
+  it("저장 → 안전 확인 없이는 마감 못 함 → 마감하면 공장장이 확인, 마감 뒤엔 덧붙이기만", async () => {
+    const { closeEntry, saveEntry, addAddendum, reviewEntry, getEntry, journalTodos } = await import("@/modules/journal/entry");
+    await expect(saveEntry(db, tech(), "2026-11-12", blank, later)).rejects.toThrow(/미리/);
+    await expect(saveEntry(db, tech(), day, { ...blank, offApp: [{ from: "10:00", to: "09:00", kind: "전화 응대", detail: "" }] }, later)).rejects.toThrow(/끝 시각/);
+    await expect(saveEntry(db, tech(), day, { ...blank, offApp: [{ from: "", to: "", kind: "기타", detail: "" }] }, later)).rejects.toThrow(/기타/);
+    await saveEntry(db, tech(), day, { ...blank, notes: "부품 입고 늦음", offApp: [{ from: "09:00", to: "09:20", kind: "부품 받으러 감", detail: "범퍼" }, { from: "", to: "", kind: "", detail: "" }] }, later);
+    expect((await getEntry(db, ids.tech1, day))?.offApp).toHaveLength(1);
+    await expect(closeEntry(db, tech(), day, { ...blank, notes: "부품 입고 늦음" }, later)).rejects.toThrow(/안전 확인/);
+    await expect(closeEntry(db, tech(), day, { ...blank, safety: "no" }, later)).rejects.toThrow(/무슨 일/);
+    expect(await closeEntry(db, tech(), day, { ...blank, notes: "부품 입고 늦음", safety: "yes" }, later)).toMatchObject({ status: "closed" });
+    await expect(saveEntry(db, tech(), day, blank, later)).rejects.toThrow(/덧붙이기/);
+    await addAddendum(db, tech(), day, "고객이 출고를 금요일로 미룸", later);
+    const e = (await getEntry(db, ids.tech1, day))!;
+    expect(e).toMatchObject({ status: "closed", confirmRole: "plant_manager", notes: "부품 입고 늦음", safetyOk: true });
+    expect(e.addenda).toHaveLength(1);
+
+    // 확인: 공장장 내 할 일 → 보완 요청 → 본인 내 할 일 → 다시 마감 → 확인
+    expect((await journalTodos(db, mgr(), later)).some((t) => t.what.includes("최기술"))).toBe(true);
+    await expect(reviewEntry(db, tech(), ids.tech1, day, true, "", later)).rejects.toThrow(/자기 일지/);
+    await expect(reviewEntry(db, mgr(), ids.tech1, day, false, "", later)).rejects.toThrow(/사유/);
+    await reviewEntry(db, mgr(), ids.tech1, day, false, "앱 밖 일 시간 적기", later);
+    expect((await journalTodos(db, tech(), later)).some((t) => t.what.startsWith("업무일지 보완 요청"))).toBe(true);
+    await closeEntry(db, tech(), day, { ...blank, notes: "부품 입고 늦음", safety: "yes" }, later);
+    await reviewEntry(db, mgr(), ids.tech1, day, true, "", later);
+    expect((await getEntry(db, ids.tech1, day))?.status).toBe("confirmed");
+  });
+
+  it("공장장 일지는 대표가 확인, 대표 본인 일지는 마감하면 끝. 안전 '있음'이면 안전 담당 알림", async () => {
+    const { closeEntry, reviewEntry, getEntry } = await import("@/modules/journal/entry");
+    await closeEntry(db, mgr(), day, { ...blank, safety: "no", safetyNote: "B 구역 바닥 미끄러질 뻔" }, later);
+    await expect(reviewEntry(db, { id: ids.manager, roles: ["plant_manager"] }, ids.manager, day, true, "", later)).rejects.toThrow();
+    await reviewEntry(db, owner(), ids.manager, day, true, "", later);
+    expect((await getEntry(db, ids.manager, day))?.status).toBe("confirmed");
+    expect(await closeEntry(db, owner(), day, { ...blank, safety: "yes" }, later)).toMatchObject({ status: "confirmed" });
+    const { listNotifications } = await import("@/modules/platform/notify");
+    expect((await listNotifications(db, ids.safety)).some((n) => n.title.includes("안전 확인"))).toBe(true);
+  });
+});

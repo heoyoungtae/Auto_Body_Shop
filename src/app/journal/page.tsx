@@ -3,12 +3,14 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL } from "@/modules/auth/roles";
+import { confirmRoleFor, entryStatuses, getEntry, JOURNAL_STATUS, tomorrowPlan, type JournalStatus } from "@/modules/journal/entry";
 import { buildJournal, canViewJournal, journalUsers, teamJournal } from "@/modules/journal/service";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { dayLabel } from "../_format";
 import { DateField, SelectField } from "../_input";
 import { requireUser } from "../_lib/session";
-import { Badge, Button, buttonClass, Card, Empty, ErrorBox, PageTitle } from "../_ui";
+import { Badge, Button, buttonClass, Card, Empty, ErrorBox, Notice, PageTitle } from "../_ui";
+import { MyEntryPanel, OtherEntryPanel } from "./entry-panel";
 import { PrintButton } from "../reports/print-button";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -16,7 +18,7 @@ const hm = (d: Date | null) => (d ? d.toLocaleTimeString("ko-KR", { timeZone: "A
 const mins = (n: number) => (n >= 60 ? `${Math.floor(n / 60)}시간 ${n % 60}분` : `${n}분`);
 const TONE = { ok: "border-l-[var(--ok)]", warn: "border-l-[var(--warn)]", danger: "border-l-[var(--danger)]" } as const;
 
-export default async function JournalPage({ searchParams }: { searchParams: Promise<{ d?: string; u?: string }> }) {
+export default async function JournalPage({ searchParams }: { searchParams: Promise<{ d?: string; u?: string; error?: string; notice?: string }> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
@@ -25,20 +27,26 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
   const team = can(user, "journal.team");
   const target = q.u && canViewJournal(user, q.u) ? q.u : user.id;
   const url = (d: string, u = target) => `/journal?d=${d}${u !== user.id ? `&u=${u}` : ""}`;
-  const [j, users, summary] = await Promise.all([
+  const [j, users, summary, entry, statuses] = await Promise.all([
     buildJournal(db, user, target, date).catch((e: Error) => e),
     journalUsers(db, user),
     team ? teamJournal(db, user, date) : Promise.resolve(null),
+    getEntry(db, target, date),
+    team ? entryStatuses(db, date) : Promise.resolve(new Map()),
   ]);
   if (j instanceof Error) return <ErrorBox message={j.message} />;
   const mine = target === user.id;
+  const plan = mine ? await tomorrowPlan(db, user, target, date) : null;
+  const cRole = confirmRoleFor(j.user.roles);
+  const confirmerLabel = cRole ? ROLE_LABEL[cRole] : null;
+  const canReview = !mine && !!cRole && (user.roles.includes(cRole) || user.roles.includes("owner"));
   const eff = j.workMinutes ? Math.round((j.stdMinutes / j.workMinutes) * 100) : null;
 
   return (
     <>
       <PageTitle
         help="journal"
-        sub={`${mine ? "내" : `${j.user.name} 님의`} ${date} 업무일지입니다. 앱에서 한 일이 저절로 모입니다. 따로 적지 않습니다.`}
+        sub={`${mine ? "내" : `${j.user.name} 님의`} ${date} 업무일지입니다. 앱에서 한 일은 저절로 모이고, 아래 '내가 적는 칸'만 적어 퇴근 전에 마감합니다.`}
         actions={
           <div className="no-print flex flex-wrap gap-2">
             <PrintButton />
@@ -48,6 +56,8 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
       >
         업무일지
       </PageTitle>
+      <ErrorBox message={q.error} />
+      {q.notice && <Notice>{q.notice}</Notice>}
 
       <Card title="날짜·직원" help={{ kind: "panel", id: "journal.day" }}>
         <div className="flex flex-wrap items-center gap-2">
@@ -169,6 +179,8 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         </div>
       </div>
 
+      {mine ? <MyEntryPanel e={entry} day={date} plan={plan!} confirmerLabel={confirmerLabel} /> : <OtherEntryPanel e={entry} day={date} userId={target} canReview={canReview} confirmerLabel={confirmerLabel} />}
+
       {summary && (
         <Card title={`직원별 요약 · ${date}`} help={{ kind: "panel", id: "journal.team" }}>
           <div className="overflow-x-auto">
@@ -181,7 +193,8 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
                   <th className="pr-2">영역</th>
                   <th className="pr-2 text-right">공정 · 시간</th>
                   <th className="pr-2">근태</th>
-                  <th className="text-right">넘어가는 일</th>
+                  <th className="pr-2 text-right">넘어가는 일</th>
+                  <th>일지</th>
                 </tr>
               </thead>
               <tbody>
@@ -198,7 +211,11 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
                     <td className="pr-2 text-xs">{r.areas.map((a) => `${a.area} ${a.count}`).join(" · ")}</td>
                     <td className="pr-2 text-right tabular-nums">{r.steps ? `${r.steps}개 · ${mins(r.workMinutes)}` : "-"}</td>
                     <td className="pr-2">{r.leave.join(", ")}</td>
-                    <td className={`text-right tabular-nums ${r.carry ? "text-[var(--warn)]" : ""}`}>{r.carry || ""}</td>
+                    <td className={`pr-2 text-right tabular-nums ${r.carry ? "text-[var(--warn)]" : ""}`}>{r.carry || ""}</td>
+                    <td>
+                      {statuses.get(r.id) ? <Badge tone={statuses.get(r.id)!.status === "confirmed" ? "ok" : statuses.get(r.id)!.status === "returned" ? "warn" : "neutral"}>{JOURNAL_STATUS[statuses.get(r.id)!.status as JournalStatus]}</Badge> : <span className="text-xs text-[var(--muted)]">안 씀</span>}
+                      {statuses.get(r.id)?.safetyOk === false && <Badge tone="danger">안전 있음</Badge>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

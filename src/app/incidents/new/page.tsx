@@ -19,7 +19,7 @@ import { reportIncidentAction } from "../actions";
 export default async function NewIncidentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; kind?: string }>;
+  searchParams: Promise<{ error?: string; kind?: string; desc?: string; on?: string }>;
 }) {
   const q = await searchParams;
   await requireUser();
@@ -76,7 +76,7 @@ export default async function NewIncidentPage({
             help="inc.occurredOn"
             name="occurredOn"
             required
-            defaultValue={seoulDate(now)}
+            defaultValue={q.on && /^\d{4}-\d{2}-\d{2}$/.test(q.on) ? q.on : seoulDate(now)}
             quick={["today"]}
           />
           <TextField
@@ -106,6 +106,7 @@ export default async function NewIncidentPage({
               name="description"
               required
               rows={3}
+              defaultValue={q.desc}
             />
           </div>
           <div className="md:col-span-2">

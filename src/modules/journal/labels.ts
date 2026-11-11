@@ -19,6 +19,7 @@ export const ENTITY: Record<string, { noun: string; area: Area; href: string }> 
   messaging: { noun: "문자 설정", area: "설정", href: "/settings/messaging" },
   sms_template: { noun: "문자 서식", area: "고객·상담", href: "/messages/templates" },
   instruction: { noun: "업무지시", area: "업무지시", href: "/tasks" },
+  daily_journal: { noun: "업무일지", area: "인사", href: "/journal" },
   schedule_event: { noun: "일정", area: "일정", href: "/schedule" },
   approval_doc: { noun: "결재 문서", area: "결재", href: "/approvals" },
   equipment: { noun: "설비", area: "설비·현장", href: "/equipment" },
@@ -86,6 +87,7 @@ export const SKIP_ACTIONS = new Set([
   "work.start",
   "work.finish",
   "equipment.check",
+  "journal.close",
 ]);
 
 /** 기록 종류별 문구. 없으면 대상 이름 + 끝말(VERB)로 만든다 */
@@ -151,6 +153,9 @@ export const ACTION_LABEL: Record<string, string> = {
   "sms.template": "문자 서식 고침",
   // 업무지시·결재
   "task.issue": "업무지시 내림",
+  "journal.close": "업무일지 마감",
+  "journal.confirm": "업무일지 확인",
+  "journal.return": "업무일지 보완 요청",
   "approval.submit": "결재 올림",
   "approval.resubmit": "결재 다시 올림",
   "approval.approve": "결재 승인",
