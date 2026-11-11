@@ -31,6 +31,7 @@ import {
   summarizeAttendance,
   type PayPolicy,
 } from "@/modules/staff/payroll-rules";
+import { workDay } from "@/db/schema";
 import { seedShop, testDb } from "./db";
 
 const terms = (o: Partial<ContractTerms> = {}): ContractTerms => ({
@@ -255,6 +256,8 @@ describe("급여대장 흐름", () => {
       nov3,
     );
     await act(db, ot.id, ids.manager, "approve", null, nov3);
+    // 실제 출퇴근(09:00~20:30): 승인 18:00~20:00 이 모두 겹쳐 2시간 인정
+    await db.insert(workDay).values({ userId: ids.tech1, day: "2026-11-04", inAt: new Date("2026-11-04T00:00:00Z"), outAt: new Date("2026-11-04T11:30:00Z") });
     const dec4 = new Date("2026-12-04T01:00:00Z");
     expect(
       (await payrollTodos(db, acct(), "2026-12-04")).map((t) => t.key),

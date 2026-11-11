@@ -288,6 +288,13 @@
       "when": 1794394983927,
       "tag": "0040_daily_journal",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794403196572,
+      "tag": "0041_work_day",
+      "breakpoints": true
     }
   ]
 }

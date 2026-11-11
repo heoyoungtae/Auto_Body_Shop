@@ -22,6 +22,9 @@ import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { LEAVE_FORM } from "./attendance";
+import { isBusinessDay } from "@/modules/platform/business-days";
+import { actualDays, DEFAULT_SCHEDULE } from "./punch";
+import { hm, unapprovedMinutes } from "./punch-rules";
 import type { ContractTerms } from "./contract-rules";
 import {
   computeSlip,
@@ -170,6 +173,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
   const pol = await payPolicy(db, m.to);
   const cal = await loadShopCalendar(db);
   const { done, pending } = await monthLeaves(db, ym);
+  const actual = await actualDays(db, m.from, m.to);
   const last = await lastSlips(db, ym);
   const targets = await payrollTargets(db, ym);
   const slips: { userId: string; data: SlipData }[] = [];
@@ -179,11 +183,23 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
       skipped.push(u.name);
       continue;
     }
-    const att = summarizeAttendance(
+    // 연장·휴일근로: 승인 시각 ∩ 실제 출퇴근만 인정. 승인 없는 시간은 따로 센다(수당 없음, 경고)
+    const att: SlipData["att"] = summarizeAttendance(
       done.filter(({ d }) => d.drafterId === u.id).map(({ data }) => data),
       ym,
       cal,
+      (day) => actual.get(`${u.id}|${day}`)?.span,
     );
+    const end = hm(u.terms.workEnd) ?? DEFAULT_SCHEDULE.end;
+    let unapproved = 0;
+    for (const a of actual.values()) {
+      if (a.userId !== u.id) continue;
+      const spans = [...done, ...pending]
+        .filter(({ d, data }) => d.drafterId === u.id && data.leaveKind === "overtime" && data.fromDate === a.day)
+        .map(({ data }) => ({ from: hm(data.fromTime) ?? 0, to: hm(data.toTime) ?? 0 }));
+      unapproved += unapprovedMinutes(a.span, end, isBusinessDay(cal, a.day), spans);
+    }
+    if (unapproved) att.unapproved = Math.round((unapproved / 60) * 100) / 100;
     const prev = last.get(u.id);
     const k = kept.get(u.id) ?? {
       incomeTax: prev?.incomeTax ?? 0,

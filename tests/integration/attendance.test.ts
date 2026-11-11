@@ -91,7 +91,7 @@ describe("재직증명서", () => {
 });
 
 describe("상시 5명 미만", () => {
-  it("정책값을 0으로 두면 사내 연차 일수를 쓰고 주 12시간 한도로 막지 않는다", async () => {
+  it("정책값을 0으로 두면 사내 연차 일수를 쓰고, 주 12시간 한도는 취업규칙 제15조로 그대로 지킨다", async () => {
     await db.insert(policySetting).values([
       { key: "hr.headcount_5plus", value: 0, effectiveFrom: "2026-01-01", reason: "시험", changedBy: ids.owner },
       { key: "leave.small_annual_days", value: 6, effectiveFrom: "2026-01-01", reason: "시험", changedBy: ids.owner },
@@ -99,6 +99,6 @@ describe("상시 5명 미만", () => {
     await saveProfile(db, acct(), ids.tech1, profile("2026-08-03"), now);
     expect(await leaveBalance(db, ids.tech1, "2026-11-09")).toMatchObject({ days: 6, legal: false, from: "2026-08-03", to: "2027-08-02" });
     await requestLeave(db, tech(), { ...base, leaveKind: "overtime", fromDate: "2026-11-10", fromTime: "17:00", toTime: "23:30" }, now);
-    await requestLeave(db, tech(), { ...base, leaveKind: "overtime", fromDate: "2026-11-11", fromTime: "17:00", toTime: "23:30" }, now);
+    await expect(requestLeave(db, tech(), { ...base, leaveKind: "overtime", fromDate: "2026-11-11", fromTime: "17:00", toTime: "23:30" }, now)).rejects.toThrow(/12시간/);
   });
 });

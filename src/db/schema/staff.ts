@@ -292,3 +292,24 @@ export const exitCheck = pgTable("exit_check", {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * 출퇴근 기록(사용자 결정 2026-11-11: 정비소 와이파이에서만 버튼). 한 사람 하루 한 줄.
+ * 고치지 않는다. 빠졌거나 틀리면 근태 신청서의 '출퇴근 정정'(F-11-04)으로 승인받고, 계산은 정정 값을 먼저 쓴다.
+ */
+export const workDay = pgTable(
+  "work_day",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    day: text("day").notNull(),
+    inAt: timestamp("in_at", { withTimezone: true }).notNull(),
+    inIp: text("in_ip"),
+    outAt: timestamp("out_at", { withTimezone: true }),
+    outIp: text("out_ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("work_day_user_day_uq").on(t.userId, t.day), index("work_day_day_idx").on(t.day)],
+);

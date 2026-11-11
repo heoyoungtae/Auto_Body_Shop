@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { addAddendum, closeEntry, reviewEntry, saveEntry, type EntryInput } from "@/modules/journal/entry";
 import { UserError } from "@/modules/platform/errors";
-import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
+import { seoulDate } from "@/modules/platform/time";
+import { punchOut, todayRow } from "@/modules/staff/punch";
+import { errorUrl, noticeUrl, requestMeta, requireUser, userMessage } from "../_lib/session";
 
 const str = (form: FormData) => (k: string) => String(form.get(k) ?? "").trim();
 
@@ -31,6 +33,7 @@ export async function entryAction(form: FormData) {
   const day = s("day");
   const back = `/journal?d=${day}`;
   let msg = "저장했습니다";
+  let goto = back;
   try {
     const db = await getDb();
     const intent = s("intent");
@@ -39,6 +42,23 @@ export async function entryAction(form: FormData) {
       const r = await closeEntry(db, user, day, input(form));
       msg = r.status === "closed" ? "마감했습니다. 확인할 사람의 내 할 일에 올라갑니다" : "마감했습니다";
       if (r.safetyOk === false) msg += ". 안전 담당에게 알렸습니다. 사고·아차사고 보고서도 써 주세요";
+      // 오늘 일지를 마감하면 퇴근도 같이 찍는다(출근 기록이 있고 아직 퇴근 전일 때)
+      if (day === seoulDate()) {
+        const row = await todayRow(db, user.id, day);
+        if (row && !row.outAt) {
+          try {
+            const st = await punchOut(db, user, (await requestMeta()).ip ?? null);
+            msg += `. ${st.outText} 퇴근을 기록했습니다`;
+            if (st.overstay) {
+              msg += ". 승인 없이 늦게 남았습니다. 사후 연장 신청을 올려 주세요(안 올리면 수당에 들어가지 않습니다)";
+              goto = "/attendance";
+            }
+          } catch (e) {
+            if (!(e instanceof UserError)) throw e;
+            msg += `. 퇴근은 기록하지 못했습니다: ${e.message}`;
+          }
+        }
+      }
     } else if (intent === "addendum") {
       await addAddendum(db, user, day, s("addendum"));
       msg = "덧붙였습니다";
@@ -46,7 +66,7 @@ export async function entryAction(form: FormData) {
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }
-  redirect(noticeUrl(back, msg));
+  redirect(noticeUrl(goto, msg));
 }
 
 export async function reviewAction(form: FormData) {

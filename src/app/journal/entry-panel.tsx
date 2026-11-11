@@ -108,7 +108,7 @@ function ReadView({ e, day }: { e: Entry; day: string }) {
 }
 
 /** 본인: 작성 중·보완 요청이면 칸, 마감했으면 읽기 + 덧붙이기 */
-export function MyEntryPanel({ e, day, plan, confirmerLabel }: { e: Entry | null; day: string; plan: Plan; confirmerLabel: string | null }) {
+export function MyEntryPanel({ e, day, plan, confirmerLabel, punchOpen = false }: { e: Entry | null; day: string; plan: Plan; confirmerLabel: string | null; punchOpen?: boolean }) {
   const open = !e || e.status === "draft" || e.status === "returned";
   const rows = [...(e?.offApp ?? []), ...Array.from({ length: Math.max(2, 4 - (e?.offApp.length ?? 0)) }, () => ({ from: "", to: "", kind: "", detail: "" }))];
   const safety = e?.safetyOk === true ? "yes" : e?.safetyOk === false ? "no" : undefined;
@@ -118,6 +118,7 @@ export function MyEntryPanel({ e, day, plan, confirmerLabel }: { e: Entry | null
       {e?.status === "returned" && <p className="my-2 rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">보완 요청: {e.returnNote}</p>}
       {open ? (
         <AssistForm id={`journal-${day}`} action={entryAction} draft className="mt-3 grid gap-3 md:grid-cols-2">
+          <span id="close" className="sr-only" />
           <input type="hidden" name="day" value={day} />
           <div className="md:col-span-2">
             <TextAreaField help="journal.notes" name="notes" rows={3} defaultValue={e?.notes ?? ""} />
@@ -170,7 +171,7 @@ export function MyEntryPanel({ e, day, plan, confirmerLabel }: { e: Entry | null
               저장(작성 중)
             </SubmitButton>
             <SubmitButton name="intent" value="close">
-              마감하기
+              {punchOpen ? "마감하고 퇴근" : "마감하기"}
             </SubmitButton>
           </div>
         </AssistForm>

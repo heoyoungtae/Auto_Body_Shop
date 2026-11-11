@@ -11,10 +11,19 @@ import { requireUser } from "../_lib/session";
 import { Card, Empty, ErrorBox, Notice, PageTitle, StatusBadge } from "../_ui";
 import { requestLeaveAction } from "./actions";
 import { LeaveFields } from "./leave-form";
+import { FixCard, OrderCard, OrdersCard, PlaceCard, TeamTodayCard, TodayCard } from "./punch-panels";
+import { eq } from "drizzle-orm";
+import { appUser } from "@/db/schema";
+import { can } from "@/modules/auth/permissions";
+import { getEntry } from "@/modules/journal/entry";
+import { pendingOrders } from "@/modules/staff/attendance";
+import { dayStatus, loadPunchConfig, missingDays, teamToday } from "@/modules/staff/punch";
+import { normalizeIp } from "@/modules/staff/punch-rules";
+import { requestMeta } from "../_lib/session";
 
 /** 근태·휴가·연장근로 신청서(F-11-04, STD-11 4절) */
-export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string; m?: string }> }) {
-  const { error, notice, m } = await searchParams;
+export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string; m?: string; d?: string; fix?: string }> }) {
+  const { error, notice, m, d, fix } = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const today = seoulDate();
@@ -23,15 +32,50 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const mTo = addDaysIso(`${addDaysIso(mFrom, 32).slice(0, 7)}-01`, -1);
   const team = canSeeTeamLeave(user);
   const [bal, mine, cal, pol, all] = await Promise.all([leaveBalance(db, user.id, today), listLeaves(db, user), loadShopCalendar(db), loadPolicy(db, today), team ? listLeaves(db, user, { all: true, from: mFrom, to: mTo }) : Promise.resolve([])]);
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(d ?? "") && d! <= today ? d! : today;
+  const owner = user.roles.includes("owner");
+  const orderer = can(user, "leave.approve");
+  const [st, orders, missing, journal, teamRows, cfg, meta, staff] = await Promise.all([
+    dayStatus(db, user.id, day),
+    pendingOrders(db, user.id),
+    missingDays(db, user.id),
+    getEntry(db, user.id, today),
+    teamToday(db, user, today),
+    owner ? loadPunchConfig(db) : Promise.resolve(null),
+    requestMeta(),
+    orderer ? db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(appUser.name) : Promise.resolve([]),
+  ]);
+  const journalClosed = journal?.status === "closed" || journal?.status === "confirmed";
   const prev = addDaysIso(mFrom, -1).slice(0, 7);
   const next = addDaysIso(mTo, 1).slice(0, 7);
   return (
     <>
-      <PageTitle help="attendance" sub="연차·반차·병가·외출·조퇴·지각·결근·연장근무를 신청서로 올립니다. 공장장이 승인합니다(공장장 본인은 대표). 사내 표준서 STD-11 4절.">
-        근태·휴가
+      <PageTitle help="attendance" sub="출근·퇴근을 누르고, 연차·반차·병가·외출·조퇴·지각·결근·연장근무를 신청서로 올립니다. 공장장이 승인합니다(공장장 본인은 대표). 연장근무는 승인된 시간 중 실제로 일한 시간만 인정합니다. 사내 표준서 STD-11 4절.">
+        출퇴근·근태
       </PageTitle>
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <TodayCard st={st} isToday={day === today} journalClosed={journalClosed} />
+        <div className="space-y-4">
+          <OrdersCard orders={orders} />
+          <FixCard missing={missing} pick={fix} />
+          {!orders.length && !missing.length && (
+            <Card title="출퇴근 안내" help={{ kind: "panel", id: "punch.today" }}>
+              <p className="text-sm text-[var(--muted)]">정비소 와이파이에 연결한 휴대폰이나 사무실 PC에서 출근을 누릅니다. 퇴근은 업무일지를 마감하면서 함께 누릅니다. 연장근무는 미리 신청해 승인받은 시간 중 실제로 남아 있던 시간만 인정됩니다.</p>
+            </Card>
+          )}
+        </div>
+      </div>
+      {(teamRows.length > 0 || orderer || cfg) && (
+        <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
+          {teamRows.length > 0 && <TeamTodayCard rows={teamRows} day={today} />}
+          <div className="space-y-4">
+            {orderer && <OrderCard users={staff.filter((u) => u.id !== user.id)} today={today} defaultFrom={st.schedule.end} />}
+            {cfg && <PlaceCard ips={cfg.ips} myIp={normalizeIp(meta.ip)} />}
+          </div>
+        </div>
+      )}
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
         <Card title="내 연차" help={{ kind: "panel", id: "leave.balance" }}>
           {bal ? (
@@ -60,7 +104,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
 
         <Card title="근태 신청서 쓰기" help={{ kind: "panel", id: "leave.new" }}>
           <AssistForm id="leave-new" action={requestLeaveAction} className="space-y-3">
-            <LeaveFields cal={cal} today={today} remain={bal?.remain ?? null} overtimeCap={pol["hr.headcount_5plus"] === 1} />
+            <LeaveFields cal={cal} today={today} remain={bal?.remain ?? null} overtimeCap />
             <SubmitButton>신청(상신)</SubmitButton>
           </AssistForm>
         </Card>
