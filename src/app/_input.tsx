@@ -74,31 +74,35 @@ export function Shell({
   const h = FIELD_HELP[helpKey];
   const name = label ?? h.label;
   return (
-    <div className="group/field block text-sm" data-help={helpKey}>
-      <div className="mb-1.5 flex items-center gap-1.5">
+    // 칸 하나 = 이름 칸(.fld-label) + 입력 칸(.fld-body). 넓은 화면에서는 globals.css 의 .fld 규칙으로
+    // 이름은 왼쪽 회색 칸, 입력은 오른쪽 칸인 '양식 표' 모양이 되고, 휴대폰에서는 이름이 위에 온다(대표 지시 2026-11-12 "짜임새").
+    <div className="fld group/field text-sm" data-help={helpKey}>
+      <div className="fld-label flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
         <label htmlFor={id} className="font-medium">
           {name}
         </label>
         {/* 비워도 되는 칸은 표시하지 않는다(화면이 덜 복잡하게). 꼭 적을 칸만 '필수' */}
-        {required && <span className="text-xs text-[var(--danger)]">필수</span>}
+        {required && <span aria-label="필수" className="text-xs font-semibold text-[var(--danger)]">*</span>}
         <HelpButton topic={{ kind: "field", id: helpKey, label }} name={name} />
-        {from && <span className="ml-auto rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-xs text-[var(--accent)]">{from}에서 불러옴</span>}
       </div>
-      {children}
-      {error ? (
-        <p id={`${id}-msg`} role="alert" className="mt-1 text-xs font-medium text-[var(--danger)]">
-          {error}
-        </p>
-      ) : (
-        ("hint" in h || "example" in h) && (
-          // 한 줄 안내는 그 칸을 누르고 있을 때만 펼친다(늘 펼치면 화면이 길어짐). 화면 읽기 프로그램은 늘 읽는다(aria-describedby)
-          <p id={`${id}-msg`} className="mt-1 hidden text-xs text-[var(--muted)] group-focus-within/field:block">
-            {"hint" in h && h.hint}
-            {"example" in h && h.example && <span className="ml-1">(예: {h.example})</span>}
+      <div className="fld-body min-w-0">
+        {children}
+        {from && <p className="mt-1 text-xs text-[var(--accent)]">↳ {from}에서 불러옴</p>}
+        {error ? (
+          <p id={`${id}-msg`} role="alert" className="mt-1 text-xs font-medium text-[var(--danger)]">
+            {error}
           </p>
-        )
-      )}
-      {aside}
+        ) : (
+          ("hint" in h || "example" in h) && (
+            // 한 줄 안내는 그 칸을 누르고 있을 때만 펼친다(늘 펼치면 화면이 길어짐). 화면 읽기 프로그램은 늘 읽는다(aria-describedby)
+            <p id={`${id}-msg`} className="mt-1 hidden text-xs text-[var(--muted)] group-focus-within/field:block">
+              {"hint" in h && h.hint}
+              {"example" in h && h.example && <span className="ml-1">(예: {h.example})</span>}
+            </p>
+          )
+        )}
+        {aside}
+      </div>
     </div>
   );
 }

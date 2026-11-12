@@ -70,7 +70,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
         </Card>
         <Card title="입력 도우미 쓰는 법" help={{ kind: "panel", id: "help.howto" }}>
           <ul className="list-disc space-y-1 pl-5 text-sm">
-            <li>칸 이름 옆 <b>필수</b>가 붙은 칸은 꼭 적어야 하고, 아무 표시가 없는 칸은 비워도 됩니다. 칸을 누르면 그 칸의 한 줄 안내가 아래에 나옵니다.</li>
+            <li>칸 이름 옆에 빨간 <b>*</b>가 붙은 칸은 꼭 적어야 하고, 아무 표시가 없는 칸은 비워도 됩니다. 칸을 누르면 그 칸의 한 줄 안내가 아래에 나옵니다.</li>
             <li>화면 제목·패널 제목·칸 이름 옆 <b>?</b> 를 누르면 오른쪽에 도움말 창이 열립니다. 창을 연 채로 계속 입력할 수 있고, 다시 누르거나 Esc 로 닫습니다.</li>
             <li><b>○○에서 불러옴</b> 표시는 앞선 문서나 설정에서 값을 끌어온 칸입니다. 바뀐 것만 고치면 됩니다.</li>
             <li><b>문구 넣기</b> 단추는 자주 쓰는 문장을 칸에 넣어 줍니다. 넣은 뒤 빈 곳만 채우세요.</li>
