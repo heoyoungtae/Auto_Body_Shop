@@ -29,16 +29,27 @@ const num = (v: string) => {
   return d ? Number(d) : NaN;
 };
 
+/** 한꺼번에 넣기: r{번호}_name 처럼 줄 번호가 붙은 칸을 줄마다 모은다 */
+function formLines(form: FormData) {
+  const s = str(form);
+  const idx = [...new Set([...form.keys()].map((k) => /^r(\d+)_name$/.exec(k)?.[1]).filter((x): x is string => !!x))].sort((a, b) => Number(a) - Number(b));
+  return idx.map((i) => {
+    const g = (k: string) => s(`r${i}_${k}`);
+    return { name: g("name"), partNo: g("partNo"), spec: g("spec"), partCode: g("partCode") || null, qty: num(g("qty")), unitWon: num(g("unitWon")), stockItemId: g("stockItemId") || null };
+  });
+}
+
 export async function createOrderAction(form: FormData) {
   const user = await requireUser();
   const s = str(form);
   let id = "";
   try {
-    id = await createOrder(await getDb(), user, { kind: s("kind") === "repair" ? "repair" : "stock", repairOrderId: s("repairOrderId") || null, supplierId: s("supplierId") || null, dueOn: s("dueOn") || null, note: s("note") });
+    id = await createOrder(await getDb(), user, { kind: s("kind") === "repair" ? "repair" : "stock", repairOrderId: s("repairOrderId") || null, supplierId: s("supplierId") || null, dueOn: s("dueOn") || null, note: s("note"), lines: formLines(form) });
   } catch (e) {
     redirect(errorUrl(`/purchases/new${s("repairOrderId") ? `?ro=${s("repairOrderId")}` : ""}`, userMessage(e)));
   }
-  redirect(noticeUrl(`/purchases/${id}`, "발주서를 만들었습니다. 품목을 넣고 승인을 요청하세요"));
+  const n = formLines(form).filter((l) => l.name).length;
+  redirect(noticeUrl(`/purchases/${id}`, n ? `발주서를 만들고 품목 ${n}줄을 넣었습니다. 확인하고 승인을 요청하세요` : "발주서를 만들었습니다. 품목을 넣고 승인을 요청하세요"));
 }
 
 export async function orderAction(form: FormData) {
@@ -57,16 +68,7 @@ export async function orderAction(form: FormData) {
       msg = s("lineId") ? "줄을 고쳤습니다" : "품목을 넣었습니다";
     } else if (intent === "lines") {
       // 한꺼번에 넣기: r{번호}_name 처럼 줄 번호가 붙은 칸을 줄마다 모은다
-      const idx = [...new Set([...form.keys()].map((k) => /^r(\d+)_name$/.exec(k)?.[1]).filter((x): x is string => !!x))].sort((a, b) => Number(a) - Number(b));
-      const n = await addOrderLines(
-        db,
-        user,
-        id,
-        idx.map((i) => {
-          const g = (k: string) => s(`r${i}_${k}`);
-          return { name: g("name"), partNo: g("partNo"), spec: g("spec"), partCode: g("partCode") || null, qty: num(g("qty")), unitWon: num(g("unitWon")), stockItemId: g("stockItemId") || null };
-        }),
-      );
+      const n = await addOrderLines(db, user, id, formLines(form));
       msg = `품목 ${n}줄을 넣었습니다`;
     } else if (intent === "removeLine") {
       await removeOrderLine(db, user, id, s("lineId"));

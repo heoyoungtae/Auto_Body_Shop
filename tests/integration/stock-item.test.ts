@@ -84,6 +84,11 @@ describe("사용 중지", () => {
     // 미달이어도 소진 후 중지 품목은 미달·발주 대상이 아니다
     expect((await listStock(db, "low", now)).map((r) => r.id)).not.toContain(id);
     await expect(orderLowStock(db, manager(), [id], now)).rejects.toThrow(/사용 중지/);
+    // 발주서를 만들 때 품목을 한꺼번에 함께 넣는다: 틀린 줄이 있으면 발주서도 만들지 않는다
+    await expect(createOrder(db, manager(), { kind: "stock", lines: [{ name: "마스킹 테이프", qty: 10, unitWon: 3_000 }, { name: "베이스", qty: 1, unitWon: 50_000, stockItemId: id }] }, now)).rejects.toThrow(/사용 중지/);
+    const po2 = await createOrder(db, manager(), { kind: "stock", lines: [{ name: "마스킹 테이프", qty: 10, unitWon: 3_000 }, { name: "", qty: 1, unitWon: 0 }, { name: "연마지 P800", qty: 5, unitWon: 1_000 }] }, now);
+    const lines2 = await db.select().from(schema.purchaseLine).where(eq(schema.purchaseLine.orderId, po2));
+    expect(lines2.map((l) => l.name).sort()).toEqual(["마스킹 테이프", "연마지 P800"]);
     const po = await createOrder(db, manager(), { kind: "stock" }, now);
     await expect(saveOrderLine(db, manager(), po, null, { name: "베이스", qty: 1, unitWon: 50_000, stockItemId: id })).rejects.toThrow(/대신 베이스 화이트 신형/);
     await useStock(db, tech(), { itemId: id, qty: 2 }, now);
