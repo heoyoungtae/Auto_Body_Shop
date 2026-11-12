@@ -4,10 +4,10 @@
 // - 정비·수리 이력(첨부·자본적 지출), 감가상각, 소유 구분·사용계약(사용료 결의·만료 알림)
 import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { approvalDoc, appUser, assetRepair, equipment, expense, fixture, fixtureEvent, type AssetContract } from "@/db/schema";
+import { approvalDoc, appUser, assetRepair, equipment, expense, fixture, fixtureEvent, tool, toolEvent, type AssetContract } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
-import { EQ_KINDS, isEqKind, nextEqNo } from "@/modules/equipment/rules";
+import { EQ_KINDS, isEqKind, nextEqNo, nextToolNo, TOOL_KEEP } from "@/modules/equipment/rules";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
@@ -99,12 +99,13 @@ export async function markEquipmentLabeled(db: Db, actor: Actor, ids: string[], 
 // ── 지출 결의에서 대장 등록 ──
 
 export type AssetPlan = {
-  kind: AssetKind;
+  /** tool 치공구(STD-08 8.7 대장, TL- 번호). 감가상각 없이 입고 대기 → 들어옴 확인만 */
+  kind: AssetKind | "tool";
   name: string;
   qty: number;
   /** 한 개 공급가 */
   unitWon: number;
-  /** 비품 구분 또는 설비 종류 */
+  /** 비품 구분, 설비 종류, 치공구는 보관(board 공용·personal 개인) */
   cat: string;
   location?: string;
   holderId?: string;
@@ -121,6 +122,7 @@ export function checkPlans(plans: AssetPlan[], supplyWon: number) {
     if (!Number.isInteger(p.unitWon) || p.unitWon < 0) throw new AssetError(`${at}: 한 개 값을 확인해 주세요`);
     if (p.kind === "fixture" && !isFxCategory(p.cat)) throw new AssetError(`${at}: 비품 구분을 골라 주세요`);
     if (p.kind === "equipment" && !isEqKind(p.cat)) throw new AssetError(`${at}: 설비 종류를 골라 주세요`);
+    if (p.kind === "tool" && !(p.cat in TOOL_KEEP)) throw new AssetError(`${at}: 치공구 보관(공용·개인)을 골라 주세요`);
     if (p.kind === "equipment" && p.qty > 1) throw new AssetError(`${at}: 설비는 한 줄에 한 대씩 적습니다(점검표가 설비마다 따로)`);
   }
   const total = rows.reduce((t, p) => t + p.qty * p.unitWon, 0);
@@ -133,7 +135,7 @@ export async function registerFromExpense(db: Db, actor: Actor, e: { id: string;
   const p = await loadPolicy(db, seoulDate(now));
   const method = p["asset.dep_declining"] ? "db" : "sl";
   const on = e.evidenceOn || seoulDate(now);
-  const made: { kind: AssetKind; id: string; no: string }[] = [];
+  const made: { kind: AssetKind | "tool"; id: string; no: string }[] = [];
   for (const plan of plans) {
     // 산 날 비용 처리 가능 금액 이하이면 즉시 비용, 아니면 기본 상각 방법(정책값)
     const depFor = (cost: number) => (cost <= p["asset.immediate_max"] ? "expense" : method) as string;
@@ -147,6 +149,17 @@ export async function registerFromExpense(db: Db, actor: Actor, e: { id: string;
           .returning({ id: fixture.id });
         await db.insert(fixtureEvent).values({ fixtureId: row.id, kind: "register", detail: `지출 결의 ${e.docNo}에서 등록(입고 대기) ${won(plan.unitWon)}`, by: actor.id, at: now });
         made.push({ kind: "fixture", id: row.id, no });
+      }
+    } else if (plan.kind === "tool") {
+      // 치공구: 한 개마다 TL- 번호. 보관 위치·쓰는 사람은 들어옴 확인 때 채워도 된다
+      for (let i = 0; i < plan.qty; i++) {
+        const no = nextToolNo((await db.select({ no: tool.no }).from(tool)).map((r) => r.no));
+        const [row] = await db
+          .insert(tool)
+          .values({ no, name: plan.name.trim(), spec: clean(plan.spec), purchasedOn: on, location: clean(plan.location), keep: plan.cat, holderId: plan.cat === "personal" ? plan.holderId || null : null, managerId: plan.managerId || null, status: "pending", expenseId: e.id, priceWon: plan.unitWon, note: `지출 결의 ${e.docNo}(${e.payeeName})에서 등록`, createdBy: actor.id, createdAt: now, updatedAt: now })
+          .returning({ id: tool.id });
+        await db.insert(toolEvent).values({ toolId: row.id, kind: "register", detail: `지출 결의 ${e.docNo}에서 등록(입고 대기) ${won(plan.unitWon)}`, by: actor.id, at: now });
+        made.push({ kind: "tool", id: row.id, no });
       }
     } else {
       const k = EQ_KINDS[plan.cat as keyof typeof EQ_KINDS];
@@ -171,8 +184,14 @@ export async function dropForExpense(db: Db, expenseId: string) {
     await db.delete(fixture).where(inArray(fixture.id, fx.map((r) => r.id)));
   }
   await db.delete(equipment).where(and(eq(equipment.expenseId, expenseId), eq(equipment.status, "pending")));
+  const tl = await db.select({ id: tool.id }).from(tool).where(and(eq(tool.expenseId, expenseId), eq(tool.status, "pending")));
+  if (tl.length) {
+    await db.delete(toolEvent).where(inArray(toolEvent.toolId, tl.map((r) => r.id)));
+    await db.delete(tool).where(inArray(tool.id, tl.map((r) => r.id)));
+  }
   await db.update(fixture).set({ expenseId: null }).where(eq(fixture.expenseId, expenseId));
   await db.update(equipment).set({ expenseId: null }).where(eq(equipment.expenseId, expenseId));
+  await db.update(tool).set({ expenseId: null }).where(eq(tool.expenseId, expenseId));
   return fx.length;
 }
 
@@ -180,7 +199,8 @@ export async function dropForExpense(db: Db, expenseId: string) {
 export async function assetsOfExpense(db: Db, expenseId: string) {
   const fx = await db.select({ id: fixture.id, no: fixture.no, name: fixture.name, status: fixture.status }).from(fixture).where(eq(fixture.expenseId, expenseId));
   const eq_ = await db.select({ id: equipment.id, no: equipment.no, name: equipment.name, status: equipment.status }).from(equipment).where(eq(equipment.expenseId, expenseId));
-  return [...fx.map((r) => ({ ...r, kind: "fixture" as const })), ...eq_.map((r) => ({ ...r, kind: "equipment" as const }))];
+  const tl = await db.select({ id: tool.id, no: tool.no, name: tool.name, status: tool.status }).from(tool).where(eq(tool.expenseId, expenseId));
+  return [...fx.map((r) => ({ ...r, kind: "fixture" as const })), ...eq_.map((r) => ({ ...r, kind: "equipment" as const })), ...tl.map((r) => ({ ...r, kind: "tool" as const }))];
 }
 
 /** 들어옴 확인: 비품은 받은 날, 설비는 시운전 확인일. 이날부터 감가상각 */
@@ -347,6 +367,7 @@ export async function unlinkedAssetExpenses(db: Db) {
   const linked = new Set([
     ...(await db.select({ x: fixture.expenseId }).from(fixture).where(inArray(fixture.expenseId, ids))).map((r) => r.x),
     ...(await db.select({ x: equipment.expenseId }).from(equipment).where(inArray(equipment.expenseId, ids))).map((r) => r.x),
+    ...(await db.select({ x: tool.expenseId }).from(tool).where(inArray(tool.expenseId, ids))).map((r) => r.x),
   ]);
   return rows.filter((r) => !linked.has(r.id));
 }

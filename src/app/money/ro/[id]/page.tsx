@@ -201,7 +201,7 @@ export default async function RoMoneyPage({
         </Card>
       )}
 
-      <Card title="수납 전표" help={{ kind: "panel", id: "money.payments" }}>
+      <Card title="입금 전표" help={{ kind: "panel", id: "money.payments" }}>
         {v.payments.length ? (
           <ul className="divide-y divide-[var(--line)] text-sm">
             {v.payments.map((p) => (
@@ -263,7 +263,7 @@ export default async function RoMoneyPage({
             ))}
           </ul>
         ) : (
-          <Empty>아직 수납 전표가 없습니다.</Empty>
+          <Empty>아직 입금 전표가 없습니다.</Empty>
         )}
       </Card>
 

@@ -182,6 +182,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "tool.check": "치공구 분기 점검",
   "tool.lost": "치공구 분실 보고",
   "tool.dispose": "치공구 폐기",
+  "tool.arrive": "치공구 들어옴 확인",
+  "tool.min": "치공구 안전재고 수량 변경",
   "fixture.create": "비품 등록",
   "fixture.dispose": "비품 폐기",
   "fixture.ok": "비품 점검(이상 없음)",

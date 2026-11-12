@@ -121,14 +121,14 @@ export async function deliveryAction(form: FormData) {
           : null,
       });
       msg = "인수 서명을 받고 출고했습니다. 7일 뒤 만족도 설문을 확인합니다";
-      // 카드·현금·이체로 받았으면 바로 수납 전표를 적게 수납 화면으로(금액·방법은 불러옴)
+      // 카드·현금·이체로 받았으면 바로 입금 전표를 적게 수납 화면으로(금액·방법은 불러옴)
       if (
         ["card", "cash", "transfer"].includes(s("payMethod")) &&
         can(user, "money.receive")
       ) {
         back = `/money/ro/${roId}`;
         msg +=
-          ". 받은 금액을 수납 전표로 적어 주세요(금액·방법을 불러왔습니다)";
+          ". 받은 금액을 입금 전표로 적어 주세요(금액·방법을 불러왔습니다)";
       }
     }
   } catch (e) {

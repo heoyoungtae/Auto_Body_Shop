@@ -2,7 +2,7 @@
 // 치공구(STD-08 8.7, F-08-08) 화면의 서버 동작
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { checkoutTool, disposeTool, inspectTool, markToolLabeled, registerTool, reportLost, restoreTool, returnTool, updateTool, type ToolInput } from "@/modules/equipment/tools";
+import { checkoutTool, confirmToolArrival, disposeTool, inspectTool, markToolLabeled, registerTool, reportLost, restoreTool, returnTool, saveToolMin, updateTool, type ToolInput } from "@/modules/equipment/tools";
 import { TOOL_CHECK, TOOL_DECISION, type ToolCheck, type ToolDecision } from "@/modules/equipment/rules";
 import { UserError } from "@/modules/platform/errors";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
@@ -55,6 +55,13 @@ export async function toolAction(form: FormData) {
     } else if (intent === "dispose") {
       await disposeTool(db, user, id, s("disposeNote"));
       msg = "폐기했습니다";
+    } else if (intent === "arrive") {
+      await confirmToolArrival(db, user, id);
+      msg = "들어옴을 확인했습니다. 이제 사용 가능입니다. 라벨을 붙이세요";
+    } else if (intent === "min") {
+      const raw = s("minQty").replace(/[^\d]/g, "");
+      await saveToolMin(db, user, s("name"), raw ? Number(raw) : null);
+      msg = raw && Number(raw) > 0 ? `${s("name")} 최소 ${Number(raw)}개로 정했습니다. 모자라면 할 일에 뜹니다` : `${s("name")} 안전재고를 지웠습니다`;
     } else if (intent === "label") {
       await markToolLabeled(db, user, id);
       msg = "라벨 부착을 기록했습니다";

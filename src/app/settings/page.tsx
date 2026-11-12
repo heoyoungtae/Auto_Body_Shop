@@ -13,6 +13,7 @@ const ITEMS: { href: string; title: string; body: string; help: PageHelpKey }[] 
   { help: "settings.messaging", href: "/settings/messaging", title: "문자 발송 서비스", body: "문자 대행사, 발신번호, 080 수신거부 번호, 준비 순서와 연결 시험." },
   { help: "settings.kakao", href: "/settings/kakao", title: "카카오 알림톡", body: "예약·견적·출고·설문 안내 템플릿과 카카오 승인 코드." },
   { help: "settings.calendar", href: "/settings/calendar", title: "영업일·휴무일", body: "문 여는 요일, 공휴일에 쉬는지, 가게 휴무·특별 영업일. 영업일 기한과 예약 달력이 따릅니다." },
+  { help: "settings.punch", href: "/settings/punch", title: "출퇴근 장소(와이파이)", body: "정비소 와이파이의 인터넷 주소. 여기서 접속한 기기만 출근·퇴근을 누를 수 있습니다." },
   { help: "settings.gift", href: "/settings/gift", title: "기프티콘 공급사", body: "기프티쇼 비즈 연결, 월 예산·건당 상한·중복 방지 기간." },
 ];
 

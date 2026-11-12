@@ -127,3 +127,34 @@ describe("지출 결의 → 비품·설비 대장", () => {
     void owner;
   });
 });
+
+describe("치공구 안전재고 → 지출 결의 → 입고 대기", () => {
+  it("최소 수량보다 적으면 할 일, 결의로 사면 입고 대기로 세고, 들어옴 확인하면 사용 가능, 결의 취소하면 지운다", async () => {
+    const { registerTool, saveToolMin, toolStock, toolTodos, confirmToolArrival, lastToolPrice } = await import("@/modules/equipment/tools");
+    const { tool } = await import("@/db/schema");
+    await registerTool(db, manager(), { name: "판금 해머", spec: "", purchasedOn: "", location: "B 보드 1", keep: "board", holderId: "", managerId: "", special: false, note: "" }, now);
+    await expect(saveToolMin(db, { id: ids.tech1, roles: ["technician"] }, "판금 해머", 3, now)).rejects.toThrow(/공장장/);
+    await saveToolMin(db, manager(), "판금 해머", 3, now);
+    let s = (await toolStock(db)).find((x) => x.name === "판금 해머")!;
+    expect([s.ok, s.short]).toEqual([1, 2]);
+    const short = (await toolTodos(db, manager(), "2026-11-12")).find((t) => t.key === "tool-short-판금 해머")!;
+    expect(short.href).toContain("/money/expenses/new?tool=");
+
+    await expect(createExpense(db, manager(), base({ assets: [{ kind: "tool", name: "판금 해머", qty: 2, unitWon: 30_000, cat: "x" }] }), now)).rejects.toThrow(/보관/);
+    const x = await createExpense(db, manager(), base({ supplyWon: 60_000, vatWon: 6_000, assets: [{ kind: "tool", name: "판금 해머", qty: 2, unitWon: 30_000, cat: "board", location: "B 보드 2" }] }), now);
+    const list = await assetsOfExpense(db, x.id);
+    expect(list.map((a) => [a.kind, a.status])).toEqual([["tool", "pending"], ["tool", "pending"]]);
+    s = (await toolStock(db)).find((x) => x.name === "판금 해머")!;
+    expect([s.ok, s.pending, s.short]).toEqual([1, 2, 0]);
+    expect(await lastToolPrice(db, "판금 해머")).toBe(30_000);
+    expect((await toolTodos(db, manager(), "2026-11-12")).some((t) => t.key === `tool-arrive-${list[0].id}`)).toBe(true);
+
+    await confirmToolArrival(db, manager(), list[0].id, now);
+    const [t0] = await db.select().from(tool).where(eq(tool.id, list[0].id));
+    expect(t0.status).toBe("ok");
+
+    await cancelExpense(db, manager(), x.id, "잘못 올림", now);
+    const left = await db.select().from(tool).where(eq(tool.name, "판금 해머"));
+    expect(left.map((t) => t.status).sort()).toEqual(["ok", "ok"]);
+  });
+});

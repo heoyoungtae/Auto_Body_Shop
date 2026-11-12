@@ -4,7 +4,7 @@ import { can } from "@/modules/auth/permissions";
 import { getExpense } from "@/modules/money/expense";
 import { assetsOfExpense } from "@/modules/asset/service";
 import { FX_STATUS } from "@/modules/purchase/rules";
-import { EQ_STATUS } from "@/modules/equipment/rules";
+import { EQ_STATUS, TOOL_STATUS } from "@/modules/equipment/rules";
 import {
   EVIDENCE_KINDS,
   evidenceWarning,
@@ -182,16 +182,16 @@ export default async function ExpensePage({
       </Card>
 
       {(assets.length > 0 || (e.category === "equipment" && status !== "cancelled")) && (
-        <Card title="비품·설비 대장" help={{ kind: "panel", id: "exp.assets" }}>
+        <Card title="비품·설비·치공구 대장" help={{ kind: "panel", id: "exp.assets" }}>
           {assets.length ? (
             <ul className="divide-y divide-[var(--line)] text-sm">
               {assets.map((a) => (
                 <li key={a.id} className="flex flex-wrap items-center gap-2 py-1.5">
-                  <Link href={a.kind === "fixture" ? `/fixtures/${a.id}` : `/equipment/${a.id}`} className="font-mono text-[var(--accent)]">
+                  <Link href={a.kind === "fixture" ? `/fixtures/${a.id}` : a.kind === "tool" ? `/tools/${a.id}` : `/equipment/${a.id}`} className="font-mono text-[var(--accent)]">
                     {a.no}
                   </Link>
                   <span>{a.name}</span>
-                  <Badge tone={a.status === "pending" ? "accent" : "neutral"}>{a.kind === "fixture" ? FX_STATUS[a.status as keyof typeof FX_STATUS] : EQ_STATUS[a.status as keyof typeof EQ_STATUS]}</Badge>
+                  <Badge tone={a.status === "pending" ? "accent" : "neutral"}>{a.kind === "fixture" ? FX_STATUS[a.status as keyof typeof FX_STATUS] : a.kind === "tool" ? TOOL_STATUS[a.status as keyof typeof TOOL_STATUS] : EQ_STATUS[a.status as keyof typeof EQ_STATUS]}</Badge>
                 </li>
               ))}
             </ul>

@@ -361,6 +361,11 @@ export const MENU: MenuGroup[] = [
         perm: ["settings.edit"],
         href: "/settings/calendar",
       },
+      {
+        label: "출퇴근 장소(와이파이)",
+        roles: ["owner"],
+        href: "/settings/punch",
+      },
     ],
   },
   {

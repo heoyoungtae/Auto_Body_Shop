@@ -197,9 +197,9 @@ export function pmKpi(input: { due: number; done: number; failures: number; down
 // ── 치공구(STD-08 8.7, F-08-08) ──
 export const TOOL_KEEP = { board: "공용(쉐도우 보드)", personal: "개인 공구함" } as const;
 export type ToolKeep = keyof typeof TOOL_KEEP;
-export const TOOL_STATUS = { ok: "사용 가능", repair: "수리 중", lost: "분실", disposed: "폐기" } as const;
+export const TOOL_STATUS = { pending: "입고 대기", ok: "사용 가능", repair: "수리 중", lost: "분실", disposed: "폐기" } as const;
 export type ToolStatus = keyof typeof TOOL_STATUS;
-export const TOOL_TONE: Record<ToolStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { ok: "ok", repair: "warn", lost: "danger", disposed: "neutral" };
+export const TOOL_TONE: Record<ToolStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { pending: "accent", ok: "ok", repair: "warn", lost: "danger", disposed: "neutral" };
 /** 분기 점검 결과(10.4): 마모·파손·누락 */
 export const TOOL_CHECK = { ok: "양호", worn: "마모", broken: "파손", missing: "누락(없음)" } as const;
 export type ToolCheck = keyof typeof TOOL_CHECK;

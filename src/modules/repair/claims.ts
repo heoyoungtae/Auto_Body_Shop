@@ -3,7 +3,8 @@
 import { rolesFor } from "@/modules/auth/permissions";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { customer, estimate, estimateLine, insuranceClaim, repairOrder, repairStatement, vehicle } from "@/db/schema";
+import { customer, estimate, estimateLine, insuranceClaim, payment, repairOrder, repairStatement, vehicle } from "@/db/schema";
+import { assertOpenDay } from "@/modules/money/lock";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { loadShopCalendar } from "@/modules/platform/calendar";
@@ -157,9 +158,14 @@ export async function recordPayment(db: Db, actor: Actor, roId: string, input: {
   if (input.paidWon > c.claimedWon!) throw new ClaimError("청구 금액보다 많이 들어왔습니다. 금액을 확인하고, 맞으면 보험사에 확인해 주세요");
   const cut = c.claimedWon! - input.paidWon;
   if (cut > 0 && !input.cutReason.trim()) throw new ClaimError(`${cut.toLocaleString("ko-KR")}원 덜 들어왔습니다. 보험사가 알려 준 감액 사유를 적어 주세요(공임 기준표 개정 자료)`);
+  await assertOpenDay(db, input.paidOn);
+  // 입금 확인과 함께 입금 전표(PM)를 남긴다(대표 지시 2026-11-12). 금액·날짜·보험사는 위 입금 확인 값을 그대로 쓴다
+  const voucherNo = await nextDocNo(db, "PM", now);
+  await db.insert(payment).values({ docNo: voucherNo, repairOrderId: roId, method: "transfer", amountWon: input.paidWon, receivedOn: input.paidOn, receiptKind: "none", payerName: c.insurer, note: `보험 청구 ${c.docNo} 입금${cut > 0 ? `(감액 ${cut.toLocaleString("ko-KR")}원)` : ""}`, payer: "insurer", createdBy: actor.id, createdAt: now });
   await db.update(insuranceClaim).set({ paidOn: input.paidOn, paidWon: input.paidWon, cutWon: cut, cutReason: cut > 0 ? input.cutReason.trim() : null, paidBy: actor.id, status: "paid", updatedAt: now }).where(eq(insuranceClaim.id, c.id));
-  await writeAudit(db, { actorId: actor.id, action: "claim.paid", entityType: "repair_order", entityId: r.docNo, after: { paid: input.paidWon, cut } });
+  await writeAudit(db, { actorId: actor.id, action: "claim.paid", entityType: "repair_order", entityId: r.docNo, after: { paid: input.paidWon, cut, voucher: voucherNo } });
   if (cut > 0) await notifyRole(db, "owner", `보험 감액: ${c.docNo} ${c.insurer} ${cut.toLocaleString("ko-KR")}원 — ${input.cutReason.trim()}`, `claim-cut-${c.docNo}`, `/repairs/${roId}/claim`);
+  return voucherNo;
 }
 
 /** 30일 미입금 독촉 기록 */

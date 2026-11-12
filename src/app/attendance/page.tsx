@@ -11,15 +11,13 @@ import { requireUser } from "../_lib/session";
 import { Card, Empty, ErrorBox, Notice, PageTitle, StatusBadge } from "../_ui";
 import { requestLeaveAction } from "./actions";
 import { LeaveFields } from "./leave-form";
-import { FixCard, OrderCard, OrdersCard, PlaceCard, TeamTodayCard, TodayCard } from "./punch-panels";
+import { FixCard, OrderCard, OrdersCard, TeamTodayCard, TodayCard } from "./punch-panels";
 import { eq } from "drizzle-orm";
 import { appUser } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import { getEntry } from "@/modules/journal/entry";
 import { pendingOrders } from "@/modules/staff/attendance";
 import { dayStatus, loadPunchConfig, missingDays, teamToday } from "@/modules/staff/punch";
-import { normalizeIp } from "@/modules/staff/punch-rules";
-import { requestMeta } from "../_lib/session";
 
 /** 근태·휴가·연장근로 신청서(F-11-04, STD-11 4절) */
 export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string; m?: string; d?: string; fix?: string }> }) {
@@ -35,14 +33,13 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const day = /^\d{4}-\d{2}-\d{2}$/.test(d ?? "") && d! <= today ? d! : today;
   const owner = user.roles.includes("owner");
   const orderer = can(user, "leave.approve");
-  const [st, orders, missing, journal, teamRows, cfg, meta, staff] = await Promise.all([
+  const [st, orders, missing, journal, teamRows, cfg, staff] = await Promise.all([
     dayStatus(db, user.id, day),
     pendingOrders(db, user.id),
     missingDays(db, user.id),
     getEntry(db, user.id, today),
     teamToday(db, user, today),
     owner ? loadPunchConfig(db) : Promise.resolve(null),
-    requestMeta(),
     orderer ? db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(appUser.name) : Promise.resolve([]),
   ]);
   const journalClosed = journal?.status === "closed" || journal?.status === "confirmed";
@@ -72,7 +69,16 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           {teamRows.length > 0 && <TeamTodayCard rows={teamRows} day={today} />}
           <div className="space-y-4">
             {orderer && <OrderCard users={staff.filter((u) => u.id !== user.id)} today={today} defaultFrom={st.schedule.end} />}
-            {cfg && <PlaceCard ips={cfg.ips} myIp={normalizeIp(meta.ip)} />}
+            {cfg && (
+              <Card title="정비소 인터넷 주소" help={{ kind: "panel", id: "punch.config" }}>
+                <p className="text-sm">
+                  {cfg.ips.length ? `${cfg.ips.join(", ")} 에서만 출퇴근을 누를 수 있습니다.` : "아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다."}{" "}
+                  <Link href="/settings/punch" className="text-[var(--accent)] hover:underline">
+                    설정에서 바꾸기
+                  </Link>
+                </p>
+              </Card>
+            )}
           </div>
         </div>
       )}

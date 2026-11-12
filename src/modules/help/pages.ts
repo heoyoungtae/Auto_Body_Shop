@@ -344,6 +344,24 @@ export const PAGE_HELP = {
     refs: ["부록 D 정책값의 '영업일' 기한"],
     terms: ["영업일"],
   },
+  "settings.punch": {
+    title: "출퇴근 장소(와이파이)",
+    purpose:
+      "정비소 와이파이의 인터넷 주소(공인 IP)를 넣어, 그 와이파이에 연결한 기기에서만 출근·퇴근 단추가 눌리게 합니다(STD-11 4절, 대표 결정 2026-11-11).",
+    who: "대표만 보고 바꿉니다.",
+    steps: [
+      "정비소 와이파이에 연결한 휴대폰이나 사무실 PC로 이 화면을 엽니다.",
+      "'지금 이 기기의 주소'가 칸에 미리 들어 있으면 그대로 '저장'을 누릅니다.",
+      "회선이 둘 이상이면(사무실·공장 따로) 각 와이파이에서 주소를 확인해 줄을 바꿔 더 넣습니다.",
+      "휴대폰 데이터로 바꿔 출퇴근 화면에서 단추가 막히는지 확인합니다.",
+    ],
+    tips: [
+      "공유기를 껐다 켜면 인터넷 회사가 주소를 바꿀 수 있습니다. 출근이 막히면 이 화면에서 다시 저장하세요. 고정 IP를 신청하면 바뀌지 않습니다.",
+      "칸을 비우고 저장하면 어디서나 누를 수 있습니다.",
+      "바꾼 내용은 감사 로그에 남습니다.",
+    ],
+    refs: ["STD-11 4절 출퇴근"],
+  },
   "settings.gift": {
     title: "기프티콘 공급사",
     purpose:
@@ -2252,6 +2270,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/messaging": "settings.messaging",
   "/settings/kakao": "settings.kakao",
   "/settings/gift": "settings.gift",
+  "/settings/punch": "settings.punch",
   "/settings/calendar": "settings.calendar",
   "/messages/send": "messages.send",
   "/messages/templates": "messages.templates",

@@ -150,7 +150,8 @@ export function MenuSearch({
 
   return (
     <>
-      <div className="px-2 pt-3">
+      {/* 메뉴를 내려도 찾기 칸은 맨 위에 붙어 있다(대표 지시 2026-11-12). 휴대폰에서는 '메뉴' 머리줄 바로 아래 */}
+      <div className="sticky top-14 z-10 border-b border-[var(--line)] bg-[var(--surface)] px-2 pb-2 pt-3 lg:top-0">
         <div className="flex items-center gap-1">
           <div className="relative flex-1">
             <span aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-[var(--muted)]">

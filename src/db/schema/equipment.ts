@@ -290,12 +290,24 @@ export const tool = pgTable(
     outNote: text("out_note"),
     labeledAt: timestamp("labeled_at", { withTimezone: true }),
     note: text("note"),
+    /** 지출 결의에서 함께 등록했으면 그 결의(입고 대기 → 들어옴 확인). 대표 지시 2026-11-12 */
+    expenseId: uuid("expense_id"),
+    /** 한 개 공급가(지출 결의에서 불러옴) */
+    priceWon: integer("price_won"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("tool_no_uq").on(t.no)],
 );
+
+/** 치공구 안전재고: 품명별 최소 보유 수량. 사용 가능 + 입고 대기가 이보다 적으면 관리자 할 일(대표 지시 2026-11-12) */
+export const toolMin = pgTable("tool_min", {
+  name: text("name").primaryKey(),
+  minQty: integer("min_qty").notNull(),
+  updatedBy: uuid("updated_by").references(() => appUser.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /**
  * 치공구 이력: register 등록 · edit 고침 · out 반출 · return 반납 · check 분기 점검(result·decision) · lost 분실 · found 되찾음 ·

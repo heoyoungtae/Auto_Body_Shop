@@ -14,7 +14,7 @@ export async function monthLocked(db: Db, ym: string) {
   return m && m.status !== "returned" ? m.status : null;
 }
 
-/** 수납 전표: 그날 일일 마감을 했거나 그 달 월 마감을 올렸으면 막는다 */
+/** 입금 전표: 그날 일일 마감을 했거나 그 달 월 마감을 올렸으면 막는다 */
 export async function assertOpenDay(db: Db, day: string) {
   const [d] = await db
     .select({ id: dailyClose.id })

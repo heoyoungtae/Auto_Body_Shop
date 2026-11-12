@@ -3,7 +3,7 @@
 // → 10.4 분기 1회 상태 점검(마모·파손·누락 → 수리·교체·폐기 결정) → 10.5 분실 경위 기록, 대체 구입은 전결(발주)
 import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, tool, toolEvent } from "@/db/schema";
+import { appUser, tool, toolEvent, toolMin } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
@@ -194,6 +194,60 @@ export async function checkedInQuarter(db: Db, quarter: string) {
   return new Set(r.map((x) => x.id));
 }
 
+// ── 들어옴 확인(지출 결의에서 '입고 대기'로 올라온 것) ──
+
+/** 지출 결의로 산 치공구가 오면: 보관(공용은 자리, 개인은 쓰는 사람)을 확인하고 사용 시작 */
+export async function confirmToolArrival(db: Db, actor: Actor, id: string, now = new Date()) {
+  const t = await row(db, id);
+  if (t.status !== "pending") throw new ToolError("입고 대기 상태가 아닙니다");
+  if (!can(actor, "equip.manage") && actor.id !== t.managerId) throw new ToolError("공장장·대표나 이 공구의 관리자가 확인합니다");
+  if (t.keep === "board" && !t.location) throw new ToolError("공용 치공구는 보관 위치(쉐도우 보드 자리)를 먼저 '고치기'에서 적어 주세요");
+  if (t.keep === "personal" && !t.holderId) throw new ToolError("개인 공구는 쓰는 사람을 먼저 '고치기'에서 골라 주세요");
+  await db.update(tool).set({ status: "ok", purchasedOn: t.purchasedOn ?? seoulDate(now), updatedAt: now }).where(eq(tool.id, id));
+  await event(db, id, { kind: "arrive", detail: `들어옴 확인 ${seoulDate(now)}` }, actor.id, now);
+  await writeAudit(db, { actorId: actor.id, action: "tool.arrive", entityType: "tool", entityId: t.no });
+}
+
+// ── 안전재고(품명별 최소 보유 수량) ──
+
+export type ToolStockRow = { name: string; ok: number; repair: number; pending: number; lost: number; min: number | null; short: number };
+
+/** 품명별 보유 현황. 부족 = 최소 수량 − (사용 가능 + 입고 대기). 수리 중·분실은 세지 않는다 */
+export async function toolStock(db: Db): Promise<ToolStockRow[]> {
+  const rows = await db.select({ name: tool.name, status: tool.status }).from(tool).where(ne(tool.status, "disposed"));
+  const mins = new Map((await db.select().from(toolMin)).map((m) => [m.name, m.minQty]));
+  const by = new Map<string, ToolStockRow>();
+  const get = (name: string) => by.get(name) ?? (by.set(name, { name, ok: 0, repair: 0, pending: 0, lost: 0, min: mins.get(name) ?? null, short: 0 }), by.get(name)!);
+  for (const r of rows) {
+    const s = get(r.name);
+    if (r.status === "ok" || r.status === "repair" || r.status === "pending" || r.status === "lost") s[r.status]++;
+  }
+  // 대장에서 다 없어졌어도 최소 수량을 정해 둔 품명은 남긴다
+  for (const name of mins.keys()) get(name);
+  return [...by.values()].map((s) => ({ ...s, short: s.min ? Math.max(0, s.min - s.ok - s.pending) : 0 })).sort((a, b) => b.short - a.short || a.name.localeCompare(b.name, "ko"));
+}
+
+/** 최소 보유 수량 저장. 0 이나 빈칸이면 지운다(안전재고 관리 안 함) */
+export async function saveToolMin(db: Db, actor: Actor, name: string, minQty: number | null, now = new Date()) {
+  must(actor);
+  const n = name.trim();
+  if (!n) throw new ToolError("품명을 적어 주세요");
+  if (minQty != null && (!Number.isInteger(minQty) || minQty < 0 || minQty > 99)) throw new ToolError("최소 수량은 0~99 입니다");
+  const [before] = await db.select().from(toolMin).where(eq(toolMin.name, n));
+  if (!minQty) await db.delete(toolMin).where(eq(toolMin.name, n));
+  else await db.insert(toolMin).values({ name: n, minQty, updatedBy: actor.id, updatedAt: now }).onConflictDoUpdate({ target: toolMin.name, set: { minQty, updatedBy: actor.id, updatedAt: now } });
+  await writeAudit(db, { actorId: actor.id, action: "tool.min", entityType: "tool", entityId: n, before: before ? { min: before.minQty } : undefined, after: { min: minQty || null } });
+}
+
+/** 같은 품명을 지출 결의로 산 직전 한 개 공급가(없으면 null) */
+export async function lastToolPrice(db: Db, name: string) {
+  const [r] = await db.select({ p: tool.priceWon }).from(tool).where(and(eq(tool.name, name), isNotNull(tool.priceWon))).orderBy(desc(tool.createdAt)).limit(1);
+  return r?.p ?? null;
+}
+
+/** 부족한 품명을 지출 결의로 채우는 주소(계정·대장 줄·용도를 미리 채움) */
+export const refillHref = (s: { name: string; short: number }) => `/money/expenses/new?tool=${encodeURIComponent(s.name)}&qty=${s.short}`;
+
 /** 내 할 일: 반출한 채 날을 넘긴 것(본인), 공장장은 남이 안 돌려놓은 것·분기 말 점검·수리 중 */
 export async function toolTodos(db: Db, actor: Actor, today: string) {
   const out: { key: string; when: "late" | "today" | "soon"; what: string; detail?: string; href: string; action: string }[] = [];
@@ -206,12 +260,20 @@ export async function toolTodos(db: Db, actor: Actor, today: string) {
     if (quarterEndMonth(today)) {
       const q = quarterOf(today);
       const done = await checkedInQuarter(db, q);
-      const left = (await db.select({ id: tool.id }).from(tool).where(ne(tool.status, "disposed"))).filter((t) => !done.has(t.id));
+      const left = (await db.select({ id: tool.id }).from(tool).where(and(ne(tool.status, "disposed"), ne(tool.status, "pending")))).filter((t) => !done.has(t.id));
       if (left.length) out.push({ key: `tool-check-${q}`, when: today.slice(8) >= "20" ? "today" : "soon", what: `치공구 분기 점검 ${left.length}개 남음(${q.replace("-Q", "년 ")}분기)`, href: "/tools/check", action: "점검하기" });
     }
     const rep = await db.select({ id: tool.id }).from(tool).where(eq(tool.status, "repair"));
     if (rep.length) out.push({ key: "tool-repair", when: "soon", what: `수리 중인 치공구 ${rep.length}개`, href: "/tools?f=problem", action: "보기" });
   }
+  if (can(actor, "equip.manage")) {
+    // 안전재고 부족: 지출 결의로 바로(품명·수량을 채워 둠). 결의를 올리면 '입고 대기'로 세어 사라진다
+    for (const s of (await toolStock(db)).filter((x) => x.short > 0))
+      out.push({ key: `tool-short-${s.name}`, when: s.ok === 0 ? "today" : "soon", what: `치공구 부족: ${s.name} ${s.short}개`, detail: `사용 가능 ${s.ok} · 입고 대기 ${s.pending} / 최소 ${s.min}`, href: refillHref(s), action: "지출 결의" });
+  }
+  const pend = await db.select({ id: tool.id, no: tool.no, name: tool.name, managerId: tool.managerId }).from(tool).where(eq(tool.status, "pending"));
+  for (const t of pend.filter((x) => x.managerId === actor.id || (!x.managerId && can(actor, "equip.manage") && !actor.roles.includes("owner"))))
+    out.push({ key: `tool-arrive-${t.id}`, when: "today", what: `${t.no} ${t.name} 들어옴 확인`, detail: "지출 결의로 산 치공구입니다. 받으면 확인합니다", href: `/tools/${t.id}`, action: "확인" });
   return out;
 }
 

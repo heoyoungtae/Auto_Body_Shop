@@ -36,7 +36,7 @@ function assetPlans(form: FormData): AssetPlan[] {
   const idx = [...new Set([...form.keys()].map((k) => /^a(\d+)_name$/.exec(k)?.[1]).filter((x): x is string => !!x))].sort((a, b) => Number(a) - Number(b));
   return idx
     .map((i) => ({
-      kind: (g(`a${i}_kind`) === "equipment" ? "equipment" : "fixture") as AssetPlan["kind"],
+      kind: (["equipment", "tool"].includes(g(`a${i}_kind`)) ? g(`a${i}_kind`) : "fixture") as AssetPlan["kind"],
       name: g(`a${i}_name`),
       cat: g(`a${i}_cat`),
       qty: Number(g(`a${i}_qty`).replace(/[^\d]/g, "")) || 0,

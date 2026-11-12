@@ -32,8 +32,7 @@ export async function claimAction(form: FormData) {
         msg = "청구를 기록했습니다. 회계 담당에게 입금 확인을 알렸습니다";
         break;
       case "paid":
-        await recordPayment(db, user, roId, { paidOn: s("paidOn"), paidWon: n("paidWon"), cutReason: s("cutReason") });
-        msg = "입금을 확인했습니다. 이 청구는 끝났습니다";
+        msg = `입금을 확인하고 입금 전표 ${await recordPayment(db, user, roId, { paidOn: s("paidOn"), paidWon: n("paidWon"), cutReason: s("cutReason") })}를 남겼습니다. 이 청구는 끝났습니다`;
         break;
       case "dun":
         await recordDun(db, user, roId, s("dunNote"));

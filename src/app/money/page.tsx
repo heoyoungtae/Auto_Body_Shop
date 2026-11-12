@@ -26,7 +26,7 @@ import {
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
-/** 청구·수납(STD-12 12.1·12.3): 수납 기록 안 한 출고, 고객·보험사 미수, 최근 수납 전표 */
+/** 청구·수납(STD-12 12.1·12.3): 수납 기록 안 한 출고, 고객·보험사 미수, 최근 입금 전표 */
 export default async function MoneyPage({
   searchParams,
 }: {
@@ -191,7 +191,7 @@ export default async function MoneyPage({
       </Card>
 
       <Card
-        title="최근 7일 수납 전표"
+        title="최근 7일 입금 전표"
         help={{ kind: "panel", id: "money.recent" }}
       >
         {pays.length ? (
@@ -202,11 +202,18 @@ export default async function MoneyPage({
                   {p.receivedOn}
                 </span>
                 <Link
-                  href={`/money/ro/${p.repairOrderId}`}
+                  href={
+                    p.payer === "insurer"
+                      ? `/repairs/${p.repairOrderId}/claim`
+                      : `/money/ro/${p.repairOrderId}`
+                  }
                   className="text-[var(--accent)]"
                 >
                   {p.docNo}
                 </Link>
+                {p.payer === "insurer" && (
+                  <Badge tone="accent">보험사 {p.payerName}</Badge>
+                )}
                 <span>
                   {roDocNo} {customerName} {plateNo}
                 </span>
@@ -221,14 +228,18 @@ export default async function MoneyPage({
                   {PAY_IN_METHODS[p.method as keyof typeof PAY_IN_METHODS]}
                 </Badge>
                 <span className="text-xs text-[var(--muted)]">
-                  {RECEIPT_KINDS[p.receiptKind as keyof typeof RECEIPT_KINDS]}
+                  {p.payer === "insurer"
+                    ? p.note
+                    : RECEIPT_KINDS[
+                        p.receiptKind as keyof typeof RECEIPT_KINDS
+                      ]}
                 </span>
                 {p.reversalOf && <Badge tone="danger">취소 전표</Badge>}
               </li>
             ))}
           </ul>
         ) : (
-          <Empty>최근 7일 수납 전표가 없습니다.</Empty>
+          <Empty>최근 7일 입금 전표가 없습니다.</Empty>
         )}
       </Card>
     </>
