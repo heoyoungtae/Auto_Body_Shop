@@ -5,8 +5,8 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
-import { getOrder } from "@/modules/purchase/order";
-import { lateForRepair, PO_KINDS, PO_STATUS, PO_TONE, RECEIPT_CHECKS, SENT_VIA, SUPPLIER_STATUS, type PoKind, type PoStatus, type SupplierStatus } from "@/modules/purchase/rules";
+import { getOrder, pastLines } from "@/modules/purchase/order";
+import { lateForRepair, suggestOrderQty, PO_KINDS, PO_STATUS, PO_TONE, RECEIPT_CHECKS, SENT_VIA, SUPPLIER_STATUS, type PoKind, type PoStatus, type SupplierStatus } from "@/modules/purchase/rules";
 import { orderableStock } from "@/modules/purchase/stock";
 import { supplierBank, supplierOptions } from "@/modules/purchase/supplier";
 import { PART_CODES } from "@/modules/repair/estimate-rules";
@@ -19,6 +19,7 @@ import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { PhotoStrip } from "../../photo-strip";
 import { BankLine } from "../../suppliers/bank-line";
 import { orderAction, removeReceiptPhotoAction, uploadReceiptPhotoAction } from "../actions";
+import { LineRows } from "../line-rows";
 
 const STEPS: PoStatus[] = ["draft", "review", "approved", "sent", "received"];
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -39,7 +40,9 @@ export default async function PurchasePage({ params, searchParams }: { params: P
   const nm = (u: string | null) => (u ? (names.get(u) ?? "-") : "-");
   const approverRole = o.approverRole as Role | null;
   const canApprove = status === "review" && approverRole && (user.roles.includes(approverRole) || user.roles.includes("owner")) && (o.createdBy !== user.id || user.roles.includes("owner"));
-  const [sups, stock] = draft ? await Promise.all([supplierOptions(db, o.kind === "repair" ? "parts" : undefined), o.kind === "stock" ? orderableStock(db) : Promise.resolve([])]) : [[], []];
+  const [sups, stock0, past] = draft ? await Promise.all([supplierOptions(db, o.kind === "repair" ? "parts" : undefined), o.kind === "stock" ? orderableStock(db) : Promise.resolve([]), pastLines(db, o.supplierId, o.kind)]) : [[], [], []];
+  // 이 발주서 업체가 주 거래 업체인 품목과 미달 품목을 앞에
+  const stock = [...stock0].sort((a, b) => Number(b.supplierId === o.supplierId) - Number(a.supplierId === o.supplierId) || Number(b.low) - Number(a.low));
   const bank = sup && can(user, "supplier.bank") && (status === "partial" || status === "received") ? await supplierBank(db, user, sup.id) : undefined;
   const lineName = new Map(lines.map((l) => [l.id, l.name]));
   const anyPaint = lines.some((l) => l.stockItemId && items.get(l.stockItemId)?.expiryTracked);
@@ -274,24 +277,17 @@ export default async function PurchasePage({ params, searchParams }: { params: P
             </div>
             {draft && (
               <details className="mt-3" open={!lines.length}>
-                <summary className="cursor-pointer text-sm text-[var(--accent)]">품목 더하기</summary>
-                <AssistForm id={`po-addline-${id}`} action={orderAction} className="mt-2 grid gap-2 md:grid-cols-3">
+                <summary className="cursor-pointer text-sm text-[var(--accent)]">품목 넣기(여러 줄 한꺼번에)</summary>
+                <AssistForm id={`po-addlines-${id}`} action={orderAction} className="mt-2">
                   <input type="hidden" name="id" value={id} />
-                  <input type="hidden" name="intent" value="line" />
-                  {o.kind === "stock" && (
-                    <div className="md:col-span-3">
-                      <SelectField help="po.stockItem" name="stockItemId" placeholder="재고 품목 고르기(없으면 품명만)" options={stock.map((s) => ({ value: s.id, label: `${s.name}${s.spec ? ` ${s.spec}` : ""} · 지금 ${s.qty}${s.unit}${s.low ? " (미달)" : ""}` }))} />
-                    </div>
-                  )}
-                  <TextField help="po.lineName" name="name" required />
-                  <TextField help="po.partNo" name="partNo" />
-                  <TextField help="po.spec" name="spec" />
-                  {o.kind === "repair" && <SelectField help="po.partCode" name="partCode" required options={Object.entries(PART_CODES).map(([value, label]) => ({ value, label }))} />}
-                  <NumberField help="po.qty" name="qty" required min={1} unit="개" defaultValue={1} />
-                  <NumberField help="po.unitWon" name="unitWon" required min={0} unit="원" />
-                  <div className="md:col-span-3">
-                    <SubmitButton variant="secondary">더하기</SubmitButton>
-                  </div>
+                  <input type="hidden" name="intent" value="lines" />
+                  <LineRows
+                    kind={o.kind === "repair" ? "repair" : "stock"}
+                    stock={stock.map((s) => ({ id: s.id, name: s.name, spec: s.spec, unit: s.unit, unitWon: s.unitWon, qty: s.qty, suggest: suggestOrderQty(s), low: s.low, mine: !!o.supplierId && s.supplierId === o.supplierId }))}
+                    past={past}
+                    partCodes={Object.entries(PART_CODES).map(([value, label]) => ({ value, label }))}
+                    start={lines.length ? 3 : 5}
+                  />
                 </AssistForm>
               </details>
             )}
