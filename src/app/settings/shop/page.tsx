@@ -8,12 +8,17 @@ import { requireUser } from "../../_lib/session";
 import { Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { NeedImageNote, StampImageInput } from "../../stamp-image";
 import { saveSealAction, saveShopAction } from "./actions";
+import { TaxCard } from "./tax-card";
+import { taxOverview } from "@/modules/money/tax-profile";
+import { seoulDate } from "@/modules/platform/time";
 
 export default async function ShopSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
   const owner = can(user, "settings.edit");
-  const shop = await loadShopInfo(await getDb());
+  const db = await getDb();
+  const shop = await loadShopInfo(db);
+  const tax = await taxOverview(db, user, seoulDate());
   const missing = shopMissing(shop);
   return (
     <>
@@ -56,6 +61,7 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
           </dl>
         )}
       </Card>
+      <TaxCard o={tax} owner={owner} />
       <div className="mt-4">
         <Card title="직인" help={{ kind: "panel", id: "shop.seal" }}>
           <div className="grid gap-6 lg:grid-cols-[14rem_1fr]">

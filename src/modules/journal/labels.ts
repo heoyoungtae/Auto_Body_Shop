@@ -354,6 +354,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "user.signature": "내 서명 올림",
   "user.signature.clear": "내 서명 지움",
   "shop.info": "사업장 정보 고침",
+  "tax.profile": "세금·사업 형태 고침",
   "calendar.rules": "영업일 규칙 고침",
   "calendar.day.add": "휴무·특별 영업일 추가",
   "calendar.day.remove": "휴무·특별 영업일 지움",

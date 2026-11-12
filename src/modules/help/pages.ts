@@ -2070,6 +2070,18 @@ export const PAGE_HELP = {
     ],
     refs: ["사내 표준서 STD-12 12.1·12.3", "소득세법 제162조의3(현금영수증)"],
   },
+  "money.tax": {
+    title: "세금·절세",
+    purpose:
+      "사업 형태(개인·법인)에 맞는 신고·납부 일정과 감면을 한눈에 보고, 기한을 놓치지 않게 합니다.",
+    who: "대표·회계 담당",
+    steps: [
+      "설정 › 사업장 정보의 '세금·사업 형태'를 먼저 채웁니다.",
+      "기한 14일 전부터 '내 할 일'에 뜹니다. 세무 대리인에게 자료를 넘기거나 직접 신고합니다.",
+      "감면 추천과 금액은 어림입니다. 세무사와 확인합니다.",
+    ],
+    refs: ["조세특례제한법 제6조·제7조", "국세기본법 제5조(기한 특례)"],
+  },
   "money.ro": {
     title: "수납",
     purpose: "수리 건 한 건의 받을 금액·받은 전표·남은 금액입니다.",
@@ -2378,6 +2390,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/money/payables": "payables",
   "/money/payables/[id]": "payables.supplier",
   "/money/close": "close",
+  "/money/tax": "money.tax",
   "/money/close/[ym]": "close.month",
   "/qms/context": "qms.context",
   "/qms/goals": "qms.goals",
