@@ -1,5 +1,5 @@
 "use client";
-// 사이드 메뉴 맨 위의 '메뉴 찾기' 칸(사용자 확정 2026-11-11).
+// 사이드 메뉴 맨 위의 '메뉴 찾기' 칸(사용자 확정 2026-11-11). 2026-11-12부터 차량번호·전화번호·이름으로 수리 건·고객 바로 가기도 함(_quick-find-action.ts).
 // 글자를 치면 묶음과 상관없이 맞는 메뉴만 평평하게 보이고, 비우면 원래 메뉴(children)로 돌아간다.
 // 어느 화면에서든 / 또는 Ctrl+K(맥은 ⌘K)로 바로 칸에 간다. ↑↓로 고르고 Enter로 열고, Esc로 지운다.
 // 칸을 누르기만 하면 최근에 연 메뉴 5개가 나온다(이 기기에만 기억). 권한 없는 메뉴는 부르는 쪽(allowed)에서 걸러 준다.
@@ -9,6 +9,8 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { HelpButton } from "./_help-drawer";
 import { ALL_ENTRIES, searchMenu, type MenuHit } from "./_menu-search";
 import type { MenuItem } from "./_menu";
+import { quickFindAction } from "./_quick-find-action";
+import type { QuickHit } from "@/modules/customer/quick-find";
 
 const RECENT_KEY = "menu:recent";
 const RECENT_MAX = 5;
@@ -59,6 +61,8 @@ export function MenuSearch({
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
   const [mac, setMac] = useState(false);
+  // 차량번호·전화번호·이름 바로 가기(UI 개선 11). 숫자가 있거나 맞는 메뉴가 없을 때만 서버에 묻는다
+  const [found, setFound] = useState<QuickHit[]>([]);
 
   useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.platform)), []);
 
@@ -97,8 +101,28 @@ export function MenuSearch({
   const listOpen = searching || (focus && hits.length > 0);
 
   useEffect(() => setActive(0), [q]);
+  const menuEmpty = !!q.trim() && !hits.length;
+  useEffect(() => {
+    const s = q.trim();
+    if (s.length < 2 || !(/\d/.test(s) || menuEmpty)) {
+      setFound([]);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      quickFindAction(s)
+        .then((r) => live && setFound(r))
+        .catch(() => live && setFound([]));
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [q, menuEmpty]);
+  // ↑↓·Enter 로 고르는 순서: 바로 가기 먼저, 그다음 메뉴
+  const nav: { href: string }[] = [...(searching ? found : []), ...openable.map((h) => ({ href: h.href! }))];
 
-  const go = (h: MenuHit | undefined) => {
+  const go = (h: { href?: string } | undefined) => {
     if (!h?.href) return;
     setQ("");
     input.current?.blur();
@@ -107,13 +131,13 @@ export function MenuSearch({
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      if (!openable.length) return;
+      if (!nav.length) return;
       e.preventDefault();
       const d = e.key === "ArrowDown" ? 1 : -1;
-      setActive((a) => (a + d + openable.length) % openable.length);
+      setActive((a) => (a + d + nav.length) % nav.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      go(openable[active]);
+      go(nav[active]);
     } else if (e.key === "Escape") {
       e.stopPropagation();
       if (q) setQ("");
@@ -121,7 +145,7 @@ export function MenuSearch({
     }
   };
 
-  const activeHref = openable[active]?.href;
+  const activeHref = nav[active]?.href;
   const optId = (href: string) => `${listId}-${href.replace(/[^a-z0-9]/gi, "_")}`;
 
   return (
@@ -152,7 +176,8 @@ export function MenuSearch({
               }}
               // 목록을 누르는 사이에 닫히지 않게 조금 늦춘다
               onBlur={() => setTimeout(() => setFocus(false), 150)}
-              placeholder={`메뉴 찾기 (/ 또는 ${mac ? "⌘K" : "Ctrl+K"})`}
+              placeholder="메뉴·차량번호 찾기 (/)"
+              title={`메뉴 이름이나 차량번호로 찾기. 단축키: / 또는 ${mac ? "⌘K" : "Ctrl+K"}`}
               className="h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] pl-7 pr-2 text-sm placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
             />
           </div>
@@ -165,10 +190,29 @@ export function MenuSearch({
           {!searching && <p className="px-2 pb-1 text-xs font-semibold text-[var(--muted)]">최근에 연 메뉴</p>}
           {searching && (
             <p className="px-2 pb-1 text-xs text-[var(--muted)]" aria-live="polite">
-              {hits.length ? `${hits.length}개 · Enter로 열기` : hidden ? "내 권한으로 열 수 있는 메뉴가 없습니다. 필요하면 대표에게 권한을 요청하세요." : "맞는 메뉴가 없습니다"}
+              {hits.length || found.length ? `${hits.length + found.length}개 · Enter로 열기` : hidden ? "내 권한으로 열 수 있는 메뉴가 없습니다. 필요하면 대표에게 권한을 요청하세요." : "맞는 메뉴가 없습니다"}
             </p>
           )}
           <ul id={listId} role="listbox" aria-label="찾은 메뉴" className="space-y-0.5">
+            {searching &&
+              found.map((f) => (
+                <li key={f.href} id={optId(f.href)} role="option" aria-selected={f.href === activeHref}>
+                  <Link
+                    href={f.href}
+                    tabIndex={-1}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setQ("");
+                      input.current?.blur();
+                    }}
+                    onMouseEnter={() => setActive(nav.findIndex((n) => n.href === f.href))}
+                    className={`block rounded-md px-3 py-1.5 text-sm hover:bg-[var(--surface-2)] ${f.href === activeHref ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}
+                  >
+                    <span className="font-medium">{f.label}</span>
+                    <span className="block text-[11px] leading-tight text-[var(--muted)]">{f.sub}</span>
+                  </Link>
+                </li>
+              ))}
             {hits.map((h) =>
               h.href ? (
                 <li key={h.href} id={optId(h.href)} role="option" aria-selected={h.href === activeHref}>
@@ -180,7 +224,7 @@ export function MenuSearch({
                       setQ("");
                       input.current?.blur();
                     }}
-                    onMouseEnter={() => setActive(openable.indexOf(h))}
+                    onMouseEnter={() => setActive(nav.findIndex((n) => n.href === h.href))}
                     className={`block rounded-md px-3 py-1.5 text-sm hover:bg-[var(--surface-2)] ${h.href === activeHref ? "bg-[var(--accent-soft)] text-[var(--accent)]" : ""}`}
                   >
                     <Label h={h} />

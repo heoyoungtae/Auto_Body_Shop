@@ -20,7 +20,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
     <>
       <PageTitle
         help="staff"
-        sub="근로자 명부와 역량 표입니다. 사내 표준서 STD-11."
+        std="STD-11" sub="근로자 명부와 역량 표입니다."
         actions={
           <span className="flex items-center gap-4">
             {full && (

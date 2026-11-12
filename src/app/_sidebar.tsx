@@ -65,6 +65,7 @@ const save = (k: string, v: unknown) => {
 const HREFS = [...TOP, ...MENU.flatMap((g) => g.items)]
   .map((i) => i.href)
   .filter((h): h is string => !!h);
+const HAS_FUTURE = MENU.some((g) => g.items.some((i) => !i.href));
 const activeHref = (path: string, search: string) => pickActive(HREFS, path, search);
 const groupOf = (h: string | undefined) =>
   h ? MENU.find((g) => g.items.some((i) => i.href === h))?.id : undefined;
@@ -197,6 +198,8 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
           );
         })}
         </MenuSearch>
+        {/* 개발 예정 메뉴가 하나라도 있을 때만 보인다(지금은 모든 메뉴가 열려 있어 숨김) */}
+        {HAS_FUTURE && (
         <label className="mx-4 mt-4 flex min-h-10 cursor-pointer items-center gap-2 text-xs text-[var(--muted)]">
           <input
             type="checkbox"
@@ -210,7 +213,50 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
           />
           개발 예정 메뉴도 보기
         </label>
+        )}
       </nav>
     </>
+  );
+}
+
+/** 휴대폰·태블릿 아래 탭 막대(UI 개선 9, 2026-11-12). 한 손·장갑 낀 손으로 자주 가는 화면만 */
+export function TabBar({ roles, unread }: { roles: Role[]; unread: number }) {
+  const path = usePathname();
+  const { open, setOpen } = useContext(NavCtx);
+  const third =
+    can({ roles }, "work.do") || can({ roles }, "work.assign")
+      ? { href: "/work", label: "작업", d: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5z" }
+      : { href: "/schedule", label: "일정", d: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2" };
+  const tabs = [
+    { href: "/home", label: "대시보드", d: "M3 10.5 12 3l9 7.5V21H3zM9 21v-6h6v6" },
+    { href: "/todo", label: "내 할 일", d: "M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" },
+    third,
+    { href: "/notifications", label: "알림", d: "M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" },
+  ];
+  const icon = (d: string) => (
+    <svg aria-hidden viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+  const cls = "relative flex min-h-[3.75rem] flex-1 flex-col items-center justify-center gap-0.5 text-[11px]";
+  return (
+    <nav id="tab-bar" aria-label="자주 가는 화면" className="no-print fixed inset-x-0 bottom-0 z-20 flex border-t border-[var(--line)] bg-[var(--surface)] pb-[env(safe-area-inset-bottom)] lg:hidden">
+      {tabs.map((t) => {
+        const on = path === t.href || path.startsWith(`${t.href}/`);
+        return (
+          <Link key={t.href} href={t.href} aria-current={on ? "page" : undefined} className={`${cls} ${on ? "font-semibold text-[var(--accent)]" : "text-[var(--muted)]"}`}>
+            {icon(t.d)}
+            {t.label}
+            {t.href === "/notifications" && unread > 0 && (
+              <span className="absolute top-1.5 left-1/2 ml-1.5 min-w-5 rounded-full bg-[var(--danger)] px-1 text-center text-xs leading-5 text-white">{unread > 99 ? "99+" : unread}</span>
+            )}
+          </Link>
+        );
+      })}
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="side-menu" className={`${cls} text-[var(--muted)]`}>
+        {icon("M4 6h16M4 12h16M4 18h16")}
+        메뉴
+      </button>
+    </nav>
   );
 }

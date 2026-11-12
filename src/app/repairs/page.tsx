@@ -31,8 +31,8 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageTitle
-        help="repairs"
-        sub="입고 접수와 입고 점검표(F-02-01). 사내 표준서 STD-02."
+        help="repairs" std="F-02-01 · STD-02"
+        sub="예약된 차를 입고 받고, 입고 점검표를 채워 수리 건을 엽니다."
         actions={
           canWrite && (
             <Link href="/consults/new" className={buttonClass("secondary")} title="예약 없이 온 차는 상담을 먼저 씁니다. 전화번호·차량번호로 찾으면 고객·차량을 다시 치지 않습니다">

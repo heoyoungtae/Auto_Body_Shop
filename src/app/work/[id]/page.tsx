@@ -71,10 +71,9 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
   return (
     <div>
       <PageTitle
-        help="work.order"
+        help="work.order" std="F-04-01 작업 지시서"
         sub={
           <>
-            F-04-01 작업 지시서 ·{" "}
             <Link href={`/repairs/${w.ro.id}/estimate/${w.estimate.id}`} className="text-[var(--accent)]">
               승인 견적 {w.estimate.docNo}
             </Link>

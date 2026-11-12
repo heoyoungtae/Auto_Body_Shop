@@ -559,14 +559,10 @@ export default async function HomePage({
           최종 검사 대기{" "}
           <b>{qcWait!.filter((r) => r.status === "inspecting").length}</b>대 ·
           기한 지난 시정 조치{" "}
-          <b className="text-[var(--danger)]">
-            {
-              ncs.filter(
-                ({ n }) =>
-                  n.status === "planned" && n.dueOn && n.dueOn < day.today,
-              ).length
-            }
-          </b>
+          {(() => {
+            const late = ncs.filter(({ n }) => n.status === "planned" && n.dueOn && n.dueOn < day.today).length;
+            return <b className={late ? "text-[var(--danger)]" : ""}>{late}</b>;
+          })()}
           건
         </p>
         {ncs.length === 0 ? (
@@ -711,6 +707,22 @@ export default async function HomePage({
     ),
   };
   const planned = ids.filter((id) => PANELS[id].stage);
+  // 챙길 것이 없는 패널은 큰 칸 대신 아래 '이상 없음' 한 줄로 모은다(UI 개선 1, 2026-11-12).
+  // 경영 현황·매출·이번 달처럼 숫자를 보는 요약 패널은 늘 보인다.
+  const quiet: Partial<Record<PanelId, { href: string; note: string }>> = {};
+  if (wb && !wb.board.length && !wb.needOrder.length) quiet.work = { href: "/work", note: "진행 중인 작업 없음" };
+  if (myw && !myw.length) quiet.mywork = { href: "/todo", note: "시작할 공정 없음" };
+  if (sp && !sp.incidents.length && !sp.waste.length && !sp.legal.length) quiet.safety = { href: "/incidents", note: "챙길 일 없음" };
+  if (intake && !intake.todayRows.length && !intake.nextRows.length) quiet.intake = { href: "/repairs", note: "오늘·다음 영업일 예약 없음" };
+  if (due && !due.length) quiet.due = { href: "/consults", note: "모두 처리함" };
+  if (consents && !consents.length) quiet.consent = { href: "/consults", note: "기다리는 고객 없음" };
+  if (!todo.length) quiet.todo = { href: "/approvals", note: "처리할 결재 없음" };
+  if (ncs && !ncs.length && !qcWait!.some((r) => r.status === "inspecting")) quiet.quality = { href: "/nc", note: "열린 부적합·검사 대기 없음" };
+  if (eqBoard && !eqBoard.unchecked.length && !eqBoard.stopped.length && !eqBoard.lubeDue.length && !eqBoard.pmDue.length) quiet.equipment = { href: "/equipment", note: "오늘 점검 끝" };
+  if (!notes.length) quiet.notes = { href: "/notifications", note: "새 알림 없음" };
+  if (!mine.length) quiet.mine = { href: "/approvals", note: "올린 문서 없음" };
+  const shown = ids.filter((id) => !PANELS[id].stage && !quiet[id]);
+  const calm = ids.filter((id) => !PANELS[id].stage && quiet[id]);
 
   return (
     <>
@@ -771,8 +783,22 @@ export default async function HomePage({
         </div>
       )}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {ids.filter((id) => !PANELS[id].stage).map((id) => live[id])}
+        {shown.map((id) => live[id])}
       </div>
+      {calm.length > 0 && (
+        <section aria-label="이상 없음" className="mt-4 rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3">
+          <h2 className="mb-2 text-sm font-semibold text-[var(--ok)]">✓ 이상 없음 · {calm.length}개</h2>
+          <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+            {calm.map((id) => (
+              <li key={id}>
+                <Link href={quiet[id]!.href} className="hover:underline">
+                  <b className="font-medium">{PANELS[id].title}</b> <span className="text-[var(--muted)]">{quiet[id]!.note}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {planned.length > 0 && (
         <>
           <h2 className="mt-6 mb-2 text-sm font-semibold text-[var(--muted)]">

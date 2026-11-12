@@ -18,7 +18,7 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
   const [rows, todos] = await Promise.all([listClaims(db, f), claimTodos(db)]);
   return (
     <>
-      <PageTitle help="claims" sub="보험 수리 건의 접수 확인 → 손해사정 요청 → 승인 범위 → 청구 → 입금 확인. 사내 표준서 STD-03 6절.">
+      <PageTitle help="claims" std="STD-03 6절" sub="보험 수리 건의 접수 확인 → 손해사정 요청 → 승인 범위 → 청구 → 입금 확인.">
         보험 청구
       </PageTitle>
       <div className="mt-4">

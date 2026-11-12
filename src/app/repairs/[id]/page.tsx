@@ -49,6 +49,8 @@ import { createWorkOrderAction } from "../../work/actions";
 import { PhotoSlots } from "../photo-slots";
 import { SignaturePad } from "../signature-pad";
 import { claimOf } from "@/modules/repair/claims";
+import { roSteps } from "@/modules/repair/steps";
+import { RoSteps } from "../ro-steps";
 import { CLAIM_STATUS_LABEL } from "@/modules/repair/claim-rules";
 import { complaintsFor } from "@/modules/cs/service";
 import { ordersOfRo } from "@/modules/purchase/order";
@@ -156,13 +158,29 @@ export default async function RepairDetail({
     </Card>
   );
 
+  // 진행 막대의 '다음' 단추: 다른 화면에서 할 일만(같은 화면에서 할 일은 아래 패널에 있다)
+  const lastEstimate = estimates[0]; // 최근 차수가 먼저 옴
+  const openWo = wos.find((w) => w.status !== "done") ?? wos[0];
+  const nextStep =
+    r.status === "estimating" && lastEstimate
+      ? { label: "견적", href: `/repairs/${r.id}/estimate/${lastEstimate.id}` }
+      : r.status === "working" && openWo
+        ? { label: "작업 지시서", href: `/work/${openWo.id}` }
+        : r.status === "inspecting"
+          ? { label: "최종 검사", href: `/repairs/${r.id}/inspect` }
+          : r.status === "ready"
+            ? { label: "출고", href: `/repairs/${r.id}/delivery` }
+            : r.status === "delivered" && r.insurance !== "self" && claim?.status !== "paid"
+              ? { label: "보험 청구", href: `/repairs/${r.id}/claim` }
+              : undefined;
+
   return (
     <div>
       <PageTitle
-        help="repairs.detail"
+        help="repairs.detail" std="F-02-01 입고 점검표"
         sub={
           <>
-            F-02-01 입고 점검표 · 입고 {fmtTime(r.inAt)} · 담당{" "}
+            입고 {fmtTime(r.inAt)} · 담당{" "}
             {r.advisor ?? "—"} ·{" "}
             <Link href={`/consults/${c.id}`} className="text-[var(--accent)]">
               {c.docNo}
@@ -186,6 +204,7 @@ export default async function RepairDetail({
       >
         수리 건 {r.docNo}
       </PageTitle>
+      <RoSteps steps={roSteps(r.status, r.insurance !== "self", claim?.status === "paid")} next={nextStep} />
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
 

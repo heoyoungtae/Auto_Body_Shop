@@ -33,7 +33,7 @@ export function Button({ variant = "primary", className = "", ...props }: Compon
 }
 
 /** 화면 제목. help 키가 필수라서 도움말 없는 화면은 만들 수 없다. 제목 옆 ? 를 누르면 오른쪽 도움말 창이 열린다 */
-export function PageTitle({ children, sub, actions, help }: { children: ReactNode; sub?: ReactNode; actions?: ReactNode; help: PageHelpKey }) {
+export function PageTitle({ children, sub, actions, help, std }: { children: ReactNode; sub?: ReactNode; actions?: ReactNode; help: PageHelpKey; /** 양식·표준서 번호. 설명 문장 뒤에 작게 붙인다(UI 개선 5) */ std?: string }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2" data-page-help={help}>
       <div className="min-w-0 flex-1">
@@ -41,7 +41,12 @@ export function PageTitle({ children, sub, actions, help }: { children: ReactNod
           <span className="min-w-0">{children}</span>
           <HelpButton topic={{ kind: "page", id: help }} name={PAGE_HELP[help].title} />
         </h1>
-        {sub && <p className="mt-1 text-sm text-[var(--muted)]">{sub}</p>}
+        {(sub || std) && (
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            {sub}
+            {std && <span className="ml-2 inline-block rounded border border-[var(--line)] px-1.5 align-middle text-xs whitespace-nowrap">{std}</span>}
+          </p>
+        )}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

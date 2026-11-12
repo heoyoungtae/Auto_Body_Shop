@@ -31,7 +31,7 @@ export default async function ConsultsPage({ searchParams }: { searchParams: Pro
     <>
       <PageTitle
         help="consults"
-        sub="상담 일지(F-01-01)와 입고 예약. 사내 표준서 STD-01."
+        std="F-01-01 · STD-01" sub="상담 일지를 쓰고 입고 예약을 잡습니다."
         actions={
           canWrite && (
             <Link href="/consults/new" className={buttonClass()}>

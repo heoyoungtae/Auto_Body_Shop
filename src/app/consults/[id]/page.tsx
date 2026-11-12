@@ -38,10 +38,10 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
   return (
     <div>
       <PageTitle
-        help="consults.detail"
+        help="consults.detail" std="F-01-01"
         sub={
           <>
-            F-01-01 · {fmtTime(c.at)} · {CHANNEL_LABEL[c.channel]} · 상담원 {c.advisor ?? "—"}
+            {fmtTime(c.at)} · {CHANNEL_LABEL[c.channel]} · 상담원 {c.advisor ?? "—"}
             {c.from && (
               <>
                 {" "}· <Link href={`/consults/${c.from.id}`} className="text-[var(--accent)]">{c.from.docNo}</Link>에서 불러옴

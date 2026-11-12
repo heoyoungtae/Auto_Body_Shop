@@ -176,10 +176,10 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   return (
     <div>
       <PageTitle
-        help="repairs.estimate"
+        help="repairs.estimate" std="F-03-02 · 별지 제89호의3"
         sub={
           <>
-            F-03-02 · 법정 서식 별지 제89호의3 · {e.rev}차 견적 · 작성 {e.writer ?? "—"} ·{" "}
+            {e.rev}차 견적 · 작성 {e.writer ?? "—"} ·{" "}
             <Link href={`/repairs/${roId}`} className="text-[var(--accent)]">
               수리 건 {e.ro.docNo}
             </Link>

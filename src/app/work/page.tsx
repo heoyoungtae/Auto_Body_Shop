@@ -11,7 +11,7 @@ export default async function WorkBoardPage() {
   const { board, needOrder } = await workBoard(await getDb());
   return (
     <>
-      <PageTitle help="work" sub="작업 지시서(F-04-01)와 공정 진행. 사내 표준서 STD-04.">
+      <PageTitle help="work" std="F-04-01 · STD-04" sub="작업 지시서를 만들고 공정 진행을 봅니다.">
         작업·공정
       </PageTitle>
       <div className="mt-4 space-y-4">

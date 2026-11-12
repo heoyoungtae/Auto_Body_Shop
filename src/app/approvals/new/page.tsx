@@ -179,8 +179,8 @@ export default async function NewRevisionRequest({
   return (
     <div>
       <PageTitle
-        help="approvals.new"
-        sub="F-Q-05 · 사내 표준서 Q.5 문서 관리. 결재: 요청 → 품질 담당 검토 → 대표 승인(부록 B)"
+        help="approvals.new" std="F-Q-05 · 표준서 Q.5"
+        sub="표준서·양식을 바꾸자고 요청합니다. 결재: 요청 → 품질 담당 검토 → 대표 승인(부록 B)"
       >
         문서 개정 요청서
       </PageTitle>

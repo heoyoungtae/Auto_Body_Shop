@@ -35,10 +35,9 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
   return (
     <div>
       <PageTitle
-        help="repairs.delivery"
+        help="repairs.delivery" std="F-05-02 출고"
         sub={
           <>
-            F-05-02 출고 ·{" "}
             <Link href={`/repairs/${id}`} className="text-[var(--accent)]">
               수리 건 {r.docNo}
             </Link>{" "}

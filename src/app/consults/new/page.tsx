@@ -55,7 +55,7 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
 
   return (
     <div>
-      <PageTitle help="consults.new" sub="F-01-01 · 사내 표준서 STD-01. 먼저 전화번호·차량번호로 찾고, 있으면 그 고객으로 시작합니다.">
+      <PageTitle help="consults.new" std="F-01-01 · STD-01" sub="먼저 전화번호·차량번호로 찾고, 있으면 그 고객으로 시작합니다.">
         새 상담
       </PageTitle>
       <div className="grid gap-4 xl:grid-cols-3 xl:items-start">
