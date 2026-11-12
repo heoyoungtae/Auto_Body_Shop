@@ -251,6 +251,10 @@ html:has(#tab-bar) main {
   .grid:has(> .fld):not(:has(> :not(.fld))) > .fld {
     border-width: 0 1px 1px 0;
   }
+  /* 고르기 단추 묶음(라디오·체크)과 여러 줄 칸은 한 줄을 통째로 써서 보기가 한 줄로 펼쳐지게 한다(대표 지적 2026-11-12) */
+  .grid:has(> .fld) > .fld:has([role="radiogroup"], [role="group"], textarea) {
+    grid-column: 1 / -1;
+  }
   /* 위아래로 이어지는 칸·칸 묶음은 사이 여백 없이 선을 겹친다 */
   :is(.fld, .grid:has(> .fld):not(:has(> :not(.fld)))) + :is(.fld, .grid:has(> .fld):not(:has(> :not(.fld)))) {
     margin-top: -1px !important;
