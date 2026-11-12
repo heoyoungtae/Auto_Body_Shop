@@ -201,69 +201,89 @@ html:has(#tab-bar) main {
   }
 }
 
-/* ── 입력 양식 짜임새(대표 지시 2026-11-12 "입력화면의 짜임새가 없다").
-   넓은 화면(640px 이상)에서 칸은 '이름 | 입력' 두 칸짜리 표 줄이 되고, 이어지는 칸들은 선을 공유해 한 장의 양식 표처럼 보인다.
-   칸을 나란히 두는 묶음(grid)은 칸 사이 틈을 없애고 같은 선으로 잇는다. 휴대폰에서는 이름이 위, 입력이 아래. */
+/* ── 입력 양식 짜임새(대표 지시 2026-11-12).
+   칸 하나 = 회색 이름 칸 + 입력 칸을 한 덩어리 상자로 묶는다.
+   다른 칸과 열을 억지로 맞추지 않는다(대표 지적 2026-11-12 "다른 레이블과 꼭 정렬할 필요가 없다").
+   폭이 정해진 칸(data-fit: 번호·금액·날짜·고르기·보기 단추 묶음)은 필요한 폭만 쓰고 한 줄에 이어 붙으며, 자리가 모자라면 다음 줄로 간다.
+   폭이 정해지지 않은 칸(긴 글·여러 줄)은 한 줄을 다 쓴다. 휴대폰에서는 이름이 위, 입력이 아래. */
 .fld-label {
   margin-bottom: 0.375rem;
 }
 @media (min-width: 640px) {
   .fld {
     display: grid;
-    grid-template-columns: 9rem minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
     border: 1px solid var(--line);
+    border-radius: 0.5rem;
     background: var(--surface);
+    overflow: hidden;
   }
   .fld-label {
     margin: 0;
     align-content: center;
+    max-width: 11rem;
     padding: 0.5rem 0.75rem;
     background: var(--surface-2);
     border-right: 1px solid var(--line);
     color: var(--fg);
   }
-  /* ? 단추는 이름 칸 오른쪽 끝에 세로로 줄 맞춰 둔다 */
-  .fld-label > :last-child:not(label, span) {
-    margin-left: auto;
-  }
   .fld-body {
     padding: 0.4375rem 0.625rem;
     align-self: center;
   }
-  /* 칸을 나란히 둔 묶음: 틈 없이 붙이고 선을 겹친다. 열 수는 화면에서 정한 값 대신 칸 하나가 최소 21rem 이 되도록
-     자리 폭에 맞춰 저절로 정한다(좁은 자리에 3열을 넣어 칸이 찌그러지지 않게) */
-  .grid:has(> .fld):not(:has(> :not(.fld))) {
-    gap: 0 !important;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr)) !important;
+  /* 칸이 든 묶음(grid·ShowWhen)은 열 맞춤 대신 줄 흐름으로 */
+  :has(> .fld),
+  .fld-flow {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.625rem 0.75rem !important;
   }
-  /* 묶음 바깥 테두리 하나 + 칸마다 오른쪽·아래 선. 맨 오른쪽·맨 아래 선은 바깥 테두리 밑으로 숨겨 겹선이 생기지 않게 한다.
-     줄 끝에 남는 빈 자리는 회색 바탕으로 '빈 칸'처럼 보인다 */
-  .grid:has(> .fld):not(:has(> :not(.fld))) {
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    overflow: hidden;
-    padding: 0 !important;
+  :has(> .fld) > *,
+  .fld-flow > * {
+    flex: 1 1 100%;
+    min-width: 0;
   }
-  .grid:has(> .fld):not(:has(> :not(.fld))) > * {
-    margin: 0 -1px -1px 0;
-    background: var(--surface);
+  :has(> .fld) > .fld[data-fit],
+  .fld-flow > .fld[data-fit],
+  .fld-flow > .fld-case > .fld[data-fit] {
+    flex: 0 1 auto;
   }
-  .grid:has(> .fld):not(:has(> :not(.fld))) > .fld {
-    border-width: 0 1px 1px 0;
+  .fld-flow > *,
+  :has(> .fld) > * {
+    margin: 0 !important;
   }
-  /* 고르기 단추 묶음(라디오·체크)과 여러 줄 칸은 한 줄을 통째로 써서 보기가 한 줄로 펼쳐지게 한다(대표 지적 2026-11-12) */
-  .grid:has(> .fld) > .fld:has([role="radiogroup"], [role="group"], textarea) {
-    grid-column: 1 / -1;
+  /* 고른 값에 따라 붙는 칸(ShowWhen)은 같은 줄 흐름에 들어간다 */
+  .fld-flow > .fld-case {
+    display: contents !important;
   }
-  /* 위아래로 이어지는 칸·칸 묶음은 사이 여백 없이 선을 겹친다 */
-  :is(.fld, .grid:has(> .fld):not(:has(> :not(.fld)))) + :is(.fld, .grid:has(> .fld):not(:has(> :not(.fld)))) {
-    margin-top: -1px !important;
+  .fld-flow > .fld-case > * {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin: 0 !important;
   }
-  :is(.fld, .grid:has(> .fld):not(:has(> :not(.fld)))):has(+ :is(.fld, .grid:has(> .fld):not(:has(> :not(.fld))))) {
-    margin-bottom: 0 !important;
+  /* 칸만 든 묶음 안의 감싼 상자(ShowWhen 등)도 같은 흐름 */
+  :has(> .fld) > :not(.fld):has(> .fld) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem 0.75rem;
   }
-  /* 칸과 다른 것(단추·안내)이 섞인 묶음은 원래 틈을 두고, 칸마다 상자로 보인다 */
-  /* 칸이 든 묶음 상자(fieldset): 제목 띠 + 양식 표 */
+  :has(> .fld) > :not(.fld):has(> .fld) > * {
+    flex: 1 1 100%;
+  }
+  :has(> .fld) > :not(.fld):has(> .fld) > .fld[data-fit] {
+    flex: 0 1 auto;
+  }
+  /* 칸만 든 감싼 상자(열 맞춤용 col-span 등)는 상자를 없애고 칸을 바깥 흐름에 그대로 넣는다 */
+  :has(> .fld) > div:not(.fld):has(> .fld):not(:has(> :not(.fld, div, p, input[type="hidden"], datalist))),
+  .fld-flow > div:not(.fld, .fld-case):has(> .fld):not(:has(> :not(.fld, div, p, input[type="hidden"], datalist))) {
+    display: contents !important;
+  }
+  /* 맞춤 폭 칸만 든 상자는 자기 폭만 차지해 옆 칸과 한 줄에 선다 */
+  :has(> .fld) > div:not(.fld):has(> .fld[data-fit]):not(:has(> :not(.fld[data-fit]))) {
+    flex: 0 1 auto;
+  }
+  /* 칸이 든 묶음 상자(fieldset): 제목 띠 */
   form fieldset:has(.fld) {
     border: 1px solid var(--line) !important;
     border-radius: 0.625rem !important;

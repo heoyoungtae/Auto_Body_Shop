@@ -199,7 +199,7 @@ export const daysBetween = (a: string, b: string) =>
 // ── 외상매입금·미지급금 ──
 /** 결제 조건 */
 /** 결제 조건. prepay 선입금: 발주 승인 때 먼저 내고(선급금), 입고 검수 때 매입으로 정리한다(대표 결정 2026-11-12) */
-export const PAY_TERMS = { prepay: "선입금(입금 확인 후 발송)", now: "입고 때 바로(현장 결제·착불)", month_end: "당월 말", next_end: "익월 말", next_day: "익월 ○일" } as const;
+export const PAY_TERMS = { prepay: "선입금(입금 후 발송)", now: "입고 때(현장·착불)", month_end: "당월 말", next_end: "익월 말", next_day: "익월 ○일" } as const;
 export type PayTerm = keyof typeof PAY_TERMS;
 export const isPayTerm = (s: string): s is PayTerm => s in PAY_TERMS;
 export const payTermLabel = (t: string, day: number | null) => (t === "next_day" ? `익월 ${day ?? "?"}일` : (PAY_TERMS[t as PayTerm] ?? t));

@@ -128,7 +128,7 @@ export function fieldTraits(key: string, h: FieldHelp, type?: string): Traits {
   if (NUM_LIST.has(key)) return { maxWidth: byExample(14), attrs: { inputMode: "decimal", autoComplete: "off" }, shape: "numList" };
   if (CODE_UPPER.has(key)) return { maxWidth: byExample(), attrs: { autoCapitalize: "characters", ...off }, shape: "upper" };
   if (CODE_KEEP.has(key)) return { maxWidth: key === "cal.apiKey" ? "28em" : byExample(10), attrs: { autoCapitalize: "none", ...off } };
-  if (PERSON.has(key)) return { maxWidth: em(Math.max(10, Math.min(16, (h.maxLength ?? 20) * 0.6))), attrs: { ...off } };
+  if (PERSON.has(key)) return { maxWidth: em(Math.max(9, Math.min(12, (h.maxLength ?? 20) * 0.5))), attrs: { ...off } };
   if (/(Time|time)$/.test(last)) return { maxWidth: "9em", attrs: {} };
 
   // 그 밖의 글자 칸: 글자 수 상한이 있으면 그에 맞추고, 없으면 예시 길이로. 긴 칸은 폭을 다 쓴다.
@@ -138,7 +138,7 @@ export function fieldTraits(key: string, h: FieldHelp, type?: string): Traits {
     if (max <= 10) return { maxWidth: "9em", attrs: text };
     if (max <= 20) return { maxWidth: "13em", attrs: text };
     if (max <= 30) return { maxWidth: "17em", attrs: text };
-    if (max <= 40) return { maxWidth: "22em", attrs: text };
+    if (max <= 40) return { maxWidth: "18em", attrs: text };
     if (max <= 60) return { maxWidth: "30em", attrs: text };
     if (max <= 80) return { maxWidth: "36em", attrs: text };
     return { attrs: text };
@@ -146,7 +146,7 @@ export function fieldTraits(key: string, h: FieldHelp, type?: string): Traits {
   const ex = textEm(example);
   if (!example) return { maxWidth: "36em", attrs: text };
   if (ex <= 8) return { maxWidth: "14em", attrs: text };
-  if (ex <= 16) return { maxWidth: "24em", attrs: text };
+  if (ex <= 16) return { maxWidth: "18em", attrs: text };
   if (ex <= 28) return { maxWidth: "36em", attrs: text };
   return { attrs: text };
 }
