@@ -71,6 +71,21 @@ export function decrypt(enc: string): string {
   return Buffer.concat([d.update(Buffer.from(body, "base64url")), d.final()]).toString("utf8");
 }
 
+/** 파일 내용 암호화(민감정보 키). 앞 12바이트 iv + 16바이트 태그 + 본문 */
+export function encryptBytes(plain: Uint8Array): Uint8Array {
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", sensitiveKey(), iv);
+  const body = Buffer.concat([c.update(plain), c.final()]);
+  return new Uint8Array(Buffer.concat([iv, c.getAuthTag(), body]));
+}
+
+export function decryptBytes(enc: Uint8Array): Uint8Array {
+  const b = Buffer.from(enc);
+  const d = createDecipheriv("aes-256-gcm", sensitiveKey(), b.subarray(0, 12));
+  d.setAuthTag(b.subarray(12, 28));
+  return new Uint8Array(Buffer.concat([d.update(b.subarray(28)), d.final()]));
+}
+
 /** 목록 화면에서 보여 줄 마스킹: 010-****-5678 */
 export function maskPhone(phone: string): string {
   const d = normalizePhone(phone);

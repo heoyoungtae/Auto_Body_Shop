@@ -447,6 +447,14 @@ export const DEFAULT_POLICY = {
     clause: "설계 9.1",
     min: 1,
   },
+  "auth.temp_password_days": {
+    value: 7,
+    unit: "일",
+    label: "임시 비밀번호 유효 기간",
+    clause: "설계 9.1",
+    min: 1,
+    max: 30,
+  },
 } satisfies Record<string, Def>;
 
 export type PolicyKey = keyof typeof DEFAULT_POLICY;

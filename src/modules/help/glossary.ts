@@ -185,6 +185,7 @@ export const POLICY_HELP: Record<PolicyKey, string> = {
     "기술자에게 작업을 혼자 맡기려면 역량표에서 이 단계 이상이어야 합니다(1~4단계).",
   "auth.lock_attempts": "비밀번호를 연속으로 이만큼 틀리면 계정을 잠급니다.",
   "auth.lock_minutes": "계정이 잠긴 뒤 자동으로 풀리기까지의 시간.",
+  "auth.temp_password_days": "직원 등록·비밀번호 초기화 때 앱이 만든 임시 비밀번호를 쓸 수 있는 날수. 지나면 대표가 다시 발급해야 합니다.",
 };
 
 export const DELEGATION_HELP: Record<DelegationTask, string> = {

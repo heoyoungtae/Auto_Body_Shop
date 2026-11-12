@@ -8,7 +8,7 @@ import { currentUser } from "../../_lib/session";
 
 export async function GET(req: Request) {
   const user = await currentUser();
-  if (!user) return new Response("로그인이 필요합니다", { status: 401 });
+  if (!user || user.mustChangePassword) return new Response("로그인이 필요합니다", { status: 401 });
   if (!can(user, "report.view"))
     return new Response("통계·보고서는 대표·공장장·품질·회계 담당이 봅니다", {
       status: 403,

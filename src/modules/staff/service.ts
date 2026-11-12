@@ -6,7 +6,8 @@ import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, competency, staffProfile, userRole, type License } from "@/db/schema";
 import { decrypt, encrypt } from "@/modules/auth/crypto";
-import { createUser } from "@/modules/auth/service";
+import { createUser, resetPassword, tempPasswordOf } from "@/modules/auth/service";
+import { sendSmsBatch } from "@/modules/messaging/service";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
@@ -192,13 +193,14 @@ export async function saveProfile(db: Db, actor: Actor, userId: string, input: P
  * 직원 등록: 계정과 근로자 명부를 한 번에 만든다.
  * 역할은 대표(계정 관리 권한)만 준다. 회계 담당이 등록하면 계정은 잠긴 채 생기고 대표에게 역할 지정을 알린다.
  */
-export async function registerStaff(db: Db, actor: Actor, input: { name: string; loginId: string; password: string; roles: string[]; profile: ProfileView }, now = new Date()) {
+export async function registerStaff(db: Db, actor: Actor, input: { name: string; loginId: string; roles: string[]; profile: ProfileView }, now = new Date()) {
   if (!canSeeRoster(actor)) throw new StaffError("직원 등록은 대표·회계 담당이 합니다");
   const manage = can(actor, "account.manage");
   const roles = manage ? input.roles : [];
   if (manage && !roles.length) throw new StaffError("역할을 하나 이상 고르세요");
   const id = await db.transaction(async (tx) => {
-    const uid = await createUser(tx as unknown as Db, actor.id, { loginId: input.loginId, name: input.name, password: input.password, roles, pendingRoles: !manage });
+    // 비밀번호는 앱이 임시로 만든다(대표 지시 2026-11-12). 첫 로그인 때 본인이 새로 정한다
+    const uid = await createUser(tx as unknown as Db, actor.id, { loginId: input.loginId, name: input.name, roles, pendingRoles: !manage }, now);
     await saveProfile(tx as unknown as Db, actor, uid, input.profile, now);
     return uid;
   });
@@ -217,4 +219,32 @@ export async function checkAssignment(db: Db, process: string, assignee: string,
 export async function inspectorIssue(db: Db, userId: string) {
   const lv = (await levelsOf(db, userId)).inspect ?? 0;
   return lv >= INSPECTOR_LEVEL ? null : `역량 표에서 '검사'가 ${lv ? `${lv}단계` : "없음"}입니다. 최종 검사는 숙련(${INSPECTOR_LEVEL}단계) 이상만 합니다(STD-11 6절). 공장장에게 역량 평가를 요청하세요`;
+}
+
+/** 임시 비밀번호 보기(대표·회계). 직원이 새 비밀번호를 정했거나 없으면 null */
+export async function staffTempPassword(db: Db, actor: Actor, userId: string) {
+  if (!canSeeRoster(actor) && !can(actor, "account.manage")) return null;
+  return tempPasswordOf(db, userId);
+}
+
+/** 임시 비밀번호 다시 발급(대표). 로그인된 기기는 모두 끊긴다 */
+export async function reissueTempPassword(db: Db, actor: Actor, userId: string) {
+  if (!can(actor, "account.manage")) throw new StaffError("임시 비밀번호 발급은 대표가 합니다");
+  return resetPassword(db, actor.id, userId);
+}
+
+/** 임시 비밀번호를 명부의 휴대폰으로 문자 보내기(번호를 다시 적지 않는다) */
+export async function smsTempPassword(db: Db, actor: Actor, userId: string, appUrl: string) {
+  if (!canSeeRoster(actor) && !can(actor, "account.manage")) throw new StaffError("대표·회계 담당이 보냅니다");
+  const t = await tempPasswordOf(db, userId);
+  if (!t) throw new StaffError("보낼 임시 비밀번호가 없습니다(이미 새 비밀번호를 정함). 필요하면 대표가 다시 발급합니다");
+  const [u] = await db.select({ name: appUser.name, loginId: appUser.loginId }).from(appUser).where(eq(appUser.id, userId));
+  const p = await getProfile(db, actor, userId);
+  if (!p?.phone) throw new StaffError("근로자 명부에 휴대폰 번호가 없습니다. 명부에 먼저 적어 주세요");
+  const until = t.until ? seoulDate(t.until) : "";
+  const text = `[정비소 앱] ${u.name}님 계정입니다.\n주소: ${appUrl}\n아이디: ${u.loginId}\n임시 비밀번호: ${t.password}\n${until ? `${until}까지 ` : ""}처음 로그인할 때 새 비밀번호를 정해 주세요.`;
+  const r = await sendSmsBatch(db, actor.id, "임시 비밀번호", [{ to: p.phone, text, customerName: u.name }], fetch, t.password);
+  if (!r.ok) throw new StaffError(`문자를 보내지 못했습니다: ${r.errors.join(", ")}`);
+  await writeAudit(db, { actorId: actor.id, action: "user.temp_sms", entityType: "user", entityId: userId });
+  return { demo: r.demo };
 }

@@ -104,7 +104,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
             </table>
           </div>
           <p className="mt-3 text-xs text-[var(--muted)]">
-            새 직원은 &apos;직원 등록&apos;으로 계정과 명부를 한 번에 만듭니다. 역할·비밀번호·잠금은 &apos;설정 → 직원·역할&apos;에서 바꿉니다.
+            새 직원은 &apos;직원 등록&apos;으로 계정과 명부를 한 번에 만듭니다. 역할·비밀번호·잠금은 &apos;설정 → 로그인 계정&apos;에서 바꿉니다.
             {!full && " 생년월일·주소·계약 형태는 대표·회계 담당만 봅니다."}
           </p>
         </Card>

@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { loginWithPassword, logout } from "@/modules/auth/service";
+import { getCurrentUser, loginWithPassword, logout } from "@/modules/auth/service";
 import { clearSessionCookie, errorUrl, requestMeta, sessionToken, setSessionCookie, userMessage } from "../_lib/session";
 
 export async function loginAction(form: FormData) {
@@ -12,7 +12,9 @@ export async function loginAction(form: FormData) {
     redirect(errorUrl("/login", userMessage(e)));
   }
   await setSessionCookie(token);
-  redirect("/home");
+  // 첫 로그인(임시 비밀번호)이면 새 비밀번호부터 정한다
+  const u = await getCurrentUser(await getDb(), token);
+  redirect(u?.mustChangePassword ? "/account/first" : "/home");
 }
 
 export async function logoutAction() {

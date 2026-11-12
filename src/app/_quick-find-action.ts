@@ -7,6 +7,6 @@ import { currentUser } from "./_lib/session";
 
 export async function quickFindAction(q: string): Promise<QuickHit[]> {
   const user = await currentUser();
-  if (!user || typeof q !== "string" || q.length > 40) return [];
+  if (!user || user.mustChangePassword || typeof q !== "string" || q.length > 40) return [];
   return quickFind(await getDb(), q, can(user, "customer.write"));
 }

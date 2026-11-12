@@ -17,6 +17,8 @@ export async function currentUser(): Promise<CurrentUser | null> {
 export async function requireUser(roles?: Role[]): Promise<CurrentUser> {
   const user = await currentUser();
   if (!user) redirect("/login");
+  // 임시 비밀번호로 들어왔으면 새 비밀번호를 정하기 전에는 다른 화면을 열 수 없다
+  if (user.mustChangePassword) redirect("/account/first");
   if (roles && !user.roles.some((r) => roles.includes(r))) redirect(`/home?error=${encodeURIComponent("권한이 없습니다")}`);
   return user;
 }

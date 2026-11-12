@@ -328,7 +328,7 @@ export const MENU: MenuGroup[] = [
         href: "/settings/delegation",
         std: "부록 B",
       },
-      { label: "직원·역할", perm: ["account.manage"], href: "/settings/users" },
+      { label: "로그인 계정", perm: ["account.manage"], href: "/settings/users" },
       {
         label: "권한표",
         perm: ["settings.edit"],

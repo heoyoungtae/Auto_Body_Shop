@@ -25,6 +25,13 @@ export const appUser = pgTable(
     retiredOn: date("retired_on"),
     /** 내 서명 그림(보관 폴더 상대 경로). 견적서·정비명세서의 작성자 칸에 찍힌다 */
     signaturePath: text("signature_path"),
+    /** 첫 로그인·초기화 뒤 반드시 새 비밀번호를 정해야 함(임시 비밀번호로 들어온 상태) */
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    /** 임시 비밀번호(암호화). 직원이 새 비밀번호를 정하면 지운다. 대표·회계가 다시 보거나 문자로 보낼 수 있게 */
+    tempPasswordEnc: text("temp_password_enc"),
+    /** 임시 비밀번호를 쓸 수 있는 기한 */
+    tempPasswordUntil: timestamp("temp_password_until", { withTimezone: true }),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("app_user_login_uq").on(t.loginId)],
@@ -52,6 +59,8 @@ export const session = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     ip: text("ip"),
     userAgent: text("user_agent"),
+    /** 마지막으로 화면을 연 때(5분 단위로만 갱신) */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("session_user_idx").on(t.userId)],

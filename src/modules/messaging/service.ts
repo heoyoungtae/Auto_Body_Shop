@@ -719,6 +719,8 @@ export async function sendSmsBatch(
   purpose: string,
   items: { to: string; text: string; customerName: string }[],
   f: typeof fetch = fetch,
+  /** 발송 기록에 남기지 않을 글자(예: 임시 비밀번호). 기록에는 ●●●● 로 남긴다 */
+  secret?: string,
 ) {
   const p = await smsRuntime(db);
   const msgs = items.map((m) => ({
@@ -734,7 +736,7 @@ export async function sendSmsBatch(
       purpose,
       provider: p.id,
       to: msgs[i].to,
-      body: msgs[i].text,
+      body: secret ? msgs[i].text.split(secret).join("●●●●") : msgs[i].text,
       ok: !!res[i]?.ok,
       error: res[i]?.error,
       sentBy: actorId,

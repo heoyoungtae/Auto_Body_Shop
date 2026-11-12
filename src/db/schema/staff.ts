@@ -313,3 +313,37 @@ export const workDay = pgTable(
   },
   (t) => [uniqueIndex("work_day_user_day_uq").on(t.userId, t.day), index("work_day_day_idx").on(t.day)],
 );
+
+/**
+ * 직원 서류함(대표 지시 2026-11-12): 이력서·자격증 사본·경력증명서 등. 파일은 민감정보 키로 암호화해 보관(hr/ 폴더)하고
+ * /api/staff-files/[id] 로만 연다(대표·회계·본인). 지우면 파일은 바로 지우고 줄은 기록으로 남긴다.
+ */
+export const staffFile = pgTable(
+  "staff_file",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    /** resume 이력서 · license 자격증 사본 · career 경력·재직 증명 · edu 졸업·교육 수료 · health 건강진단 · bank 급여 통장 사본 · other 기타 */
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    /** 자격증 사본이면 명부의 자격증 이름(연결) */
+    licenseName: text("license_name"),
+    path: text("path"),
+    fileName: text("file_name").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    uploadedBy: uuid("uploaded_by").references(() => appUser.id),
+    /** 본인이 올린 것은 대표·회계가 확인한다 */
+    checkedBy: uuid("checked_by").references(() => appUser.id),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    removedBy: uuid("removed_by").references(() => appUser.id),
+    removeReason: text("remove_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("staff_file_user_idx").on(t.userId)],
+);

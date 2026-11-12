@@ -1,12 +1,14 @@
 "use client";
 // 지출 증빙 파일 붙이기(사진·PDF). 사진은 올리기 전에 줄인다
 import { useId, useRef, useState } from "react";
+import type { FieldHelpKey } from "@/modules/help/fields";
 import { Shell } from "../_input";
 import { shrink } from "../repairs/photo-slots";
 
 const MAX = 8 * 1024 * 1024;
 
-export function EvidenceFiles({ saved = 0 }: { saved?: number }) {
+/** 사진·PDF 여러 개 붙이기. 지출 증빙 말고도(직원 서류·수리 이력) help·name·문구를 바꿔 쓴다 */
+export function EvidenceFiles({ saved = 0, help = "exp.files", name = "files", pickLabel = "+ 증빙 사진·PDF 붙이기", multiple = true }: { saved?: number; help?: FieldHelpKey; name?: string; pickLabel?: string; multiple?: boolean }) {
   const id = useId();
   const input = useRef<HTMLInputElement | null>(null);
   const [names, setNames] = useState<string[]>([]);
@@ -44,15 +46,15 @@ export function EvidenceFiles({ saved = 0 }: { saved?: number }) {
     }
   };
   return (
-    <Shell id={id} helpKey="exp.files">
+    <Shell id={id} helpKey={help}>
       <div id={id} className="flex flex-wrap items-center gap-2 text-sm">
         <input
           ref={input}
           type="file"
           data-assist="upload"
-          name="files"
+          name={name}
           accept="image/*,application/pdf"
-          multiple
+          multiple={multiple}
           className="hidden"
           onChange={(e) => pick(e.currentTarget.files)}
         />
@@ -66,7 +68,7 @@ export function EvidenceFiles({ saved = 0 }: { saved?: number }) {
             ? "줄이는 중…"
             : names.length
               ? "다시 고르기"
-              : "+ 증빙 사진·PDF 붙이기"}
+              : pickLabel}
         </button>
         {saved > 0 && (
           <span className="text-xs text-[var(--muted)]">
