@@ -1517,6 +1517,28 @@ export const PAGE_HELP = {
       "없거나 부서졌으면 비품을 열어 경위를 적습니다.",
     ],
   },
+  "equip.labels": {
+    title: "설비 라벨",
+    purpose:
+      "설비 번호·이름·등급·관리자(정/부)·점검 주기와 QR이 든 라벨을 인쇄합니다. QR을 찍으면 그 설비의 점검 화면이 열리고, 거기서 고장 신고도 합니다.",
+    who: "공장장",
+    steps: [
+      "'인쇄'를 누릅니다(라벨 안 붙인 설비가 모두 나옵니다. 한 대만이면 설비 화면의 '인쇄' 링크).",
+      "설비 앞면 잘 보이는 곳에 붙이고 '모두 붙였음'을 누릅니다.",
+      "관리자(정/부)를 바꾸면 할 일에 다시 뜹니다. 새로 인쇄해 덮어 붙입니다.",
+    ],
+  },
+  "money.depreciation": {
+    title: "감가상각 대장",
+    purpose:
+      "자사 소유 비품·설비의 취득가·상각 방법·내용연수·올해 상각비·누계·장부가를 해마다 봅니다. 월 마감 때 그 달 감가상각비를 참고합니다.",
+    who: "회계 담당·대표",
+    steps: [
+      "해를 고릅니다.",
+      "상각 방법이 비어 있거나 틀린 것은 그 비품·설비 화면의 '소유·감가상각·사용계약'에서 고칩니다.",
+      "세무 신고 전에 이 표를 세무사에게 보냅니다(CSV 내려받기).",
+    ],
+  },
   "fixtures.labels": {
     title: "비품 라벨",
     purpose:
@@ -2362,6 +2384,8 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/five-s/[zone]": "five_s.zone",
   "/equipment": "equip.list",
   "/equipment/new": "equip.new",
+  "/equipment/labels": "equip.labels",
+  "/money/depreciation": "money.depreciation",
   "/equipment/[id]": "equip.detail",
   "/equipment/[id]/check": "equip.check",
   "/equipment/checks": "equip.checks",

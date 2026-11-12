@@ -14,6 +14,7 @@ import { listSuppliers } from "@/modules/purchase/supplier";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../../_assist";
 import {
+  CheckGroup,
   DateField,
   NumberField,
   SelectField,
@@ -25,6 +26,12 @@ import { SubmitButton } from "../../../_submit";
 import { Badge, Card, ErrorBox, PageTitle } from "../../../_ui";
 import { createExpenseAction } from "../../actions";
 import { EvidenceFiles } from "../../evidence-files";
+import { AssetRows } from "../../asset-rows";
+import { ShowWhen } from "../../../consults/show-when";
+import { assetOptions, leaseFeePrefill } from "@/modules/asset/service";
+import { listUsers } from "@/modules/auth/service";
+import { FX_CATEGORIES } from "@/modules/purchase/rules";
+import { EQ_KINDS } from "@/modules/equipment/rules";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const opts = (o: Record<string, string>) =>
@@ -34,7 +41,7 @@ const opts = (o: Record<string, string>) =>
 export default async function NewExpensePage({
   searchParams,
 }: {
-  searchParams: Promise<{ src?: string; from?: string; error?: string; p?: string | string[] }>;
+  searchParams: Promise<{ src?: string; from?: string; error?: string; p?: string | string[]; lease?: string }>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
@@ -52,20 +59,31 @@ export default async function NewExpensePage({
   const old = q.from
     ? ((await getExpense(db, user, q.from).catch(() => null))?.e ?? null)
     : null;
-  const sources = src || old ? [] : await expenseSources(db);
+  // 빌린 장비 사용료(?lease=kind:id): 업체·금액·용도를 계약에서 채운다
+  const [lk, lid] = (q.lease ?? "").split(":");
+  const lease = (lk === "fixture" || lk === "equipment") && lid ? await leaseFeePrefill(db, lk, lid).catch(() => null) : null;
+  const sources = src || old || lease ? [] : await expenseSources(db);
+  const [assetOpts, staff] = src ? [[], []] : await Promise.all([assetOptions(db), listUsers(db)]);
+  const people = staff.filter((u) => u.active && !u.retiredOn).map((u) => ({ value: u.id, label: u.name }));
+  const fxCats = Object.entries(FX_CATEGORIES).map(([value, label]) => ({ value, label }));
+  const eqKinds = Object.entries(EQ_KINDS).map(([value, k]) => ({ value, label: k.label }));
+  const defaultEqManager = staff.find((u) => u.roles.includes("plant_manager"))?.id;
+  const defaultFxManager = staff.find((u) => u.roles.includes("accounting"))?.id;
   const sups = await listSuppliers(db, "registered");
   const remain = src ? src.remainWon : 0;
   const supply = src
     ? src.remainWon === src.totalWon
       ? src.supplyWon
       : Math.round(remain / 1.1)
-    : (old?.supplyWon ?? null);
-  const vat = src ? remain - (supply ?? 0) : (old?.vatWon ?? null);
+    : (old?.supplyWon ?? lease?.supply ?? null);
+  const vat = src ? remain - (supply ?? 0) : (old?.vatWon ?? (lease ? vatOf(lease.supply) : null));
   const fromSrc = src
     ? `${SOURCE_KINDS[src.kind]} ${src.docNo}`
     : old
       ? `반려된 ${old.docNo}`
-      : undefined;
+      : lease
+        ? `${lease.a.no} 사용계약`
+        : undefined;
   return (
     <>
       <PageTitle
@@ -110,7 +128,9 @@ export default async function NewExpensePage({
             ? `${src.docNo} 대금 결의`
             : old
               ? `${old.docNo} 고쳐 다시 올리기`
-              : "근거 전표 없이 결의(임차료·공과금·소모품 등)"
+              : lease
+                ? `${lease.a.no} ${lease.a.name} 사용료 결의`
+                : "근거 전표 없이 결의(임차료·공과금·소모품·설비 구입 등)"
         }
         help={{ kind: "panel", id: "exp.form" }}
       >
@@ -150,6 +170,15 @@ export default async function NewExpensePage({
               </ul>
             </div>
           )}
+          {lease && (
+            <>
+              <input type="hidden" name="lease" value={`${lease.a.kind}:${lease.a.id}`} />
+              <input type="hidden" name="leaseYm" value={lease.months[lease.months.length - 1]} />
+              <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs md:col-span-2">
+                {lease.a.contract?.party} 월 {won(lease.a.contract?.feeWon ?? 0)} × {lease.months.length}개월({lease.months.join(", ")}). 올리면 이 달까지 낸 것으로 적습니다.
+              </p>
+            </>
+          )}
           {old && <input type="hidden" name="fromId" value={old.id} />}
           {old && <input type="hidden" name="from" value={old.id} />}
           {src ? (
@@ -180,20 +209,35 @@ export default async function NewExpensePage({
               <TextField
                 help="exp.payeeName"
                 name="payeeName"
-                defaultValue={old && !old.supplierId ? old.payeeName : ""}
-                from={old ? fromSrc : undefined}
+                defaultValue={old && !old.supplierId ? old.payeeName : (lease?.payee ?? "")}
+                from={old || lease ? fromSrc : undefined}
               />
             </>
           )}
-          <SelectField
-            help="exp.category"
-            name="category"
-            required
-            defaultValue={src?.category ?? old?.category ?? ""}
-            placeholder="계정 고르기"
-            from={fromSrc}
-            options={opts(EXP_CATEGORIES)}
-          />
+          {src ? (
+            <SelectField help="exp.category" name="category" required defaultValue={src.category} placeholder="계정 고르기" from={fromSrc} options={opts(EXP_CATEGORIES)} />
+          ) : (
+            // 계정에 따라 아래에 칸이 붙는다: 설비·공구 → 대장 등록, 설비 수리·유지 → 수리한 비품·설비
+            <div className="md:col-span-2">
+              <ShowWhen
+                field="category"
+                initial={old?.category ?? (lease ? "rent" : "")}
+                cases={{
+                  equipment: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} />,
+                  other: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
+                  welfare: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
+                  repair: (
+                    <div className="flex flex-wrap items-end gap-3">
+                      <SelectField help="asset.repairTarget" name="repairTarget" placeholder="고르지 않음" options={assetOpts} />
+                      <CheckGroup help="asset.capital" name="repairCapital" options={[{ value: "1", label: "자본적 지출(내용연수 연장·가치 증가)" }]} />
+                    </div>
+                  ),
+                }}
+              >
+                <SelectField help="exp.category" name="category" required defaultValue={old?.category ?? (lease ? "rent" : "")} placeholder="계정 고르기" from={old || lease ? fromSrc : undefined} options={opts(EXP_CATEGORIES)} />
+              </ShowWhen>
+            </div>
+          )}
           {src && src.split.length > 1 && (
             <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs md:col-span-2">
               {src.docNo}에 계정이 섞여 있어 품목 계정대로 나눠 잡습니다:{" "}
@@ -238,8 +282,8 @@ export default async function NewExpensePage({
               name="purpose"
               required={!src}
               rows={2}
-              defaultValue={old?.purpose ?? ""}
-              from={old ? fromSrc : undefined}
+              defaultValue={old?.purpose ?? lease?.purpose ?? ""}
+              from={old || lease ? fromSrc : undefined}
             />
           </div>
           <SelectField

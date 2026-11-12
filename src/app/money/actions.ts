@@ -1,5 +1,6 @@
 "use server";
 // 회계(STD-12) 화면의 서버 동작: 수납·취소 전표·독촉, 지출 결의·증빙·지급·취소, 일일·월 마감
+import type { AssetPlan } from "@/modules/asset/service";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { closeDay, decideMonth, prepareMonth } from "@/modules/money/close";
@@ -27,6 +28,24 @@ async function uploads(form: FormData): Promise<Upload[]> {
     if (v instanceof File && v.size)
       out.push({ name: v.name, bytes: new Uint8Array(await v.arrayBuffer()) });
   return out;
+}
+
+/** 결의서 안의 대장 등록 줄(a{번호}_name …) */
+function assetPlans(form: FormData): AssetPlan[] {
+  const g = (k: string) => String(form.get(k) ?? "").trim();
+  const idx = [...new Set([...form.keys()].map((k) => /^a(\d+)_name$/.exec(k)?.[1]).filter((x): x is string => !!x))].sort((a, b) => Number(a) - Number(b));
+  return idx
+    .map((i) => ({
+      kind: (g(`a${i}_kind`) === "equipment" ? "equipment" : "fixture") as AssetPlan["kind"],
+      name: g(`a${i}_name`),
+      cat: g(`a${i}_cat`),
+      qty: Number(g(`a${i}_qty`).replace(/[^\d]/g, "")) || 0,
+      unitWon: Number(g(`a${i}_unitWon`).replace(/[^\d]/g, "") || "x"),
+      location: g(`a${i}_location`),
+      managerId: g(`a${i}_managerId`),
+      subManagerId: g(`a${i}_subManagerId`),
+    }))
+    .filter((p) => p.name);
 }
 
 export async function paymentAction(form: FormData) {
@@ -87,12 +106,17 @@ export async function createExpenseAction(form: FormData) {
       files: await uploads(form),
       fromId: s("fromId") || undefined,
       payableIds: form.getAll("p").map(String).filter(Boolean),
+      assets: assetPlans(form),
+      repairTarget: s("repairTarget") || undefined,
+      repairCapital: s("repairCapital") === "1",
+      lease: s("lease") || undefined,
+      leaseYm: s("leaseYm") || undefined,
     });
     id = r.id;
     docNo = r.docNo;
   } catch (e) {
     const q = new URLSearchParams();
-    for (const k of ["src", "from"]) if (s(k)) q.set(k, s(k));
+    for (const k of ["src", "from", "lease"]) if (s(k)) q.set(k, s(k));
     for (const p of form.getAll("p")) q.append("p", String(p));
     redirect(
       errorUrl(`/money/expenses/new${q.size ? `?${q}` : ""}`, userMessage(e)),

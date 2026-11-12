@@ -13,6 +13,8 @@ import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { fixtureAction } from "../actions";
+import { assetView } from "@/modules/asset/service";
+import { ArrivalBox, FinanceCard, ManagersCard, RepairsCard } from "../../_asset/cards";
 import { FixtureFields } from "../_form";
 
 /** 비품 한 개(F-07-04): 정보·지급(수령 확인)·이동·실물 확인·분실·파손·처분·이력 */
@@ -30,6 +32,7 @@ export default async function FixturePage({ params, searchParams }: { params: Pr
   const live = status !== "disposed";
   const [users, sups, p] = await Promise.all([listUsers(db), manage ? supplierOptions(db) : Promise.resolve([]), loadPolicy(db)]);
   const active = users.filter((u) => u.active);
+  const av = await assetView(db, "fixture", id);
   const row = (k: string, v: React.ReactNode) => (
     <div className="flex gap-2 py-1">
       <dt className="w-28 shrink-0 text-[var(--muted)]">{k}</dt>
@@ -59,12 +62,13 @@ export default async function FixturePage({ params, searchParams }: { params: Pr
           <SubmitButton>받았음(수령 확인)</SubmitButton>
         </AssistForm>
       )}
+      <ArrivalBox a={av} user={user} />
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="비품 정보" help={{ kind: "panel", id: "fx.info" }}>
           <dl className="text-sm">
             {row("위치", f.location)}
             {row("사용자", holder ? `${holder.name}${f.receivedAt ? ` · 수령 ${fmtTime(f.receivedAt)}` : " · 수령 확인 전"}` : "공용")}
-            {row("구입", [f.purchasedOn, sup?.name, f.expenseRef].filter(Boolean).join(" · "))}
+            {row("구입", <>{[f.purchasedOn, sup?.name].filter(Boolean).join(" · ")}{f.expenseId ? <> · <Link href={`/money/expenses/${f.expenseId}`} className="text-[var(--accent)]">결의 {f.expenseRef}</Link></> : f.expenseRef ? ` · ${f.expenseRef}` : ""}</>)}
             {row("보증 기간", f.warrantyUntil ? `${f.warrantyUntil}까지` : null)}
             {row("라벨", f.labeledAt ? `부착 ${fmtTime(f.labeledAt)}` : <span className="text-[var(--warn)]">아직 안 붙임</span>)}
             {row("메모", f.note)}
@@ -98,6 +102,10 @@ export default async function FixturePage({ params, searchParams }: { params: Pr
             </details>
           )}
         </Card>
+
+        <ManagersCard a={av} user={user} users={active} />
+        <FinanceCard db={db} a={av} user={user} />
+        <RepairsCard db={db} a={av} user={user} />
 
         {live && (manage || mine) && (
           <Card title="위치·사용자 바꾸기" help={{ kind: "panel", id: "fx.move" }}>

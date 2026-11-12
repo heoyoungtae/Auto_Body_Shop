@@ -1,6 +1,7 @@
 // 지출 결의(F-12-01, STD-12 12.2)와 거래처 정산.
 // 근거 전표(입고 끝난 발주서·수용한 외주 의뢰서)에서 업체·금액·세금계산서 번호를 불러오고, 전결 규정대로 결재한 뒤에만 지급한다.
 // 업체 계좌로 보낼 때는 다른 사람이 전화로 확인한 계좌만 쓴다(계좌 바꿔치기 사기 방지).
+import { addRepair, checkPlans, dropForExpense, markFeeBilled, registerFromExpense, type AssetKind, type AssetPlan } from "@/modules/asset/service";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import {
@@ -276,6 +277,14 @@ export type ExpenseInput = {
   fromId?: string;
   /** 지급 결의(settle): 묶을 채무. 비우면 그 업체의 아직 결의 안 한 것 전부 */
   payableIds?: string[];
+  /** 산 비품·설비를 대장에 함께 올린다(입고 대기). 대표 지시 2026-11-12 "회계상 거래가 발생하면 즉시 입력" */
+  assets?: AssetPlan[];
+  /** 설비 수리·유지: 수리한 비품·설비("fixture:<id>"·"equipment:<id>")와 자본적 지출 여부 → 수리 이력이 저절로 남는다 */
+  repairTarget?: string;
+  repairCapital?: boolean;
+  /** 빌린 장비 사용료 결의("fixture:<id>") — 낸 달을 적는다 */
+  lease?: string;
+  leaseYm?: string;
 };
 
 async function saveFiles(id: string, actor: Actor, files: Upload[], now: Date) {
@@ -396,6 +405,11 @@ export async function createExpense(
       ? `${src!.supplierName} 외상 대금 ${src!.payables?.length ?? 0}건(${src!.docNo})`
       : `${src!.docNo} ${SOURCE_KINDS[src!.kind]} 대금`);
 
+  const plans = checkPlans(input.assets ?? [], supply);
+  const [repairKind, repairId] = (input.repairTarget ?? "").split(":");
+  if (input.repairTarget && (category !== "repair" || (repairKind !== "fixture" && repairKind !== "equipment") || !repairId))
+    throw new ExpenseError("수리 대상은 계정이 '설비 수리·유지'일 때 고릅니다");
+
   if (input.fromId)
     await cancelExpense(db, actor, input.fromId, "고쳐서 다시 올림", now, true);
 
@@ -488,6 +502,17 @@ export async function createExpense(
         updatedAt: now,
       })
       .where(eq(purchaseOrder.id, src.id));
+  }
+  // 같은 거래를 다른 장부에도 바로 적는다(다시 입력하지 않게)
+  if (plans.length)
+    await registerFromExpense(db, actor, { id: row.id, docNo: doc.docNo, supplierId, payeeName, evidenceOn: input.evidenceOn || null }, plans, now);
+  if (input.repairTarget) {
+    const [saved] = await db.select({ files: expense.files }).from(expense).where(eq(expense.id, row.id));
+    await addRepair(db, actor, repairKind as AssetKind, repairId, { on: input.evidenceOn || seoulDate(now), what: usePurpose, vendor: payeeName, costWon: supply, capital: !!input.repairCapital, files: [], filesSaved: saved?.files ?? [], expenseId: row.id }, now);
+  }
+  if (input.lease && input.leaseYm) {
+    const [lk, lid] = input.lease.split(":");
+    if ((lk === "fixture" || lk === "equipment") && lid && /^\d{4}-\d{2}$/.test(input.leaseYm)) await markFeeBilled(db, lk, lid, input.leaseYm);
   }
   await submit(db, doc.id, actor.id, now);
   await writeAudit(db, {
@@ -684,6 +709,8 @@ export async function cancelExpense(
       updatedAt: now,
     })
     .where(eq(expense.id, id));
+  // 결의를 거두면 아직 들어오지 않은 비품·설비 대장 줄도 지운다
+  await dropForExpense(db, id);
   await writeAudit(db, {
     actorId: actor.id,
     action: "expense.cancel",

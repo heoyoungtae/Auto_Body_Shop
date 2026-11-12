@@ -2,6 +2,9 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { getExpense } from "@/modules/money/expense";
+import { assetsOfExpense } from "@/modules/asset/service";
+import { FX_STATUS } from "@/modules/purchase/rules";
+import { EQ_STATUS } from "@/modules/equipment/rules";
 import {
   EVIDENCE_KINDS,
   evidenceWarning,
@@ -61,6 +64,7 @@ export default async function ExpensePage({
     return <ErrorBox message={userMessage(e)} />;
   }
   const { e, doc, status, bank, src, settled } = g;
+  const assets = await assetsOfExpense(await getDb(), e.id);
   const mine = e.createdBy === user.id;
   const payer = can(user, "expense.pay");
   const live = status !== "paid" && status !== "cancelled";
@@ -176,6 +180,31 @@ export default async function ExpensePage({
           </div>
         </dl>
       </Card>
+
+      {(assets.length > 0 || (e.category === "equipment" && status !== "cancelled")) && (
+        <Card title="비품·설비 대장" help={{ kind: "panel", id: "exp.assets" }}>
+          {assets.length ? (
+            <ul className="divide-y divide-[var(--line)] text-sm">
+              {assets.map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center gap-2 py-1.5">
+                  <Link href={a.kind === "fixture" ? `/fixtures/${a.id}` : `/equipment/${a.id}`} className="font-mono text-[var(--accent)]">
+                    {a.no}
+                  </Link>
+                  <span>{a.name}</span>
+                  <Badge tone={a.status === "pending" ? "accent" : "neutral"}>{a.kind === "fixture" ? FX_STATUS[a.status as keyof typeof FX_STATUS] : EQ_STATUS[a.status as keyof typeof EQ_STATUS]}</Badge>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm">
+              설비·공구 결의인데 대장에 올린 것이 없습니다.{" "}
+              <Link href={`/fixtures/new?exp=${e.id}`} className="text-[var(--accent)]">비품으로 올리기</Link> ·{" "}
+              <Link href={`/equipment/new?exp=${e.id}`} className="text-[var(--accent)]">설비로 올리기</Link>
+            </p>
+          )}
+          {assets.some((a) => a.status === "pending") && <p className="mt-2 text-xs text-[var(--muted)]">물건이 오면 관리자가 각 화면에서 &apos;들어옴 확인&apos;을 누릅니다. 결의를 취소하면 입고 대기 줄은 함께 지워집니다.</p>}
+        </Card>
+      )}
 
       <div id="evidence">
         <Card title="증빙" help={{ kind: "panel", id: "exp.evidence" }}>

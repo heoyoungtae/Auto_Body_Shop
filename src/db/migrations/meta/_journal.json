@@ -323,6 +323,13 @@
       "when": 1794461851070,
       "tag": "0045_staff_files",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794462069645,
+      "tag": "0046_asset_register",
+      "breakpoints": true
     }
   ]
 }

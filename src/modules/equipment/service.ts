@@ -53,6 +53,10 @@ async function eqRow(db: Db, id: string) {
 // ───────── 설비 대장(F-08-01) ─────────
 
 export type EquipmentInput = {
+  /** 관리자(부). 관리자(정)은 ownerId(설비 담당) */
+  subManagerId?: string;
+  /** 지출 결의에서 불러와 등록하면 그 결의 */
+  expenseId?: string;
   name: string;
   kind: string;
   grade: string;
@@ -118,6 +122,7 @@ export async function saveEquipment(db: Db, actor: Actor, input: EquipmentInput,
   }
   if (input.checkDaily && !input.dailyItems.length) throw new EquipError("일상 점검을 하면 점검 항목을 한 줄 이상 적어 주세요");
   if (input.checkMonthly && !input.monthlyItems.length) throw new EquipError("월간 점검을 하면 점검 항목을 한 줄 이상 적어 주세요");
+  if (input.subManagerId && input.subManagerId === input.ownerId) throw new EquipError("관리자(정)과 (부)는 다른 사람으로 정해 주세요");
   const values = {
     name,
     kind: input.kind,
@@ -130,6 +135,7 @@ export async function saveEquipment(db: Db, actor: Actor, input: EquipmentInput,
     zone: clean(input.zone),
     rating: clean(input.rating),
     ownerId: clean(input.ownerId),
+    subManagerId: clean(input.subManagerId),
     operators: input.operators ?? [],
     legalKind: clean(input.legalKind),
     legalNextOn: clean(input.legalKind) ? clean(input.legalNextOn) : null,
@@ -150,15 +156,21 @@ export async function saveEquipment(db: Db, actor: Actor, input: EquipmentInput,
   if (id) {
     const before = await eqRow(db, id);
     if (before.status === "disposed") throw new EquipError("처분한 설비는 고칠 수 없습니다");
-    await db.update(equipment).set(values).where(eq(equipment.id, id));
+    // 관리자(정·부)가 바뀌면 라벨에 이름이 들어가 있으므로 다시 붙인다
+    const relabel = (before.ownerId ?? null) !== values.ownerId || (before.subManagerId ?? null) !== values.subManagerId;
+    await db.update(equipment).set(relabel ? { ...values, labeledAt: null } : values).where(eq(equipment.id, id));
     await writeAudit(db, { actorId: actor.id, action: "equipment.update", entityType: "equipment", entityId: before.no, after: { name, grade: input.grade } });
     return { id, no: before.no, warnings: equipmentWarnings(input) };
   }
   const nos = await db.select({ no: equipment.no }).from(equipment);
   const no = nextEqNo(nos.map((r) => r.no));
+  // 상각 방법은 금액으로 먼저 정한다(산 날 비용 처리 기준 이하 → 비용, 아니면 정책값). 상세 화면에서 바꾼다
+  const p = await loadPolicy(db, seoulDate(now));
+  const price = input.price ?? 0;
+  const dep = { expenseId: clean(input.expenseId), depMethod: price <= p["asset.immediate_max"] ? "expense" : p["asset.dep_declining"] ? "db" : "sl", usefulYears: p["asset.equipment_years"], depStartOn: values.trialOn ?? values.boughtOn };
   const [row] = await db
     .insert(equipment)
-    .values({ ...values, no, createdBy: actor.id, createdAt: now })
+    .values({ ...values, ...dep, no, createdBy: actor.id, createdAt: now })
     .returning({ id: equipment.id });
   await writeAudit(db, { actorId: actor.id, action: "equipment.create", entityType: "equipment", entityId: no, after: { name, grade: input.grade } });
   return { id: row.id, no, warnings: equipmentWarnings(input) };
@@ -169,7 +181,7 @@ export async function disposeEquipment(db: Db, actor: Actor, id: string, reason:
   const e = await eqRow(db, id);
   if (e.status === "disposed") throw new EquipError("이미 처분한 설비입니다");
   if (!clean(reason)) throw new EquipError("처분 사유를 적어 주세요");
-  await db.update(equipment).set({ status: "disposed", stopReason: clean(reason), updatedAt: now }).where(eq(equipment.id, id));
+  await db.update(equipment).set({ status: "disposed", disposedOn: seoulDate(now), stopReason: clean(reason), updatedAt: now }).where(eq(equipment.id, id));
   await db.update(lubePoint).set({ active: false }).where(eq(lubePoint.equipmentId, id));
   await writeAudit(db, { actorId: actor.id, action: "equipment.dispose", entityType: "equipment", entityId: e.no, after: { reason } });
 }

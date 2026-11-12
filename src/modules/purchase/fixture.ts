@@ -29,7 +29,7 @@ async function event(db: Db, fixtureId: string, kind: string, detail: string | n
   await db.insert(fixtureEvent).values({ fixtureId, kind, detail, by, at });
 }
 
-export type FixtureInput = { name: string; category: string; spec: string; purchasedOn: string; priceWon: number; location: string; holderId: string; warrantyUntil: string; supplierId: string; expenseRef: string; note: string };
+export type FixtureInput = { name: string; category: string; spec: string; purchasedOn: string; priceWon: number; location: string; holderId: string; warrantyUntil: string; supplierId: string; expenseRef: string; note: string; managerId?: string; subManagerId?: string; expenseId?: string };
 
 function check(i: FixtureInput) {
   if (!i.name.trim()) throw new FixtureError("품명을 적어 주세요");
@@ -60,7 +60,13 @@ export async function registerFixture(db: Db, actor: Actor, input: FixtureInput,
   const p = await loadPolicy(db, seoulDate(now));
   const nos = await db.select({ no: fixture.no }).from(fixture);
   const no = nextFxNo(nos.map((r) => r.no));
-  const [row] = await db.insert(fixture).values({ ...v, no, asset: v.priceWon >= p["asset.register_min"], createdBy: actor.id, createdAt: now, updatedAt: now }).returning({ id: fixture.id });
+  if (input.subManagerId && input.subManagerId === input.managerId) throw new FixtureError("관리자(정)과 (부)는 다른 사람으로 정해 주세요");
+  // 지출 결의에서 불러왔으면 결의와 묶는다. 상각 방법은 금액으로 먼저 정한다(산 날 비용 처리 기준 이하 → 비용, 아니면 정책값)
+  const dep = { expenseId: input.expenseId || null, depMethod: v.priceWon <= p["asset.immediate_max"] ? "expense" : p["asset.dep_declining"] ? "db" : "sl", usefulYears: p["asset.fixture_years"], depStartOn: v.purchasedOn };
+  const [row] = await db
+    .insert(fixture)
+    .values({ ...v, ...dep, no, managerId: input.managerId || null, subManagerId: input.subManagerId || null, asset: v.priceWon >= p["asset.register_min"], createdBy: actor.id, createdAt: now, updatedAt: now })
+    .returning({ id: fixture.id });
   await event(db, row.id, "register", `${FX_CATEGORIES[v.category as keyof typeof FX_CATEGORIES]} ${v.priceWon.toLocaleString("ko-KR")}원${v.location ? ` · ${v.location}` : ""}`, actor.id, now);
   await writeAudit(db, { actorId: actor.id, action: "fixture.create", entityType: "fixture", entityId: no, after: { name: v.name, price: v.priceWon } });
   if (v.holderId) await notifyUser(db, v.holderId, `비품 지급: ${no} ${v.name} — 받았으면 수령 확인을 눌러 주세요`, `fx-give-${row.id}-${v.holderId}`, `/fixtures/${row.id}`);
@@ -200,7 +206,7 @@ export async function fixtureTodos(db: Db, actor: Actor, today: string) {
     if (!f.receivedAt) out.push({ key: `fx-rcv-${f.id}`, when: "today", what: `비품 수령 확인: ${f.no} ${f.name}`, href: `/fixtures/${f.id}`, action: "수령 확인" });
   if (can(actor, "fixture.manage") && !actor.roles.includes("owner")) {
     const all = (await db.select().from(fixture)).filter((f) => f.status !== "disposed");
-    const nolabel = all.filter((f) => !f.labeledAt);
+    const nolabel = all.filter((f) => !f.labeledAt && f.status !== "pending");
     if (nolabel.length) out.push({ key: "fx-label", when: "soon", what: `라벨 안 붙인 비품 ${nolabel.length}개`, detail: nolabel.slice(0, 4).map((f) => `${f.no} ${f.name}`).join(", "), href: "/fixtures?f=problem", action: "라벨 인쇄" });
     if (today.slice(5, 7) === "12" && all.length) {
       const year = today.slice(0, 4);

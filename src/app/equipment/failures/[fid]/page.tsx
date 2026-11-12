@@ -111,6 +111,11 @@ export default async function FailurePage({ params, searchParams }: { params: Pr
                   </dd>
                 </div>
               )}
+              <div className="pt-1">
+                <Link href={`/equipment/${f.equipmentId}?failure=${f.id}#repairs`} className="text-[var(--accent)]">
+                  설비 정비·수리 이력에 남기기(비용·첨부) →
+                </Link>
+              </div>
             </dl>
           )}
         </Card>

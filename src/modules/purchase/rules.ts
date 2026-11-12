@@ -232,10 +232,10 @@ export const OS_STEPS: OsStatus[] = ["draft", "review", "approved", "requested",
 export const FX_CATEGORIES = { tool: "공구", ppe: "보호구", it: "전산(저장장치 있음)", furniture: "집기·가구", vehicle: "운반·차량", other: "기타" } as const;
 export type FxCategory = keyof typeof FX_CATEGORIES;
 export const isFxCategory = (s: string): s is FxCategory => s in FX_CATEGORIES;
-export const FX_STATUS = { in_use: "사용 중", lost: "분실", broken: "파손", disposed: "처분" } as const;
+export const FX_STATUS = { pending: "입고 대기", in_use: "사용 중", lost: "분실", broken: "파손", disposed: "처분" } as const;
 export type FxStatus = keyof typeof FX_STATUS;
-export const FX_TONE: Record<FxStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { in_use: "ok", lost: "danger", broken: "warn", disposed: "neutral" };
-export const FX_EVENT = { register: "등록", move: "위치·사용자 변경", receive: "수령 확인", check: "실물 확인", lost: "분실", broken: "파손", found: "되찾음·수리", dispose: "처분", label: "라벨 부착" } as const;
+export const FX_TONE: Record<FxStatus, "neutral" | "ok" | "warn" | "danger" | "accent"> = { pending: "accent", in_use: "ok", lost: "danger", broken: "warn", disposed: "neutral" };
+export const FX_EVENT = { register: "등록", move: "위치·사용자 변경", receive: "수령 확인", check: "실물 확인", lost: "분실", broken: "파손", found: "되찾음·수리", dispose: "처분", label: "라벨 부착", arrive: "들어옴 확인", repair: "정비·수리", contract: "사용계약", return: "반납" } as const;
 export const DISPOSE_METHODS = { sell: "매각", scrap: "폐기", donate: "기증" } as const;
 export type DisposeMethod = keyof typeof DISPOSE_METHODS;
 export const CHECK_RESULTS = { ok: "있음(이상 없음)", lost: "없음(분실)", broken: "파손" } as const;

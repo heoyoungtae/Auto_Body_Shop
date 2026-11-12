@@ -232,6 +232,7 @@ export const MENU: MenuGroup[] = [
         std: "STD-07.8",
       },
       { label: "비품·자산", href: "/fixtures", std: "STD-07.9" },
+      { label: "설비 라벨", perm: ["equip.manage"], href: "/equipment/labels", std: "STD-08.1" },
     ],
   },
   {
@@ -295,6 +296,12 @@ export const MENU: MenuGroup[] = [
         label: "외상매입금·미지급금",
         perm: ["expense.draft", "expense.pay"],
         href: "/money/payables",
+        std: "STD-12",
+      },
+      {
+        label: "감가상각 대장",
+        perm: ["expense.pay", "fixture.manage"],
+        href: "/money/depreciation",
         std: "STD-12",
       },
       {
