@@ -70,8 +70,9 @@ describe("입력 칸 도움말", () => {
       for (const m of src.matchAll(/<(input|select|textarea)\b[^>]*>/g)) {
         const tag = m[0];
         // 숨은 칸·찾기 칸·미리 보기 칸, 사진 올리기(data-assist="upload": 단추로 여는 숨은 파일 칸, 패널 도움말이 있음),
-        // 묶음 칸(data-assist="group": 도움말이 붙은 Shell 안의 체크 묶음. 예: 확인한 서류)
-        if (/type="hidden"|type="search"|data-assist="preview"|data-assist="upload"|data-assist="group"/.test(tag)) continue;
+        // 묶음 칸(data-assist="group": 도움말이 붙은 Shell 안의 체크 묶음. 예: 확인한 서류),
+        // 여러 줄 입력 표(data-assist="grid": 열 머리에 칸 도움말 ? 단추가 있음. 예: 발주 품목 한꺼번에 넣기)
+        if (/type="hidden"|type="search"|data-assist="preview"|data-assist="upload"|data-assist="group"|data-assist="grid"/.test(tag)) continue;
         throw new Error(`${relative(APP, f)}: 도움말 없는 입력 칸 ${tag.slice(0, 60)}… → src/app/_input.tsx 부품을 쓰세요`);
       }
     }

@@ -67,7 +67,7 @@ export async function saveShopInfo(db: Db, actorId: string, input: ShopInput) {
   };
   if (!s.name) throw new UserError("업체명을 적어 주세요");
   if (s.bizNo && !validBizNo(s.bizNo)) throw new UserError("사업자등록번호가 맞지 않습니다. 사업자등록증의 10자리(예: 123-45-67890)를 다시 확인해 주세요");
-  if (s.zip && s.zip.length !== 5) throw new UserError("우편번호는 5자리입니다. '주소 찾기'로 넣으면 틀리지 않습니다");
+  if (s.zip && s.zip.length !== 5) throw new UserError("우편번호는 5자리입니다. 우편번호 옆 '찾기'로 넣으면 틀리지 않습니다");
   await write(db, actorId, before, s);
 }
 

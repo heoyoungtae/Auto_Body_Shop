@@ -690,7 +690,11 @@ export function daumRoadLine(d: DaumAddr): string {
   return `${d.roadAddress}${extra ? ` (${extra})` : ""}`;
 }
 
-/** 우편번호·주소·상세주소 세 칸. '주소 찾기'로 우편번호와 도로명 주소를 채우고 상세주소로 넘어간다 */
+/**
+ * 우편번호·주소·상세주소 세 칸(대표 지시 2026-11-12).
+ * 우편번호 옆 작은 '찾기' 단추로만 우편번호·주소를 채운다(두 칸은 직접 못 침, 누르면 찾기 창이 열림).
+ * 상세주소는 우편번호가 채워진 뒤에만 적을 수 있다. 찾기 창을 못 불러오면(인터넷 끊김) 두 칸을 직접 적게 풀어 준다.
+ */
 export function AddressField({
   help,
   names = { zip: "zip", address: "address", detail: "addressDetail" },
@@ -706,8 +710,14 @@ export function AddressField({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
+  const zipId = useId();
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
+  const [hasZip, setHasZip] = useState(!!defaults.zip);
+  const zh = FIELD_HELP[help.zip];
+  const zipFmt = "format" in zh ? zh.format : undefined;
+  const zv = useKoValidity(zh.label, zipFmt?.message);
   const field = (n: string) => root.current?.querySelector<HTMLInputElement>(`input[name="${n}"]`) ?? null;
   const put = (n: string, v: string) => {
     const el = field(n);
@@ -716,6 +726,24 @@ export function AddressField({
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
   };
+
+  // 서버 오류로 돌아와 값이 되살려지거나 양식을 비우면 우편번호 유무를 다시 본다
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const sync = () => setHasZip(!!field(names.zip)?.value.trim());
+    el.addEventListener("input", sync);
+    const form = el.closest("form");
+    const later = () => setTimeout(sync, 0);
+    form?.addEventListener("assist:restored", later);
+    form?.addEventListener("reset", later);
+    return () => {
+      el.removeEventListener("input", sync);
+      form?.removeEventListener("assist:restored", later);
+      form?.removeEventListener("reset", later);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -735,40 +763,67 @@ export function AddressField({
           oncomplete: (d) => {
             put(names.zip, d.zonecode);
             put(names.address, daumRoadLine(d));
+            setHasZip(true);
             setOpen(false);
             setTimeout(() => field(names.detail)?.focus(), 0);
           },
         }).embed(box.current, { autoClose: false });
       })
-      .catch(() => alive && setMsg("주소 찾기 창을 불러오지 못했습니다(인터넷 연결 확인). 우편번호와 주소를 직접 적어도 됩니다."));
+      .catch(() => {
+        if (!alive) return;
+        setOpen(false);
+        setManual(true);
+        setMsg("주소 찾기 창을 불러오지 못했습니다(인터넷 연결 확인). 이번에는 우편번호와 주소를 직접 적어 주세요.");
+      });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const locked = !manual;
+  // 잠긴 칸을 누르면 찾기 창을 연다(직접 칠 수 없다는 것을 바로 알게)
+  const openOnClick = locked ? { onClick: () => setOpen(true), title: "'찾기'로 채웁니다" } : {};
   return (
     <div ref={root} className="space-y-3" data-assist-address>
-      <div className="grid gap-3 sm:grid-cols-[12rem_auto_1fr] sm:items-end">
-        <TextField help={help.zip} name={names.zip} required={required} from={from} defaultValue={defaults.zip} inputMode="numeric" />
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="h-11 rounded-md border border-[var(--accent)] px-4 text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
-          aria-expanded={open}
-        >
-          {open ? "찾기 닫기" : "🔍 주소 찾기"}
-        </button>
-        <p className="text-xs text-[var(--muted)] sm:pb-3">도로명·건물명·지번으로 찾으면 우편번호와 주소가 저절로 들어갑니다.</p>
-      </div>
+      <Shell fit id={zipId} helpKey={help.zip} required={required} error={zv.error} from={from}>
+        <div className="flex items-center gap-2">
+          <input
+            id={zipId}
+            name={names.zip}
+            required={required}
+            readOnly={locked}
+            defaultValue={defaults.zip}
+            inputMode="numeric"
+            placeholder={locked ? "찾기로 채움" : "example" in zh ? zh.example : undefined}
+            pattern={zipFmt?.pattern}
+            maxLength={5}
+            aria-invalid={!!zv.error}
+            aria-describedby={`${zipId}-msg`}
+            onInvalid={zv.onInvalid}
+            onInput={(e) => zv.revalidate(e.currentTarget)}
+            {...openOnClick}
+            style={{ width: "8.5rem" }}
+            className={`h-11 ${inputBox} ${locked ? "cursor-pointer !bg-[var(--surface-2)]" : ""}`}
+          />
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="h-11 shrink-0 rounded-md border border-[var(--accent)] px-3 text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+            aria-expanded={open}
+          >
+            {open ? "닫기" : "찾기"}
+          </button>
+        </div>
+      </Shell>
       {(open || msg) && (
         <div className="rounded-md border border-[var(--line-strong)] bg-[var(--surface)]">
           {msg && <p className="px-3 py-2 text-sm text-[var(--muted)]">{msg}</p>}
           {open && <div ref={box} className="h-[440px] w-full" />}
         </div>
       )}
-      <TextField help={help.address} name={names.address} required={required} from={from} defaultValue={defaults.address} />
-      <TextField help={help.detail} name={names.detail} from={from} defaultValue={defaults.detail} />
+      <TextField help={help.address} name={names.address} required={required} from={from} defaultValue={defaults.address} readOnly={locked} placeholder={locked ? "우편번호 '찾기'로 채워집니다" : undefined} {...openOnClick} />
+      <TextField help={help.detail} name={names.detail} from={from} defaultValue={defaults.detail} disabled={!hasZip && !manual} placeholder={!hasZip && !manual ? "우편번호를 찾은 뒤 적습니다" : undefined} />
     </div>
   );
 }

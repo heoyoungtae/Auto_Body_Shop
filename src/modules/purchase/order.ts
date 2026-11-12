@@ -178,6 +178,41 @@ export async function saveOrderLine(db: Db, actor: Actor, orderId: string, lineI
   await recalc(db, orderId);
 }
 
+/**
+ * 여러 줄을 한꺼번에 넣는다(대표 지시 2026-11-12 "항목 추가는 한꺼번에"). 품명이 빈 줄은 건너뛰고,
+ * 한 줄이라도 틀리면 아무 줄도 넣지 않는다(몇 번째 줄인지 알려 줌).
+ */
+export async function addOrderLines(db: Db, actor: Actor, orderId: string, inputs: LineInput[]) {
+  mustOrder(actor);
+  const o = await poRow(db, orderId);
+  mustDraft(o);
+  const rows = inputs.filter((l) => l.name.trim());
+  if (!rows.length) throw new PurchaseError("넣을 품목이 없습니다. 품명을 한 줄 이상 적어 주세요");
+  const vals = rows.map((l, i) => {
+    try {
+      const v = lineValues(l);
+      if (o.kind === "repair" && !v.partCode) throw new PurchaseError("부품 구분을 골라 주세요");
+      return v;
+    } catch (e) {
+      throw new PurchaseError(`${i + 1}번째 줄(${l.name.trim()}): ${e instanceof Error ? e.message : String(e)}`);
+    }
+  });
+  const itemIds = [...new Set(vals.map((v) => v.stockItemId).filter((x): x is string => !!x))];
+  if (itemIds.length) {
+    const items = await db.select().from(stockItem).where(inArray(stockItem.id, itemIds));
+    if (items.length !== itemIds.length) throw new PurchaseError("재고 품목을 찾을 수 없습니다");
+    const off = items.filter((it) => !it.active || it.windDown);
+    if (off.length) throw new PurchaseError(`사용 중지(예정) 품목은 발주하지 않습니다: ${off.map((it) => it.name).join(", ")}`);
+  }
+  await db.transaction(async (tx) => {
+    const [{ n }] = await tx.select({ n: purchaseLine.seq }).from(purchaseLine).where(eq(purchaseLine.orderId, orderId)).orderBy(desc(purchaseLine.seq)).limit(1).then((r) => (r.length ? r : [{ n: 0 }]));
+    let seq = n;
+    for (const v of vals) await tx.insert(purchaseLine).values({ orderId, seq: ++seq, ...v });
+  });
+  await recalc(db, orderId);
+  return vals.length;
+}
+
 export async function removeOrderLine(db: Db, actor: Actor, orderId: string, lineId: string) {
   mustOrder(actor);
   mustDraft(await poRow(db, orderId));
@@ -457,4 +492,19 @@ export async function orderTodos(db: Db, actor: Actor, today: string) {
     for (const p of pending.filter((x) => !x.r.returnDoneAt)) out.push({ key: `po-ret-${p.r.id}`, when: "today", what: `반품 대기: ${p.docNo}`, detail: p.r.badNote ?? undefined, href: `/purchases/${p.r.orderId}`, action: "반품·교환 처리" });
   }
   return out;
+}
+
+/** 전에 발주한 품명(최근 것이 먼저, 이름마다 한 줄). 같은 업체에서 산 것이 앞에 온다 — 품목 넣기에서 직전 단가·품번을 불러온다 */
+export async function pastLines(db: Db, supplierId: string | null, kind: string, limit = 300) {
+  const rows = await db
+    .select({ name: purchaseLine.name, partNo: purchaseLine.partNo, spec: purchaseLine.spec, unitWon: purchaseLine.unitWon, partCode: purchaseLine.partCode, supplierId: purchaseOrder.supplierId, at: purchaseOrder.createdAt })
+    .from(purchaseLine)
+    .innerJoin(purchaseOrder, eq(purchaseOrder.id, purchaseLine.orderId))
+    .where(and(eq(purchaseOrder.kind, kind), ne(purchaseOrder.status, "cancelled")))
+    .orderBy(desc(purchaseOrder.createdAt))
+    .limit(limit * 3);
+  const sorted = [...rows.filter((r) => supplierId && r.supplierId === supplierId), ...rows.filter((r) => !supplierId || r.supplierId !== supplierId)];
+  const seen = new Map<string, { name: string; partNo: string | null; spec: string | null; unitWon: number; partCode: string | null; on: string }>();
+  for (const r of sorted) if (!seen.has(r.name) && seen.size < limit) seen.set(r.name, { name: r.name, partNo: r.partNo, spec: r.spec, unitWon: r.unitWon, partCode: r.partCode, on: seoulDate(r.at) });
+  return [...seen.values()];
 }

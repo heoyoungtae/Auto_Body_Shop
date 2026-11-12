@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import {
+  addOrderLines,
   addReceiptPhoto,
   approveOrder,
   cancelOrder,
@@ -54,6 +55,19 @@ export async function orderAction(form: FormData) {
     else if (intent === "line") {
       await saveOrderLine(db, user, id, s("lineId") || null, { name: s("name"), partNo: s("partNo"), spec: s("spec"), partCode: s("partCode") || null, qty: num(s("qty")), unitWon: num(s("unitWon")), stockItemId: s("stockItemId") || null });
       msg = s("lineId") ? "줄을 고쳤습니다" : "품목을 넣었습니다";
+    } else if (intent === "lines") {
+      // 한꺼번에 넣기: r{번호}_name 처럼 줄 번호가 붙은 칸을 줄마다 모은다
+      const idx = [...new Set([...form.keys()].map((k) => /^r(\d+)_name$/.exec(k)?.[1]).filter((x): x is string => !!x))].sort((a, b) => Number(a) - Number(b));
+      const n = await addOrderLines(
+        db,
+        user,
+        id,
+        idx.map((i) => {
+          const g = (k: string) => s(`r${i}_${k}`);
+          return { name: g("name"), partNo: g("partNo"), spec: g("spec"), partCode: g("partCode") || null, qty: num(g("qty")), unitWon: num(g("unitWon")), stockItemId: g("stockItemId") || null };
+        }),
+      );
+      msg = `품목 ${n}줄을 넣었습니다`;
     } else if (intent === "removeLine") {
       await removeOrderLine(db, user, id, s("lineId"));
       msg = "줄을 지웠습니다";
