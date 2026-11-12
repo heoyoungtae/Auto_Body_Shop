@@ -53,4 +53,4 @@ export function sniffDoc(b: Uint8Array): keyof typeof DOC_TYPES | null {
 }
 
 export const contentTypeOf = (rel: string) =>
-  rel.endsWith(".webp") ? "image/webp" : rel.endsWith(".png") ? "image/png" : rel.endsWith(".jpg") ? "image/jpeg" : rel.endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
+  rel.endsWith(".webp") ? "image/webp" : rel.endsWith(".png") ? "image/png" : rel.endsWith(".jpg") ? "image/jpeg" : rel.endsWith(".pdf") ? "application/pdf" : rel.endsWith(".mp4") ? "video/mp4" : "application/octet-stream";

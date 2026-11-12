@@ -243,14 +243,21 @@ export async function recordHeld(
     .select()
     .from(trainingAttendee)
     .where(eq(trainingAttendee.trainingId, id));
-  for (const b of before.filter((b) => !ids.includes(b.userId))) {
+  // 앱 학습 대상(시한 있음)은 집합 교육 이수자 목록에 없어도 남긴다('둘 다' 방식)
+  for (const b of before.filter((b) => !ids.includes(b.userId) && !b.dueOn)) {
     if (b.signedAt)
       throw new TrainingError("이미 서명한 이수자는 뺄 수 없습니다");
     await db.delete(trainingAttendee).where(eq(trainingAttendee.id, b.id));
   }
   for (const u of ids) {
     const old = before.find((b) => b.userId === u);
-    if (old)
+    if (old && old.dueOn && !old.signedAt)
+      // 앱 학습 대상이었는데 집합 교육에 왔으면 집합 이수로(서명은 본인)
+      await db
+        .update(trainingAttendee)
+        .set({ hours: input.hours, dueOn: null, how: "class" })
+        .where(eq(trainingAttendee.id, old.id));
+    else if (old)
       await db
         .update(trainingAttendee)
         .set({ hours: input.hours })
@@ -514,11 +521,12 @@ export async function hiresWithoutTraining(db: Db, today: string) {
   );
   if (!staff.length) return [];
   const done = await db
-    .select({ userId: trainingAttendee.userId })
+    .select({ userId: trainingAttendee.userId, signedAt: trainingAttendee.signedAt, dueOn: trainingAttendee.dueOn, status: training.status })
     .from(trainingAttendee)
     .innerJoin(training, eq(training.id, trainingAttendee.trainingId))
-    .where(and(eq(training.kind, "safety_hire"), eq(training.status, "done")));
-  return staff.filter((u) => !done.some((d) => d.userId === u.id));
+    .where(eq(training.kind, "safety_hire"));
+  // 집합 교육으로 실시했거나, 앱 학습을 배정받았으면(이수 전이라도 본인 할 일로 뜸) 빼고 본다
+  return staff.filter((u) => !done.some((d) => d.userId === u.id && (d.status === "done" || d.signedAt || d.dueOn)));
 }
 
 /** 내 할 일: 계획 세우기(대표)·이번 달 교육·채용 시 교육·서명·효과 확인 */
@@ -541,6 +549,7 @@ export async function trainingTodos(db: Db, actor: Actor, today: string) {
       and(
         eq(trainingAttendee.userId, actor.id),
         isNull(trainingAttendee.signedAt),
+        isNull(trainingAttendee.dueOn),
         eq(training.status, "done"),
       ),
     );

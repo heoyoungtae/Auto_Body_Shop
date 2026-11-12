@@ -8,7 +8,7 @@ import { shrink } from "../repairs/photo-slots";
 const MAX = 8 * 1024 * 1024;
 
 /** 사진·PDF 여러 개 붙이기. 지출 증빙 말고도(직원 서류·수리 이력) help·name·문구를 바꿔 쓴다 */
-export function EvidenceFiles({ saved = 0, help = "exp.files", name = "files", pickLabel = "+ 증빙 사진·PDF 붙이기", multiple = true }: { saved?: number; help?: FieldHelpKey; name?: string; pickLabel?: string; multiple?: boolean }) {
+export function EvidenceFiles({ saved = 0, help = "exp.files", name = "files", pickLabel = "+ 증빙 사진·PDF 붙이기", multiple = true, video = false }: { saved?: number; help?: FieldHelpKey; name?: string; pickLabel?: string; multiple?: boolean; /** 짧은 MP4 영상(25MB)도 받기 — 교육 자료 */ video?: boolean }) {
   const id = useId();
   const input = useRef<HTMLInputElement | null>(null);
   const [names, setNames] = useState<string[]>([]);
@@ -30,9 +30,11 @@ export function EvidenceFiles({ saved = 0, help = "exp.files", name = "files", p
               (blob.type === "image/webp" ? ".webp" : ".jpg"),
             { type: blob.type },
           );
+        } else if (video && f.type === "video/mp4") {
+          if (f.size > 25 * 1024 * 1024) throw new Error(`${f.name}: 영상은 25MB까지입니다. 긴 영상은 유튜브 '일부 공개' 링크로 거세요`);
         } else if (f.type !== "application/pdf")
-          throw new Error(`${f.name}: 사진이나 PDF만 붙입니다`);
-        if (out.size > MAX) throw new Error(`${f.name}: 8MB가 넘습니다`);
+          throw new Error(`${f.name}: 사진${video ? "·PDF·MP4 영상" : "이나 PDF"}만 붙입니다`);
+        if (out.size > MAX && out.type !== "video/mp4") throw new Error(`${f.name}: 8MB가 넘습니다`);
         dt.items.add(out);
       }
       input.current.files = dt.files;
@@ -53,7 +55,7 @@ export function EvidenceFiles({ saved = 0, help = "exp.files", name = "files", p
           type="file"
           data-assist="upload"
           name={name}
-          accept="image/*,application/pdf"
+          accept={video ? "image/*,application/pdf,video/mp4" : "image/*,application/pdf"}
           multiple={multiple}
           className="hidden"
           onChange={(e) => pick(e.currentTarget.files)}

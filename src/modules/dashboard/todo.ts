@@ -38,6 +38,7 @@ import { chemicalTodos } from "@/modules/safety/chemical";
 import { hazardTodos } from "@/modules/safety/hazard";
 import { envTodos } from "@/modules/safety/environment";
 import { trainingTodos } from "@/modules/staff/training";
+import { learnTodos } from "@/modules/staff/elearning";
 import { payrollTodos } from "@/modules/staff/payroll";
 import { reviewTodos } from "@/modules/staff/review";
 import { exitTodos } from "@/modules/staff/exit";
@@ -646,6 +647,7 @@ export async function myTodos(
     ...(await hazardTodos(db, user, today)),
     ...(await envTodos(db, user, today)),
     ...(await trainingTodos(db, user, today)),
+    ...(await learnTodos(db, user, today)),
     ...(await payrollTodos(db, user, today)),
     ...(await reviewTodos(db, user, today)),
     ...(await exitTodos(db, user, today)),

@@ -20,6 +20,7 @@ import { syncHolidays } from "./holidays";
 import { legalDailyAlerts } from "@/modules/quality/legal";
 import { envDailyAlerts } from "@/modules/safety/environment";
 import { goalDailyJob } from "@/modules/quality/goals";
+import { trainingDailyAlerts } from "@/modules/staff/elearning";
 
 export type JobResult = {
   job: string;
@@ -49,7 +50,8 @@ export const JOBS: Record<string, JobFn> = {
     const legal = await legalDailyAlerts(db, now);
     const env = await envDailyAlerts(db, now);
     const goal = await goalDailyJob(db, now);
-    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal}`;
+    const tr = await trainingDailyAlerts(db, now);
+    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal} · ${tr}`;
   },
   /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계) */
   reminders: async (db, _today, now) => sendReminders(db, now),

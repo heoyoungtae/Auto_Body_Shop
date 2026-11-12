@@ -26,6 +26,10 @@ import { SubmitButton } from "../../_submit";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { trainingAction } from "../actions";
 import { TrainingFields } from "../_form";
+import { LearnAdmin } from "../learn-admin";
+import { learnProgress, learnView, questionsOf, stdOptions } from "@/modules/staff/elearning";
+import { trainingManual } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 /** 교육 한 건(F-11-03): 계획란·이수란(이수자 서명)·효과란 */
 export default async function TrainingItemPage({
@@ -48,6 +52,16 @@ export default async function TrainingItemPage({
   const kind = TR_KINDS[t.kind as TrKind];
   const today = seoulDate();
   const mine = attendees.find((a) => a.a.userId === user.id);
+  // 앱 학습(관리자 카드): 자료·문제·현황, 고를 사내 교재·표준서
+  const learn = manage
+    ? await Promise.all([
+        learnView(db, user, id),
+        learnProgress(db, id),
+        db.select({ id: trainingManual.id, no: trainingManual.no, title: trainingManual.title }).from(trainingManual).where(eq(trainingManual.status, "approved")),
+        stdOptions(db),
+        questionsOf(db, id),
+      ])
+    : null;
   // 이수자 기본값: 이미 적은 이수자 → 채용 시 교육이면 대상에 적힌 사람 → 지난 같은 종류 교육 이수자
   let defaults = attendees.map((a) => a.a.userId);
   let from: string | undefined;
@@ -108,7 +122,18 @@ export default async function TrainingItemPage({
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
 
-      {mine && !mine.a.signedAt && t.status === "done" && (
+      {mine && mine.a.dueOn && (
+        <Card title="앱 학습" help={{ kind: "panel", id: "learn.mine" }}>
+          <p className="text-sm">
+            {mine.a.signedAt ? "이수했습니다." : `${mine.a.dueOn}까지 앱에서 자료를 보고 확인합니다.`}{" "}
+            <Link href={`/training/learn/${id}`} className="text-[var(--accent)]">
+              {mine.a.signedAt ? "자료 다시 보기" : "학습하기"}
+            </Link>
+          </p>
+        </Card>
+      )}
+
+      {mine && !mine.a.signedAt && !mine.a.dueOn && t.status === "done" && (
         <Card title="이수 서명" help={{ kind: "panel", id: "tr.sign" }}>
           <p className="mb-2 text-sm">
             {t.heldOn}에 {t.hours}시간 교육을 받았다면 서명하세요. 서명해야
@@ -237,6 +262,20 @@ export default async function TrainingItemPage({
           )
         )}
       </Card>
+
+      {learn && t.status !== "cancelled" && (
+        <LearnAdmin
+          t={t}
+          materials={learn[0].materials}
+          questions={learn[4]}
+          progress={learn[1]}
+          users={users.map((u) => ({ value: u.id, label: u.name }))}
+          manuals={learn[2].map((m) => ({ value: m.id, label: `${m.no} ${m.title}` }))}
+          docs={learn[3].map((d) => ({ value: d.id, label: `${d.no} ${d.name} (${d.rev}${d.effectiveOn ? ` · ${d.effectiveOn}` : ""})` }))}
+          stdRev={t.kind === "std_rev" && !learn[0].materials.length ? learn[3][0]?.id : undefined}
+          today={today}
+        />
+      )}
 
       {t.effectDue && (
         <Card title="효과란" help={{ kind: "panel", id: "tr.effect" }}>

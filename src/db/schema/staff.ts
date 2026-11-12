@@ -1,5 +1,6 @@
 // 직원 명부(F-11-01 근로자 명부)·역량 표(F-11-02), STD-11. 계정(app_user)에 붙는 인사 기록.
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -137,6 +138,12 @@ export const training = pgTable(
     effectBy: uuid("effect_by").references(() => appUser.id),
     effectAt: timestamp("effect_at", { withTimezone: true }),
     cancelReason: text("cancel_reason"),
+    /** 진행 방식: class 모여서 · online 앱에서 개별 학습 · both 둘 다(대표 결정 2026-11-12) */
+    mode: text("mode").notNull().default("class"),
+    /** 확인 문제 합격 점수(%). 문제가 없으면 쓰지 않음 */
+    passScore: integer("pass_score").notNull().default(80),
+    /** 외부 기관 수료증을 올려 이수할 수 있음(법정 교육) */
+    allowCert: boolean("allow_cert").notNull().default(false),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -161,9 +168,91 @@ export const trainingAttendee = pgTable(
       .references(() => appUser.id),
     hours: real("hours").notNull(),
     signedAt: timestamp("signed_at", { withTimezone: true }),
+    /** 앱 학습 시한(대상 배정 때 정함). 없으면 모여서 하는 교육 */
+    dueOn: text("due_on"),
+    /** 다 본 자료 id */
+    viewed: jsonb("viewed").$type<string[]>().notNull().default([]),
+    /** 실제로 자료를 본 시간(초). 계획 시간을 넘게 잡지 않음 */
+    studiedSec: integer("studied_sec").notNull().default(0),
+    score: integer("score"),
+    attempts: integer("attempts").notNull().default(0),
+    /** 이수한 방법: class 집합 · online 앱 학습 · cert 외부 수료증 */
+    how: text("how"),
+    certFile: jsonb("cert_file").$type<{ path: string; name: string }>(),
   },
   (t) => [uniqueIndex("training_attendee_uq").on(t.trainingId, t.userId)],
 );
+
+/**
+ * 교육 자료(앱 개별 학습). kind: file 파일(PDF·사진·짧은 영상) · video 영상 링크 · link 외부 자료 링크 · manual 사내 교재 · std 표준서.
+ * 링크는 매달 1일 살아 있는지 확인한다(linkOk).
+ */
+export const trainingMaterial = pgTable(
+  "training_material",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainingId: uuid("training_id")
+      .notNull()
+      .references(() => training.id),
+    ord: integer("ord").notNull().default(0),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    url: text("url"),
+    filePath: text("file_path"),
+    fileName: text("file_name"),
+    manualId: uuid("manual_id"),
+    docId: uuid("doc_id"),
+    /** 보는 데 걸리는 시간(분) — 학습 시간 상한 계산 */
+    minutes: integer("minutes"),
+    linkOk: boolean("link_ok"),
+    linkCheckedAt: timestamp("link_checked_at", { withTimezone: true }),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("training_material_tr_idx").on(t.trainingId)],
+);
+
+/** 확인 문제(객관식). answer 는 choices 의 순번(0부터) */
+export const trainingQuestion = pgTable(
+  "training_question",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trainingId: uuid("training_id")
+      .notNull()
+      .references(() => training.id),
+    ord: integer("ord").notNull().default(0),
+    question: text("question").notNull(),
+    choices: jsonb("choices").$type<string[]>().notNull(),
+    answer: integer("answer").notNull(),
+  },
+  (t) => [index("training_question_tr_idx").on(t.trainingId)],
+);
+
+/**
+ * 사내 교재(TM-001…): 우리 표준서·공정·설비·사용 도료처럼 우리만의 내용. 대표 승인 후 교육 자료로 쓴다.
+ * stdRevs: 승인할 때 근거 표준서의 판 — 표준서 판이 바뀌면 '개정 필요'.
+ */
+export const trainingManual = pgTable("training_manual", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  no: text("no").notNull().unique(),
+  title: text("title").notNull(),
+  rev: integer("rev").notNull().default(0),
+  /** draft 작성 중 · approved 승인(사용 중) · retired 폐기 */
+  status: text("status").notNull().default("draft"),
+  body: text("body").notNull().default(""),
+  /** 그림·PDF 붙임 */
+  files: jsonb("files").$type<{ path: string; name: string }[]>().notNull().default([]),
+  /** 영상 링크(유튜브 일부 공개 등) */
+  videoUrl: text("video_url"),
+  stdRevs: jsonb("std_revs").$type<{ docId: string; no: string; rev: string }[]>().notNull().default([]),
+  history: jsonb("history").$type<{ rev: number; approvedAt: string; by: string; note: string }[]>().notNull().default([]),
+  changeNote: text("change_note"),
+  approvedBy: uuid("approved_by").references(() => appUser.id),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdBy: uuid("created_by").references(() => appUser.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 /**
  * 급여대장(F-11-05) 한 달 치. 상태: draft(회계 계산) → submitted(대표 승인 대기) → approved → paid.
