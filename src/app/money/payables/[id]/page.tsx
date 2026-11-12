@@ -26,7 +26,7 @@ export default async function SupplierPayablePage({ params }: { params: Promise<
     <>
       <PageTitle
         help="payables.supplier"
-        sub={`결제 조건 ${payTermLabel(r.s.payTerm, r.s.payDay)} · 잔액 ${won(r.balance)}`}
+        sub={`결제 조건 ${payTermLabel(r.s.payTerm, r.s.payDay)} · 잔액 ${won(r.balance)}${r.prepaid.length ? ` · 선급금 잔액(미입고) ${won(r.prepaid.reduce((a, x) => a + x.balance, 0))}` : ""}`}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link href={`/suppliers/${id}#bank`} className={buttonClass("secondary")}>
@@ -52,7 +52,7 @@ export default async function SupplierPayablePage({ params }: { params: Promise<
                   defaultChecked={dueIds.length ? dueIds : r.open.map((x) => x.id)}
                   options={r.open.map((x) => ({
                     value: x.id,
-                    label: `${x.sourceNo} ${won(x.amountWon)} · ${PAYABLE_KINDS[x.kind as "trade" | "other"]}(${EXP_CATEGORIES[x.category as keyof typeof EXP_CATEGORIES] ?? x.category}) · 기한 ${x.dueOn}${x.dueOn < today ? " 지남" : ""}`,
+                    label: `${x.sourceNo} ${won(x.amountWon)} · ${PAYABLE_KINDS[x.kind as keyof typeof PAYABLE_KINDS]}(${EXP_CATEGORIES[x.category as keyof typeof EXP_CATEGORIES] ?? x.category}) · 기한 ${x.dueOn}${x.dueOn < today ? " 지남" : ""}`,
                   }))}
                 />
                 <button type="submit" className={buttonClass()}>

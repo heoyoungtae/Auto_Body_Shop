@@ -66,6 +66,16 @@ export default async function PurchasePage({ params, searchParams }: { params: P
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
+      {status !== "cancelled" && (o.payTerm ?? sup?.payTerm) === "prepay" && (
+        <div className="mb-3">
+          <Notice>
+            선입금 업체입니다. 발주를 승인하면 발주서 합계가 &lsquo;선입금(낼 돈)&rsquo;으로 잡혀 회계 담당의 지급 결의 할 일에 올라갑니다. 입금한 뒤 업체에 발주서를 보내고, 물건이 들어오면 입고 검수를 하면 선급금이 매입으로 정리됩니다.{" "}
+            <Link href="/money/payables" className="text-[var(--accent)]">
+              외상매입금·미지급금
+            </Link>
+          </Notice>
+        </div>
+      )}
       {status !== "cancelled" && (
         <ol className="mb-4 flex flex-wrap gap-1 text-xs">
           {STEPS.map((s, i) => {
