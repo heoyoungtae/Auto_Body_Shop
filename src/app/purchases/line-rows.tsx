@@ -25,7 +25,10 @@ export function LineRows({
   past,
   partCodes,
   start = 5,
+  submit = true,
 }: {
+  /** false: 바깥 양식의 저장 단추로 함께 보낸다(발주서 만들기 화면) */
+  submit?: boolean;
   kind: "repair" | "stock";
   stock: StockPick[];
   past: PastLine[];
@@ -212,9 +215,11 @@ export function LineRows({
         <p className="text-sm">
           넣을 줄 <b>{filled.length}</b>개 · 공급가 합계 <b className="tabular-nums">{total.toLocaleString("ko-KR")}원</b> <span className="text-xs text-[var(--muted)]">(부가세 별도)</span>
         </p>
-        <SubmitButton variant="secondary" disabled={!filled.length}>
-          {filled.length ? `${filled.length}줄 한꺼번에 넣기` : "품명을 적으면 넣을 수 있습니다"}
-        </SubmitButton>
+        {submit && (
+          <SubmitButton variant="secondary" disabled={!filled.length}>
+            {filled.length ? `${filled.length}줄 한꺼번에 넣기` : "품명을 적으면 넣을 수 있습니다"}
+          </SubmitButton>
+        )}
       </div>
     </div>
   );

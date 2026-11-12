@@ -61,6 +61,8 @@ export type OrderHeader = { supplierId: string; dueOn: string; note: string; pay
 export async function createOrder(db: Db, actor: Actor, input: { kind: "repair" | "stock"; repairOrderId?: string | null; supplierId?: string | null; dueOn?: string | null; note?: string; lines?: LineInput[] }, now = new Date()) {
   mustOrder(actor);
   if (input.kind === "repair" && !input.repairOrderId) throw new PurchaseError("수리 건 부품 발주는 수리 건에서 만듭니다");
+  // 만들 때 품목을 같이 적었으면(한꺼번에 넣기) 먼저 확인한다. 품목 없이 만들어도 되고 나중에 넣는다
+  const vals = input.lines?.some((l) => l.name.trim()) ? await prepareLines(db, input.kind, input.lines) : [];
   const id = await db.transaction(async (tx) => {
     const docNo = await nextDocNo(tx, "PO", now);
     const [o] = await tx
@@ -68,7 +70,7 @@ export async function createOrder(db: Db, actor: Actor, input: { kind: "repair" 
       .values({ docNo, kind: input.kind, repairOrderId: input.repairOrderId ?? null, supplierId: input.supplierId || null, dueOn: input.dueOn || null, note: clean(input.note), createdBy: actor.id, createdAt: now, updatedAt: now })
       .returning({ id: purchaseOrder.id });
     let seq = 0;
-    for (const l of input.lines ?? []) await tx.insert(purchaseLine).values({ orderId: o.id, seq: ++seq, ...lineValues(l) });
+    for (const v of vals) await tx.insert(purchaseLine).values({ orderId: o.id, seq: ++seq, ...v });
     return o.id;
   });
   await recalc(db, id);
@@ -178,20 +180,14 @@ export async function saveOrderLine(db: Db, actor: Actor, orderId: string, lineI
   await recalc(db, orderId);
 }
 
-/**
- * 여러 줄을 한꺼번에 넣는다(대표 지시 2026-11-12 "항목 추가는 한꺼번에"). 품명이 빈 줄은 건너뛰고,
- * 한 줄이라도 틀리면 아무 줄도 넣지 않는다(몇 번째 줄인지 알려 줌).
- */
-export async function addOrderLines(db: Db, actor: Actor, orderId: string, inputs: LineInput[]) {
-  mustOrder(actor);
-  const o = await poRow(db, orderId);
-  mustDraft(o);
+/** 여러 줄 품목 확인. 품명이 빈 줄은 건너뛰고, 한 줄이라도 틀리면 몇 번째 줄인지 알려 주고 막는다. 사용 중지 품목도 막는다 */
+async function prepareLines(db: Db, kind: string, inputs: LineInput[]) {
   const rows = inputs.filter((l) => l.name.trim());
   if (!rows.length) throw new PurchaseError("넣을 품목이 없습니다. 품명을 한 줄 이상 적어 주세요");
   const vals = rows.map((l, i) => {
     try {
       const v = lineValues(l);
-      if (o.kind === "repair" && !v.partCode) throw new PurchaseError("부품 구분을 골라 주세요");
+      if (kind === "repair" && !v.partCode) throw new PurchaseError("부품 구분을 골라 주세요");
       return v;
     } catch (e) {
       throw new PurchaseError(`${i + 1}번째 줄(${l.name.trim()}): ${e instanceof Error ? e.message : String(e)}`);
@@ -204,6 +200,15 @@ export async function addOrderLines(db: Db, actor: Actor, orderId: string, input
     const off = items.filter((it) => !it.active || it.windDown);
     if (off.length) throw new PurchaseError(`사용 중지(예정) 품목은 발주하지 않습니다: ${off.map((it) => it.name).join(", ")}`);
   }
+  return vals;
+}
+
+/** 여러 줄을 한꺼번에 넣는다(대표 지시 2026-11-12 "항목 추가는 한꺼번에") */
+export async function addOrderLines(db: Db, actor: Actor, orderId: string, inputs: LineInput[]) {
+  mustOrder(actor);
+  const o = await poRow(db, orderId);
+  mustDraft(o);
+  const vals = await prepareLines(db, o.kind, inputs);
   await db.transaction(async (tx) => {
     const [{ n }] = await tx.select({ n: purchaseLine.seq }).from(purchaseLine).where(eq(purchaseLine.orderId, orderId)).orderBy(desc(purchaseLine.seq)).limit(1).then((r) => (r.length ? r : [{ n: 0 }]));
     let seq = n;
