@@ -13,6 +13,7 @@ import {
   type TrKind,
 } from "@/modules/staff/training-rules";
 import { AssistForm } from "../_assist";
+import { pendingLearners } from "@/modules/staff/elearning";
 import { requireUser } from "../_lib/session";
 import { SubmitButton } from "../_submit";
 import {
@@ -45,6 +46,7 @@ export default async function TrainingPage({
   const manage = can(user, "training.manage");
   const matrix = manage ? await trainingMatrix(db, year) : [];
   const hires = manage ? await hiresWithoutTraining(db, today) : [];
+  const pending = manage ? await pendingLearners(db, year) : [];
   const month = today.slice(0, 7);
   const done = list.filter((x) => x.t.status === "done").length;
   const planned = list.filter((x) => x.t.status !== "cancelled").length;
@@ -66,6 +68,9 @@ export default async function TrainingPage({
               className="text-sm text-[var(--accent)]"
             >
               {year + 1} →
+            </Link>
+            <Link href="/training/manuals" className={buttonClass("secondary")}>
+              사내 교재
             </Link>
             {manage && (
               <Link href="/training/new" className={buttonClass()}>
@@ -98,6 +103,24 @@ export default async function TrainingPage({
                 >
                   교육 잡기
                 </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {pending.length > 0 && (
+        <Card title={`앱 학습 미이수 ${pending.length}건`} help={{ kind: "panel", id: "learn.pending" }}>
+          <ul className="divide-y divide-[var(--line)] text-sm">
+            {pending.map((p) => (
+              <li key={`${p.trainingId}-${p.userId}`} className="flex flex-wrap items-center gap-2 py-1.5">
+                <span className="w-20 shrink-0 font-medium">{p.name}</span>
+                <Link href={`/training/${p.trainingId}#learn`} className="text-[var(--accent)]">
+                  {p.title}
+                </Link>
+                <span className={`text-xs ${p.dueOn! < today ? "font-medium text-[var(--danger)]" : "text-[var(--muted)]"}`}>
+                  {p.dueOn! < today ? `시한 ${p.dueOn} 지남` : `${p.dueOn}까지`}
+                </span>
               </li>
             ))}
           </ul>
@@ -143,6 +166,7 @@ export default async function TrainingPage({
                         ? "늦음"
                         : TR_STATUS[t.status as keyof typeof TR_STATUS]}
                     </Badge>
+                    {t.mode !== "class" && <Badge tone="accent">앱 학습 · 이수 {signed}/{attendees}</Badge>}
                     {t.status === "done" && (
                       <span className="text-xs text-[var(--muted)]">
                         {t.heldOn} · {t.hours}시간 · 서명 {signed}/{attendees}

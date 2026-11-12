@@ -330,6 +330,20 @@
       "when": 1794462069645,
       "tag": "0046_asset_register",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794467507156,
+      "tag": "0047_tool_stock_insurer_voucher",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794468114802,
+      "tag": "0048_training_elearning",
+      "breakpoints": true
     }
   ]
 }

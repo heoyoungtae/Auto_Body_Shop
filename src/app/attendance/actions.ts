@@ -94,7 +94,7 @@ export async function savePunchConfigAction(form: FormData) {
   try {
     ips = await savePunchConfig(await getDb(), user, String(form.get("ips") ?? ""));
   } catch (e) {
-    redirect(errorUrl("/attendance", userMessage(e)));
+    redirect(errorUrl("/settings/punch", userMessage(e)));
   }
-  redirect(noticeUrl("/attendance", ips.length ? `저장했습니다. 이제 ${ips.join(", ")} 에서만 출퇴근을 누를 수 있습니다` : "저장했습니다. 주소가 비어 있어 어디서나 누를 수 있습니다"));
+  redirect(noticeUrl("/settings/punch", ips.length ? `저장했습니다. 이제 ${ips.join(", ")} 에서만 출퇴근을 누를 수 있습니다` : "저장했습니다. 주소가 비어 있어 어디서나 누를 수 있습니다"));
 }

@@ -1,6 +1,6 @@
 "use client";
 // 왼쪽 메뉴. 넓은 화면에서는 늘 보이고, 태블릿·휴대폰에서는 ☰ 단추로 열고 닫는다.
-// 맨 위에 메뉴 찾기 칸(_menu-search-box.tsx)이 있다. 묶음은 기본으로 접혀 있다. 지금 화면이 든 묶음만 저절로 펼친다. 펼친 묶음과 '개발 예정 보기'는 이 기기에 기억한다.
+// 맨 위에 메뉴 찾기 칸(_menu-search-box.tsx)이 있고, 메뉴를 내려도 그 자리에 고정된다. 묶음은 기본으로 접혀 있다. 지금 화면이 든 묶음만 저절로 펼친다. 펼친 묶음과 '개발 예정 보기'는 이 기기에 기억한다.
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -132,7 +132,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
         aria-label="메뉴"
         className={`fixed inset-y-0 left-0 z-30 w-64 shrink-0 overflow-y-auto border-r border-[var(--line)] bg-[var(--surface)] pb-6 transition-transform lg:sticky lg:top-14 lg:z-0 lg:h-[calc(100vh-3.5rem)] lg:translate-x-0 ${open ? "translate-x-0 shadow-[var(--shadow-lg)]" : "-translate-x-full"}`}
       >
-        <div className="flex min-h-14 items-center justify-between border-b border-[var(--line)] px-3 lg:hidden">
+        <div className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-[var(--line)] bg-[var(--surface)] px-3 lg:hidden">
           <span className="font-semibold">메뉴</span>
           <button
             type="button"

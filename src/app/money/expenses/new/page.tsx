@@ -29,6 +29,7 @@ import { EvidenceFiles } from "../../evidence-files";
 import { AssetRows } from "../../asset-rows";
 import { ShowWhen } from "../../../consults/show-when";
 import { assetOptions, leaseFeePrefill } from "@/modules/asset/service";
+import { lastToolPrice } from "@/modules/equipment/tools";
 import { listUsers } from "@/modules/auth/service";
 import { FX_CATEGORIES } from "@/modules/purchase/rules";
 import { EQ_KINDS } from "@/modules/equipment/rules";
@@ -41,7 +42,7 @@ const opts = (o: Record<string, string>) =>
 export default async function NewExpensePage({
   searchParams,
 }: {
-  searchParams: Promise<{ src?: string; from?: string; error?: string; p?: string | string[]; lease?: string }>;
+  searchParams: Promise<{ src?: string; from?: string; error?: string; p?: string | string[]; lease?: string; tool?: string; qty?: string }>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
@@ -62,7 +63,10 @@ export default async function NewExpensePage({
   // 빌린 장비 사용료(?lease=kind:id): 업체·금액·용도를 계약에서 채운다
   const [lk, lid] = (q.lease ?? "").split(":");
   const lease = (lk === "fixture" || lk === "equipment") && lid ? await leaseFeePrefill(db, lk, lid).catch(() => null) : null;
-  const sources = src || old || lease ? [] : await expenseSources(db);
+  // 치공구 안전재고 부족(?tool=품명&qty=수량): 계정 '설비·공구', 대장 줄(치공구), 용도, 직전 단가로 공급가를 채운다
+  const toolPick = !src && !old && !lease && q.tool?.trim() ? { name: q.tool.trim().slice(0, 100), qty: Math.min(50, Math.max(1, Number(q.qty) || 1)) } : null;
+  const toolLast = toolPick ? await lastToolPrice(db, toolPick.name) : null;
+  const sources = src || old || lease || toolPick ? [] : await expenseSources(db);
   const [assetOpts, staff] = src ? [[], []] : await Promise.all([assetOptions(db), listUsers(db)]);
   const people = staff.filter((u) => u.active && !u.retiredOn).map((u) => ({ value: u.id, label: u.name }));
   const fxCats = Object.entries(FX_CATEGORIES).map(([value, label]) => ({ value, label }));
@@ -75,7 +79,7 @@ export default async function NewExpensePage({
     ? src.remainWon === src.totalWon
       ? src.supplyWon
       : Math.round(remain / 1.1)
-    : (old?.supplyWon ?? lease?.supply ?? null);
+    : (old?.supplyWon ?? lease?.supply ?? (toolPick && toolLast ? toolPick.qty * toolLast : null));
   const vat = src ? remain - (supply ?? 0) : (old?.vatWon ?? (lease ? vatOf(lease.supply) : null));
   const fromSrc = src
     ? `${SOURCE_KINDS[src.kind]} ${src.docNo}`
@@ -221,9 +225,9 @@ export default async function NewExpensePage({
             <div className="md:col-span-2">
               <ShowWhen
                 field="category"
-                initial={old?.category ?? (lease ? "rent" : "")}
+                initial={old?.category ?? (lease ? "rent" : toolPick ? "equipment" : "")}
                 cases={{
-                  equipment: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} />,
+                  equipment: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} defaults={toolPick ? { name: toolPick.name, kind: "tool", qty: toolPick.qty, unitWon: toolLast } : undefined} />,
                   other: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
                   welfare: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
                   repair: (
@@ -234,7 +238,7 @@ export default async function NewExpensePage({
                   ),
                 }}
               >
-                <SelectField help="exp.category" name="category" required defaultValue={old?.category ?? (lease ? "rent" : "")} placeholder="계정 고르기" from={old || lease ? fromSrc : undefined} options={opts(EXP_CATEGORIES)} />
+                <SelectField help="exp.category" name="category" required defaultValue={old?.category ?? (lease ? "rent" : toolPick ? "equipment" : "")} placeholder="계정 고르기" from={old || lease ? fromSrc : undefined} options={opts(EXP_CATEGORIES)} />
               </ShowWhen>
             </div>
           )}
@@ -282,7 +286,7 @@ export default async function NewExpensePage({
               name="purpose"
               required={!src}
               rows={2}
-              defaultValue={old?.purpose ?? lease?.purpose ?? ""}
+              defaultValue={old?.purpose ?? lease?.purpose ?? (toolPick ? `치공구 보충: ${toolPick.name} ${toolPick.qty}개(안전재고 부족)` : "")}
               from={old || lease ? fromSrc : undefined}
             />
           </div>

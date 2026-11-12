@@ -1,4 +1,4 @@
-// 마감(STD-12 12.4). 일일 마감: 상담원이 그날 카드 단말기 합계·세어 본 현금을 수납 전표와 맞춘다.
+// 마감(STD-12 12.4). 일일 마감: 상담원이 그날 카드 단말기 합계·세어 본 현금을 입금 전표와 맞춘다.
 // 월 마감: 회계가 매출·수납·미수·매입·지출·미지급을 모아 올리고 대표가 승인한다. 대표 본인 결재 건은 따로 보여 다시 본다.
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -40,21 +40,26 @@ const tsRange = (from: string, to: string) => ({
   end: new Date(`${to}T23:59:59.999+09:00`),
 });
 
-/** 그날 수납 전표 합계(취소 전표 포함) */
+/** 그날 입금 전표 합계(취소 전표 포함). 카드·현금·이체는 고객 수납, 보험사 입금은 따로 */
 export async function dayTotals(db: Db, day: string) {
   const rows = await db
     .select()
     .from(payment)
     .where(eq(payment.receivedOn, day));
+  const cust = rows.filter((r) => r.payer !== "insurer");
   const by = (m: string) =>
     sum(
-      rows.filter((r) => r.method === m),
+      cust.filter((r) => r.method === m),
       (r) => r.amountWon,
     );
   return {
     card: by("card"),
     cash: by("cash"),
     transfer: by("transfer"),
+    insurer: sum(
+      rows.filter((r) => r.payer === "insurer"),
+      (r) => r.amountWon,
+    ),
     count: rows.length,
     rows,
   };
@@ -144,7 +149,7 @@ export async function recentDayCloses(db: Db, limit = 14) {
     .limit(limit);
 }
 
-/** 수납 전표가 있는데 마감 안 한 날(오늘 제외) */
+/** 입금 전표가 있는데 마감 안 한 날(오늘 제외) */
 export async function unclosedDays(db: Db, from: string, to: string) {
   const days = [
     ...new Set(
@@ -246,6 +251,7 @@ export async function rangeSummary(
         lte(repairStatement.issuedOn, range.to),
       ),
     );
+  // 보험사 입금 전표는 아래 insurer(보험 청구 입금 확인)로 따로 센다
   const pays = await db
     .select()
     .from(payment)
@@ -253,6 +259,7 @@ export async function rangeSummary(
       and(
         gte(payment.receivedOn, range.from),
         lte(payment.receivedOn, range.to),
+        eq(payment.payer, "customer"),
       ),
     );
   const claims = await db
@@ -602,7 +609,7 @@ export async function closeTodos(db: Db, actor: Actor, today: string) {
         key: `close-day-${d}`,
         when: d < today ? "late" : "today",
         what: `일일 마감: ${d}`,
-        detail: "카드 단말기 합계와 현금을 수납 전표와 맞춥니다",
+        detail: "카드 단말기 합계와 현금을 입금 전표와 맞춥니다",
         href: `/money/close?day=${d}`,
         action: "마감하기",
       });

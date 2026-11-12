@@ -112,7 +112,7 @@ async function paymentsOf(db: Db, roId: string) {
   return db
     .select()
     .from(payment)
-    .where(eq(payment.repairOrderId, roId))
+    .where(and(eq(payment.repairOrderId, roId), eq(payment.payer, "customer")))
     .orderBy(payment.createdAt);
 }
 
@@ -267,6 +267,10 @@ export async function reversePayment(
     throw new MoneyError("취소 전표는 수납 권한이 있는 사람이 적습니다");
   const [p] = await db.select().from(payment).where(eq(payment.id, paymentId));
   if (!p) throw new MoneyError("없는 전표입니다");
+  if (p.payer === "insurer")
+    throw new MoneyError(
+      "보험사 입금 전표는 보험 청구의 입금 확인에서 만들어집니다. 잘못 적었으면 대표에게 알려 주세요",
+    );
   if (p.reversalOf || p.amountWon < 0)
     throw new MoneyError(
       "취소 전표는 다시 취소하지 않습니다. 맞는 금액으로 새로 수납하세요",
@@ -390,7 +394,7 @@ export async function customerReceivables(
   const pays = await db
     .select({ ro: payment.repairOrderId, amt: payment.amountWon })
     .from(payment)
-    .where(inArray(payment.repairOrderId, ids));
+    .where(and(inArray(payment.repairOrderId, ids), eq(payment.payer, "customer")));
   const follows = await db
     .select()
     .from(arFollow)
@@ -456,7 +460,7 @@ export async function insurerReceivables(db: Db, now = new Date()) {
     .sort((a, b) => b.days - a.days);
 }
 
-/** 기간의 수납 전표(취소 전표 포함) */
+/** 기간의 입금 전표(고객 수납·보험사 입금, 취소 전표 포함) */
 export async function listPayments(db: Db, from: string, to: string) {
   return db
     .select({
@@ -499,9 +503,12 @@ export async function unrecordedDeliveries(db: Db) {
         .select({ ro: payment.repairOrderId })
         .from(payment)
         .where(
-          inArray(
-            payment.repairOrderId,
-            rows.map((r) => r.roId),
+          and(
+            inArray(
+              payment.repairOrderId,
+              rows.map((r) => r.roId),
+            ),
+            eq(payment.payer, "customer"),
           ),
         )
     ).map((p) => p.ro),
@@ -526,7 +533,7 @@ export async function receiptTodos(db: Db, actor: Actor, today: string) {
         key: `pm-rec-${r.roId}`,
         when: on < today ? "late" : "today",
         what: `수납 기록: ${r.docNo} ${r.plateNo}`,
-        detail: `출고 때 '${PAY_IN_METHODS[r.method as keyof typeof PAY_IN_METHODS]}'로 받았다고 했는데 수납 전표가 없습니다`,
+        detail: `출고 때 '${PAY_IN_METHODS[r.method as keyof typeof PAY_IN_METHODS]}'로 받았다고 했는데 입금 전표가 없습니다`,
         href: `/money/ro/${r.roId}`,
         action: "수납 적기",
       });

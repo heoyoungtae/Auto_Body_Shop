@@ -17,7 +17,9 @@ export default async function ToolCheckPage({ searchParams }: { searchParams: Pr
   const user = await requireUser();
   const db = await getDb();
   const quarter = quarterOf(seoulDate());
-  const [{ list, names }, done] = await Promise.all([listTools(db, user, "active"), checkedInQuarter(db, quarter)]);
+  const [{ list: all, names }, done] = await Promise.all([listTools(db, user, "active"), checkedInQuarter(db, quarter)]);
+  // 입고 대기(아직 안 들어온 것)는 점검하지 않는다
+  const list = all.filter((t) => t.status !== "pending");
   const left = list.filter((t) => !done.has(t.id));
   const label = `${quarter.slice(0, 4)}년 ${quarter.slice(-1)}분기`;
   return (

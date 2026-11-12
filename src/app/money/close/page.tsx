@@ -60,7 +60,7 @@ export default async function ClosePage({
     <>
       <PageTitle
         help="close"
-        sub="하루가 끝나면 카드 단말기 합계와 세어 본 현금을 수납 전표와 맞춥니다. 달이 끝나면 회계 담당이 월 마감 자료를 대표에게 올립니다."
+        sub="하루가 끝나면 카드 단말기 합계와 세어 본 현금을 입금 전표와 맞춥니다. 달이 끝나면 회계 담당이 월 마감 자료를 대표에게 올립니다."
       >
         마감
       </PageTitle>
@@ -86,7 +86,7 @@ export default async function ClosePage({
         title={`${day} 일일 마감`}
         help={{ kind: "panel", id: "close.day" }}
       >
-        <dl className="mb-3 grid grid-cols-3 gap-2 text-sm">
+        <dl className="mb-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div>
             <dt className="text-xs text-[var(--muted)]">카드 전표</dt>
             <dd className="font-semibold">{won(t.card)}</dd>
@@ -98,6 +98,10 @@ export default async function ClosePage({
           <div>
             <dt className="text-xs text-[var(--muted)]">계좌 이체</dt>
             <dd className="font-semibold">{won(t.transfer)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-[var(--muted)]">보험사 입금</dt>
+            <dd className="font-semibold">{won(t.insurer)}</dd>
           </div>
         </dl>
         {done ? (

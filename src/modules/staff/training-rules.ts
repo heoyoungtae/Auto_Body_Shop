@@ -128,3 +128,68 @@ export const DEFAULT_PLAN: PlanItem[] = [
 
 export const ym = (year: number, month: number) =>
   `${year}-${String(month).padStart(2, "0")}`;
+
+// ── 앱 개별 학습(대표 결정 2026-11-12) ──
+
+export const TR_MODES = { class: "모여서 하는 교육", online: "앱에서 개별 학습", both: "둘 다" } as const;
+export type TrMode = keyof typeof TR_MODES;
+export const isTrMode = (s: string): s is TrMode => s in TR_MODES;
+
+/**
+ * 교육 자료 종류. 기준: 우리만의 방법이면 사내 교재, 어디서나 같은 내용(공공 자료·제조사 영상)이면 링크.
+ * 영상은 서버 용량 때문에 유튜브 '일부 공개' 링크를 권하고, 짧은 영상 파일은 25MB까지 받는다.
+ */
+export const MATERIAL_KINDS = {
+  manual: "사내 교재",
+  std: "표준서",
+  video: "영상 링크",
+  link: "외부 자료 링크",
+  file: "파일(PDF·사진·짧은 영상)",
+} as const;
+export type MaterialKind = keyof typeof MATERIAL_KINDS;
+export const isMaterialKind = (s: string): s is MaterialKind => s in MATERIAL_KINDS;
+
+/** 링크로 거는 공공 자료 예(링크만, 내려받아 올리지 않음) */
+export const LINK_SUGGESTIONS = [
+  { title: "안전보건공단(KOSHA) 교육 자료", url: "https://www.kosha.or.kr" },
+  { title: "고용노동부 직장 내 성희롱 예방교육 자료", url: "https://www.moel.go.kr" },
+  { title: "개인정보보호위원회 교육 자료", url: "https://www.pipc.go.kr" },
+  { title: "한국장애인고용공단 장애인 인식개선 교육", url: "https://www.kead.or.kr" },
+] as const;
+
+/** 확인 문제 합격 기본 점수(%) */
+export const DEFAULT_PASS_SCORE = 80;
+/** 시한 며칠 전에 알림 */
+export const REMIND_DAYS = 3;
+/** 신규 입사자 채용 시 교육 시한: 입사일 + 이 날수 */
+export const HIRE_DUE_DAYS = 14;
+/** 짧은 영상 파일 상한(서버 액션 30MB 안) */
+export const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+
+/** 계획 달(YYYY-MM)의 말일 = 기본 시한 */
+export function monthEnd(ymStr: string) {
+  const [y, m] = ymStr.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m, 0));
+  return d.toISOString().slice(0, 10);
+}
+
+/** 확인 문제 점수(%) — 맞힌 수 / 문제 수 */
+export function quizScore(answers: (number | null)[], keys: number[]) {
+  if (!keys.length) return 100;
+  const ok = keys.filter((k, i) => answers[i] === k).length;
+  return Math.round((ok / keys.length) * 100);
+}
+
+/** 학습 시간 인정(초): 실제 본 시간, 단 자료별 보는 시간 합(없으면 계획 시간)의 1.5배를 넘지 않고 계획 시간을 넘지 않는다 */
+export function creditSec(spent: number, materialMinutes: number, plannedHours: number | null) {
+  const cap = plannedHours ? plannedHours * 3600 : Infinity;
+  const perMat = materialMinutes > 0 ? materialMinutes * 60 * 1.5 : cap;
+  return Math.max(0, Math.min(Math.round(spent), perMat, cap));
+}
+
+/** 시한까지 남은 날 → 내 할 일 구분 */
+export function dueWhen(due: string, today: string): "late" | "today" | "soon" {
+  if (due < today) return "late";
+  const days = Math.round((Date.parse(due) - Date.parse(today)) / 86_400_000);
+  return days <= REMIND_DAYS ? "today" : "soon";
+}

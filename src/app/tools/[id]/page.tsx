@@ -13,7 +13,7 @@ import { Badge, buttonClass, Card, ErrorBox, fmtTime, Notice, PageTitle } from "
 import { toolAction } from "../actions";
 import { ToolFields } from "../_form";
 
-const EVENT: Record<string, string> = { register: "등록", edit: "고침", out: "반출", return: "반납", check: "분기 점검", lost: "분실", found: "되찾음", repaired: "수리 끝", label: "라벨 부착", dispose: "폐기" };
+const EVENT: Record<string, string> = { register: "등록", edit: "고침", out: "반출", return: "반납", check: "분기 점검", lost: "분실", found: "되찾음", repaired: "수리 끝", label: "라벨 부착", dispose: "폐기", arrive: "들어옴 확인" };
 
 /** 치공구 한 개(F-08-08): 정보·반출/반납·분기 점검·분실·수리·폐기·이력. 라벨 QR을 찍으면 이 화면이 열린다 */
 export default async function ToolPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
@@ -52,6 +52,29 @@ export default async function ToolPage({ params, searchParams }: { params: Promi
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
+
+      {status === "pending" && (
+        <Card title="들어옴 확인" help={{ kind: "panel", id: "tool.arrive" }}>
+          <p className="mb-2 text-sm">
+            지출 결의로 산 치공구입니다{t.priceWon != null ? ` (한 개 ${t.priceWon.toLocaleString("ko-KR")}원)` : ""}. 물건을 받으면 보관 위치(개인 공구는 쓰는 사람)를 확인하고 누릅니다.
+            {t.expenseId && (
+              <>
+                {" "}
+                <Link href={`/money/expenses/${t.expenseId}`} className="text-[var(--accent)]">
+                  지출 결의 보기
+                </Link>
+              </>
+            )}
+          </p>
+          {(manage || t.managerId === user.id) && (
+            <AssistForm id={`tool-arrive-${id}`} action={toolAction} guard={false}>
+              <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="intent" value="arrive" />
+              <SubmitButton>들어옴 확인</SubmitButton>
+            </AssistForm>
+          )}
+        </Card>
+      )}
 
       {live && field && (t.special || t.outAt) && (
         <Card title={t.outAt ? "반출 중" : "반출"} help={{ kind: "panel", id: "tool.out" }}>

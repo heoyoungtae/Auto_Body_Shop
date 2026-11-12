@@ -259,6 +259,7 @@ export const MENU: MenuGroup[] = [
       { label: "취업규칙", href: "/rules", std: "STD-11" },
       { label: "출퇴근·근태", href: "/attendance", std: "STD-11.4" },
       { label: "교육 훈련", href: "/training", std: "STD-11.2" },
+      { label: "사내 교재", href: "/training/manuals", std: "STD-11.2" },
       { label: "인사평가", href: "/reviews", std: "STD-11.6" },
       {
         label: "퇴직 처리",
@@ -360,6 +361,11 @@ export const MENU: MenuGroup[] = [
         label: "영업일·휴무일",
         perm: ["settings.edit"],
         href: "/settings/calendar",
+      },
+      {
+        label: "출퇴근 장소(와이파이)",
+        roles: ["owner"],
+        href: "/settings/punch",
       },
     ],
   },

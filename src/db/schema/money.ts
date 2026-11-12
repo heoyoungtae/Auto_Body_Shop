@@ -1,4 +1,4 @@
-// 회계(STD-12): 수납 전표·지출 결의(F-12-01)·일일 마감·월 마감·미수 독촉 기록.
+// 회계(STD-12): 입금 전표·지출 결의(F-12-01)·일일 마감·월 마감·미수 독촉 기록.
 // 전표는 고치거나 지우지 않는다. 잘못 적었으면 같은 금액을 빼는 취소 전표(reversalOf)를 새로 적는다(12.4).
 import {
   index,
@@ -15,7 +15,7 @@ import { appUser, createdAt, id } from "./platform";
 import { supplier } from "./purchase";
 import { repairOrder } from "./repair";
 
-/** 고객 수납 전표(카드·현금·계좌 이체). 보험사 입금은 보험 청구(insurance_claim)에 적는다 */
+/** 입금 전표(PM). 고객 수납(카드·현금·계좌 이체)과 보험사 입금(보험 청구 입금 확인 때 자동, payer=insurer) */
 export const payment = pgTable(
   "payment",
   {
@@ -36,6 +36,8 @@ export const payment = pgTable(
     note: text("note"),
     /** 취소 전표가 지우는 원래 전표 */
     reversalOf: uuid("reversal_of"),
+    /** 누가 냈나: customer 고객(수납) · insurer 보험사(보험 청구 입금 확인 때 자동). 고객 미수 계산은 customer 만 */
+    payer: text("payer").notNull().default("customer"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
   },

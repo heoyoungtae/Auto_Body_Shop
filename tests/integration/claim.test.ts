@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
-import { estimateLine, repairOrder } from "@/db/schema";
+import { estimateLine, payment, repairOrder } from "@/db/schema";
+import { dayTotals } from "@/modules/money/close";
+import { receiptView } from "@/modules/money/receipts";
 import { claimTodos, claimView, markRequested, recordPayment, saveClaimInfo, saveScope, submitClaim } from "@/modules/repair/claims";
 import { claimDeadlines, splitClaim } from "@/modules/repair/claim-rules";
 import { getEstimate } from "@/modules/repair/estimate";
@@ -78,9 +80,14 @@ describe("보험 청구 흐름", () => {
     await expect(recordPayment(db, acct, roId, { paidOn: "2026-11-09", paidWon: ins - 310_000, cutReason: "" }, now)).rejects.toThrow(/감액 사유/);
     // 30일 지나면 회계 독촉 할 일
     expect((await claimTodos(db, new Date("2026-12-10T01:00:00Z"))).map((t) => t.kind)).toEqual(["dun"]);
-    await recordPayment(db, acct, roId, { paidOn: "2026-11-09", paidWon: ins - 310_000, cutReason: "공임 시간 차이" }, now);
+    const voucher = await recordPayment(db, acct, roId, { paidOn: "2026-11-09", paidWon: ins - 310_000, cutReason: "공임 시간 차이" }, now);
     v = await claimView(db, roId);
     expect([v.status, v.claim!.cutWon]).toEqual(["paid", 10_000]);
+    // 입금 확인과 함께 보험사 입금 전표(PM)가 남고, 고객 받은 돈에는 섞이지 않는다
+    const [pm] = await db.select().from(payment).where(eq(payment.docNo, voucher));
+    expect([pm.payer, pm.method, pm.amountWon, pm.receivedOn]).toEqual(["insurer", "transfer", ins - 310_000, "2026-11-09"]);
+    expect((await receiptView(db, roId)).paid).toBe(0);
+    expect((await dayTotals(db, "2026-11-09")).insurer).toBe(ins - 310_000);
     expect(await claimTodos(db, now)).toEqual([]);
   });
 });
