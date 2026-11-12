@@ -1,5 +1,6 @@
 // 협력업체 기본 정보 칸(새로 등록·고치기 같이 씀)
 import { PAY_TERMS } from "@/modules/money/rules";
+import { ShowWhen } from "../consults/show-when";
 import { SUPPLIER_KINDS } from "@/modules/purchase/rules";
 import { CheckGroup, NumberField, RadioRow, TextAreaField, TextField } from "../_input";
 import { DocChecks } from "./doc-checks";
@@ -25,8 +26,12 @@ export function SupplierFields({ s, noNote }: { s?: S; noNote?: boolean }) {
       <div className="md:col-span-2">
         <TextField help="sup.returnTerms" name="returnTerms" defaultValue={s?.returnTerms ?? ""} />
       </div>
-      <RadioRow help="sup.payTerm" name="payTerm" required defaultValue={s?.payTerm ?? "next_end"} options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))} />
-      <NumberField help="sup.payDay" name="payDay" unit="일" min={1} max={31} defaultValue={s?.payDay ?? null} />
+      {/* 결제일은 '익월 ○일'을 고를 때만 보인다 */}
+      <div className="md:col-span-2">
+        <ShowWhen field="payTerm" initial={s?.payTerm ?? "next_end"} cases={{ next_day: <NumberField help="sup.payDay" name="payDay" unit="일" min={1} max={31} required defaultValue={s?.payDay ?? 10} /> }}>
+          <RadioRow help="sup.payTerm" name="payTerm" required defaultValue={s?.payTerm ?? "next_end"} options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))} />
+        </ShowWhen>
+      </div>
       {!noNote && <SupplierNote s={s} />}
       {!noNote && <SupplierDocs s={s} />}
     </>

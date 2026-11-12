@@ -8,6 +8,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -88,7 +89,18 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   const wake = useCallback(() => setOpen(true), [setOpen]);
   // 지금 화면이 든 묶음은 펼친다(저장하지 않음 — 다른 화면으로 가면 원래대로)
   const [here, setHere] = useState<string | undefined>(() => groupOf(current));
-  useEffect(() => setHere(groupOf(current)), [current]);
+  // 메뉴를 골라 화면이 바뀌면 지금 화면의 묶음만 펼치고 나머지는 접는다(대표 지시 2026-11-12).
+  // 손으로 펼친 묶음은 다음에 화면이 바뀔 때까지만 펼쳐 둔다.
+  const first = useRef(true);
+  useEffect(() => {
+    setHere(groupOf(current));
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setOpened([]);
+    save("menu:open", []);
+  }, [current]);
   const allowed = (i: MenuItem) =>
     (!i.roles || i.roles.some((r) => roles.includes(r))) &&
     (!i.perm || i.perm.some((k) => can({ roles }, k)));
@@ -150,18 +162,19 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
           if (!items.length) return null;
           const shut = !isOpen(g.id);
           return (
-            <div key={g.id} className="px-2 pt-3">
+            <div key={g.id} className="border-t border-[var(--line)] px-2 py-1.5 first-of-type:border-t-0">
+              {/* 묶음 이름: 굵은 글씨·펼침 표시로 메뉴와 구분한다. 아래 메뉴는 들여 쓰고 왼쪽 선으로 묶는다 */}
               <button
                 type="button"
                 onClick={() => toggle(g.id)}
                 aria-expanded={!shut}
-                className="flex min-h-9 w-full items-center justify-between rounded-md px-2 text-xs font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]"
+                className={`flex min-h-10 w-full items-center justify-between rounded-md px-2 text-sm font-bold hover:bg-[var(--surface-2)] ${!shut ? "text-[var(--fg)]" : "text-[var(--fg)]/80"}`}
               >
                 {g.label}
-                <span aria-hidden>{shut ? "▸" : "▾"}</span>
+                <span aria-hidden className={`text-xs text-[var(--muted)] transition-transform ${shut ? "" : "rotate-90"}`}>▶</span>
               </button>
               {!shut && (
-                <ul className="mt-0.5 space-y-0.5">
+                <ul className="mt-0.5 mb-1 ml-3 space-y-0.5 border-l-2 border-[var(--line)] pl-2">
                   {items.map((i) => (
                     <li key={i.label}>
                       {i.href ? (
@@ -170,7 +183,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
                           aria-current={
                             current === i.href ? "page" : undefined
                           }
-                          className="flex min-h-10 items-center justify-between rounded-md px-3 text-sm hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:font-semibold aria-[current=page]:text-[var(--accent)]"
+                          className="flex min-h-9 items-center justify-between rounded-md px-2.5 text-sm text-[var(--fg)]/85 hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:font-semibold aria-[current=page]:text-[var(--accent)]"
                         >
                           {i.label}
                           {i.href === "/notifications" && unread > 0 && (
