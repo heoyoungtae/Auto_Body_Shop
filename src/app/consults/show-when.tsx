@@ -28,14 +28,14 @@ export function ShowWhen({ field, initial, cases, children }: { field: string; i
   return (
     <div
       ref={box}
-      className="space-y-4"
+      className="fld-flow space-y-4"
       onChange={(e) => {
         const t = e.target as unknown as HTMLSelectElement;
         if (t.name === field) setV(t.value);
       }}
     >
       {children}
-      <div ref={caseBox} className="space-y-4 empty:hidden">
+      <div ref={caseBox} className="fld-case space-y-4 empty:hidden">
         {cases[v] ?? null}
       </div>
     </div>

@@ -60,8 +60,11 @@ export function Shell({
   error,
   from,
   aside,
+  fit,
   children,
 }: {
+  /** 칸 폭이 정해져 있음(번호·금액·날짜·고르기 등) — 넓은 화면에서 필요한 폭만 쓰고 옆 칸과 한 줄에 놓인다 */
+  fit?: boolean;
   id: string;
   helpKey: FieldHelpKey;
   label?: string;
@@ -76,7 +79,7 @@ export function Shell({
   return (
     // 칸 하나 = 이름 칸(.fld-label) + 입력 칸(.fld-body). 넓은 화면에서는 globals.css 의 .fld 규칙으로
     // 이름은 왼쪽 회색 칸, 입력은 오른쪽 칸인 '양식 표' 모양이 되고, 휴대폰에서는 이름이 위에 온다(대표 지시 2026-11-12 "짜임새").
-    <div className="fld group/field text-sm" data-help={helpKey}>
+    <div className="fld group/field text-sm" data-help={helpKey} data-fit={fit ? "" : undefined}>
       <div className="fld-label flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
         <label htmlFor={id} className="font-medium">
           {name}
@@ -128,7 +131,7 @@ export function TextField({
   const t = fieldTraits(help, h, rest.type);
   const prev = useRef(String(rest.defaultValue ?? rest.value ?? ""));
   return (
-    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
+    <Shell fit={!!t.maxWidth} id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
       <input
         id={id}
         name={name}
@@ -151,7 +154,7 @@ export function TextField({
           prev.current = el.value;
           v.revalidate(el);
         }}
-        style={t.maxWidth ? { maxWidth: t.maxWidth } : undefined}
+        style={t.maxWidth ? { width: t.maxWidth, maxWidth: "100%" } : undefined}
         className={`h-11 ${inputBox}`}
       />
       {suggestions?.length ? (
@@ -287,6 +290,7 @@ export function NumberField({
   const width = numberWidth({ unit, max });
   return (
     <Shell
+      fit
       id={id}
       helpKey={help}
       label={label}
@@ -345,7 +349,7 @@ export function NumberField({
             setNum(n);
             v.revalidate(el);
           }}
-          style={{ maxWidth: width }}
+          style={{ width, maxWidth: "100%" }}
           className={`h-11 text-right tabular-nums ${inputBox}`}
         />
         {unit && <span className="shrink-0 text-sm text-[var(--muted)]">{unit}</span>}
@@ -386,7 +390,7 @@ export function DateField({ help, name, label, required, from, defaultValue, min
       }
     : null;
   return (
-    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from} aside={val && today ? <p className="mt-0.5 text-xs text-[var(--muted)]">{dayLabel(val, today)}</p> : null}>
+    <Shell fit id={id} helpKey={help} label={label} required={required} error={v.error} from={from} aside={val && today ? <p className="mt-0.5 text-xs text-[var(--muted)]">{dayLabel(val, today)}</p> : null}>
       <input
         ref={ref}
         id={id}
@@ -406,7 +410,7 @@ export function DateField({ help, name, label, required, from, defaultValue, min
           setVal(e.currentTarget.value);
           v.revalidate(e.currentTarget);
         }}
-        style={{ maxWidth: "11em" }}
+        style={{ width: "11em", maxWidth: "100%" }}
         className={`h-11 ${inputBox}`}
       />
       {chips && (
@@ -510,7 +514,7 @@ export function SelectField({ help, name, label, required, from, defaultValue, o
   const h = FIELD_HELP[help];
   const v = useKoValidity(label ?? h.label);
   return (
-    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
+    <Shell fit id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
       <select
         id={id}
         name={name}
@@ -520,7 +524,7 @@ export function SelectField({ help, name, label, required, from, defaultValue, o
         aria-describedby={`${id}-msg`}
         onInvalid={v.onInvalid}
         onChange={(e) => v.revalidate(e.currentTarget)}
-        style={{ maxWidth: selectWidth([...(placeholder != null ? [placeholder] : []), ...options.map((o) => o.label)]) }}
+        style={{ maxWidth: "100%", width: selectWidth([...(placeholder != null ? [placeholder] : []), ...options.map((o) => o.label)]) }}
         className={`h-11 pr-8 ${inputBox}`}
       >
         {placeholder != null && <option value="">{placeholder}</option>}
@@ -538,7 +542,7 @@ export function SelectField({ help, name, label, required, from, defaultValue, o
 export function CheckGroup({ help, name, options, defaultChecked = [], label }: { help: FieldHelpKey; name: string; options: { value: string; label: string }[]; defaultChecked?: string[]; label?: string }) {
   const id = useId();
   return (
-    <Shell id={id} helpKey={help} label={label}>
+    <Shell fit id={id} helpKey={help} label={label}>
       <div id={id} role="group" className="flex flex-wrap gap-1.5">
         {options.map((o) => (
           <label key={o.value} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--line)] px-2.5 has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-soft)]">
@@ -565,10 +569,10 @@ export function RadioRow({
   const v = useKoValidity(label ?? h.label);
   const tone = { ok: "has-[:checked]:border-[var(--ok)] has-[:checked]:bg-[var(--ok-soft)]", warn: "has-[:checked]:border-[var(--warn)] has-[:checked]:bg-[var(--warn-soft)]", danger: "has-[:checked]:border-[var(--danger)] has-[:checked]:bg-[var(--danger-soft)]" };
   return (
-    <Shell id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
-      <div id={id} role="radiogroup" aria-describedby={`${id}-msg`} className="flex flex-wrap gap-1.5">
+    <Shell fit id={id} helpKey={help} label={label} required={required} error={v.error} from={from}>
+      <div id={id} role="radiogroup" aria-describedby={`${id}-msg`} className="flex flex-wrap gap-1">
         {options.map((o) => (
-          <label key={o.value} className={`flex min-h-11 min-w-12 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--line)] px-3 has-[:checked]:font-semibold ${o.tone ? tone[o.tone] : "has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-soft)]"}`}>
+          <label key={o.value} className={`flex min-h-11 min-w-12 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--line)] px-2.5 has-[:checked]:font-semibold ${o.tone ? tone[o.tone] : "has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-soft)]"}`}>
             <input type="radio" name={name} value={o.value} required={required} defaultChecked={defaultValue === o.value} onInvalid={v.onInvalid} onChange={(e) => v.revalidate(e.currentTarget)} className="size-4" /> {o.label}
           </label>
         ))}
