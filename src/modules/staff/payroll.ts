@@ -21,6 +21,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
+import { bankAccountIssue } from "@/modules/purchase/rules";
 import { LEAVE_FORM } from "./attendance";
 import { isBusinessDay } from "@/modules/platform/business-days";
 import { actualDays, DEFAULT_SCHEDULE } from "./punch";
@@ -33,6 +34,7 @@ import {
   summarizeAttendance,
   type AttLeave,
   type Extra,
+  type PayBank,
   type PayPolicy,
   type SlipData,
 } from "./payroll-rules";
@@ -71,6 +73,9 @@ async function payPolicy(db: Db, on: string): Promise<PayPolicy> {
     pensionFloor: p["ins.pension_floor"],
     mealExempt: p["tax.meal_exempt"],
     carExempt: p["tax.car_exempt"],
+    childcareExempt: p["tax.childcare_exempt"],
+    otExemptPayCap: p["tax.ot_exempt_pay_cap"],
+    otExemptAnnual: p["tax.ot_exempt_annual"],
     employmentEmployerRate: p["ins.employment_employer_rate"],
     accidentRate: p["ins.accident_rate"],
     taxTable: {
@@ -178,7 +183,26 @@ type Kept = {
   children: number;
   withholdRate: number;
   extras: Extra[];
+  production: boolean;
+  bank: PayBank | null;
 };
+
+/** 같은 해 앞 달 급여대장에서 생산직 연장수당 비과세로 본 금액(사람별) */
+async function otTaxfreeUsed(db: Db, ym: string) {
+  const runs = await db.select().from(payrollRun);
+  const ids = runs
+    .filter((r) => r.ym.slice(0, 4) === ym.slice(0, 4) && r.ym < ym)
+    .map((r) => r.id);
+  const used = new Map<string, number>();
+  if (!ids.length) return used;
+  const rows = await db.select().from(payslip).where(inArray(payslip.runId, ids));
+  for (const r of rows) {
+    const d = readSlip(r.dataEnc);
+    if (d.otTaxfree)
+      used.set(r.userId, (used.get(r.userId) ?? 0) + d.otTaxfree);
+  }
+  return used;
+}
 
 async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
   const m = monthRange(ym);
@@ -187,6 +211,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
   const { done, pending } = await monthLeaves(db, ym);
   const actual = await actualDays(db, m.from, m.to);
   const last = await lastSlips(db, ym);
+  const used = await otTaxfreeUsed(db, ym);
   const targets = await payrollTargets(db, ym);
   const slips: { userId: string; data: SlipData }[] = [];
   const skipped: string[] = [];
@@ -224,6 +249,8 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
       children: prev?.children ?? 0,
       withholdRate: prev?.withholdRate ?? 100,
       extras: [],
+      production: prev?.production ?? false,
+      bank: prev?.bank ?? null,
     };
     const data = computeSlip({
       name: u.name,
@@ -234,6 +261,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
       att,
       pol,
       ...k,
+      otTaxfreeUsed: used.get(u.id) ?? 0,
     });
     const waiting = pending.filter(({ d }) => d.drafterId === u.id).length;
     if (waiting)
@@ -339,6 +367,8 @@ async function keptOf(db: Db, runId: string) {
           children: d.children ?? 0,
           withholdRate: d.withholdRate ?? 100,
           extras: d.extras,
+          production: d.production ?? false,
+          bank: d.bank ?? null,
         },
       ];
     }),
@@ -407,6 +437,9 @@ export async function setSlipInputs(
     children?: number;
     withholdRate?: number;
     extras: Extra[];
+    production?: boolean;
+    /** 급여 계좌. 계좌번호가 비면 전에 넣은 번호를 그대로 둔다. 은행이 비면 지운다 */
+    bank?: { name: string; account: string; holder: string };
   },
   now = new Date(),
 ) {
@@ -448,6 +481,23 @@ export async function setSlipInputs(
     });
   }
   const d = readSlip(s.dataEnc);
+  let bank: PayBank | null = d.bank ?? null;
+  if (input.bank) {
+    const name = input.bank.name.trim();
+    const no = input.bank.account.replace(/[\s-]/g, "");
+    if (!name) {
+      if (no) throw new PayrollError("급여 계좌의 은행을 골라 주세요");
+      bank = null;
+    } else {
+      if (no) {
+        const issue = bankAccountIssue(no);
+        if (issue) throw new PayrollError(issue);
+      }
+      const account = no || d.bank?.account || "";
+      if (!account) throw new PayrollError("급여 계좌번호를 넣어 주세요");
+      bank = { name, account, holder: input.bank.holder.trim() || d.name };
+    }
+  }
   const kept = new Map<string, Kept>([
     [
       s.userId,
@@ -458,6 +508,8 @@ export async function setSlipInputs(
         children,
         withholdRate,
         extras,
+        production: input.production ?? d.production ?? false,
+        bank,
       },
     ],
   ]);
@@ -759,4 +811,59 @@ export async function payrollTodos(db: Db, actor: Actor, today: string) {
       });
   }
   return out;
+}
+
+/** 원천세 신고 자료(근로소득 간이세액 A01): 급여대장 한 달 합계 */
+export function withholdingSummary(ds: SlipData[]) {
+  const sum = (f: (d: SlipData) => number) => ds.reduce((s, d) => s + f(d), 0);
+  return {
+    count: ds.length,
+    gross: sum((d) => d.gross),
+    taxfree: sum((d) => d.taxfree),
+    taxable: sum((d) => d.insBase),
+    incomeTax: sum((d) => d.incomeTax),
+    localTax: sum(
+      (d) => d.deducts.find((x) => x.code === "local_tax")?.amount ?? 0,
+    ),
+  };
+}
+
+/**
+ * 급여 이체 파일 줄: 승인된(또는 지급한) 급여대장만. 전체 계좌번호가 나가므로 회계 담당만 받고 기록을 남긴다.
+ * 계좌가 없는 사람·실지급 0원 이하는 따로 알려 준다.
+ */
+export async function payrollTransfer(db: Db, actor: Actor, ym: string) {
+  mustPrep(actor);
+  const [r] = await db.select().from(payrollRun).where(eq(payrollRun.ym, ym));
+  if (!r) throw new PayrollError("급여대장을 찾을 수 없습니다");
+  if (r.status !== "approved" && r.status !== "paid")
+    throw new PayrollError("대표가 승인한 급여대장만 이체 파일을 만듭니다");
+  const rows = await db.select().from(payslip).where(eq(payslip.runId, r.id));
+  const ds = rows
+    .map((s) => readSlip(s.dataEnc))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const lines = ds
+    .filter((d) => d.bank?.account && d.net > 0)
+    .map((d) => ({
+      name: d.name,
+      bank: d.bank!.name,
+      account: d.bank!.account,
+      holder: d.bank!.holder,
+      amount: d.net,
+    }));
+  const missing = ds
+    .filter((d) => !d.bank?.account && d.net > 0)
+    .map((d) => d.name);
+  await writeAudit(db, {
+    actorId: actor.id,
+    action: "payroll.transfer_file",
+    entityType: "payroll_run",
+    entityId: r.docNo,
+    after: {
+      count: lines.length,
+      total: lines.reduce((s, l) => s + l.amount, 0),
+      missing,
+    },
+  });
+  return { r, lines, missing };
 }

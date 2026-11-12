@@ -2,6 +2,11 @@
 // 근거: 조세특례제한법 제6조(창업중소기업 세액감면, 2026~2027년 창업분 지역별 감면율), 제7조(중소기업 특별세액감면),
 // 수도권정비계획법 시행령 별표 1(과밀억제권역), 국세기본법 제5조(기한이 공휴일·토요일·일요일이면 다음 날).
 // 감면율·지역은 법이 바뀌면 고친다 [확인 필요]. 최종 판단은 세무사가 한다.
+import {
+  basicTax as basicTaxOf,
+  earnedCredit as earnedCreditOf,
+  earnedDeduction as earnedDeductionOf,
+} from "@/modules/staff/income-tax";
 
 export const BIZ_FORMS = { individual: "개인사업자", corporate: "법인사업자" } as const;
 export type BizForm = keyof typeof BIZ_FORMS;
@@ -175,4 +180,83 @@ export function taxDeadlines(
     out.push({ key: `corp-mid-${year}`, due: iso(year, midM, lastDay(year, midM)), what: "법인세 중간예납", detail: "사업연도 처음 6개월분. 직전 연도 세액의 절반 또는 가결산" });
   }
   return out.sort((a, b) => a.due.localeCompare(b.due));
+}
+
+/** 법인세율(과세표준 상한, 세율). 2026 사업연도분 10·20·22·25% [확인 필요] */
+export const CORP_RATES: [number, number][] = [
+  [200_000_000, 0.1],
+  [20_000_000_000, 0.2],
+  [300_000_000_000, 0.22],
+  [Infinity, 0.25],
+];
+
+export function corpTax(base: number) {
+  let tax = 0;
+  let prev = 0;
+  for (const [cap, r] of CORP_RATES) {
+    if (base > prev) tax += (Math.min(base, cap) - prev) * r;
+    prev = cap;
+  }
+  return tax;
+}
+
+export type EntityInput = {
+  /** 대표 몫 연 이익(대표 급여 빼기 전, 직원 인건비·경비 뺀 뒤) */
+  profit: number;
+  /** 법인일 때 대표 연봉 */
+  ceoSalary: number;
+  /** 감면율 %(창업·특별세액감면). 두 형태에 같게 본다 */
+  reliefRate: number;
+  /** 국민연금 합계 요율(근로자+회사, ÷1000 %), 월 상한 */
+  pensionRate: number;
+  pensionCap: number;
+  /** 건강보험 합계 요율(÷1000 %), 장기요양 비율(÷1000 %) */
+  healthRate: number;
+  ltcRatio: number;
+};
+
+const r10 = (n: number) => Math.round(n / 10) * 10;
+
+/**
+ * 개인 vs 법인 세금·보험료 어림(1년). 공제·감면은 기본만 넣은 대략값이다.
+ * 개인: 종합소득세(본인 기본공제만) + 지방소득세 + 지역가입 국민연금·건강보험.
+ * 법인: 법인세 + 지방소득세 + 대표 근로소득세 + 대표 급여의 국민연금·건강보험(회사+본인).
+ */
+export function entityCompare(i: EntityInput) {
+  const relief = Math.min(100, Math.max(0, i.reliefRate)) / 100;
+  const ins = (pay: number) => {
+    const pension = Math.min(pay, i.pensionCap * 12) * (i.pensionRate / 100_000);
+    const health = pay * (i.healthRate / 100_000) * (1 + i.ltcRatio / 100_000);
+    return { pension, health };
+  };
+  const profit = Math.max(0, i.profit);
+  // 개인
+  const indBase = Math.max(0, profit - 1_500_000);
+  const indTax = basicTaxOf(indBase) * (1 - relief);
+  const indIns = ins(profit);
+  const individual = {
+    incomeTax: r10(indTax * 1.1),
+    insurance: r10(indIns.pension + indIns.health),
+  };
+  // 법인: 대표 급여(이익을 넘지 않게)
+  const salary = Math.min(Math.max(0, i.ceoSalary), profit);
+  const sIns = ins(salary);
+  const insTotal = sIns.pension + sIns.health;
+  const corpBase = Math.max(0, profit - salary - insTotal / 2);
+  const cTax = corpTax(corpBase) * (1 - relief) * 1.1;
+  const earned = salary - earnedDeductionOf(salary);
+  const sBase = Math.max(0, earned - 1_500_000 - insTotal / 2);
+  const sTax0 = basicTaxOf(sBase);
+  const sTax = Math.max(0, sTax0 - earnedCreditOf(salary, sTax0)) * 1.1;
+  const corporate = {
+    corpTax: r10(cTax),
+    ceoTax: r10(sTax),
+    insurance: r10(insTotal),
+    retained: r10(Math.max(0, corpBase - cTax)),
+  };
+  return {
+    individual: { ...individual, total: individual.incomeTax + individual.insurance },
+    corporate: { ...corporate, total: corporate.corpTax + corporate.ceoTax + corporate.insurance },
+    salary,
+  };
 }

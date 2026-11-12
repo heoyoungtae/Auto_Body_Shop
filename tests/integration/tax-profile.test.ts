@@ -5,6 +5,7 @@ import type { Db } from "@/db/client";
 import { appConfig } from "@/db/schema";
 import { myTodos } from "@/modules/dashboard/todo";
 import { loadTaxProfile, saveTaxProfile, taxCalendar, taxOverview, type TaxInput } from "@/modules/money/tax-profile";
+import { checkLaws, lawTodos, saveLawKey, WATCHED_LAWS, ackLawChanges } from "@/modules/money/law-watch";
 import { saveShopInfo } from "@/modules/platform/shop";
 import { seedShop, testDb } from "./db";
 
@@ -78,5 +79,39 @@ describe("세금·사업 형태", () => {
     const corp = await taxCalendar(db, "2027-08-20");
     expect(corp.some((d) => d.key === "corp-mid-2027" && d.due === "2027-08-31")).toBe(true);
     expect((await myTodos(db, owner(), new Date("2027-05-20T00:00:00Z"))).some((t) => t.key === "tax-bank-report")).toBe(false);
+  });
+});
+
+describe("법령 개정 알림", () => {
+  const fakeFetch = (stamp: (name: string) => string) =>
+    (async (url: string | URL | Request) => {
+      const name = new URL(String(url)).searchParams.get("query")!;
+      return new Response(JSON.stringify({ LawSearch: { law: [{ 법령명한글: name, 공포일자: stamp(name), 시행일자: "20260101" }] } }), { status: 200 });
+    }) as typeof fetch;
+  it("처음은 기준만, 바뀌면 할 일·확인하면 사라짐", async () => {
+    const d1 = new Date("2026-12-01T00:00:00Z");
+    expect((await checkLaws(db, d1, { f: fakeFetch(() => "20251223") })).status).toBe("nokey");
+    await expect(saveLawKey(db, acct(), "myshop")).rejects.toThrow(/대표/);
+    await saveLawKey(db, owner(), "myshop");
+    expect((await checkLaws(db, new Date("2026-12-02T03:00:00Z"), { f: fakeFetch(() => "20251223") })).status).toBe("skipped");
+    const first = await checkLaws(db, d1, { f: fakeFetch(() => "20251223") });
+    expect(first).toMatchObject({ status: "done", changed: [] });
+    expect(await lawTodos(db, acct())).toEqual([]);
+    const next = await checkLaws(db, new Date("2027-01-01T00:00:00Z"), {
+      f: fakeFetch((n) => (n === "소득세법 시행령" ? "20261231" : "20251223")),
+    });
+    expect(next.changed).toEqual(["소득세법 시행령"]);
+    const todos = await lawTodos(db, acct());
+    expect(todos.map((t) => t.key)).toEqual(["law-changed"]);
+    expect((await myTodos(db, acct(), new Date("2027-01-02T00:00:00Z"))).some((t) => t.key === "law-changed")).toBe(true);
+    await ackLawChanges(db, acct());
+    expect(await lawTodos(db, acct())).toEqual([]);
+    // 접속 실패면 대표 할 일
+    const fail = await checkLaws(db, new Date("2027-02-01T00:00:00Z"), {
+      f: (async () => new Response("no", { status: 500 })) as typeof fetch,
+    });
+    expect(fail.status).toBe("failed");
+    expect((await lawTodos(db, owner())).map((t) => t.key)).toEqual(["law-failed"]);
+    expect(WATCHED_LAWS.length).toBeGreaterThan(5);
   });
 });

@@ -22,6 +22,7 @@ export type Extra = {
   reason: string;
   taxable?: boolean;
 };
+export type PayBank = { name: string; account: string; holder: string };
 export type AttLeave = {
   leaveKind: string;
   fromDate: string;
@@ -68,6 +69,12 @@ export type SlipData = {
   /** 원천징수 비율 80·100·120(직원 선택, 기본 100) */
   withholdRate?: number;
   extras: Extra[];
+  /** 생산직(연장·야간·휴일 수당 비과세 대상으로 회계 담당이 표시) */
+  production?: boolean;
+  /** 이달 생산직 연장수당 비과세로 본 금액(연 한도 누적용) */
+  otTaxfree?: number;
+  /** 급여 받을 계좌(명세서 전체가 암호화되어 저장됨). 다음 달로 이어진다 */
+  bank?: PayBank | null;
   insurances: string[];
   /** 회사가 따로 내는 보험료·퇴직급여 적립(명세서 지급액과 별개) */
   employer?: PayLine[];
@@ -87,6 +94,11 @@ export type PayPolicy = {
   pensionFloor: number;
   mealExempt: number;
   carExempt: number;
+  /** 보육수당 비과세 월 한도 */
+  childcareExempt: number;
+  /** 생산직 연장수당 비과세: 월정액급여 기준·연 한도 */
+  otExemptPayCap: number;
+  otExemptAnnual: number;
   /** 고용보험 회사 몫(실업급여 + 고용안정·직업능력개발), ÷1000 % */
   employmentEmployerRate: number;
   /** 산재보험료율(업종 요율 + 출퇴근재해), ÷1000 %. 0이면 고지서 금액을 따로 봄 */
@@ -223,6 +235,10 @@ export function computeSlip(input: {
   children?: number;
   withholdRate?: number;
   extras: Extra[];
+  production?: boolean;
+  /** 같은 해 앞 달까지 생산직 연장수당 비과세로 본 금액 */
+  otTaxfreeUsed?: number;
+  bank?: PayBank | null;
 }): SlipData {
   const { terms: t, pol, att } = input;
   const n = contractNumbers(t);
@@ -254,7 +270,9 @@ export function computeSlip(input: {
       ? pol.mealExempt
       : /차량|자가운전/.test(a.name)
         ? pol.carExempt
-        : 0;
+        : /보육|출산/.test(a.name)
+          ? pol.childcareExempt
+          : 0;
     pays.push({
       code: `fix:${a.name}`,
       name: a.name,
@@ -321,6 +339,37 @@ export function computeSlip(input: {
       calc: e.reason,
       taxfree: e.taxable === false ? e.amount : undefined,
     });
+  // 생산직 연장·야간·휴일 수당 비과세(소득세법 시행령 제17조): 월정액급여 기준 이하, 연 한도 안에서
+  let otTaxfree = 0;
+  if (input.production) {
+    const monthlyFixed =
+      baseFull +
+      t.allowances.reduce((s2, a) => s2 + a.amount, 0) -
+      pays
+        .filter((p) => p.code.startsWith("fix:"))
+        .reduce((s2, p) => s2 + (p.taxfree ?? 0), 0);
+    if (monthlyFixed <= pol.otExemptPayCap) {
+      let left = Math.max(0, pol.otExemptAnnual - (input.otTaxfreeUsed ?? 0));
+      for (const p of pays) {
+        if (!["ot", "hol", "night"].includes(p.code) || left <= 0) continue;
+        const f = Math.min(p.amount, left);
+        p.taxfree = f;
+        p.calc += ` · 생산직 비과세 ${won(f)}`;
+        left -= f;
+        otTaxfree += f;
+      }
+      const otAll = pays
+        .filter((p) => ["ot", "hol", "night"].includes(p.code))
+        .reduce((s2, p) => s2 + p.amount, 0);
+      if (otAll > otTaxfree)
+        warnings.push(
+          `생산직 연장수당 비과세 연 한도 ${won(pol.otExemptAnnual)}를 다 썼습니다. 넘는 금액은 과세합니다`,
+        );
+    } else
+      warnings.push(
+        `생산직으로 표시했지만 월정액급여 ${won(monthlyFixed)}가 ${won(pol.otExemptPayCap)}를 넘어 연장수당을 과세했습니다`,
+      );
+  }
   if (att.absentDays)
     warnings.push(
       "결근한 주는 주휴수당이 생기지 않을 수 있습니다. 해당하면 '기타 공제'로 넣으세요 [확인 필요]",
@@ -468,6 +517,9 @@ export function computeSlip(input: {
     net: gross - deductTotal,
     incomeTax: tax,
     incomeTaxSource: source,
+    production: input.production || undefined,
+    otTaxfree: otTaxfree || undefined,
+    bank: input.bank ?? null,
     family: input.family,
     children,
     withholdRate,

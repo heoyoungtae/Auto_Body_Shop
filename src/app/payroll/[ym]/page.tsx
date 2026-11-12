@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { seoulDate } from "@/modules/platform/time";
-import { getRun } from "@/modules/staff/payroll";
+import { BANKS, maskAccount } from "@/modules/purchase/rules";
+import { loadPolicy } from "@/modules/platform/policy";
+import { getRun, withholdingSummary } from "@/modules/staff/payroll";
 import { RUN_STATUS, type RunStatus } from "@/modules/staff/payroll-rules";
 import { AssistForm } from "../../_assist";
-import { DateField, SelectField, TextField } from "../../_input";
+import { CheckGroup, DateField, SelectField, TextField } from "../../_input";
 import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
@@ -32,8 +34,10 @@ export default async function PayrollRunPage({
         급여대장은 대표·회계 담당만 봅니다.
       </p>
     );
-  const data = await getRun(await getDb(), user, ym);
+  const db = await getDb();
+  const data = await getRun(db, user, ym);
   if (!data) notFound();
+  const pol = await loadPolicy(db, seoulDate());
   const { r, slips } = data;
   const prep = can(user, "payroll.prepare");
   const approve = can(user, "payroll.approve");
@@ -47,6 +51,17 @@ export default async function PayrollRunPage({
   );
   const warn = slips.reduce((n, x) => n + x.d.warnings.length, 0);
   const employerSum = slips.reduce((n, x) => n + (x.d.employerTotal ?? 0), 0);
+  const wh = withholdingSummary(slips.map((x) => x.d));
+  const [yy, mm] = ym.split("-").map(Number);
+  const whDue = mm === 12 ? `${yy + 1}-01-10` : `${yy}-${String(mm + 1).padStart(2, "0")}-10`;
+  // 두루누리: 10명 미만 사업장, 월 보수 기준 미만(새 가입자만 해당, 자격은 공단이 판단)
+  const durunuri =
+    slips.length < 10
+      ? slips
+          .filter((x) => x.d.insBase > 0 && x.d.insBase < pol["ins.durunuri_pay_cap"])
+          .map((x) => x.d.name)
+      : [];
+  const noBank = slips.filter((x) => !x.d.bank?.account && x.d.net > 0).map((x) => x.d.name);
   return (
     <>
       <PageTitle
@@ -98,6 +113,12 @@ export default async function PayrollRunPage({
                       {w}
                     </p>
                   ))}
+                  {d.bank?.account && (
+                    <p className="text-xs text-[var(--muted)]">
+                      급여 계좌: {d.bank.name} {maskAccount(d.bank.account)}{" "}
+                      {d.bank.holder}
+                    </p>
+                  )}
                   <SlipLines d={d} />
                   <EmployerLines d={d} />
                   <Link
@@ -162,6 +183,36 @@ export default async function PayrollRunPage({
                             ? "지난달 직접 넣은 값"
                             : undefined
                         }
+                      />
+                      <CheckGroup
+                        help="pay.production"
+                        name="production"
+                        options={[
+                          { value: "1", label: "생산직(연장수당 비과세 대상)" },
+                        ]}
+                        defaultChecked={d.production ? ["1"] : []}
+                      />
+                      <TextField
+                        help="pay.bank"
+                        name="payBank"
+                        defaultValue={d.bank?.name ?? ""}
+                        suggestions={BANKS.map((b) => ({ value: b }))}
+                      />
+                      <TextField
+                        help="pay.account"
+                        name="payAccount"
+                        inputMode="numeric"
+                        placeholder={
+                          d.bank?.account
+                            ? `${maskAccount(d.bank.account)} (바꿀 때만)`
+                            : "숫자만"
+                        }
+                      />
+                      <TextField
+                        help="pay.holder"
+                        name="payHolder"
+                        defaultValue={d.bank?.holder ?? ""}
+                        placeholder={d.name}
                       />
                       <p className="text-xs text-[var(--muted)] md:col-span-2">
                         소득세는 과세 급여 {won(d.insBase)}, 공제 대상 가족{" "}
@@ -238,6 +289,57 @@ export default async function PayrollRunPage({
           ))}
         </ul>
       </Card>
+
+      <Card title="원천세 신고 자료" help={{ kind: "panel", id: "pay.withholding" }}>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm md:grid-cols-3">
+          {(
+            [
+              ["인원", `${wh.count}명`],
+              ["총지급액", won(wh.gross)],
+              ["그중 비과세", won(wh.taxfree)],
+              ["소득세", won(wh.incomeTax)],
+              ["지방소득세", won(wh.localTax)],
+              ["신고·납부 기한", `${whDue}(반기별 납부면 7월·1월 10일)`],
+            ] as const
+          ).map(([k, v]) => (
+            <div key={k}>
+              <dt className="text-xs text-[var(--muted)]">{k}</dt>
+              <dd className="tabular-nums">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-2 text-xs text-[var(--muted)]">
+          홈택스 원천징수이행상황신고서의 &lsquo;근로소득 간이세액(A01)&rsquo;
+          줄에 넣는 값입니다. 지방소득세는 위택스에 따로 냅니다. 비과세 중 식대
+          등 일부는 신고서 총지급액에서 빠지므로 세무 대리인과 한 번 맞춰 보세요
+          [확인 필요].
+        </p>
+        {durunuri.length > 0 && (
+          <p className="mt-2 rounded-md bg-[var(--warn-soft,#fff7e6)] px-2 py-1 text-xs">
+            두루누리 지원 대상일 수 있습니다: {durunuri.join(", ")}(월 보수{" "}
+            {won(pol["ins.durunuri_pay_cap"])} 미만, 직원 10명 미만). 새로
+            가입한 사람이면 국민연금·고용보험료 80%를 36개월 돌려받습니다.
+            4대사회보험 정보연계센터에서 신청하세요.
+          </p>
+        )}
+      </Card>
+
+      {prep && (r.status === "approved" || r.status === "paid") && (
+        <Card title="급여 이체 파일" help={{ kind: "panel", id: "pay.transfer" }}>
+          <a
+            href={`/payroll/${ym}/transfer`}
+            className="text-sm text-[var(--accent)]"
+          >
+            이체 파일(CSV) 받기
+          </a>
+          {noBank.length > 0 && (
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              급여 계좌가 없어 빠지는 사람: {noBank.join(", ")}. 계산 중일 때
+              명세서에서 계좌를 넣으면 다음 달부터 이어집니다.
+            </p>
+          )}
+        </Card>
+      )}
 
       {draft && prep && (
         <Card title="마무리" help={{ kind: "panel", id: "pay.submit" }}>

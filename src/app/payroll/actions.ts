@@ -61,6 +61,12 @@ export async function payrollAction(form: FormData) {
         children: int(s("children")),
         withholdRate: int(s("withholdRate")) || 100,
         extras,
+        production: form.getAll("production").includes("1"),
+        bank: {
+          name: s("payBank"),
+          account: s("payAccount"),
+          holder: s("payHolder"),
+        },
       });
       msg = `${s("who")} 명세서를 고쳤습니다`;
     } else if (intent === "submit") {
