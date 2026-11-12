@@ -198,7 +198,7 @@ export const daysBetween = (a: string, b: string) =>
 
 // ── 외상매입금·미지급금 ──
 /** 결제 조건 */
-export const PAY_TERMS = { now: "즉시(입고 때)", month_end: "당월 말", next_end: "익월 말", next_day: "익월 ○일" } as const;
+export const PAY_TERMS = { now: "입고 때 바로(현장 결제·착불)", month_end: "당월 말", next_end: "익월 말", next_day: "익월 ○일" } as const;
 export type PayTerm = keyof typeof PAY_TERMS;
 export const isPayTerm = (s: string): s is PayTerm => s in PAY_TERMS;
 export const payTermLabel = (t: string, day: number | null) => (t === "next_day" ? `익월 ${day ?? "?"}일` : (PAY_TERMS[t as PayTerm] ?? t));

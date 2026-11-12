@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PAY_TERMS, payTermLabel } from "@/modules/money/rules";
+import { ShowWhen } from "../../consults/show-when";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
@@ -108,6 +109,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
                 const sp = sups.find((x) => x.id === o.supplierId);
                 return (
                   <>
+                    <ShowWhen field="payTerm" initial={o.payTerm ?? ""} cases={{ next_day: <NumberField help="po.payDay" name="payDay" unit="일" min={1} max={31} required defaultValue={o.payDay ?? sp?.payDay ?? 10} /> }}>
                     <SelectField
                       help="po.payTerm"
                       name="payTerm"
@@ -116,7 +118,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
                       from={!o.payTerm && sp ? "업체" : undefined}
                       options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))}
                     />
-                    <NumberField help="po.payDay" name="payDay" unit="일" min={1} max={31} defaultValue={o.payDay ?? null} />
+                    </ShowWhen>
                   </>
                 );
               })()}

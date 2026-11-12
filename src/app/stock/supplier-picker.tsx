@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { SUPPLIER_KINDS } from "@/modules/purchase/rules";
 import { findIn, normalize } from "../_menu-search";
 import { PAY_TERMS } from "@/modules/money/rules";
+import { ShowWhen } from "../consults/show-when";
 import { CheckGroup, NumberField, RadioRow, Shell, TextField } from "../_input";
 import { buttonClass, Card } from "../_ui";
 import { quickSupplierAction } from "./actions";
@@ -192,8 +193,9 @@ function QuickSupplier({ initialName, kind, onClose, onDone }: { initialName: st
             <TextField help="sup.contactName" name="contactName" />
             <TextField help="sup.phone" name="phone" type="tel" />
             <TextField help="sup.bizNo" name="bizNo" inputMode="numeric" />
-            <RadioRow help="sup.payTerm" name="payTerm" required defaultValue="next_end" options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))} />
-            <NumberField help="sup.payDay" name="payDay" unit="일" min={1} max={31} />
+            <ShowWhen field="payTerm" initial="next_end" cases={{ next_day: <NumberField help="sup.payDay" name="payDay" unit="일" min={1} max={31} required defaultValue={10} /> }}>
+              <RadioRow help="sup.payTerm" name="payTerm" required defaultValue="next_end" options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))} />
+            </ShowWhen>
             <p className="text-xs text-[var(--muted)]">입금 계좌·서류는 저장한 뒤 협력업체 화면에서 넣습니다.</p>
             {error && (
               <p role="alert" className="text-sm font-medium text-[var(--danger)]">
