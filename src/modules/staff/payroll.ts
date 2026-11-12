@@ -21,6 +21,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
+import { bankAccountIssue } from "@/modules/purchase/rules";
 import { LEAVE_FORM } from "./attendance";
 import { isBusinessDay } from "@/modules/platform/business-days";
 import { actualDays, DEFAULT_SCHEDULE } from "./punch";
@@ -33,6 +34,7 @@ import {
   summarizeAttendance,
   type AttLeave,
   type Extra,
+  type PayBank,
   type PayPolicy,
   type SlipData,
 } from "./payroll-rules";
@@ -71,6 +73,19 @@ async function payPolicy(db: Db, on: string): Promise<PayPolicy> {
     pensionFloor: p["ins.pension_floor"],
     mealExempt: p["tax.meal_exempt"],
     carExempt: p["tax.car_exempt"],
+    childcareExempt: p["tax.childcare_exempt"],
+    otExemptPayCap: p["tax.ot_exempt_pay_cap"],
+    otExemptAnnual: p["tax.ot_exempt_annual"],
+    employmentEmployerRate: p["ins.employment_employer_rate"],
+    accidentRate: p["ins.accident_rate"],
+    taxTable: {
+      pensionRate: p["tax.table_pension_rate"],
+      pensionCap: p["tax.table_pension_cap"],
+      pensionFloor: p["tax.table_pension_floor"],
+      childOne: p["tax.child_one"],
+      childTwo: p["tax.child_two"],
+      childMore: p["tax.child_more"],
+    },
   };
 }
 
@@ -165,8 +180,29 @@ type Kept = {
   incomeTax: number;
   incomeTaxSource: SlipData["incomeTaxSource"];
   family: number;
+  children: number;
+  withholdRate: number;
   extras: Extra[];
+  production: boolean;
+  bank: PayBank | null;
 };
+
+/** 같은 해 앞 달 급여대장에서 생산직 연장수당 비과세로 본 금액(사람별) */
+async function otTaxfreeUsed(db: Db, ym: string) {
+  const runs = await db.select().from(payrollRun);
+  const ids = runs
+    .filter((r) => r.ym.slice(0, 4) === ym.slice(0, 4) && r.ym < ym)
+    .map((r) => r.id);
+  const used = new Map<string, number>();
+  if (!ids.length) return used;
+  const rows = await db.select().from(payslip).where(inArray(payslip.runId, ids));
+  for (const r of rows) {
+    const d = readSlip(r.dataEnc);
+    if (d.otTaxfree)
+      used.set(r.userId, (used.get(r.userId) ?? 0) + d.otTaxfree);
+  }
+  return used;
+}
 
 async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
   const m = monthRange(ym);
@@ -175,6 +211,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
   const { done, pending } = await monthLeaves(db, ym);
   const actual = await actualDays(db, m.from, m.to);
   const last = await lastSlips(db, ym);
+  const used = await otTaxfreeUsed(db, ym);
   const targets = await payrollTargets(db, ym);
   const slips: { userId: string; data: SlipData }[] = [];
   const skipped: string[] = [];
@@ -201,11 +238,19 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
     }
     if (unapproved) att.unapproved = Math.round((unapproved / 60) * 100) / 100;
     const prev = last.get(u.id);
-    const k = kept.get(u.id) ?? {
-      incomeTax: prev?.incomeTax ?? 0,
-      incomeTaxSource: prev ? ("last" as const) : ("none" as const),
+    // 가족 수·자녀 수·원천징수 비율은 지난달 명세서에서 불러온다(다시 넣지 않음).
+    // 소득세는 자동 계산. 지난달 직접 넣은 값이 있으면 그 값을 쓰고 확인을 부탁한다.
+    const prevTyped =
+      prev?.incomeTaxSource === "manual" || prev?.incomeTaxSource === "last";
+    const k: Kept = kept.get(u.id) ?? {
+      incomeTax: prevTyped ? prev.incomeTax : 0,
+      incomeTaxSource: prevTyped ? "last" : "auto",
       family: prev?.family ?? 1,
+      children: prev?.children ?? 0,
+      withholdRate: prev?.withholdRate ?? 100,
       extras: [],
+      production: prev?.production ?? false,
+      bank: prev?.bank ?? null,
     };
     const data = computeSlip({
       name: u.name,
@@ -216,6 +261,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
       att,
       pol,
       ...k,
+      otTaxfreeUsed: used.get(u.id) ?? 0,
     });
     const waiting = pending.filter(({ d }) => d.drafterId === u.id).length;
     if (waiting)
@@ -313,9 +359,16 @@ async function keptOf(db: Db, runId: string) {
         r.userId,
         {
           incomeTax: d.incomeTax,
-          incomeTaxSource: d.incomeTaxSource,
+          incomeTaxSource:
+            d.incomeTaxSource === "manual" || d.incomeTaxSource === "last"
+              ? d.incomeTaxSource
+              : "auto",
           family: d.family,
+          children: d.children ?? 0,
+          withholdRate: d.withholdRate ?? 100,
           extras: d.extras,
+          production: d.production ?? false,
+          bank: d.bank ?? null,
         },
       ];
     }),
@@ -369,12 +422,25 @@ export async function recalcPayroll(
   return { skipped };
 }
 
-/** 사람별 입력: 소득세(간이세액표)·공제 대상 가족 수·기타 지급/공제(사유 필수) */
+/**
+ * 사람별 입력: 공제 대상 가족 수·8~20세 자녀 수·원천징수 비율(다음 달로 이어짐),
+ * 소득세 직접 입력(비우면 간이세액표 자동 계산), 기타 지급/공제(사유 필수)
+ */
 export async function setSlipInputs(
   db: Db,
   actor: Actor,
   slipId: string,
-  input: { incomeTax: number; family: number; extras: Extra[] },
+  input: {
+    /** null 이면 자동 계산 */
+    incomeTax: number | null;
+    family: number;
+    children?: number;
+    withholdRate?: number;
+    extras: Extra[];
+    production?: boolean;
+    /** 급여 계좌. 계좌번호가 비면 전에 넣은 번호를 그대로 둔다. 은행이 비면 지운다 */
+    bank?: { name: string; account: string; holder: string };
+  },
   now = new Date(),
 ) {
   mustPrep(actor);
@@ -382,8 +448,19 @@ export async function setSlipInputs(
   if (!s) throw new PayrollError("명세서를 찾을 수 없습니다");
   const r = await run(db, s.runId);
   if (r.status !== "draft") throw new PayrollError("계산 중일 때만 고칩니다");
-  if (!Number.isInteger(input.incomeTax) || input.incomeTax < 0)
-    throw new PayrollError("소득세는 0 이상 원 단위로 적어 주세요");
+  if (
+    input.incomeTax != null &&
+    (!Number.isInteger(input.incomeTax) || input.incomeTax < 0)
+  )
+    throw new PayrollError("소득세는 0 이상 원 단위로 적거나, 비워서 자동 계산으로 두세요");
+  const children = input.children ?? 0;
+  if (!Number.isInteger(children) || children < 0 || children >= input.family)
+    throw new PayrollError(
+      "8~20세 자녀 수는 0명 이상, 공제 대상 가족 수보다 적어야 합니다(자녀도 가족 수에 들어갑니다)",
+    );
+  const withholdRate = input.withholdRate ?? 100;
+  if (![80, 100, 120].includes(withholdRate))
+    throw new PayrollError("원천징수 비율은 80·100·120% 중에서 고릅니다");
   if (!Number.isInteger(input.family) || input.family < 1 || input.family > 11)
     throw new PayrollError("공제 대상 가족 수는 본인 포함 1~11명입니다");
   const extras: Extra[] = [];
@@ -404,14 +481,35 @@ export async function setSlipInputs(
     });
   }
   const d = readSlip(s.dataEnc);
+  let bank: PayBank | null = d.bank ?? null;
+  if (input.bank) {
+    const name = input.bank.name.trim();
+    const no = input.bank.account.replace(/[\s-]/g, "");
+    if (!name) {
+      if (no) throw new PayrollError("급여 계좌의 은행을 골라 주세요");
+      bank = null;
+    } else {
+      if (no) {
+        const issue = bankAccountIssue(no);
+        if (issue) throw new PayrollError(issue);
+      }
+      const account = no || d.bank?.account || "";
+      if (!account) throw new PayrollError("급여 계좌번호를 넣어 주세요");
+      bank = { name, account, holder: input.bank.holder.trim() || d.name };
+    }
+  }
   const kept = new Map<string, Kept>([
     [
       s.userId,
       {
-        incomeTax: input.incomeTax,
-        incomeTaxSource: "manual",
+        incomeTax: input.incomeTax ?? 0,
+        incomeTaxSource: input.incomeTax == null ? "auto" : "manual",
         family: input.family,
+        children,
+        withholdRate,
         extras,
+        production: input.production ?? d.production ?? false,
+        bank,
       },
     ],
   ]);
@@ -713,4 +811,59 @@ export async function payrollTodos(db: Db, actor: Actor, today: string) {
       });
   }
   return out;
+}
+
+/** 원천세 신고 자료(근로소득 간이세액 A01): 급여대장 한 달 합계 */
+export function withholdingSummary(ds: SlipData[]) {
+  const sum = (f: (d: SlipData) => number) => ds.reduce((s, d) => s + f(d), 0);
+  return {
+    count: ds.length,
+    gross: sum((d) => d.gross),
+    taxfree: sum((d) => d.taxfree),
+    taxable: sum((d) => d.insBase),
+    incomeTax: sum((d) => d.incomeTax),
+    localTax: sum(
+      (d) => d.deducts.find((x) => x.code === "local_tax")?.amount ?? 0,
+    ),
+  };
+}
+
+/**
+ * 급여 이체 파일 줄: 승인된(또는 지급한) 급여대장만. 전체 계좌번호가 나가므로 회계 담당만 받고 기록을 남긴다.
+ * 계좌가 없는 사람·실지급 0원 이하는 따로 알려 준다.
+ */
+export async function payrollTransfer(db: Db, actor: Actor, ym: string) {
+  mustPrep(actor);
+  const [r] = await db.select().from(payrollRun).where(eq(payrollRun.ym, ym));
+  if (!r) throw new PayrollError("급여대장을 찾을 수 없습니다");
+  if (r.status !== "approved" && r.status !== "paid")
+    throw new PayrollError("대표가 승인한 급여대장만 이체 파일을 만듭니다");
+  const rows = await db.select().from(payslip).where(eq(payslip.runId, r.id));
+  const ds = rows
+    .map((s) => readSlip(s.dataEnc))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const lines = ds
+    .filter((d) => d.bank?.account && d.net > 0)
+    .map((d) => ({
+      name: d.name,
+      bank: d.bank!.name,
+      account: d.bank!.account,
+      holder: d.bank!.holder,
+      amount: d.net,
+    }));
+  const missing = ds
+    .filter((d) => !d.bank?.account && d.net > 0)
+    .map((d) => d.name);
+  await writeAudit(db, {
+    actorId: actor.id,
+    action: "payroll.transfer_file",
+    entityType: "payroll_run",
+    entityId: r.docNo,
+    after: {
+      count: lines.length,
+      total: lines.reduce((s, l) => s + l.amount, 0),
+      missing,
+    },
+  });
+  return { r, lines, missing };
 }

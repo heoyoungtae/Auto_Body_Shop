@@ -29,7 +29,7 @@ export async function preparePayrollAction(form: FormData) {
   redirect(
     noticeUrl(
       `/payroll/${ym}`,
-      `${ym} 급여를 계산했습니다.${skipped.length ? ` 서명한 근로계약서가 없어 빠진 사람: ${skipped.join(", ")}` : ""} 사람마다 소득세를 확인하세요`,
+      `${ym} 급여를 계산했습니다.${skipped.length ? ` 서명한 근로계약서가 없어 빠진 사람: ${skipped.join(", ")}` : ""} 소득세는 간이세액표로 자동 계산했습니다. 가족 수·자녀 수가 맞는지 확인하세요`,
     ),
   );
 }
@@ -56,9 +56,17 @@ export async function payrollAction(form: FormData) {
         taxable: s(`extraTaxfree${i}`) !== "1",
       }));
       await setSlipInputs(db, user, s("slipId"), {
-        incomeTax: int(s("incomeTax")),
+        incomeTax: s("incomeTax") === "" ? null : int(s("incomeTax")),
         family: int(s("family")) || 1,
+        children: int(s("children")),
+        withholdRate: int(s("withholdRate")) || 100,
         extras,
+        production: form.getAll("production").includes("1"),
+        bank: {
+          name: s("payBank"),
+          account: s("payAccount"),
+          holder: s("payHolder"),
+        },
       });
       msg = `${s("who")} 명세서를 고쳤습니다`;
     } else if (intent === "submit") {

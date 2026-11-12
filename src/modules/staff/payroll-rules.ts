@@ -6,6 +6,7 @@ import {
   type ShopCalendar,
 } from "@/modules/platform/business-days";
 import { contractNumbers, type ContractTerms } from "./contract-rules";
+import { simpleIncomeTax, type TaxTablePolicy } from "./income-tax";
 
 export type PayLine = {
   code: string;
@@ -21,6 +22,7 @@ export type Extra = {
   reason: string;
   taxable?: boolean;
 };
+export type PayBank = { name: string; account: string; holder: string };
 export type AttLeave = {
   leaveKind: string;
   fromDate: string;
@@ -59,10 +61,24 @@ export type SlipData = {
   deductTotal: number;
   net: number;
   incomeTax: number;
-  incomeTaxSource: "manual" | "last" | "none";
+  /** auto=간이세액표 계산, manual=회계 담당이 직접 넣음, last=지난달 직접 넣은 값, none=예전 자료 */
+  incomeTaxSource: "auto" | "manual" | "last" | "none";
   family: number;
+  /** 8~20세 자녀 수(간이세액표 자녀 공제) */
+  children?: number;
+  /** 원천징수 비율 80·100·120(직원 선택, 기본 100) */
+  withholdRate?: number;
   extras: Extra[];
+  /** 생산직(연장·야간·휴일 수당 비과세 대상으로 회계 담당이 표시) */
+  production?: boolean;
+  /** 이달 생산직 연장수당 비과세로 본 금액(연 한도 누적용) */
+  otTaxfree?: number;
+  /** 급여 받을 계좌(명세서 전체가 암호화되어 저장됨). 다음 달로 이어진다 */
+  bank?: PayBank | null;
   insurances: string[];
+  /** 회사가 따로 내는 보험료·퇴직급여 적립(명세서 지급액과 별개) */
+  employer?: PayLine[];
+  employerTotal?: number;
   warnings: string[];
 };
 
@@ -78,6 +94,16 @@ export type PayPolicy = {
   pensionFloor: number;
   mealExempt: number;
   carExempt: number;
+  /** 보육수당 비과세 월 한도 */
+  childcareExempt: number;
+  /** 생산직 연장수당 비과세: 월정액급여 기준·연 한도 */
+  otExemptPayCap: number;
+  otExemptAnnual: number;
+  /** 고용보험 회사 몫(실업급여 + 고용안정·직업능력개발), ÷1000 % */
+  employmentEmployerRate: number;
+  /** 산재보험료율(업종 요율 + 출퇴근재해), ÷1000 %. 0이면 고지서 금액을 따로 봄 */
+  accidentRate: number;
+  taxTable: TaxTablePolicy;
 };
 
 const won = (n: number) => `${Math.round(n).toLocaleString("ko-KR")}원`;
@@ -202,10 +228,17 @@ export function computeSlip(input: {
   leftOn: string | null;
   att: SlipData["att"];
   pol: PayPolicy;
+  /** 직접 넣은 소득세(manual·last 일 때만 씀) */
   incomeTax: number;
   incomeTaxSource: SlipData["incomeTaxSource"];
   family: number;
+  children?: number;
+  withholdRate?: number;
   extras: Extra[];
+  production?: boolean;
+  /** 같은 해 앞 달까지 생산직 연장수당 비과세로 본 금액 */
+  otTaxfreeUsed?: number;
+  bank?: PayBank | null;
 }): SlipData {
   const { terms: t, pol, att } = input;
   const n = contractNumbers(t);
@@ -237,7 +270,9 @@ export function computeSlip(input: {
       ? pol.mealExempt
       : /차량|자가운전/.test(a.name)
         ? pol.carExempt
-        : 0;
+        : /보육|출산/.test(a.name)
+          ? pol.childcareExempt
+          : 0;
     pays.push({
       code: `fix:${a.name}`,
       name: a.name,
@@ -304,6 +339,37 @@ export function computeSlip(input: {
       calc: e.reason,
       taxfree: e.taxable === false ? e.amount : undefined,
     });
+  // 생산직 연장·야간·휴일 수당 비과세(소득세법 시행령 제17조): 월정액급여 기준 이하, 연 한도 안에서
+  let otTaxfree = 0;
+  if (input.production) {
+    const monthlyFixed =
+      baseFull +
+      t.allowances.reduce((s2, a) => s2 + a.amount, 0) -
+      pays
+        .filter((p) => p.code.startsWith("fix:"))
+        .reduce((s2, p) => s2 + (p.taxfree ?? 0), 0);
+    if (monthlyFixed <= pol.otExemptPayCap) {
+      let left = Math.max(0, pol.otExemptAnnual - (input.otTaxfreeUsed ?? 0));
+      for (const p of pays) {
+        if (!["ot", "hol", "night"].includes(p.code) || left <= 0) continue;
+        const f = Math.min(p.amount, left);
+        p.taxfree = f;
+        p.calc += ` · 생산직 비과세 ${won(f)}`;
+        left -= f;
+        otTaxfree += f;
+      }
+      const otAll = pays
+        .filter((p) => ["ot", "hol", "night"].includes(p.code))
+        .reduce((s2, p) => s2 + p.amount, 0);
+      if (otAll > otTaxfree)
+        warnings.push(
+          `생산직 연장수당 비과세 연 한도 ${won(pol.otExemptAnnual)}를 다 썼습니다. 넘는 금액은 과세합니다`,
+        );
+    } else
+      warnings.push(
+        `생산직으로 표시했지만 월정액급여 ${won(monthlyFixed)}가 ${won(pol.otExemptPayCap)}를 넘어 연장수당을 과세했습니다`,
+      );
+  }
   if (att.absentDays)
     warnings.push(
       "결근한 주는 주휴수당이 생기지 않을 수 있습니다. 해당하면 '기타 공제'로 넣으세요 [확인 필요]",
@@ -348,15 +414,25 @@ export function computeSlip(input: {
       amount: floor10((insBase * pol.employmentRate) / 100000),
       calc: `보수 ${won(insBase)} × ${pol.employmentRate / 1000}%`,
     });
-  const tax = floor10(input.incomeTax);
+  const children = Math.max(0, Math.round(input.children ?? 0));
+  const withholdRate = input.withholdRate ?? 100;
+  const auto = simpleIncomeTax(
+    { monthly: insBase, family: input.family, children, rate: withholdRate },
+    pol.taxTable,
+  );
+  const typed =
+    input.incomeTaxSource === "manual" || input.incomeTaxSource === "last";
+  const tax = typed ? floor10(input.incomeTax) : auto.amount;
+  const source: SlipData["incomeTaxSource"] = typed
+    ? input.incomeTaxSource
+    : "auto";
   deducts.push({
     code: "income_tax",
     name: "소득세",
     amount: tax,
-    calc:
-      input.incomeTaxSource === "none"
-        ? "간이세액표 값을 넣어 주세요"
-        : `간이세액표(공제 대상 가족 ${input.family}명)${input.incomeTaxSource === "last" ? " · 지난달 값" : ""}`,
+    calc: typed
+      ? `직접 넣은 값${source === "last" ? "(지난달)" : ""} · 자동 계산이면 ${won(auto.amount)}(${auto.calc})`
+      : auto.calc,
   });
   deducts.push({
     code: "local_tax",
@@ -372,13 +448,9 @@ export function computeSlip(input: {
       calc: e.reason,
     });
   const deductTotal = deducts.reduce((s, d) => s + d.amount, 0);
-  if (input.incomeTaxSource === "none" && insBase > 1_060_000)
+  if (typed && tax !== auto.amount)
     warnings.push(
-      "소득세가 비어 있습니다. 국세청 간이세액표에서 찾아 넣으세요",
-    );
-  if (input.incomeTaxSource === "last")
-    warnings.push(
-      "소득세는 지난달 값을 불러왔습니다. 과세 급여가 바뀌었으면 간이세액표로 다시 확인하세요",
+      `소득세를 직접 넣은 값 ${won(tax)}으로 계산했습니다(간이세액표 계산 ${won(auto.amount)}). 특별한 사정이 없으면 칸을 비워 자동 계산으로 돌리세요`,
     );
   if (hourly && hourly < pol.minWage)
     warnings.push(
@@ -402,6 +474,32 @@ export function computeSlip(input: {
   }
   if (gross - deductTotal < 0)
     warnings.push("공제가 지급보다 큽니다. 공제 항목을 확인하세요");
+  const employer: PayLine[] = [];
+  for (const d of deducts) {
+    if (d.code === "pension" || d.code === "health" || d.code === "ltc")
+      employer.push({ ...d, calc: `근로자 몫과 같은 금액(${d.calc})` });
+  }
+  if (ins.has("employment"))
+    employer.push({
+      code: "employment",
+      name: "고용보험(회사)",
+      amount: floor10((insBase * pol.employmentEmployerRate) / 100000),
+      calc: `보수 ${won(insBase)} × ${pol.employmentEmployerRate / 1000}%(실업급여 + 고용안정·직업능력개발)`,
+    });
+  if (pol.accidentRate > 0)
+    employer.push({
+      code: "accident",
+      name: "산재보험",
+      amount: floor10((insBase * pol.accidentRate) / 100000),
+      calc: `보수 ${won(insBase)} × ${pol.accidentRate / 1000}%(업종 요율 + 출퇴근재해)`,
+    });
+  employer.push({
+    code: "severance",
+    name: "퇴직급여 적립(참고)",
+    amount: floor10(Math.max(0, gross) / 12),
+    calc: `이달 지급 총액 ${won(gross)} ÷ 12 (1년 이상 근무하면 줄 퇴직금 몫)`,
+  });
+  const employerTotal = employer.reduce((s, e) => s + e.amount, 0);
   return {
     name: input.name,
     payType: t.payType,
@@ -418,10 +516,17 @@ export function computeSlip(input: {
     deductTotal,
     net: gross - deductTotal,
     incomeTax: tax,
-    incomeTaxSource: input.incomeTaxSource,
+    incomeTaxSource: source,
+    production: input.production || undefined,
+    otTaxfree: otTaxfree || undefined,
+    bank: input.bank ?? null,
     family: input.family,
+    children,
+    withholdRate,
     extras: input.extras,
     insurances: t.insurances,
+    employer,
+    employerTotal,
     warnings,
   };
 }

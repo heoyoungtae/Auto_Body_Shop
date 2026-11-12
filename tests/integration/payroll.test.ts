@@ -21,8 +21,10 @@ import {
   preparePayroll,
   recalcPayroll,
   returnPayroll,
+  payrollTransfer,
   setSlipInputs,
   submitPayroll,
+  withholdingSummary,
 } from "@/modules/staff/payroll";
 import {
   computeSlip,
@@ -67,6 +69,19 @@ const pol: PayPolicy = {
   pensionFloor: 400_000,
   mealExempt: 200_000,
   carExempt: 200_000,
+  childcareExempt: 200_000,
+  otExemptPayCap: 2_600_000,
+  otExemptAnnual: 2_400_000,
+  employmentEmployerRate: 1150,
+  accidentRate: 0,
+  taxTable: {
+    pensionRate: 4500,
+    pensionCap: 5_900_000,
+    pensionFloor: 370_000,
+    childOne: 12_500,
+    childTwo: 29_160,
+    childMore: 25_000,
+  },
 };
 const att0 = {
   overtime: 0,
@@ -114,6 +129,54 @@ describe("급여 계산 규칙", () => {
     );
     expect(d.deducts.find((x) => x.code === "local_tax")!.amount).toBe(5_000);
     expect(d.net).toBe(d.gross - d.deductTotal);
+  });
+
+  it("보육수당 비과세, 생산직 연장수당 비과세(월정액 기준·연 한도), 원천세 합계", () => {
+    const base = {
+      name: "c",
+      ym: "2026-11",
+      hiredOn: null,
+      leftOn: null,
+      att: { ...att0, overtime: 10 },
+      pol,
+      incomeTax: 0,
+      incomeTaxSource: "auto" as const,
+      family: 1,
+      extras: [],
+    };
+    const kid = computeSlip({
+      ...base,
+      terms: terms({ allowances: [{ name: "보육수당", amount: 250_000 }] }),
+      att: att0,
+    });
+    expect(kid.taxfree).toBe(200_000);
+    // 월정액 2,500,000 + 식대 200,000 − 비과세 식대 = 2,500,000 ≤ 2,600,000 → 연장수당 비과세
+    const prod = computeSlip({ ...base, terms: terms(), production: true });
+    const ot = prod.pays.find((p) => p.code === "ot")!;
+    expect(ot.taxfree).toBe(ot.amount);
+    expect(prod.otTaxfree).toBe(ot.amount);
+    expect(prod.taxfree).toBe(200_000 + ot.amount);
+    // 연 한도를 거의 다 썼으면 남은 만큼만
+    const capped = computeSlip({ ...base, terms: terms(), production: true, otTaxfreeUsed: 2_350_000 });
+    expect(capped.otTaxfree).toBe(50_000);
+    expect(capped.warnings.some((w) => /연 한도/.test(w))).toBe(true);
+    // 월정액이 기준을 넘으면 과세 + 경고
+    const high = computeSlip({ ...base, terms: terms({ basePay: 3_000_000 }), production: true });
+    expect(high.otTaxfree).toBeUndefined();
+    expect(high.warnings.some((w) => /생산직/.test(w))).toBe(true);
+    // 생산직 아님 → 과세
+    expect(computeSlip({ ...base, terms: terms() }).otTaxfree).toBeUndefined();
+    const wh = withholdingSummary([prod, kid]);
+    expect(wh).toMatchObject({
+      count: 2,
+      gross: prod.gross + kid.gross,
+      taxfree: prod.taxfree + kid.taxfree,
+      incomeTax: prod.incomeTax + kid.incomeTax,
+    });
+    expect(wh.localTax).toBe(
+      prod.deducts.find((x) => x.code === "local_tax")!.amount +
+        kid.deducts.find((x) => x.code === "local_tax")!.amount,
+    );
   });
 
   it("5명 미만은 가산 없음, 입사 달 일할, 결근 공제, 휴일 8시간 넘으면 2배", () => {
@@ -274,7 +337,40 @@ describe("급여대장 흐름", () => {
     expect(r.slips).toHaveLength(1);
     const s = r.slips[0];
     expect(s.d.att.overtime).toBe(2);
-    expect(s.d.incomeTaxSource).toBe("none");
+    // 소득세는 간이세액표 방식으로 자동 계산
+    expect(s.d.incomeTaxSource).toBe("auto");
+    expect(s.d.incomeTax).toBeGreaterThan(0);
+    const autoTax = s.d.incomeTax;
+    // 회사 부담: 연금·건강·요양은 근로자와 같고, 고용보험은 회사 요율, 퇴직급여 적립 참고
+    const emp = s.d.employer!;
+    expect(emp.find((e) => e.code === "pension")!.amount).toBe(
+      s.d.deducts.find((e) => e.code === "pension")!.amount,
+    );
+    expect(emp.find((e) => e.code === "employment")!.amount).toBe(
+      Math.floor((s.d.insBase * 0.0115) / 10) * 10,
+    );
+    expect(s.d.employerTotal).toBe(emp.reduce((n, e) => n + e.amount, 0));
+    // 자녀 수는 가족 수보다 적어야 함
+    await expect(
+      setSlipInputs(
+        db,
+        acct(),
+        s.s.id,
+        { incomeTax: null, family: 1, children: 1, extras: [] },
+        dec4,
+      ),
+    ).rejects.toThrow(/자녀/);
+    // 가족 2명(자녀 1명) → 자동 계산이 줄고, 비우면 자동으로 남는다
+    await setSlipInputs(
+      db,
+      acct(),
+      s.s.id,
+      { incomeTax: null, family: 2, children: 1, extras: [] },
+      dec4,
+    );
+    const kid = (await getRun(db, acct(), "2026-11"))!.slips[0].d;
+    expect(kid.incomeTaxSource).toBe("auto");
+    expect(kid.incomeTax).toBeLessThan(autoTax);
     await expect(getRun(db, tech(), "2026-11")).rejects.toThrow(/대표·회계/);
     await expect(
       setSlipInputs(
@@ -306,6 +402,8 @@ describe("급여대장 흐름", () => {
             reason: "무재작업 3개월",
           },
         ],
+        production: true,
+        bank: { name: "국민은행", account: "123-4567-8901", holder: "" },
       },
       dec4,
     );
@@ -338,7 +436,15 @@ describe("급여대장 흐름", () => {
     await expect(approvePayroll(db, acct(), id, dec4)).rejects.toThrow(/대표/);
     await returnPayroll(db, owner(), id, "성과급 근거 첨부", dec4);
     await submitPayroll(db, acct(), id, dec4);
+    await expect(payrollTransfer(db, acct(), "2026-11")).rejects.toThrow(/승인/);
     await approvePayroll(db, owner(), id, dec4);
+    // 이체 파일: 회계 담당만, 승인된 급여대장, 전체 계좌번호
+    await expect(payrollTransfer(db, tech(), "2026-11")).rejects.toThrow(/회계/);
+    const tf = await payrollTransfer(db, acct(), "2026-11");
+    expect(tf.missing).toEqual([]);
+    expect(tf.lines).toEqual([
+      { name: after.name, bank: "국민은행", account: "12345678901", holder: after.name, amount: after.net },
+    ]);
     // 지급 전에는 본인도 못 봄
     await expect(getSlip(db, tech(), s.s.id, dec4)).rejects.toThrow(/본인/);
     const dec10 = new Date("2026-12-10T01:00:00Z");
@@ -369,6 +475,8 @@ describe("급여대장 흐름", () => {
       incomeTax: 40_000,
       family: 2,
       incomeTaxSource: "last",
+      production: true,
+      bank: { name: "국민은행", account: "12345678901" },
     });
     const t2 = decRun.slips.find((x) => x.s.userId === ids.tech2)!.d;
     expect(t2.period).toMatchObject({

@@ -311,6 +311,12 @@ export const MENU: MenuGroup[] = [
         href: "/money/close",
         std: "STD-12",
       },
+      {
+        label: "세금·절세",
+        perm: ["payroll.view"],
+        href: "/money/tax",
+        std: "STD-12",
+      },
     ],
   },
   {
