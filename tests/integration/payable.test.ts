@@ -11,7 +11,7 @@ import { act } from "@/modules/approval/service";
 import { myTodos } from "@/modules/dashboard/todo";
 import { monthSummary } from "@/modules/money/close";
 import { createExpense, payExpense, type ExpenseInput } from "@/modules/money/expense";
-import { balancesAt, bankCalendar, listPayables, payableGroups, payDueOn, syncPayables } from "@/modules/money/payable";
+import { accruedIn, balancesAt, bankCalendar, listPayables, payableGroups, payDueOn, prepaidBalances, syncPayables } from "@/modules/money/payable";
 import { backToBusinessDay, cardDueOn, payableKind, termDate } from "@/modules/money/rules";
 import { saveOrderHeader } from "@/modules/purchase/order";
 import { createSupplier, getSupplier } from "@/modules/purchase/supplier";
@@ -130,5 +130,56 @@ describe("지급·마감", () => {
     expect(m.payables.balance!.bySupplier).toEqual([{ name: "한빛도료", trade: 220_000, other: 0 }]);
     // 12-14 이후에는 카드 대금이 빠진 것으로 본다
     expect((await balancesAt(db, "2026-12-15", now)).card).toBe(0);
+  });
+});
+
+describe("선입금(대표 결정 2026-11-12)", () => {
+  it("발주 승인 때 낼 돈이 생기고, 입고 때는 채무를 새로 만들지 않으며, 매입은 입고 날짜로 잡는다", async () => {
+    expect(termDate("2026-11-10", "prepay", null)).toBe("2026-11-10");
+    const sid = await sup({ payTerm: "prepay" });
+    const [po] = await db.insert(schema.purchaseOrder).values({ docNo: "PO-2611-0101", kind: "stock", supplierId: sid, status: "approved", supplyWon: 100_000, totalWon: 110_000, approvedAt: now, createdBy: ids.manager }).returning();
+    await syncPayables(db, now);
+    let ps = await listPayables(db, sid);
+    expect(ps).toHaveLength(1);
+    expect(ps[0]).toMatchObject({ kind: "prepay", amountWon: 110_000, accruedOn: "2026-11-10", dueOn: "2026-11-10", status: "open" });
+    // 물건을 받기 전이라 채무 잔액(외상·미지급)에는 없다
+    expect(await balancesAt(db, "2026-11-30", now)).toMatchObject({ trade: 0, other: 0, prepaid: 0 });
+    expect((await payableGroups(db, now)).totals).toMatchObject({ prepay: 110_000, trade: 0 });
+
+    // 12월에 입고 끝 → 외상매입금을 새로 만들지 않고, 매입은 12월로 잡힌다
+    const dec = new Date("2026-12-03T01:00:00Z");
+    await db.update(schema.purchaseOrder).set({ status: "received", receivedAt: dec }).where(eq(schema.purchaseOrder.id, po.id));
+    await syncPayables(db, dec);
+    ps = await listPayables(db, sid);
+    expect(ps).toHaveLength(1);
+    expect((await accruedIn(db, "2026-11-01", "2026-11-30")).reduce((a, x) => a + x.amountWon, 0)).toBe(0);
+    expect((await accruedIn(db, "2026-12-01", "2026-12-31")).reduce((a, x) => a + x.amountWon, 0)).toBe(110_000);
+    expect(await prepaidBalances(db, "2026-12-31")).toEqual([]);
+  });
+
+  it("내기 전에 발주를 취소하면 낼 돈도 없어진다", async () => {
+    const sid = await sup({ payTerm: "prepay" });
+    const [po] = await db.insert(schema.purchaseOrder).values({ docNo: "PO-2611-0102", kind: "stock", supplierId: sid, status: "sent", supplyWon: 100_000, totalWon: 110_000, approvedAt: now, createdBy: ids.manager }).returning();
+    await syncPayables(db, now);
+    expect(await listPayables(db, sid)).toHaveLength(1);
+    await db.update(schema.purchaseOrder).set({ status: "cancelled" }).where(eq(schema.purchaseOrder.id, po.id));
+    await syncPayables(db, now);
+    expect(await listPayables(db, sid)).toHaveLength(0);
+  });
+
+  it("낸 돈은 물건이 들어올 때까지 선급금 잔액으로 남는다", async () => {
+    const sid = await sup({ payTerm: "prepay" });
+    const [po] = await db.insert(schema.purchaseOrder).values({ docNo: "PO-2611-0103", kind: "stock", supplierId: sid, status: "sent", supplyWon: 100_000, totalWon: 110_000, approvedAt: now, createdBy: ids.manager }).returning();
+    await syncPayables(db, now);
+    const [p] = await listPayables(db, sid);
+    const s = await createExpense(db, acct(), { category: "", supplierId: "", payeeName: "", sourceKind: "settle", sourceId: sid, payableIds: [p.id], purpose: "", supplyWon: 100_000, vatWon: 10_000, evidenceKind: "tax_invoice", evidenceNo: "TI-1", evidenceOn: "2026-11-10", dueOn: "", payMethod: "transfer", files: [] }, now);
+    const [doc] = await db.select().from(schema.approvalDoc).where(eq(schema.approvalDoc.id, s.approvalDocId));
+    const who = (doc.steps as { kind: string; candidates: string[] }[]).find((x) => x.kind === "approve")!.candidates[0];
+    await act(db, s.approvalDocId, who, "approve", null, now);
+    await db.update(schema.expense).set({ paidAt: now, paidOn: "2026-11-10", paidBy: ids.account }).where(eq(schema.expense.id, s.id));
+    expect(await prepaidBalances(db, "2026-11-30")).toMatchObject([{ poNo: "PO-2611-0103", paid: 110_000, received: 0, balance: 110_000 }]);
+    expect((await balancesAt(db, "2026-11-30", now)).prepaid).toBe(110_000);
+    await db.update(schema.purchaseOrder).set({ status: "received", receivedAt: new Date("2026-11-12T01:00:00Z") }).where(eq(schema.purchaseOrder.id, po.id));
+    expect(await prepaidBalances(db, "2026-11-30")).toEqual([]);
   });
 });

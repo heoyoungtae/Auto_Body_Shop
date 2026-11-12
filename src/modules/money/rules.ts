@@ -198,7 +198,8 @@ export const daysBetween = (a: string, b: string) =>
 
 // ── 외상매입금·미지급금 ──
 /** 결제 조건 */
-export const PAY_TERMS = { now: "입고 때 바로(현장 결제·착불)", month_end: "당월 말", next_end: "익월 말", next_day: "익월 ○일" } as const;
+/** 결제 조건. prepay 선입금: 발주 승인 때 먼저 내고(선급금), 입고 검수 때 매입으로 정리한다(대표 결정 2026-11-12) */
+export const PAY_TERMS = { prepay: "선입금(입금 확인 후 발송)", now: "입고 때 바로(현장 결제·착불)", month_end: "당월 말", next_end: "익월 말", next_day: "익월 ○일" } as const;
 export type PayTerm = keyof typeof PAY_TERMS;
 export const isPayTerm = (s: string): s is PayTerm => s in PAY_TERMS;
 export const payTermLabel = (t: string, day: number | null) => (t === "next_day" ? `익월 ${day ?? "?"}일` : (PAY_TERMS[t as PayTerm] ?? t));
@@ -215,7 +216,7 @@ const nextYm = (ym: string) => {
 /** 결제 조건으로 정한 날(휴일 조정 전). 익월 ○일이 그 달에 없으면(31일 등) 그 달 말일 */
 export function termDate(accruedOn: string, term: PayTerm, day: number | null): string {
   const ym = accruedOn.slice(0, 7);
-  if (term === "now") return accruedOn;
+  if (term === "now" || term === "prepay") return accruedOn;
   if (term === "month_end") return lastDayOf(ym);
   const n = nextYm(ym);
   if (term === "next_end") return lastDayOf(n);
@@ -238,7 +239,7 @@ export function payableKind(category: string, outsourceTrade: boolean): "trade" 
   if (category === "outsource") return outsourceTrade ? "trade" : "other";
   return "other";
 }
-export const PAYABLE_KINDS = { trade: "외상매입금", other: "미지급금", card: "미지급금(카드)" } as const;
+export const PAYABLE_KINDS = { trade: "외상매입금", other: "미지급금", card: "미지급금(카드)", prepay: "선입금(낼 돈)" } as const;
 
 /** 카드로 쓴 날 → 카드 대금 빠지는 날(다음 달 payDay일, 은행 쉬는 날이면 다음 영업일이지만 여기서는 그 날로 본다) */
 export function cardDueOn(usedOn: string, payDay: number): string {

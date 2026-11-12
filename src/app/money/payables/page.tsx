@@ -13,7 +13,7 @@ export default async function PayablesPage() {
   const user = await requireUser();
   if (!can(user, "expense.draft") && !can(user, "expense.pay"))
     return <p className="text-sm text-[var(--muted)]">외상매입금·미지급금은 공장장·회계 담당·대표가 봅니다.</p>;
-  const { groups, direct, card, totals } = await payableGroups(await getDb());
+  const { groups, direct, card, prepaid, totals } = await payableGroups(await getDb());
   const today = seoulDate();
   const tile = (label: string, v: number, tone?: string) => (
     <div className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
@@ -25,7 +25,7 @@ export default async function PayablesPage() {
     <>
       <PageTitle
         help="payables"
-        sub="입고 검수가 끝난 발주서·결과를 수용한 외주는 그날 외상매입금(또는 미지급금)이 됩니다. 기한이 되면 업체별로 지급 결의 한 장을 올려 냅니다. 계좌 확인 전인 업체에는 지급하지 않습니다."
+        sub="입고 검수가 끝난 발주서·결과를 수용한 외주는 그날 외상매입금(또는 미지급금)이 됩니다. 선입금 업체는 발주를 승인한 날 '선입금(낼 돈)'이 생기고, 낸 돈은 물건이 들어올 때까지 선급금으로 남습니다. 기한이 되면 업체별로 지급 결의 한 장을 올려 냅니다. 계좌 확인 전인 업체에는 지급하지 않습니다."
         actions={
           <Link href="/money/expenses" className={buttonClass("secondary")}>
             지출 결의 목록
@@ -34,10 +34,12 @@ export default async function PayablesPage() {
       >
         외상매입금·미지급금
       </PageTitle>
-      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-6">
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
         {tile("외상매입금", totals.trade)}
         {tile("미지급금", totals.other)}
         {tile("미지급금(카드)", totals.card)}
+        {tile("선입금(낼 돈)", totals.prepay)}
+        {tile("선급금 잔액(미입고)", totals.prepaid, totals.prepaid ? "text-[var(--warn)]" : "")}
         {tile("기한 지남", totals.overdue, totals.overdue ? "text-[var(--danger)]" : "")}
         {tile("이번 달 낼 돈", totals.dueThisMonth)}
         {tile("다음 달 낼 돈", totals.dueNextMonth)}
@@ -51,6 +53,7 @@ export default async function PayablesPage() {
                   <th className="py-1.5 pr-2">업체</th>
                   <th className="pr-2 text-right">외상매입금</th>
                   <th className="pr-2 text-right">미지급금</th>
+                  <th className="pr-2 text-right">선입금</th>
                   <th className="pr-2 text-right">기한 지남</th>
                   <th className="pr-2 text-right">이번 달</th>
                   <th className="pr-2 text-right">다음 달</th>
@@ -75,6 +78,7 @@ export default async function PayablesPage() {
                       </td>
                       <td className="pr-2 text-right tabular-nums">{won(g.trade)}</td>
                       <td className="pr-2 text-right tabular-nums">{won(g.other)}</td>
+                      <td className="pr-2 text-right tabular-nums">{won(g.prepay)}</td>
                       <td className={`pr-2 text-right tabular-nums ${g.overdue ? "font-bold text-[var(--danger)]" : ""}`}>{won(g.overdue)}</td>
                       <td className="pr-2 text-right tabular-nums">{won(g.dueThisMonth)}</td>
                       <td className="pr-2 text-right tabular-nums">{won(g.dueNextMonth)}</td>
@@ -93,6 +97,26 @@ export default async function PayablesPage() {
           <Empty>갚을 외상매입금이 없습니다.</Empty>
         )}
       </Card>
+      {prepaid.length > 0 && (
+        <div className="mt-4">
+          <Card title="선급금 잔액(냈는데 아직 안 들어온 물건)" help={{ kind: "panel", id: "pay.prepaid" }}>
+            <ul className="divide-y divide-[var(--line)] text-sm">
+              {prepaid.map((x) => (
+                <li key={x.poId} className="flex flex-wrap items-center gap-2 py-2">
+                  <Link href={`/purchases/${x.poId}`} className="text-[var(--accent)]">
+                    {x.poNo}
+                  </Link>
+                  <span>{x.name}</span>
+                  <span className="text-xs text-[var(--muted)]">
+                    낸 돈 {won(x.paid)} · 들어온 물건 {won(x.received)}
+                  </span>
+                  <b className="ml-auto text-[var(--warn)]">{won(x.balance)}</b>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
       {(direct.length > 0 || card.length > 0) && (
         <div className="mt-4">
           <Card title="결의서로 승인한 지출·카드" help={{ kind: "panel", id: "pay.direct" }}>
