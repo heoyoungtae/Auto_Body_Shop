@@ -11,7 +11,7 @@ import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { payrollAction } from "../actions";
-import { SlipLines } from "../_lines";
+import { EmployerLines, SlipLines } from "../_lines";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
@@ -46,11 +46,12 @@ export default async function PayrollRunPage({
     </>
   );
   const warn = slips.reduce((n, x) => n + x.d.warnings.length, 0);
+  const employerSum = slips.reduce((n, x) => n + (x.d.employerTotal ?? 0), 0);
   return (
     <>
       <PageTitle
         help="payroll.run"
-        sub={`${r.docNo} · ${slips.length}명 · 지급 총액 ${won(r.totalGross)} · 공제 ${won(r.totalDeduct)} · 실지급 ${won(r.totalNet)} · ${r.status === "paid" ? `${r.payDate} 지급` : `지급일 ${r.payDate}`}`}
+        sub={`${r.docNo} · ${slips.length}명 · 지급 총액 ${won(r.totalGross)} · 공제 ${won(r.totalDeduct)} · 실지급 ${won(r.totalNet)} · 회사 부담 ${won(employerSum)}(인건비 합계 ${won(r.totalGross + employerSum)}) · ${r.status === "paid" ? `${r.payDate} 지급` : `지급일 ${r.payDate}`}`}
         actions={
           <Link href="/payroll" className="text-sm text-[var(--accent)]">
             ← 급여대장
@@ -98,6 +99,7 @@ export default async function PayrollRunPage({
                     </p>
                   ))}
                   <SlipLines d={d} />
+                  <EmployerLines d={d} />
                   <Link
                     href={`/payroll/slip/${s.id}`}
                     className="text-xs text-[var(--accent)]"
@@ -114,20 +116,6 @@ export default async function PayrollRunPage({
                       <input type="hidden" name="slipId" value={s.id} />
                       <input type="hidden" name="who" value={d.name} />
                       <TextField
-                        help="pay.incomeTax"
-                        name="incomeTax"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        step={10}
-                        defaultValue={String(d.incomeTax)}
-                        from={
-                          d.incomeTaxSource === "last"
-                            ? "지난달 명세서"
-                            : undefined
-                        }
-                      />
-                      <TextField
                         help="pay.family"
                         name="family"
                         type="number"
@@ -136,18 +124,56 @@ export default async function PayrollRunPage({
                         max={11}
                         defaultValue={String(d.family)}
                       />
+                      <TextField
+                        help="pay.children"
+                        name="children"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={10}
+                        defaultValue={String(d.children ?? 0)}
+                      />
+                      <SelectField
+                        help="pay.withholdRate"
+                        name="withholdRate"
+                        defaultValue={String(d.withholdRate ?? 100)}
+                        options={[
+                          { value: "100", label: "100%(기본)" },
+                          { value: "80", label: "80%" },
+                          { value: "120", label: "120%" },
+                        ]}
+                      />
+                      <TextField
+                        help="pay.incomeTax"
+                        name="incomeTax"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        step={10}
+                        placeholder="비우면 자동 계산"
+                        defaultValue={
+                          d.incomeTaxSource === "manual" ||
+                          d.incomeTaxSource === "last"
+                            ? String(d.incomeTax)
+                            : ""
+                        }
+                        from={
+                          d.incomeTaxSource === "last"
+                            ? "지난달 직접 넣은 값"
+                            : undefined
+                        }
+                      />
                       <p className="text-xs text-[var(--muted)] md:col-span-2">
-                        과세 급여 {won(d.insBase)} · 공제 대상 가족 {d.family}
-                        명으로 국세청 근로소득 간이세액표(
-                        <a
-                          href="https://www.nts.go.kr"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[var(--accent)]"
-                        >
-                          국세청 ↗
-                        </a>
-                        )에서 찾은 소득세를 넣습니다.
+                        소득세는 과세 급여 {won(d.insBase)}, 공제 대상 가족{" "}
+                        {d.family}명
+                        {d.children ? `, 8~20세 자녀 ${d.children}명` : ""}
+                        으로 근로소득 간이세액표 방식에 따라 앱이 계산합니다
+                        {d.incomeTaxSource === "auto"
+                          ? `(${won(d.incomeTax)})`
+                          : ""}
+                        . 가족 수·자녀 수·비율은 다음 달로 이어집니다.
+                        국세청 표와 다르게 떼야 할 사정이 있을 때만 소득세 칸에
+                        직접 넣으세요.
                       </p>
                       {[0, 1, 2].map((i) => {
                         if (i > 0 && !d.extras[i] && !d.extras[i - 1])

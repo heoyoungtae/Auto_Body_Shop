@@ -71,6 +71,16 @@ async function payPolicy(db: Db, on: string): Promise<PayPolicy> {
     pensionFloor: p["ins.pension_floor"],
     mealExempt: p["tax.meal_exempt"],
     carExempt: p["tax.car_exempt"],
+    employmentEmployerRate: p["ins.employment_employer_rate"],
+    accidentRate: p["ins.accident_rate"],
+    taxTable: {
+      pensionRate: p["tax.table_pension_rate"],
+      pensionCap: p["tax.table_pension_cap"],
+      pensionFloor: p["tax.table_pension_floor"],
+      childOne: p["tax.child_one"],
+      childTwo: p["tax.child_two"],
+      childMore: p["tax.child_more"],
+    },
   };
 }
 
@@ -165,6 +175,8 @@ type Kept = {
   incomeTax: number;
   incomeTaxSource: SlipData["incomeTaxSource"];
   family: number;
+  children: number;
+  withholdRate: number;
   extras: Extra[];
 };
 
@@ -201,10 +213,16 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
     }
     if (unapproved) att.unapproved = Math.round((unapproved / 60) * 100) / 100;
     const prev = last.get(u.id);
-    const k = kept.get(u.id) ?? {
-      incomeTax: prev?.incomeTax ?? 0,
-      incomeTaxSource: prev ? ("last" as const) : ("none" as const),
+    // 가족 수·자녀 수·원천징수 비율은 지난달 명세서에서 불러온다(다시 넣지 않음).
+    // 소득세는 자동 계산. 지난달 직접 넣은 값이 있으면 그 값을 쓰고 확인을 부탁한다.
+    const prevTyped =
+      prev?.incomeTaxSource === "manual" || prev?.incomeTaxSource === "last";
+    const k: Kept = kept.get(u.id) ?? {
+      incomeTax: prevTyped ? prev.incomeTax : 0,
+      incomeTaxSource: prevTyped ? "last" : "auto",
       family: prev?.family ?? 1,
+      children: prev?.children ?? 0,
+      withholdRate: prev?.withholdRate ?? 100,
       extras: [],
     };
     const data = computeSlip({
@@ -313,8 +331,13 @@ async function keptOf(db: Db, runId: string) {
         r.userId,
         {
           incomeTax: d.incomeTax,
-          incomeTaxSource: d.incomeTaxSource,
+          incomeTaxSource:
+            d.incomeTaxSource === "manual" || d.incomeTaxSource === "last"
+              ? d.incomeTaxSource
+              : "auto",
           family: d.family,
+          children: d.children ?? 0,
+          withholdRate: d.withholdRate ?? 100,
           extras: d.extras,
         },
       ];
@@ -369,12 +392,22 @@ export async function recalcPayroll(
   return { skipped };
 }
 
-/** 사람별 입력: 소득세(간이세액표)·공제 대상 가족 수·기타 지급/공제(사유 필수) */
+/**
+ * 사람별 입력: 공제 대상 가족 수·8~20세 자녀 수·원천징수 비율(다음 달로 이어짐),
+ * 소득세 직접 입력(비우면 간이세액표 자동 계산), 기타 지급/공제(사유 필수)
+ */
 export async function setSlipInputs(
   db: Db,
   actor: Actor,
   slipId: string,
-  input: { incomeTax: number; family: number; extras: Extra[] },
+  input: {
+    /** null 이면 자동 계산 */
+    incomeTax: number | null;
+    family: number;
+    children?: number;
+    withholdRate?: number;
+    extras: Extra[];
+  },
   now = new Date(),
 ) {
   mustPrep(actor);
@@ -382,8 +415,19 @@ export async function setSlipInputs(
   if (!s) throw new PayrollError("명세서를 찾을 수 없습니다");
   const r = await run(db, s.runId);
   if (r.status !== "draft") throw new PayrollError("계산 중일 때만 고칩니다");
-  if (!Number.isInteger(input.incomeTax) || input.incomeTax < 0)
-    throw new PayrollError("소득세는 0 이상 원 단위로 적어 주세요");
+  if (
+    input.incomeTax != null &&
+    (!Number.isInteger(input.incomeTax) || input.incomeTax < 0)
+  )
+    throw new PayrollError("소득세는 0 이상 원 단위로 적거나, 비워서 자동 계산으로 두세요");
+  const children = input.children ?? 0;
+  if (!Number.isInteger(children) || children < 0 || children >= input.family)
+    throw new PayrollError(
+      "8~20세 자녀 수는 0명 이상, 공제 대상 가족 수보다 적어야 합니다(자녀도 가족 수에 들어갑니다)",
+    );
+  const withholdRate = input.withholdRate ?? 100;
+  if (![80, 100, 120].includes(withholdRate))
+    throw new PayrollError("원천징수 비율은 80·100·120% 중에서 고릅니다");
   if (!Number.isInteger(input.family) || input.family < 1 || input.family > 11)
     throw new PayrollError("공제 대상 가족 수는 본인 포함 1~11명입니다");
   const extras: Extra[] = [];
@@ -408,9 +452,11 @@ export async function setSlipInputs(
     [
       s.userId,
       {
-        incomeTax: input.incomeTax,
-        incomeTaxSource: "manual",
+        incomeTax: input.incomeTax ?? 0,
+        incomeTaxSource: input.incomeTax == null ? "auto" : "manual",
         family: input.family,
+        children,
+        withholdRate,
         extras,
       },
     ],

@@ -61,3 +61,29 @@ export function SlipLines({ d }: { d: SlipData }) {
     </div>
   );
 }
+
+/** 회사 부담(급여에서 떼지 않고 회사가 따로 내는 보험료·퇴직급여 적립) — 대표·회계만 봄 */
+export function EmployerLines({ d }: { d: SlipData }) {
+  if (!d.employer?.length) return null;
+  return (
+    <details className="rounded-md border border-[var(--line)] p-2 text-sm">
+      <summary className="cursor-pointer">
+        회사 부담 {won(d.employerTotal ?? 0)} · 이 사람 인건비 합계{" "}
+        <b>{won(d.gross + (d.employerTotal ?? 0))}</b>
+      </summary>
+      <table className="mt-2 w-full text-sm">
+        <tbody>
+          {d.employer.map((p) => (
+            <tr key={p.code} className="border-t border-[var(--line)] align-top">
+              <td className="py-1 pr-2">{p.name}</td>
+              <td className="py-1 pr-2 text-right tabular-nums">
+                {won(p.amount)}
+              </td>
+              <td className="py-1 text-xs text-[var(--muted)]">{p.calc}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}

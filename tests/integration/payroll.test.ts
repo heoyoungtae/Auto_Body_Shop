@@ -67,6 +67,16 @@ const pol: PayPolicy = {
   pensionFloor: 400_000,
   mealExempt: 200_000,
   carExempt: 200_000,
+  employmentEmployerRate: 1150,
+  accidentRate: 0,
+  taxTable: {
+    pensionRate: 4500,
+    pensionCap: 5_900_000,
+    pensionFloor: 370_000,
+    childOne: 12_500,
+    childTwo: 29_160,
+    childMore: 25_000,
+  },
 };
 const att0 = {
   overtime: 0,
@@ -274,7 +284,40 @@ describe("급여대장 흐름", () => {
     expect(r.slips).toHaveLength(1);
     const s = r.slips[0];
     expect(s.d.att.overtime).toBe(2);
-    expect(s.d.incomeTaxSource).toBe("none");
+    // 소득세는 간이세액표 방식으로 자동 계산
+    expect(s.d.incomeTaxSource).toBe("auto");
+    expect(s.d.incomeTax).toBeGreaterThan(0);
+    const autoTax = s.d.incomeTax;
+    // 회사 부담: 연금·건강·요양은 근로자와 같고, 고용보험은 회사 요율, 퇴직급여 적립 참고
+    const emp = s.d.employer!;
+    expect(emp.find((e) => e.code === "pension")!.amount).toBe(
+      s.d.deducts.find((e) => e.code === "pension")!.amount,
+    );
+    expect(emp.find((e) => e.code === "employment")!.amount).toBe(
+      Math.floor((s.d.insBase * 0.0115) / 10) * 10,
+    );
+    expect(s.d.employerTotal).toBe(emp.reduce((n, e) => n + e.amount, 0));
+    // 자녀 수는 가족 수보다 적어야 함
+    await expect(
+      setSlipInputs(
+        db,
+        acct(),
+        s.s.id,
+        { incomeTax: null, family: 1, children: 1, extras: [] },
+        dec4,
+      ),
+    ).rejects.toThrow(/자녀/);
+    // 가족 2명(자녀 1명) → 자동 계산이 줄고, 비우면 자동으로 남는다
+    await setSlipInputs(
+      db,
+      acct(),
+      s.s.id,
+      { incomeTax: null, family: 2, children: 1, extras: [] },
+      dec4,
+    );
+    const kid = (await getRun(db, acct(), "2026-11"))!.slips[0].d;
+    expect(kid.incomeTaxSource).toBe("auto");
+    expect(kid.incomeTax).toBeLessThan(autoTax);
     await expect(getRun(db, tech(), "2026-11")).rejects.toThrow(/대표·회계/);
     await expect(
       setSlipInputs(
