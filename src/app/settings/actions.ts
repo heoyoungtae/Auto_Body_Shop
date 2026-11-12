@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { proxyAssignment } from "@/db/schema";
 import { isRole, type Role } from "@/modules/auth/roles";
-import { resetPassword, setActive, setRoles } from "@/modules/auth/service";
+import { endSessions, setActive, setRoles } from "@/modules/auth/service";
 import { changeBands, DelegationError, isDelegationTask, type Band } from "@/modules/platform/delegation";
 import { writeAudit } from "@/modules/platform/audit";
 import { changePolicy } from "@/modules/platform/policy";
@@ -65,16 +65,20 @@ export async function updateUserAction(form: FormData) {
   const user = await requireOwner();
   const id = s(form, "id");
   const op = s(form, "op");
+  let msg = "저장했습니다";
   try {
     const db = await getDb();
     if (op === "roles") await setRoles(db, user.id, id, form.getAll("roles").map(String));
-    if (op === "lock") await setActive(db, user.id, id, false);
+    if (op === "lock") {
+      await setActive(db, user.id, id, false);
+      msg = "계정을 잠갔습니다. 로그인된 기기도 모두 끊었습니다";
+    }
     if (op === "unlock") await setActive(db, user.id, id, true);
-    if (op === "password") await resetPassword(db, user.id, id, s(form, "password"));
+    if (op === "logout") msg = `기기 ${await endSessions(db, user.id, id, s(form, "which") || "all", user.id === id ? user.sessionHash : undefined)}곳을 로그아웃했습니다`;
   } catch (e) {
-    redirect(errorUrl("/settings/users", userMessage(e)));
+    redirect(errorUrl(`/settings/users#u-${id}`, userMessage(e)));
   }
-  redirect(noticeUrl("/settings/users", "저장했습니다"));
+  redirect(noticeUrl("/settings/users", msg));
 }
 
 export async function addProxyAction(form: FormData) {

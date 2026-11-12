@@ -21,10 +21,11 @@ import {
   PageTitle,
 } from "../../../_ui";
 import { monthAction } from "../../actions";
+import { depreciationOfMonth } from "@/modules/asset/service";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
-function Row({ k, v, sub }: { k: string; v: string; sub?: string }) {
+function Row({ k, v, sub }: { k: string; v: React.ReactNode; sub?: string }) {
   return (
     <div>
       <dt className="text-xs text-[var(--muted)]">{k}</dt>
@@ -58,6 +59,8 @@ export default async function MonthClosePage({
   const s = (frozen
     ? m.snapshot
     : await monthSummary(db, ym)) as unknown as MonthSummary;
+  // 감가상각비(현금이 나가지 않는 비용): 매출·지출 합계에는 넣지 않고 참고로 보여 준다
+  const dep = await depreciationOfMonth(db, ym);
   const ended = ymRange(ym).to < seoulDate();
   return (
     <>
@@ -150,6 +153,11 @@ export default async function MonthClosePage({
             sub={`${s.expenses.paidCount}건`}
           />
           <Row k="급여(지급일 기준, 지급 총액)" v={won(s.expenses.payroll)} />
+          <Row
+            k="감가상각비(참고)"
+            v={<Link href={`/money/depreciation?y=${ym.slice(0, 4)}`} className="text-[var(--accent)]">{won(dep.won)}</Link>}
+            sub={`${dep.count}개 · 현금 지출 아님`}
+          />
           <Row
             k="지급 결의할 · 지급할(지금)"
             v={`${won(s.payables.toDraft)} · ${won(s.payables.toPay)}`}

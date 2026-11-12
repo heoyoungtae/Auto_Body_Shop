@@ -47,7 +47,7 @@ export async function saveEquipmentAction(form: FormData) {
   const s = str(form);
   const id = s("id") || undefined;
   const cycle = form.getAll("cycle").map(String);
-  await run(id ? `/equipment/new?edit=${id}` : `/equipment/new?kind=${s("kind")}`, async () => {
+  await run(id ? `/equipment/new?edit=${id}` : `/equipment/new?kind=${s("kind")}${s("expenseId") ? `&exp=${s("expenseId")}` : ""}`, async () => {
     const r = await saveEquipment(await getDb(), user, {
       name: s("name"),
       kind: s("kind"),
@@ -60,6 +60,8 @@ export async function saveEquipmentAction(form: FormData) {
       zone: s("zone"),
       rating: s("rating"),
       ownerId: s("ownerId"),
+      subManagerId: s("subManagerId"),
+      expenseId: s("expenseId"),
       operators: form.getAll("operators").map(String),
       legalKind: s("legalKind"),
       legalNextOn: s("legalNextOn"),

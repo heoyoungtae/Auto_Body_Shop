@@ -17,7 +17,7 @@ export default async function PermissionsPage({ searchParams }: { searchParams: 
   const areas = [...new Set(PERM_KEYS.map((k) => PERMS[k].area))];
   return (
     <>
-      <PageTitle help="settings.permissions" sub="업무마다 할 수 있는 역할입니다. 사내 표준서의 책임과 권한을 옮긴 것이며, 화면과 서버가 이 표대로 막습니다. 사람에게 주는 역할은 '직원·역할'에서 정합니다.">
+      <PageTitle help="settings.permissions" sub="업무마다 할 수 있는 역할입니다. 사내 표준서의 책임과 권한을 옮긴 것이며, 화면과 서버가 이 표대로 막습니다. 사람에게 주는 역할은 '로그인 계정'에서 정합니다.">
         권한표
       </PageTitle>
       <ErrorBox message={q.error} />

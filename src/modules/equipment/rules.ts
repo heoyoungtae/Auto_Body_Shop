@@ -85,7 +85,7 @@ export const isGrade = (g: string): g is Grade => g in GRADES;
 /** 구역(F-08-05와 같음) */
 export const ZONES = { A: "A 판금", B: "B 도장 준비", C: "C 도장 부스", D: "D 조색실", E: "E 자재 창고", F: "F 공용 공구", G: "G 사무실·대기실", H: "H 외부·주차" } as const;
 
-export const EQ_STATUS = { in_use: "사용 중", stopped: "사용 금지", disposed: "처분" } as const;
+export const EQ_STATUS = { pending: "설치 대기", in_use: "사용 중", stopped: "사용 금지", disposed: "처분" } as const;
 
 /** 점검 표기(F-08-02) */
 export const MARKS = { o: "○ 양호", tri: "△ 주의(조치 후 사용)", x: "× 이상(사용 금지)", na: "- 비가동" } as const;

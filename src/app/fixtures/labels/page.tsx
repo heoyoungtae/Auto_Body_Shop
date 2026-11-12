@@ -4,6 +4,7 @@ import { getDb } from "@/db/runtime";
 import { appUrl } from "@/modules/customer/service";
 import { listFixtures } from "@/modules/purchase/fixture";
 import { loadShopInfo } from "@/modules/platform/shop";
+import { listUsers } from "@/modules/auth/service";
 import { requireUser } from "../../_lib/session";
 import { PageTitle } from "../../_ui";
 import { PrintButton } from "./print-button";
@@ -13,9 +14,10 @@ export default async function FixtureLabelsPage({ searchParams }: { searchParams
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
-  const [all, shop] = await Promise.all([listFixtures(db, user, "active"), loadShopInfo(db)]);
+  const [all, shop, users] = await Promise.all([listFixtures(db, user, "active"), loadShopInfo(db), listUsers(db)]);
+  const nm = (id: string | null) => (id ? (users.find((u) => u.id === id)?.name ?? "-") : "-");
   const pick = q.ids ? new Set(q.ids.split(",")) : null;
-  const rows = all.filter(({ f }) => (pick ? pick.has(f.id) : !f.labeledAt));
+  const rows = all.filter(({ f }) => f.status !== "pending" && (pick ? pick.has(f.id) : !f.labeledAt));
   const labels = await Promise.all(rows.map(async ({ f }) => ({ f, svg: await QRCode.toString(`${appUrl()}/fixtures/${f.id}`, { type: "svg", margin: 0, errorCorrectionLevel: "M" }) })));
   return (
     <>
@@ -43,6 +45,11 @@ export default async function FixtureLabelsPage({ searchParams }: { searchParams
               <div className="min-w-0 text-xs leading-tight">
                 <p className="font-mono text-base font-bold">{f.no}</p>
                 <p className="truncate">{f.name}</p>
+                {(f.managerId || f.subManagerId) && (
+                  <p className="text-[10px]">
+                    정 {nm(f.managerId)} · 부 {nm(f.subManagerId)}
+                  </p>
+                )}
                 <p className="text-[10px]">{shop.name || "정비소"} 비품</p>
               </div>
             </div>

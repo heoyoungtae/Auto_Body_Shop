@@ -105,15 +105,15 @@ describe("직원 등록", () => {
   it("대표는 역할까지, 회계 담당은 역할 없이 잠긴 계정으로 등록하고 대표가 역할을 주면 열린다", async () => {
     const { setRoles } = await import("@/modules/auth/service");
     const { appUser } = await import("@/db/schema");
-    await expect(registerStaff(db, tech(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: [], profile: profile() }, now)).rejects.toThrow(/대표·회계/);
-    await expect(registerStaff(db, owner(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: [], profile: profile() }, now)).rejects.toThrow(/역할/);
+    await expect(registerStaff(db, tech(), { name: "신입", loginId: "newbie", roles: [], profile: profile() }, now)).rejects.toThrow(/대표·회계/);
+    await expect(registerStaff(db, owner(), { name: "신입", loginId: "newbie", roles: [], profile: profile() }, now)).rejects.toThrow(/역할/);
     // 명부가 틀리면 계정도 만들지 않는다
-    await expect(registerStaff(db, owner(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: ["technician"], profile: profile({ hiredOn: "" }) }, now)).rejects.toThrow(/입사일/);
+    await expect(registerStaff(db, owner(), { name: "신입", loginId: "newbie", roles: ["technician"], profile: profile({ hiredOn: "" }) }, now)).rejects.toThrow(/입사일/);
     expect(await db.select().from(appUser).where(eq(appUser.loginId, "newbie"))).toHaveLength(0);
-    const a = await registerStaff(db, owner(), { name: "신입", loginId: "newbie", password: "abcd1234", roles: ["technician"], profile: profile() }, now);
+    const a = await registerStaff(db, owner(), { name: "신입", loginId: "newbie", roles: ["technician"], profile: profile() }, now);
     expect(a.pendingRoles).toBe(false);
     expect((await getProfile(db, owner(), a.id))!.hiredOn).toBe("2024-03-02");
-    const b = await registerStaff(db, acct(), { name: "신입2", loginId: "newbie2", password: "abcd1234", roles: ["owner"], profile: profile() }, now);
+    const b = await registerStaff(db, acct(), { name: "신입2", loginId: "newbie2", roles: ["owner"], profile: profile() }, now);
     expect(b.pendingRoles).toBe(true);
     const [u] = await db.select().from(appUser).where(eq(appUser.id, b.id));
     expect(u.active).toBe(false);
@@ -121,5 +121,59 @@ describe("직원 등록", () => {
     await setRoles(db, ids.owner, b.id, ["technician"]);
     const [u2] = await db.select().from(appUser).where(eq(appUser.id, b.id));
     expect(u2.active).toBe(true);
+  });
+
+  it("임시 비밀번호로 처음 들어오면 새 비밀번호를 정해야 하고, 기한이 지나면 못 들어온다", async () => {
+    const { loginWithPassword, getCurrentUser, setFirstPassword, resetPassword, endSessions, sessionsOf } = await import("@/modules/auth/service");
+    const { staffTempPassword } = await import("@/modules/staff/service");
+    const a = await registerStaff(db, owner(), { name: "임시", loginId: "tempguy", roles: ["technician"], profile: profile() }, now);
+    const t = await staffTempPassword(db, owner(), a.id);
+    expect(t!.password).toMatch(/^[a-z]{4}\d{4}$/);
+    expect(await staffTempPassword(db, tech(), a.id)).toBeNull();
+    const token = await loginWithPassword(db, "tempguy", t!.password, { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Safari/604.1" }, now);
+    expect((await getCurrentUser(db, token, now))!.mustChangePassword).toBe(true);
+    await expect(setFirstPassword(db, a.id, t!.password)).rejects.toThrow(/다른/);
+    await setFirstPassword(db, a.id, "mypass123");
+    expect((await getCurrentUser(db, token, now))!.mustChangePassword).toBe(false);
+    expect(await staffTempPassword(db, owner(), a.id)).toBeNull();
+    const s = (await sessionsOf(db, [a.id], undefined, now)).get(a.id)!;
+    expect(s[0].device).toBe("아이폰 · 사파리");
+    // 대표가 다시 발급하면 기기는 끊기고, 기한(7일)이 지나면 로그인할 수 없다
+    const temp2 = await resetPassword(db, ids.owner, a.id, now);
+    expect(await getCurrentUser(db, token, now)).toBeNull();
+    await expect(loginWithPassword(db, "tempguy", temp2, {}, new Date(now.getTime() + 8 * 86_400_000))).rejects.toThrow(/기한/);
+    const tok2 = await loginWithPassword(db, "tempguy", temp2, {}, new Date(now.getTime() + 86_400_000));
+    await loginWithPassword(db, "tempguy", temp2, {}, new Date(now.getTime() + 86_400_000));
+    expect(await endSessions(db, a.id, a.id, "all", (await getCurrentUser(db, tok2, new Date(now.getTime() + 86_400_000)))!.sessionHash)).toBe(1);
+  });
+});
+
+describe("직원 서류함", () => {
+  it("암호화해 보관하고 대표·회계·본인만 열며, 본인이 올린 것은 확인을 기다리고 퇴직 3년 뒤 파기 대상이 된다", async () => {
+    const { addStaffFile, openStaffFile, listStaffFiles, checkStaffFile, removeStaffFile, filesToPurge, staffFileTodos } = await import("@/modules/staff/files");
+    const { readStored } = await import("@/modules/platform/storage");
+    const { staffFile } = await import("@/db/schema");
+    const pdf = new Uint8Array([...Buffer.from("%PDF-1.4\n"), 1, 2, 3, 4]);
+    await expect(addStaffFile(db, tech(), ids.tech2, { kind: "resume", title: "", fileName: "a.pdf", bytes: pdf })).rejects.toThrow(/본인/);
+    await expect(addStaffFile(db, owner(), ids.tech1, { kind: "resume", title: "", fileName: "a.txt", bytes: new Uint8Array([1, 2, 3]) })).rejects.toThrow(/PDF/);
+    const id = await addStaffFile(db, acct(), ids.tech1, { kind: "license", title: "", licenseName: "자동차정비기능사", fileName: "lic.pdf", bytes: pdf }, now);
+    const [row] = await db.select().from(staffFile).where(eq(staffFile.id, id));
+    expect(row.title).toBe("자동차정비기능사");
+    expect(row.checkedAt).not.toBeNull();
+    // 저장된 파일은 원본이 아니다(암호화)
+    expect(Buffer.from(await readStored(row.path!)).includes(Buffer.from("%PDF"))).toBe(false);
+    expect(Buffer.from((await openStaffFile(db, tech(), id)).bytes).equals(Buffer.from(pdf))).toBe(true);
+    await expect(openStaffFile(db, { id: ids.tech2, roles: ["technician"] }, id)).rejects.toThrow(/본인/);
+    // 본인이 올리면 확인 대기 → 내 할 일
+    const mine = await addStaffFile(db, tech(), ids.tech1, { kind: "resume", title: "이력서", fileName: "cv.jpg", bytes: pdf }, now);
+    expect((await staffFileTodos(db, acct(), "2026-11-09")).some((t) => t.key.startsWith("staff-file-check"))).toBe(true);
+    await checkStaffFile(db, acct(), mine);
+    await expect(removeStaffFile(db, tech(), mine, "잘못 올림")).rejects.toThrow(/대표·회계/);
+    await removeStaffFile(db, owner(), mine, "잘못 올림");
+    expect((await listStaffFiles(db, owner(), ids.tech1)).map((r) => r.f.id)).toEqual([id]);
+    // 퇴직 3년 지나면 파기 대상
+    await saveProfile(db, owner(), ids.tech1, profile({ hiredOn: "2020-03-02", leftOn: "2023-01-10", leftReason: "개인 사정" }), now);
+    expect((await filesToPurge(db, new Date("2026-01-11T03:00:00Z"))).length).toBe(1);
+    expect((await filesToPurge(db, new Date("2026-01-09T03:00:00Z"))).length).toBe(0);
   });
 });

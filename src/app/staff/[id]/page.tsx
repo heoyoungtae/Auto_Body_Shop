@@ -14,6 +14,8 @@ import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { saveProfileAction } from "../actions";
 import { ProfileFields } from "../profile-fields";
+import { TempPasswordBox } from "../temp-password";
+import { StaffFilesCard } from "../staff-files";
 
 
 /** 근로자 명부 한 사람(F-11-01): 대표·회계가 적고, 본인은 본다 */
@@ -44,6 +46,11 @@ export default async function StaffProfilePage({ params, searchParams }: { param
       </PageTitle>
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
+      {full && (
+        <div className="mt-3">
+          <TempPasswordBox user={user} userId={id} back={`/staff/${id}`} />
+        </div>
+      )}
       <div className="mt-4 grid gap-4 xl:grid-cols-[2fr_1fr]">
         <Card title="명부 기재 사항" help={{ kind: "panel", id: "staff.profile" }}>
           {full ? (
@@ -116,6 +123,8 @@ export default async function StaffProfilePage({ params, searchParams }: { param
             </>
           )}
         </Card>
+
+        <StaffFilesCard db={db} user={user} userId={id} licenses={lic.map((l) => l.name).filter(Boolean)} leftOn={p?.leftOn} />
 
         <Card title="역량 평가 이력" help={{ kind: "panel", id: "staff.history" }}>
           {hist.length ? (

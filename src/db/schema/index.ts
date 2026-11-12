@@ -4,6 +4,7 @@ export * from "./messaging";
 export * from "./customer";
 export * from "./repair";
 export * from "./staff";
+export * from "./asset";
 export * from "./equipment";
 export * from "./quality";
 export * from "./cs";

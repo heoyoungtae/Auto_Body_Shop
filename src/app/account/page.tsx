@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { ROLE_LABEL } from "@/modules/auth/roles";
-import { changePassword } from "@/modules/auth/service";
+import { changePassword, endSessions, sessionsOf } from "@/modules/auth/service";
 import { UserError } from "@/modules/platform/errors";
 import { saveUserSignature, userSignature } from "@/modules/auth/signature";
 import { AssistForm } from "../_assist";
 import { PasswordField } from "../_input";
 import { SubmitButton } from "../_submit";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
-import { Card, ErrorBox, Notice, PageTitle } from "../_ui";
+import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../_ui";
 import { SignaturePad } from "../repairs/signature-pad";
 import { NeedImageNote, StampImageInput } from "../stamp-image";
 
@@ -23,6 +23,18 @@ async function changePasswordAction(form: FormData) {
     redirect(errorUrl("/account", userMessage(e)));
   }
   redirect(noticeUrl("/account", "비밀번호를 바꿨습니다"));
+}
+
+async function endOtherSessionsAction() {
+  "use server";
+  const user = await requireUser();
+  let n = 0;
+  try {
+    n = await endSessions(await getDb(), user.id, user.id, "all", user.sessionHash);
+  } catch (e) {
+    redirect(errorUrl("/account", userMessage(e)));
+  }
+  redirect(noticeUrl("/account", `다른 기기 ${n}곳을 로그아웃했습니다`));
 }
 
 const png = (v: FormDataEntryValue | null) => {
@@ -47,7 +59,9 @@ async function signatureAction(form: FormData) {
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
-  const sign = await userSignature(await getDb(), user.id);
+  const db = await getDb();
+  const sign = await userSignature(db, user.id);
+  const mine = (await sessionsOf(db, [user.id], user.sessionHash)).get(user.id) ?? [];
   return (
     <div className="space-y-4">
       <PageTitle help="account" sub={`${user.loginId} · ${user.roles.map((r) => ROLE_LABEL[r]).join("·")}`}>
@@ -90,6 +104,33 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <SubmitButton>{sign ? "서명 바꾸기" : "서명 등록"}</SubmitButton>
           </AssistForm>
         </div>
+      </Card>
+
+      <p className="text-sm">
+        <a href={`/staff/${user.id}#files`} className="text-[var(--accent)] underline">
+          내 근로자 명부·서류함
+        </a>{" "}
+        <span className="text-[var(--muted)]">— 이력서·자격증 사본을 올리면 대표·회계 담당이 확인합니다</span>
+      </p>
+
+      <Card title={`로그인된 기기 ${mine.length}곳`} help={{ kind: "panel", id: "account.sessions" }}>
+        <ul className="divide-y divide-[var(--line)] text-sm">
+          {mine.map((x) => (
+            <li key={x.id} className="flex flex-wrap items-center gap-2 py-2">
+              <b>{x.device}</b>
+              {x.current && <Badge tone="ok">지금 이 기기</Badge>}
+              <span className="text-[var(--muted)]">
+                로그인 {fmtTime(x.createdAt)} · 마지막 사용 {fmtTime(x.lastSeenAt ?? x.createdAt)}
+                {x.ip ? ` · IP ${x.ip}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {mine.length > 1 && (
+          <form action={endOtherSessionsAction} className="mt-2">
+            <SubmitButton variant="secondary">다른 기기 모두 로그아웃</SubmitButton>
+          </form>
+        )}
       </Card>
 
       <Card title="비밀번호 바꾸기" help={{ kind: "panel", id: "account.password" }}>

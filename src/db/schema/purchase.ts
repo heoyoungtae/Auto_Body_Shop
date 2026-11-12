@@ -1,6 +1,7 @@
 // 구매·자재·외주(STD-07): 협력업체 대장·평가 F-07-01, 발주서·입고 검수 F-07-02, 재고, 외주 의뢰 F-07-03
 import { boolean, doublePrecision, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
+import { assetColumns } from "./asset";
 import { estimate, estimateLine, repairOrder } from "./repair";
 import { chemical } from "./safety";
 
@@ -394,6 +395,9 @@ export const fixture = pgTable(
     disposeMethod: text("dispose_method"),
     disposeNote: text("dispose_note"),
     dataWiped: boolean("data_wiped"),
+    /** 관리자(정). 사용자(holder)와 따로 — 공용 비품도 책임자가 있다 */
+    managerId: uuid("manager_id").references(() => appUser.id),
+    ...assetColumns(),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

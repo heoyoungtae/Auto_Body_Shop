@@ -2,7 +2,7 @@ import Link from "next/link";
 import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, ROLES } from "@/modules/auth/roles";
 import { AssistForm } from "../../_assist";
-import { CheckGroup, PasswordField, TextField } from "../../_input";
+import { CheckGroup, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Card, ErrorBox, PageTitle } from "../../_ui";
@@ -30,11 +30,11 @@ export default async function StaffNewPage({ searchParams }: { searchParams: Pro
       <ErrorBox message={error} />
       <AssistForm id="staff-new" action={registerStaffAction} className="mt-4 space-y-4" draft>
         <Card title="로그인 계정" help={{ kind: "panel", id: "staff.newAccount" }}>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <TextField help="user.name" name="name" required />
             <TextField help="user.loginId" name="loginId" required autoCapitalize="none" spellCheck={false} lower />
-            <PasswordField help="user.password" name="password" required rules autoComplete="new-password" />
           </div>
+          <p className="mt-2 text-sm text-[var(--muted)]">비밀번호는 앱이 임시로 만듭니다. 등록한 뒤 직원 화면에서 임시 비밀번호를 보고 알려 주거나 문자로 보냅니다. 직원은 처음 로그인할 때 새 비밀번호를 정합니다.</p>
           {manage ? (
             <div className="mt-3">
               <CheckGroup help="user.roles" name="roles" options={ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }))} />

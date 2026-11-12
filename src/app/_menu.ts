@@ -232,6 +232,7 @@ export const MENU: MenuGroup[] = [
         std: "STD-07.8",
       },
       { label: "비품·자산", href: "/fixtures", std: "STD-07.9" },
+      { label: "설비 라벨", perm: ["equip.manage"], href: "/equipment/labels", std: "STD-08.1" },
     ],
   },
   {
@@ -298,6 +299,12 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
+        label: "감가상각 대장",
+        perm: ["expense.pay", "fixture.manage"],
+        href: "/money/depreciation",
+        std: "STD-12",
+      },
+      {
         label: "마감",
         perm: ["money.close_day", "money.close_month"],
         href: "/money/close",
@@ -328,7 +335,7 @@ export const MENU: MenuGroup[] = [
         href: "/settings/delegation",
         std: "부록 B",
       },
-      { label: "직원·역할", perm: ["account.manage"], href: "/settings/users" },
+      { label: "로그인 계정", perm: ["account.manage"], href: "/settings/users" },
       {
         label: "권한표",
         perm: ["settings.edit"],

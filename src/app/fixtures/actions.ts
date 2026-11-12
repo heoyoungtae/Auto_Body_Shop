@@ -11,7 +11,7 @@ const str = (form: FormData) => (k: string) => String(form.get(k) ?? "").trim();
 function input(form: FormData): FixtureInput {
   const s = str(form);
   const price = s("priceWon").replace(/[^\d]/g, "");
-  return { name: s("name"), category: s("category"), spec: s("spec"), purchasedOn: s("purchasedOn"), priceWon: price ? Number(price) : 0, location: s("location"), holderId: s("holderId"), warrantyUntil: s("warrantyUntil"), supplierId: s("supplierId"), expenseRef: s("expenseRef"), note: s("note") };
+  return { name: s("name"), category: s("category"), spec: s("spec"), purchasedOn: s("purchasedOn"), priceWon: price ? Number(price) : 0, location: s("location"), holderId: s("holderId"), warrantyUntil: s("warrantyUntil"), supplierId: s("supplierId"), expenseRef: s("expenseRef"), note: s("note"), managerId: s("managerId"), subManagerId: s("subManagerId"), expenseId: s("expenseId") };
 }
 
 export async function registerFixtureAction(form: FormData) {
@@ -20,7 +20,7 @@ export async function registerFixtureAction(form: FormData) {
   try {
     r = await registerFixture(await getDb(), user, input(form));
   } catch (e) {
-    redirect(errorUrl("/fixtures/new", userMessage(e)));
+    redirect(errorUrl(`/fixtures/new${str(form)("expenseId") ? `?exp=${str(form)("expenseId")}` : ""}`, userMessage(e)));
   }
   redirect(noticeUrl(`/fixtures/${r.id}`, `${r.no}로 등록했습니다. 라벨을 인쇄해 붙이세요`));
 }

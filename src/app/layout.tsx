@@ -26,7 +26,9 @@ const Icon = ({ d }: { d: string }) => (
 );
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const user = await currentUser();
+  const me = await currentUser();
+  // 새 비밀번호를 정하기 전(임시 비밀번호로 들어옴)에는 메뉴·알림을 보이지 않는다
+  const user = me?.mustChangePassword ? null : me;
   const unread = user ? await unreadCount(await getDb(), user.id) : 0;
   return (
     <html lang="ko">

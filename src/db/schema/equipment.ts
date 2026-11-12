@@ -2,6 +2,7 @@
 // 날짜는 서울 기준 'YYYY-MM-DD' 글자로 둔다(다른 표와 같음).
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
+import { assetColumns } from "./asset";
 
 export type CheckItem = { item: string; std: string };
 export type CheckResult = CheckItem & { mark: "o" | "tri" | "x" | "na"; note?: string };
@@ -49,6 +50,10 @@ export const equipment = pgTable(
     /** 사용 전 시운전 확인(4.6) */
     trialOn: text("trial_on"),
     note: text("note"),
+    ...assetColumns(),
+    /** 라벨(번호·관리자·QR) 붙인 때 */
+    labeledAt: timestamp("labeled_at", { withTimezone: true }),
+    disposedOn: text("disposed_on"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

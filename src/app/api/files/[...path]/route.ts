@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const user = await currentUser();
-  if (!user) return new Response("로그인이 필요합니다", { status: 401 });
+  if (!user || user.mustChangePassword) return new Response("로그인이 필요합니다", { status: 401 });
   const rel = (await params).path.join("/");
   if (!storedFileAllowed(user, rel))
     return new Response("이 파일은 회계 담당·대표만 봅니다", { status: 403 });

@@ -14,12 +14,14 @@ import { DateField, NumberField, RadioRow, SelectField, TextAreaField, TextField
 import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, Empty, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
+import { assetView } from "@/modules/asset/service";
+import { ArrivalBox, FinanceCard, ManagersCard, RepairsCard } from "../../_asset/cards";
 import { addLubePointAction, calibrationAction, disposeAction, removeLubePointAction, reportFailureAction, resumeAction, runLogAction } from "../actions";
 
 /** 설비 한 대: 대장 내용과 점검·윤활·운전·고장·교정·정비 이력 */
-export default async function EquipmentDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
+export default async function EquipmentDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string; failure?: string }> }) {
   const { id } = await params;
-  const { error, notice } = await searchParams;
+  const { error, notice, failure } = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const r = await getEquipment(db, id).catch(() => null);
@@ -31,7 +33,8 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
   const doCheck = can(user, "equip.check");
   const kind = isEqKind(e.kind) ? EQ_KINDS[e.kind] : EQ_KINDS.other;
   const live = e.status !== "disposed";
-  const users = manage ? await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(appUser.name) : [];
+  const users = await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(appUser.name);
+  const av = await assetView(db, "equipment", id);
   const nm = (u: string | null | undefined) => (u ? (names.get(u) ?? "-") : "-");
   const todayDone = checks.some((c) => c.kind === "daily" && c.checkDate === today);
   const pointCode = new Map(points.map((p) => [p.id, p.code]));
@@ -69,7 +72,7 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
           </>
         }
       >
-        {e.name} <Badge tone={e.status === "in_use" ? "ok" : e.status === "stopped" ? "danger" : "neutral"}>{EQ_STATUS[e.status as keyof typeof EQ_STATUS]}</Badge>
+        {e.name} <Badge tone={e.status === "in_use" ? "ok" : e.status === "stopped" ? "danger" : e.status === "pending" ? "accent" : "neutral"}>{EQ_STATUS[e.status as keyof typeof EQ_STATUS]}</Badge>
       </PageTitle>
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
@@ -84,6 +87,7 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
           )}
         </div>
       )}
+      <ArrivalBox a={av} user={user} />
       <div className="grid gap-4 xl:grid-cols-3">
         <Card title="설비 대장(F-08-01)" help={{ kind: "panel", id: "equip.info" }}>
           <dl className="text-sm">
@@ -92,9 +96,11 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
             {row("구입", [e.boughtOn, e.price != null && `${e.price.toLocaleString("ko-KR")}원`].filter(Boolean).join(" · "))}
             {row("구역", e.zone ? ZONES[e.zone as keyof typeof ZONES] : "")}
             {row("정격", e.rating)}
-            {row("설비 담당", nm(e.ownerId))}
+            {row("관리자(정·부)", `${nm(e.ownerId)} · ${nm(e.subManagerId)}`)}
+            {row("라벨", e.labeledAt ? `부착 ${fmtTime(e.labeledAt)}` : <Link href={`/equipment/labels?ids=${id}`} className="text-[var(--warn)]">아직 안 붙임 — 인쇄</Link>)}
+            {e.expenseId && row("지출 결의", <Link href={`/money/expenses/${e.expenseId}`} className="text-[var(--accent)]">결의 보기</Link>)}
             {row("운전 가능자", e.operators.map(nm).join(", "))}
-            {row("법정 검사", e.legalKind ? `${e.legalKind} · 다음 ${e.legalNextOn}` : "아니오")}
+            {row("법정 검사", e.legalKind ? (e.legalNextOn ? `${e.legalKind} · 다음 ${e.legalNextOn}` : <>{e.legalKind} · <span className="text-[var(--warn)]">다음 검사일을 &apos;고치기&apos;에서 적어 주세요</span></>) : "아니오")}
             {row("매뉴얼", e.manualRef)}
             {row("점검 주기", [e.checkDaily && "일상", e.checkMonthly && "월간"].filter(Boolean).join(" · "))}
             {row("쓰는 공정", e.processes.map((p) => PROCESSES[p as keyof typeof PROCESSES]?.label ?? p).join(", "))}
@@ -103,6 +109,10 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
             {e.note && row("비고", e.note)}
           </dl>
         </Card>
+
+        <ManagersCard a={av} user={user} users={users} />
+        <FinanceCard db={db} a={av} user={user} />
+        <RepairsCard db={db} a={av} user={user} failureId={failure} />
 
         <Card title="점검 기록(F-08-02)" help={{ kind: "panel", id: "equip.checks" }} actions={<Link href={`/equipment/checks?eq=${id}`} className="text-xs text-[var(--accent)]">월 점검표</Link>}>
           {checks.length ? (

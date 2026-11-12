@@ -309,6 +309,27 @@
       "when": 1794419147226,
       "tag": "0043_payables",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794461074418,
+      "tag": "0044_login_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794461851070,
+      "tag": "0045_staff_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794462069645,
+      "tag": "0046_asset_register",
+      "breakpoints": true
     }
   ]
 }
