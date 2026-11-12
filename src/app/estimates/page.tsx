@@ -18,7 +18,7 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
   const today = seoulDate();
   return (
     <>
-      <PageTitle help="estimates" sub="견적서(F-03-02, 법정 서식)의 작성·검토·발급·고객 승인. 사내 표준서 STD-03.">
+      <PageTitle help="estimates" std="F-03-02 · STD-03" sub="견적서(법정 서식)를 쓰고, 검토·발급해 고객 승인을 받습니다.">
         견적·고객 승인
       </PageTitle>
       <div className="mt-4">

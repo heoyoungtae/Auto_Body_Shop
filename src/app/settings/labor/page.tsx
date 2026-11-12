@@ -27,7 +27,7 @@ export default async function LaborPage({ searchParams }: { searchParams: Promis
   const defOf = (k: string) => catalog.find((d) => d.code === k);
   return (
     <>
-      <PageTitle help="settings.labor" sub="F-03-01 · 사내 표준서 STD-03 4·7절. 견적의 공임·도장 금액이 이 표로 계산됩니다. 처음 값은 개업 전 제안값입니다.">
+      <PageTitle help="settings.labor" std="F-03-01 · STD-03 4·7절" sub="견적의 공임·도장 금액이 이 표로 계산됩니다. 처음 값은 개업 전 제안값입니다.">
         공임 기준표
       </PageTitle>
       <ErrorBox message={error} />

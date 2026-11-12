@@ -131,3 +131,72 @@
     padding-right: 400px;
   }
 }
+
+/* 휴대폰 아래 탭 막대(_sidebar.tsx TabBar)가 있으면 그만큼 본문 아래를 비우고, 아래 고정 저장줄(_form-bar.tsx)은 그 위에 붙는다 */
+html:has(#tab-bar) {
+  --tabbar-h: calc(3.75rem + env(safe-area-inset-bottom));
+}
+html:has(#tab-bar) main {
+  padding-bottom: calc(var(--tabbar-h) + 1.5rem);
+}
+@media (min-width: 1024px) {
+  html:has(#tab-bar) {
+    --tabbar-h: 0px;
+  }
+  html:has(#tab-bar) main {
+    padding-bottom: 1.5rem;
+  }
+}
+/* 도움말 창이 열려 있으면 아래 고정 저장줄도 그만큼 비킨다 */
+@media (min-width: 1100px) {
+  html[data-help="open"] .form-bar {
+    right: 400px;
+  }
+}
+@media print {
+  #tab-bar,
+  .form-bar {
+    display: none !important;
+  }
+}
+
+/* 휴대폰 카드형 목록(_table-cards.tsx) */
+@media (max-width: 639px) {
+  table.table-cards {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  table.table-cards thead {
+    display: none;
+  }
+  table.table-cards,
+  table.table-cards tbody {
+    display: block;
+  }
+  table.table-cards tr {
+    display: block;
+    border-bottom: 1px solid var(--line);
+    padding: 0.5rem 0.25rem;
+  }
+  table.table-cards td {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.2rem 0.5rem !important;
+    border: 0 !important;
+    text-align: left !important;
+  }
+  table.table-cards td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 5.5rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1.5rem;
+  }
+  table.table-cards td:empty {
+    display: none;
+  }
+  /* 첫 칸(대개 번호·이름)은 카드 제목처럼 */
+  table.table-cards td:first-child {
+    font-weight: 600;
+  }
+}

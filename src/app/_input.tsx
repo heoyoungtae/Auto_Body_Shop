@@ -74,12 +74,13 @@ export function Shell({
   const h = FIELD_HELP[helpKey];
   const name = label ?? h.label;
   return (
-    <div className="block text-sm" data-help={helpKey}>
+    <div className="group/field block text-sm" data-help={helpKey}>
       <div className="mb-1.5 flex items-center gap-1.5">
         <label htmlFor={id} className="font-medium">
           {name}
         </label>
-        <span className={`text-xs ${required ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>{required ? "필수" : "선택"}</span>
+        {/* 비워도 되는 칸은 표시하지 않는다(화면이 덜 복잡하게). 꼭 적을 칸만 '필수' */}
+        {required && <span className="text-xs text-[var(--danger)]">필수</span>}
         <HelpButton topic={{ kind: "field", id: helpKey, label }} name={name} />
         {from && <span className="ml-auto rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-xs text-[var(--accent)]">{from}에서 불러옴</span>}
       </div>
@@ -90,7 +91,8 @@ export function Shell({
         </p>
       ) : (
         ("hint" in h || "example" in h) && (
-          <p id={`${id}-msg`} className="mt-1 text-xs text-[var(--muted)]">
+          // 한 줄 안내는 그 칸을 누르고 있을 때만 펼친다(늘 펼치면 화면이 길어짐). 화면 읽기 프로그램은 늘 읽는다(aria-describedby)
+          <p id={`${id}-msg`} className="mt-1 hidden text-xs text-[var(--muted)] group-focus-within/field:block">
             {"hint" in h && h.hint}
             {"example" in h && h.example && <span className="ml-1">(예: {h.example})</span>}
           </p>

@@ -3,6 +3,7 @@
 // 저장하지 않고 나가려 하면 묻는다. 비밀번호 칸은 어디에도 저장하지 않는다.
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { FormBar } from "./_form-bar";
 
 type Snapshot = Record<string, string[]>;
 
@@ -87,7 +88,7 @@ function store(kind: "local" | "session") {
  * id: 이 폼을 구별하는 이름(같은 화면에 폼이 여럿이면 서로 달라야 함).
  * draft: 적는 중 내용을 이 기기에 임시 저장하고 다음에 되살리기를 묻는다(긴 양식).
  */
-export function AssistForm({ id, draft = false, guard = true, children, ...props }: ComponentProps<"form"> & { id: string; draft?: boolean; guard?: boolean }) {
+export function AssistForm({ id, draft = false, guard = true, bar = true, children, ...props }: ComponentProps<"form"> & { id: string; draft?: boolean; guard?: boolean; /** 긴 양식의 아래 고정 저장줄(_form-bar.tsx). 짧은 양식에서는 저절로 안 보인다 */ bar?: boolean }) {
   const ref = useRef<HTMLFormElement>(null);
   const initial = useRef<Snapshot | null>(null);
   const submitting = useRef(false);
@@ -220,6 +221,7 @@ export function AssistForm({ id, draft = false, guard = true, children, ...props
         </p>
       )}
       {children}
+      {bar && <FormBar formRef={ref} />}
     </form>
   );
 }

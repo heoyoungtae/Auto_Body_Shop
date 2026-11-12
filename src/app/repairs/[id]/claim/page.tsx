@@ -47,10 +47,10 @@ export default async function ClaimPage({ params, searchParams }: { params: Prom
   return (
     <div>
       <PageTitle
-        help="repairs.claim"
+        help="repairs.claim" std="STD-03 6절"
         sub={
           <>
-            STD-03 6절 · {c ? `${c.docNo} · ` : ""}
+            {c ? `${c.docNo} · ` : ""}
             <Link href={`/repairs/${id}`} className="text-[var(--accent)]">
               수리 건 {r.docNo}
             </Link>{" "}

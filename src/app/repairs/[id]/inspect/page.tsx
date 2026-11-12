@@ -29,10 +29,9 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
   return (
     <div>
       <PageTitle
-        help="repairs.inspect"
+        help="repairs.inspect" std="F-05-01 최종 검사표"
         sub={
           <>
-            F-05-01 최종 검사표 ·{" "}
             <Link href={`/repairs/${id}`} className="text-[var(--accent)]">
               수리 건 {ctx.ro.docNo}
             </Link>{" "}
