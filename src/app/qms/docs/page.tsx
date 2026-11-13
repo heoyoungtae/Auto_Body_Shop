@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
-import { listDocs } from "@/modules/quality/qms";
 import { DOC_KINDS } from "@/modules/quality/qms-rules";
+import { runList, type Q } from "@/modules/listq/core";
+import { docsList } from "@/modules/listq/defs/work";
+import { ListBar, ListPager } from "../../_list-bar";
 import { AssistForm } from "../../_assist";
 import { DateField, SelectField, TextField } from "../../_input";
 import { requireUser } from "../../_lib/session";
@@ -28,20 +30,15 @@ const TABS = [
 export default async function DocsPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    f?: string;
-    k?: string;
-    notice?: string;
-    error?: string;
-  }>;
+  searchParams: Promise<Q>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
   const f = (TABS.find((t) => t.f === q.f)?.f ??
     "current") as (typeof TABS)[number]["f"];
-  const all = await listDocs(await getDb(), f);
-  const list =
-    q.k && q.k in DOC_KINDS ? all.filter((d) => d.kind === q.k) : all;
+  if (q.k && !(q.k in DOC_KINDS)) delete q.k;
+  const lr = await runList(await getDb(), docsList, user, q);
+  const list = lr.rows;
   const mgr = can(user, "qms.docs");
   return (
     <>
@@ -57,7 +54,7 @@ export default async function DocsPage({
         {TABS.map((t) => (
           <Link
             key={t.f}
-            href={`/qms/docs?f=${t.f}`}
+            href={`/qms/docs${lr.qs({ f: t.f === "current" ? null : t.f, k: null })}`}
             className={buttonClass(t.f === f ? "primary" : "secondary")}
           >
             {t.label}
@@ -66,7 +63,7 @@ export default async function DocsPage({
         {Object.entries(DOC_KINDS).map(([k, label]) => (
           <Link
             key={k}
-            href={`/qms/docs?f=${f}&k=${k}`}
+            href={`/qms/docs${lr.qs({ k: q.k === k ? null : k })}`}
             className={buttonClass(q.k === k ? "primary" : "secondary")}
           >
             {label}
@@ -74,6 +71,7 @@ export default async function DocsPage({
         ))}
       </div>
       <Card title="문서" help={{ kind: "panel", id: "docs.list" }}>
+        <ListBar r={lr} bare />
         {list.length ? (
           <ul className="divide-y divide-[var(--line)] text-sm">
             {list.map((d) => (
@@ -116,6 +114,7 @@ export default async function DocsPage({
             문서가 없습니다.
           </Empty>
         )}
+        <ListPager r={lr} />
       </Card>
       {mgr && (
         <Card

@@ -83,8 +83,8 @@ export const repairsList: ListDef<Ro> = {
     { label: "차종", get: (r) => r.model },
     { label: "보험", get: (r) => INSURANCE_LABEL[r.insurance as keyof typeof INSURANCE_LABEL] },
     { label: "상태", get: (r) => RO_STATUS_LABEL[r.status] },
-    { label: "사진", get: (r) => r.photos, sum: true, unit: "개" },
-    { label: "손상", get: (r) => r.damages, sum: true, unit: "개" },
+    { label: "사진", get: (r) => r.photos },
+    { label: "손상", get: (r) => r.damages },
     { label: "고객 서명", get: (r) => isoOf(r.signedAt) },
   ],
 };

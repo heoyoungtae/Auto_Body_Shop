@@ -3,6 +3,7 @@ import type { ListDef } from "./core";
 import { expensesList, paymentsList } from "./defs/money";
 import { fixturesList, ordersList, outsourceList, stockList, suppliersList } from "./defs/purchase";
 import { chemicalsList, incidentsList, legalList, ncList, risksList, suggestionsList } from "./defs/quality";
+import { approvalsList, docsList, messageLogList, tasksList, toolsList } from "./defs/work";
 import { claimsList, complaintsList, consultsList, customersList, estimatesList, repairsList } from "./defs/repair";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,6 +27,11 @@ const ALL: ListDef<any>[] = [
   incidentsList,
   chemicalsList,
   suggestionsList,
+  toolsList,
+  docsList,
+  approvalsList,
+  tasksList,
+  messageLogList,
 ];
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const LISTS: Record<string, ListDef<any>> = Object.fromEntries(ALL.map((d) => [d.key, d]));

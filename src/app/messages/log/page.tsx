@@ -1,20 +1,27 @@
 import { getDb } from "@/db/runtime";
-import { listLogs } from "@/modules/messaging/service";
+import { runList, type Q } from "@/modules/listq/core";
+import { messageLogList } from "@/modules/listq/defs/work";
 import { requireUser } from "../../_lib/session";
+import { ListBar, ListPager } from "../../_list-bar";
 import { Badge, Empty, fmtTime, Notice, PageTitle } from "../../_ui";
 
-export default async function MessageLogPage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
-  const { notice } = await searchParams;
-  await requireUser();
-  const rows = await listLogs(await getDb());
+export default async function MessageLogPage({ searchParams }: { searchParams: Promise<Q> }) {
+  const q = await searchParams;
+  const notice = q.notice;
+  const user = await requireUser();
+  const lr = await runList(await getDb(), messageLogList, user, q);
+  const rows = lr.rows;
   return (
     <>
-      <PageTitle help="messages.log" sub="문자·알림톡·기프티콘 발송 기록. 최근 200건.">
+      <PageTitle help="messages.log" sub="문자·알림톡·기프티콘 발송 기록. 기간·찾기로 지난 기록도 봅니다.">
         발송 이력
       </PageTitle>
       {notice && <Notice>{notice}</Notice>}
+      <div className="mb-3">
+        <ListBar r={lr} />
+      </div>
       {rows.length === 0 ? (
-        <Empty>아직 보낸 것이 없습니다. 설정 &gt; 문자 발송 서비스에서 시험 발송을 해 보세요.</Empty>
+        <Empty>{lr.loaded ? "조건에 맞는 발송 기록이 없습니다." : <>아직 보낸 것이 없습니다. 설정 &gt; 문자 발송 서비스에서 시험 발송을 해 보세요.</>}</Empty>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -57,6 +64,7 @@ export default async function MessageLogPage({ searchParams }: { searchParams: P
           </table>
         </div>
       )}
+      <ListPager r={lr} />
     </>
   );
 }

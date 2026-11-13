@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ListResult, Preset } from "@/modules/listq/core";
 import { PRESETS } from "@/modules/listq/core";
 import { DateField, SelectField } from "./_input";
+import { HelpButton } from "./_help-drawer";
 import { Button, buttonClass, Card } from "./_ui";
 import { PrintButton } from "./reports/print-button";
 
@@ -31,7 +32,12 @@ export function ListBar<R>({ r, unitLabel = "건", bare = false }: { r: ListResu
   const filtered = lq.from || lq.to || lq.s;
   const Wrap = ({ children }: { children: React.ReactNode }) =>
     bare ? (
-      <div className="mb-3 border-b border-[var(--line)] pb-3">{children}</div>
+      <div className="mb-3 border-b border-[var(--line)] pb-3">
+        <p className="no-print mb-1 flex items-center gap-1 text-xs font-semibold text-[var(--muted)]">
+          조회 <HelpButton topic={{ kind: "panel", id: "list.bar" }} name="조회" />
+        </p>
+        {children}
+      </div>
     ) : (
       <Card title="조회" help={{ kind: "panel", id: "list.bar" }}>
         {children}
@@ -94,7 +100,7 @@ export function ListBar<R>({ r, unitLabel = "건", bare = false }: { r: ListResu
         ))}
         <span className="text-xs text-[var(--muted)]">{lq.from || lq.to ? `${dt?.label ?? "날짜"} ${lq.from ?? "처음"} ~ ${lq.to ?? "끝"}` : "기간 전체"}</span>
         <span className="no-print ml-auto flex gap-2">
-          <PrintButton />
+          <PrintButton variant="secondary" />
           <a href={csv} className={buttonClass("secondary")} title="지금 조건에 맞는 모든 줄(쪽 나눔 없이)을 엑셀에서 열리는 파일(CSV)로">
             엑셀
           </a>

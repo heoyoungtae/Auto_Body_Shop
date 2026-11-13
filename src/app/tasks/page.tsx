@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { canInstruct, listInstructions, TASK_STATUS, TASK_TONE, type TaskStatus, type TaskTab } from "@/modules/task/service";
+import { canInstruct, TASK_STATUS, TASK_TONE, type TaskStatus, type TaskTab } from "@/modules/task/service";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
+import { runList, type Q } from "@/modules/listq/core";
+import { tasksList } from "@/modules/listq/defs/work";
 import { Badge, buttonClass, Card, Empty, Notice, PageTitle } from "../_ui";
 
 /** 업무지시 목록: 받은 지시 / 보낸 지시 / 전체(대표) */
-export default async function TasksPage({ searchParams }: { searchParams: Promise<{ tab?: string; notice?: string }> }) {
+export default async function TasksPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const owner = user.roles.includes("owner");
   const tab: TaskTab = q.tab === "sent" ? "sent" : q.tab === "all" && owner ? "all" : "received";
-  const [rows, issuer] = await Promise.all([listInstructions(db, user, tab), canInstruct(db, user)]);
+  const [lr, issuer] = await Promise.all([runList(db, tasksList, user, q), canInstruct(db, user)]);
+  const rows = lr.rows;
   const today = seoulDate();
   const tabs: [TaskTab, string][] = [["received", "받은 지시"], ["sent", "보낸 지시"], ...(owner ? [["all", "전체"] as [TaskTab, string]] : [])];
   return (
@@ -34,11 +38,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       <Card title="지시 목록" help={{ kind: "panel", id: "task.list" }}>
         <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
           {tabs.map(([k, label]) => (
-            <Link key={k} href={`/tasks?tab=${k}`} className={`rounded-full border px-3 py-1 ${tab === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+            <Link key={k} href={`/tasks${lr.qs({ tab: k === "received" ? null : k })}`} className={`rounded-full border px-3 py-1 ${tab === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
               {label}
             </Link>
           ))}
         </div>
+        <ListBar r={lr} bare />
         {rows.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -79,6 +84,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         ) : (
           <Empty>{tab === "received" ? "받은 지시가 없습니다." : "보낸 지시가 없습니다."}</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );
