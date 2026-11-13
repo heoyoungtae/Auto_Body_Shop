@@ -33,7 +33,7 @@ import {
 
 type Actor = { id: string; roles: Role[] };
 
-export type Unit = "건" | "대" | "원" | "%" | "점" | "시간" | "일" | "kg";
+export type Unit = "건" | "대" | "원" | "%" | "점" | "시간" | "일" | "kg" | "회";
 export type Metric = {
   key: string;
   label: string;

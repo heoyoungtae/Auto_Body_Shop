@@ -1,5 +1,5 @@
 // 재고·구매, 인사·안전·설비 보고서: 구매·협력업체 실적, 인력·근태·교육, 안전·환경, 설비.
-// 재고현황·수불부·회전율은 입출고 단가 기록이 생기는 3단계에서 만든다.
+// 재고현황·수불부·회전율은 reports-stock.ts.
 import { and, eq, gte, inArray, isNotNull, isNull, lt, lte, ne } from "drizzle-orm";
 import {
   appUser,

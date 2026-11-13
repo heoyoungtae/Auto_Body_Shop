@@ -199,7 +199,10 @@ export const stockItem = pgTable(
     location: text("location"),
     safetyQty: integer("safety_qty").notNull().default(0),
     qty: integer("qty").notNull().default(0),
+    /** 최근 매입 단가(공급가). 발주 단가 불러오기·실사 기본값에 씀 */
     unitWon: integer("unit_won").notNull().default(0),
+    /** 장부 재고 금액(이동평균법, 공급가). 평균 단가 = valueWon ÷ qty. 입출고 때 stock/cost.ts 가 맞춘다 */
+    valueWon: integer("value_won").notNull().default(0),
     /** 유효기간 관리(도료·퍼티·경화제) */
     expiryTracked: boolean("expiry_tracked").notNull().default(false),
     supplierId: uuid("supplier_id").references(() => supplier.id),
@@ -273,7 +276,7 @@ export const stockLot = pgTable(
   (t) => [index("stock_lot_item_idx").on(t.itemId)],
 );
 
-/** 재고 움직임. reason: receive 입고 / use 사용 / count 실사 조정 / discard 폐기(유효기간 경과) */
+/** 재고 움직임. reason: receive 입고 / use 사용 / count 실사 조정(처음 등록 포함) / discard 폐기(유효기간 경과) */
 export const stockMove = pgTable(
   "stock_move",
   {
@@ -287,6 +290,9 @@ export const stockMove = pgTable(
     repairOrderId: uuid("repair_order_id").references(() => repairOrder.id),
     lot: text("lot"),
     note: text("note"),
+    /** 그때의 단가(입고=매입 공급가, 나머지=이동평균)와 금액(+들어옴, −나감). 과거 시점 재고 금액·매출원가·회전율의 근거 */
+    unitWon: integer("unit_won"),
+    amountWon: integer("amount_won"),
     by: uuid("by").references(() => appUser.id),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },

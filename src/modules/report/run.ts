@@ -8,6 +8,7 @@ import { ap, ar, vat } from "./reports-acct";
 import { productivity, revenue, sales, summary } from "./reports-mgmt";
 import { equipmentReport, people, purchase, safety } from "./reports-ops";
 import { customer, quality, review, rework } from "./reports-quality";
+import { stock, stockledger, turnover } from "./reports-stock";
 import type { Unit } from "./service";
 
 export const BUILDERS: Record<string, Builder> = {
@@ -22,6 +23,9 @@ export const BUILDERS: Record<string, Builder> = {
   rework,
   customer,
   review,
+  stock,
+  stockledger,
+  turnover,
   purchase,
   people,
   safety,

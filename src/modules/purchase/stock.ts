@@ -2,6 +2,7 @@
 import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { alias } from "drizzle-orm/pg-core";
+import { avgUnit, postMove } from "./cost";
 import { appUser, chemical, repairOrder, stockCount, stockItem, stockItemDoc, stockLot, stockMove, supplier } from "@/db/schema";
 import { isExpCategory } from "@/modules/money/rules";
 import { can } from "@/modules/auth/permissions";
@@ -104,7 +105,7 @@ export async function saveItem(db: Db, actor: Actor, id: string | null, input: I
     const [i] = await tx.insert(stockItem).values({ ...v, qty: opening, createdAt: now }).returning({ id: stockItem.id });
     if (opening > 0) {
       if (v.expiryTracked) await tx.insert(stockLot).values({ itemId: i.id, expiresOn: input.openingExpiresOn!, qty: opening });
-      await tx.insert(stockMove).values({ itemId: i.id, qty: opening, reason: "count", note: "처음 등록(기초 재고)", by: actor.id, at: now });
+      await postMove(tx, { id: i.id, qty: 0, valueWon: 0, unitWon: v.unitWon }, { qty: opening, reason: "count", note: "처음 등록(기초 재고)", by: actor.id, at: now }, v.unitWon);
     }
     return i.id;
   });
@@ -195,7 +196,7 @@ export async function useStock(db: Db, actor: Actor, input: { itemId: string; qt
       await tx.update(stockLot).set({ qty: l.qty - t.take }).where(eq(stockLot.id, t.id));
     }
     await tx.update(stockItem).set({ qty: i.qty - input.qty, updatedAt: now }).where(eq(stockItem.id, i.id));
-    await tx.insert(stockMove).values({ itemId: i.id, qty: -input.qty, reason: "use", ref: roDoc, repairOrderId: input.repairOrderId || null, lot: lotNames.join(",") || null, note: clean(input.note), by: actor.id, at: now });
+    await postMove(tx, i, { qty: -input.qty, reason: "use", ref: roDoc, repairOrderId: input.repairOrderId || null, lot: lotNames.join(",") || null, note: clean(input.note), by: actor.id, at: now });
   });
   const after = { ...i, qty: i.qty - input.qty };
   await finishWindDown(db, i.id, after.qty, now);
@@ -212,7 +213,7 @@ export async function discardLot(db: Db, actor: Actor, lotId: string, note: stri
   await db.transaction(async (tx) => {
     await tx.update(stockLot).set({ qty: 0 }).where(eq(stockLot.id, lotId));
     await tx.update(stockItem).set({ qty: Math.max(0, i.qty - l.qty), updatedAt: now }).where(eq(stockItem.id, i.id));
-    await tx.insert(stockMove).values({ itemId: i.id, qty: -l.qty, reason: "discard", lot: l.lot, note: clean(note) ?? `유효기간 ${l.expiresOn} 경과 — 지정 폐기물로 처리`, by: actor.id, at: now });
+    await postMove(tx, i, { qty: -Math.min(l.qty, Math.max(0, i.qty)), reason: "discard", lot: l.lot, note: clean(note) ?? `유효기간 ${l.expiresOn} 경과 — 지정 폐기물로 처리`, by: actor.id, at: now });
   });
   await writeAudit(db, { actorId: actor.id, action: "stock.discard", entityType: "stock_item", entityId: i.id, after: { lot: l.lot, qty: l.qty, expiresOn: l.expiresOn } });
   await finishWindDown(db, i.id, Math.max(0, i.qty - l.qty), now);
@@ -230,7 +231,7 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
   if (!given.length) throw new StockError("실물 수량을 하나 이상 적어 주세요");
   const items = await db.select().from(stockItem).where(inArray(stockItem.id, given.map((g) => g.itemId)));
   const byId = new Map(items.map((i) => [i.id, i]));
-  const lines = given.filter((g) => byId.has(g.itemId)).map((g) => ({ itemId: g.itemId, name: byId.get(g.itemId)!.name, book: byId.get(g.itemId)!.qty, actual: g.actual, unitWon: byId.get(g.itemId)!.unitWon }));
+  const lines = given.filter((g) => byId.has(g.itemId)).map((g) => ({ itemId: g.itemId, name: byId.get(g.itemId)!.name, book: byId.get(g.itemId)!.qty, actual: g.actual, unitWon: Math.round(avgUnit(byId.get(g.itemId)!)) }));
   const d = countDiff(lines);
   const p = await loadPolicy(db, seoulDate(now));
   const over = d.pct > p["stock.count_diff_pct"];
@@ -250,7 +251,7 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
       }
       await tx.update(stockItem).set({ qty: l.actual, updatedAt: now }).where(eq(stockItem.id, it.id));
       if (it.windDown && l.actual <= 0) await tx.update(stockItem).set({ active: false, windDown: false }).where(eq(stockItem.id, it.id));
-      await tx.insert(stockMove).values({ itemId: it.id, qty: diff, reason: "count", note: `${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual}`, by: actor.id, at: now });
+      await postMove(tx, it, { qty: diff, reason: "count", note: `${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual}`, by: actor.id, at: now });
     }
     return c.id;
   });

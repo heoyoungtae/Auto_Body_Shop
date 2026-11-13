@@ -4,7 +4,8 @@
 import { and, asc, desc, eq, inArray, isNotNull, ne, notInArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { isPayTerm } from "@/modules/money/rules";
-import { appUser, customer, estimate, estimateLine, purchaseLine, purchaseOrder, purchaseReceipt, repairOrder, stockItem, stockLot, stockMove, supplier, vehicle, workOrder } from "@/db/schema";
+import { postMove } from "./cost";
+import { appUser, customer, estimate, estimateLine, purchaseLine, purchaseOrder, purchaseReceipt, repairOrder, stockItem, stockLot, supplier, vehicle, workOrder } from "@/db/schema";
 import { rolesOf } from "@/modules/approval/line";
 import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
@@ -348,10 +349,12 @@ export async function receiveOrder(db: Db, actor: Actor, id: string, input: Rece
       l.receivedQty += g.ok;
       const it = l.stockItemId ? items.get(l.stockItemId) : null;
       if (it && g.ok > 0) {
+        // 입고 금액 = 발주 단가(공급가) × 합격 수량. 평균 단가는 장부 금액 ÷ 수량으로 다시 나온다(이동평균)
+        const c = await postMove(tx, it, { qty: g.ok, reason: "receive", ref: o.docNo, lot: clean(g.lot), by: actor.id, at: now }, l.unitWon || it.unitWon);
         await tx.update(stockItem).set({ qty: it.qty + g.ok, unitWon: l.unitWon || it.unitWon, location: clean(g.location) ?? it.location, updatedAt: now }).where(eq(stockItem.id, it.id));
         it.qty += g.ok;
+        it.valueWon = c.balWon;
         if (it.expiryTracked) await tx.insert(stockLot).values({ itemId: it.id, lot: clean(g.lot), expiresOn: g.expiresOn!, qty: g.ok });
-        await tx.insert(stockMove).values({ itemId: it.id, qty: g.ok, reason: "receive", ref: o.docNo, lot: clean(g.lot), by: actor.id, at: now });
       }
     }
     const all = lines.every((l) => l.receivedQty >= l.qty);
