@@ -152,3 +152,22 @@ describe("보고서", () => {
     expect(Array.isArray(s.legal)).toBe(true);
   });
 });
+
+describe("보고서 센터 분류 탭", () => {
+  it("권한별로 보이는 탭과 미리보기 숫자", async () => {
+    const { visibleTabs, familyReports } = await import("@/app/reports/_tabs");
+    const { runPeek } = await import("@/modules/report/run");
+    const who = (roles: Role[]) => ({ id: ids.owner, roles });
+    expect(visibleTabs(who(["owner"]))).toEqual(["mgmt", "acct", "quality", "stock", "people", "lists"]);
+    expect(visibleTabs(who(["quality"]))).toContain("quality");
+    expect(visibleTabs(who(["quality"]))).not.toContain("acct");
+    expect(familyReports(who(["owner"]), "acct").map((r) => r.id)).toContain("ar");
+    const now = new Date("2026-11-11T03:00:00Z");
+    const p = periodOf("month", "2026-11-11");
+    const peek = await runPeek(db, who(["owner"]), "ar", p, now);
+    expect(peek.length).toBeGreaterThan(0);
+    expect(peek.length).toBeLessThanOrEqual(2);
+    expect(await runPeek(db, who(["quality"]), "ar", p, now)).toEqual([]);
+    expect(await runPeek(db, who(["owner"]), "pl", p, now)).toEqual([]);
+  });
+});

@@ -59,6 +59,18 @@ export async function runReport(db: Db, actor: Actor, id: string, p: Period, cmp
   return { def, p, q, cmp, body, trend };
 }
 
+/** 보고서 센터 카드 미리보기: 핵심 숫자 앞 2개(추이 계산 없이). 권한 없거나 안 만든 보고서·오류면 빈 목록 */
+export async function runPeek(db: Db, actor: Actor, id: string, p: Period, now = new Date()) {
+  const def = reportById(id);
+  if (!def || def.phase || !BUILDERS[id] || !canReport(actor, def)) return [];
+  try {
+    const body = await BUILDERS[id]({ db, actor, p, q: comparePeriod(p, "prev"), now, today: seoulDate(now) });
+    return body.kpis.slice(0, 2);
+  } catch {
+    return [];
+  }
+}
+
 /** CSV(엑셀에서 열림, BOM 포함): 숫자 줄 → 표마다 머리줄·줄·합계 */
 export function runCsv(r: RunResult) {
   const esc = (v: unknown) => {
