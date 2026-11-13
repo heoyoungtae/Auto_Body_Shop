@@ -16,6 +16,7 @@ import {
   recordPayment,
   reversePayment,
 } from "@/modules/money/receipts";
+import { linkCreated } from "@/modules/bank/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
 const str = (form: FormData) => (k: string) => String(form.get(k) ?? "").trim();
@@ -68,6 +69,10 @@ export async function paymentAction(form: FormData) {
         note: s("note"),
       });
       msg = `${r.docNo} 수납을 적었습니다${r.remain > 0 ? `. 남은 금액 ${won(r.remain)}` : ". 다 받았습니다"}`;
+      if (s("tx")) {
+        await linkCreated(db, user, s("tx"), "payment", r.id, r.docNo);
+        msg += ". 통장 입금과 이었습니다";
+      }
     } else if (intent === "reverse") {
       msg = `취소 전표 ${await reversePayment(db, user, s("paymentId"), s("reason"))}를 적었습니다`;
     } else if (intent === "follow") {
@@ -78,7 +83,7 @@ export async function paymentAction(form: FormData) {
       msg = "독촉 기록을 남겼습니다";
     }
   } catch (e) {
-    redirect(errorUrl(back, userMessage(e)));
+    redirect(errorUrl(s("tx") ? `${back}?tx=${encodeURIComponent(s("tx"))}` : back, userMessage(e)));
   }
   redirect(noticeUrl(back, msg));
 }
@@ -114,9 +119,10 @@ export async function createExpenseAction(form: FormData) {
     });
     id = r.id;
     docNo = r.docNo;
+    if (s("tx")) await linkCreated(await getDb(), user, s("tx"), "expense", id, docNo);
   } catch (e) {
     const q = new URLSearchParams();
-    for (const k of ["src", "from", "lease"]) if (s(k)) q.set(k, s(k));
+    for (const k of ["src", "from", "lease", "tx"]) if (s(k)) q.set(k, s(k));
     for (const p of form.getAll("p")) q.append("p", String(p));
     redirect(
       errorUrl(`/money/expenses/new${q.size ? `?${q}` : ""}`, userMessage(e)),

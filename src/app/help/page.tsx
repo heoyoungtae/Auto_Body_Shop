@@ -1,6 +1,7 @@
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { DELEGATION_HELP, GLOSSARY, POLICY_HELP } from "@/modules/help/glossary";
 import { PAGE_HELP, ROLE_START, ROUTE_HELP } from "@/modules/help/pages";
+import { guideSearchItems } from "@/modules/help/bank-guide";
 import { DEFAULT_DELEGATION, type DelegationTask } from "@/modules/platform/delegation";
 import { DEFAULT_POLICY, type PolicyKey } from "@/modules/platform/policy";
 import { requireUser } from "../_lib/session";
@@ -29,6 +30,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
       href: `/settings/policies?key=${k}`,
     })),
     ...(Object.keys(DELEGATION_HELP) as DelegationTask[]).map((t) => ({ kind: "전결", title: DEFAULT_DELEGATION[t].label, body: DELEGATION_HELP[t], href: "/settings/delegation" })),
+    ...guideSearchItems(),
   ];
   const mine = user.roles.length ? user.roles : (["advisor"] as Role[]);
   return (

@@ -3,6 +3,7 @@ import type { DelegationTask } from "@/modules/platform/delegation";
 import type { PolicyKey } from "@/modules/platform/policy";
 
 export const GLOSSARY: Record<string, string> = {
+  "통장 맞추기": "은행 통장·카드에 실제로 오간 돈(알림 문자·엑셀)과 앱에 적은 전표(수납·보험 입금·지출 결의·급여)를 하나씩 짝짓는 일. 짝이 없는 돈은 빠뜨린 전표이거나 전표가 필요 없는 돈(카드 대금·세금 등)이므로 분류합니다. 월 마감 전에 남은 것이 없어야 장부와 통장이 맞습니다.",
   결재: "문서를 정해진 사람들이 차례로 검토·승인해 확정하는 일. 종이 양식의 서명란을 이 앱에서는 결재 단계로 처리합니다.",
   결재란:
     "문서 위쪽의 칸들. 요청·검토·승인처럼 단계마다 누가 처리했는지(또는 누구 차례인지) 보여 줍니다.",

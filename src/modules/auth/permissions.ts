@@ -315,6 +315,18 @@ export const PERMS = {
     std: "STD-12 12.2",
     roles: ["owner", "accounting"],
   },
+  "bank.view": {
+    area: "회계",
+    label: "통장·카드·홈택스 내역 보기·올리기·전표와 맞추기",
+    std: "STD-12",
+    roles: ["owner", "accounting"],
+  },
+  "bank.setup": {
+    area: "회계",
+    label: "통장·카드 연동 설정(계좌 등록·문자 받는 주소)",
+    std: "STD-12",
+    roles: ["owner"],
+  },
   "qms.context": {
     area: "품질",
     label: "조직 상황·이해관계자 검토(F-Q-01)",
