@@ -59,6 +59,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
   const r = await runReport(await getDb(), user, id, p, cmp);
   const base = `/reports/${id}`;
   const csv = `${periodHref(`${base}/csv`, p, cmp, p.from)}`;
+  const hwpx = `${periodHref(`${base}/hwpx`, p, cmp, p.from)}`;
   const hasTarget = r.body.kpis.some((k) => k.target != null);
   return (
     <>
@@ -75,6 +76,9 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
             <PdfButton fileName={`${def.title}_${p.from}_${p.to}`} />
             <a href={csv} className={buttonClass("secondary")} title="엑셀에서 바로 열리는 파일(CSV)">
               엑셀
+            </a>
+            <a href={hwpx} className={buttonClass("secondary")} title="한글 문서(HWPX, 한글 2014 이후에서 열림)">
+              한글
             </a>
           </div>
         }
