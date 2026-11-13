@@ -6,7 +6,7 @@ import type { Period } from "./period";
 import type { Metric, Unit } from "./service";
 
 export type Actor = { id: string; roles: Role[] };
-export type Ctx = { db: Db; actor: Actor; p: Period; q: Period; now: Date; today: string };
+export type Ctx = { db: Db; actor: Actor; p: Period; q: Period; now: Date; today: string; /** 보고서별 추가 조건(계정별 원장의 계정 등) */ opt?: Record<string, string | undefined> };
 
 export type Cell = string | number | null;
 export type Col = { label: string; unit?: Unit; /** 숫자 칸(오른쪽 맞춤·합계) */ num?: boolean };

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { inArray } from "drizzle-orm";
 import { getDb } from "@/db/runtime";
 import { payment } from "@/db/schema";
+import { CLS_FUND } from "@/modules/acct/accounts";
+import { canBooks } from "@/modules/acct/service";
 import { can } from "@/modules/auth/permissions";
 import { TX_CLASSES, TX_KINDS, accountLabel, type TxKind } from "@/modules/bank/rules";
 import { bankFlows, listTx, loadFeed, runMatching, type Cand, type TxFilter } from "@/modules/bank/service";
@@ -23,6 +25,7 @@ type Q = { f?: string; kind?: string; account?: string; from?: string; to?: stri
 export default async function BankPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
+  const canFund = canBooks(user);
   if (!can(user, "bank.view")) return <p className="text-sm text-[var(--muted)]">통장·카드 내역은 회계 담당·대표가 봅니다.</p>;
   const db = await getDb();
   await runMatching(db); // 그사이 적은 전표(수납·지급)와 저절로 잇기
@@ -96,6 +99,7 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
     if (kind === "payment") return roOf.get(id) ? `/money/ro/${roOf.get(id)}` : null;
     if (kind === "payable") return "/money/payables";
     if (kind === "payroll") return "/payroll";
+    if (kind === "fund") return "/money/books";
     if (kind === "tx") return `#tx-${id}`;
     return null;
   };
@@ -215,6 +219,11 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
                           </Badge>
                         )}
                         {t.matchKind === "class" && t.matchNote && <span className="text-xs">{t.matchNote}</span>}
+                        {t.matchKind === "class" && t.cls && CLS_FUND[t.cls]?.[t.kind === "in" ? "in" : "out"] && (t.kind === "in" || t.kind === "out") && canFund && (
+                          <Link href={`/money/books?tx=${t.id}#fund`} className="text-xs text-[var(--accent)]">
+                            자금 전표로 적기
+                          </Link>
+                        )}
                         {href && (
                           <Link href={href} className="text-xs text-[var(--accent)]">
                             열기

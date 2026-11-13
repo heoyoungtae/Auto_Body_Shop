@@ -312,6 +312,12 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
+        label: "회계 장부(기초 잔액·자금 전표)",
+        perm: ["money.close_month"],
+        href: "/money/books",
+        std: "STD-12",
+      },
+      {
         label: "마감",
         perm: ["money.close_day", "money.close_month"],
         href: "/money/close",

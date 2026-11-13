@@ -591,6 +591,7 @@ export async function unlinkTx(db: Db, actor: Actor, txId: string) {
   mustView(actor);
   const t = await getTx(db, txId);
   if (!t.matchKind) return;
+  if (t.matchKind === "fund") throw new BankError(`자금 전표 ${t.matchNo}로 적은 거래입니다. 회계 장부에서 그 전표를 취소하면 풀립니다`);
   // matchedBy 를 남겨 두면 자동 맞추기가 같은 짝을 다시 잇지 않는다(사람이 푼 것)
   await db.update(bankTx).set({ matchKind: null, matchId: null, matchNo: null, matchNote: null, cls: null, matchedAuto: false, matchedBy: actor.id, matchedAt: null }).where(eq(bankTx.id, txId));
   if (t.matchKind === "tx" && t.matchId) await db.update(bankTx).set({ matchKind: null, matchId: null, matchNo: null, matchNote: null, matchedAuto: false, matchedAt: null }).where(and(eq(bankTx.id, t.matchId), eq(bankTx.matchKind, "tx")));
@@ -686,7 +687,7 @@ export async function bankFlows(db: Db, from: string, to: string) {
     groups.set(key, g);
   };
   for (const t of rows) {
-    if (t.matchKind === "class" && t.cls && isTxClass(t.cls)) {
+    if ((t.matchKind === "class" || t.matchKind === "fund") && t.cls && isTxClass(t.cls)) {
       if (t.cls === "personal" || t.cls === "self") continue;
       add(`cls:${t.cls}`, TX_CLASSES[t.cls].label, TX_CLASSES[t.cls].flow, t);
     } else if (t.matchKind === "payment") add("payment", "고객 수납·보험사 입금", "영업", t);

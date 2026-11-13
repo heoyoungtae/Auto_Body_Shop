@@ -21,7 +21,7 @@ const fmtNum = (v: number, unit?: string) => (unit === "원" || unit === "건" |
 
 const toneCls = { danger: "text-[var(--danger)]", warn: "text-[var(--warn,#b45309)]", ok: "text-[var(--ok)]" } as const;
 
-export default async function ReportPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ k?: string; at?: string; from?: string; to?: string; c?: string }> }) {
+export default async function ReportPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ k?: string; at?: string; from?: string; to?: string; c?: string; acct?: string }> }) {
   const { id } = await params;
   const q = await searchParams;
   const user = await requireUser();
@@ -60,10 +60,11 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
   const today = seoulDate();
   const p = periodFromQuery(q, today);
   const cmp = q.c && isCompare(q.c) ? q.c : "prev";
-  const r = await runReport(await getDb(), user, id, p, cmp);
+  const r = await runReport(await getDb(), user, id, p, cmp, undefined, { acct: q.acct });
   const base = `/reports/${id}`;
-  const csv = `${periodHref(`${base}/csv`, p, cmp, p.from)}`;
-  const hwpx = `${periodHref(`${base}/hwpx`, p, cmp, p.from)}`;
+  const extra = q.acct ? `&acct=${encodeURIComponent(q.acct)}` : "";
+  const csv = `${periodHref(`${base}/csv`, p, cmp, p.from)}${extra}`;
+  const hwpx = `${periodHref(`${base}/hwpx`, p, cmp, p.from)}${extra}`;
   const hasTarget = r.body.kpis.some((k) => k.target != null);
   return (
     <>

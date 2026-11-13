@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const p = periodFromQuery(q, today);
   const c = q.c && isCompare(q.c) ? q.c : "prev";
   try {
-    const r = await runReport(await getDb(), user, id, p, c);
+    const r = await runReport(await getDb(), user, id, p, c, undefined, { acct: q.acct });
     const buf = runHwpx(r, { family: FAMILIES[def.family].label, printedOn: today, printedBy: user.name });
     const name = encodeURIComponent(`${def.title}_${p.from}_${p.to}.hwpx`);
     return new Response(new Uint8Array(buf), {
