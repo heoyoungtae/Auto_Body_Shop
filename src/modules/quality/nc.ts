@@ -182,7 +182,7 @@ export async function getNc(db: Db, id: string) {
   return { n, names };
 }
 
-export async function listNc(db: Db, opts: { status?: "openish" | "closed" | "all"; source?: string } = {}) {
+export async function listNc(db: Db, opts: { status?: "openish" | "closed" | "all"; source?: string; max?: number } = {}) {
   const where = [] as ReturnType<typeof eq>[];
   if (opts.status === "closed") where.push(eq(nonconformance.status, "closed"));
   else if (opts.status !== "all") where.push(ne(nonconformance.status, "closed"));
@@ -193,7 +193,7 @@ export async function listNc(db: Db, opts: { status?: "openish" | "closed" | "al
     .leftJoin(appUser, eq(appUser.id, nonconformance.assigneeId))
     .where(where.length ? and(...where) : undefined)
     .orderBy(opts.status === "closed" ? desc(nonconformance.closedAt) : asc(nonconformance.createdAt))
-    .limit(200);
+    .limit(opts.max ?? 200);
 }
 
 /** 관련 건(수리 건·설비 등)에 걸린 보고서 */

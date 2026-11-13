@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { incidentsList } from "@/modules/listq/defs/quality";
 import {
   incidentStats,
   listIncidents,
@@ -16,6 +18,7 @@ import {
 } from "@/modules/safety/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import {
   Badge,
   buttonClass,
@@ -38,13 +41,14 @@ const TABS: [IncidentFilter, string][] = [
 export default async function IncidentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; notice?: string; error?: string }>;
+  searchParams: Promise<Q>;
 }) {
   const q = await searchParams;
-  await requireUser();
+  const user = await requireUser();
   const db = await getDb();
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "open") as IncidentFilter;
-  const list = await listIncidents(db, f);
+  const lr = await runList(db, incidentsList, user, q);
+  const list = lr.rows;
   const year = Number(seoulDate(new Date()).slice(0, 4));
   const st = await incidentStats(db, year);
   return (
@@ -79,13 +83,14 @@ export default async function IncidentsPage({
           {TABS.map(([k, label]) => (
             <Link
               key={k}
-              href={`/incidents?f=${k}`}
+              href={`/incidents${lr.qs({ f: k === "open" ? null : k })}`}
               className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}
             >
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {list.length ? (
           <ul className="divide-y divide-[var(--line)]">
             {list.map((x) => (
@@ -118,6 +123,7 @@ export default async function IncidentsPage({
         ) : (
           <Empty>보고서가 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

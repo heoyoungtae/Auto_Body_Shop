@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { suggestionsList } from "@/modules/listq/defs/quality";
 import { can } from "@/modules/auth/permissions";
 import { SG_STATUS, SG_TONE, type SgStatus } from "@/modules/equipment/rules";
 import { listSuggestions, suggestionStats, type SuggestionFilter } from "@/modules/equipment/suggestion";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, fmtTime, Notice, PageTitle } from "../_ui";
 
 const TABS: [SuggestionFilter, string][] = [
@@ -16,7 +19,7 @@ const TABS: [SuggestionFilter, string][] = [
 ];
 
 /** 개선 제안(STD-08 8.12): 목록과 올해 제안·채택 실적 */
-export default async function SuggestionsPage({ searchParams }: { searchParams: Promise<{ f?: string; notice?: string }> }) {
+export default async function SuggestionsPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
@@ -24,7 +27,8 @@ export default async function SuggestionsPage({ searchParams }: { searchParams: 
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? (decide ? "open" : "mine")) as SuggestionFilter;
   const today = seoulDate();
   const year = Number(today.slice(0, 4));
-  const [rows, stats] = await Promise.all([listSuggestions(db, user, f), suggestionStats(db, year)]);
+  const [lr, stats] = await Promise.all([runList(db, suggestionsList, user, q), suggestionStats(db, year)]);
+  const rows = lr.rows;
   return (
     <>
       <PageTitle
@@ -44,11 +48,12 @@ export default async function SuggestionsPage({ searchParams }: { searchParams: 
           <Card title="제안 목록(F-08-06)" help={{ kind: "panel", id: "sg.list" }}>
             <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
               {TABS.map(([k, label]) => (
-                <Link key={k} href={`/suggestions?f=${k}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+                <Link key={k} href={`/suggestions${lr.qs({ f: k })}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
                   {label}
                 </Link>
               ))}
             </div>
+          <ListBar r={lr} bare />
             {rows.length ? (
               <ul className="divide-y divide-[var(--line)] text-sm">
                 {rows.map(({ s, proposer }) => (
@@ -68,6 +73,7 @@ export default async function SuggestionsPage({ searchParams }: { searchParams: 
             ) : (
               <Empty action={<Link href="/suggestions/new" className="text-[var(--accent)]">제안하기</Link>}>해당하는 제안이 없습니다.</Empty>
             )}
+        <ListPager r={lr} />
           </Card>
         </div>
         <Card title={`${year}년 제안 실적`} help={{ kind: "panel", id: "sg.stats" }}>

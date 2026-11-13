@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { legalList } from "@/modules/listq/defs/quality";
 import { can } from "@/modules/auth/permissions";
 import { listLegal, type LegalFilter } from "@/modules/quality/legal";
 import {
@@ -10,6 +12,7 @@ import {
 } from "@/modules/quality/legal-rules";
 import { AssistForm } from "../_assist";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { SubmitButton } from "../_submit";
 import {
   Badge,
@@ -39,15 +42,16 @@ const STAGE = {
 export default async function LegalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; notice?: string; error?: string }>;
+  searchParams: Promise<Q>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const manage = can(user, "legal.manage");
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "all") as LegalFilter;
-  const { list, names, stage } = await listLegal(db, user, f);
-  const empty = f === "all" && !list.length;
+  const [{ names, stage, list: allList }, lr] = await Promise.all([listLegal(db, user, f), runList(db, legalList, user, q)]);
+  const list = lr.rows;
+  const empty = f === "all" && !allList.length;
   return (
     <>
       <PageTitle
@@ -97,13 +101,14 @@ export default async function LegalPage({
           {TABS.map(([k, label]) => (
             <Link
               key={k}
-              href={`/legal?f=${k}`}
+              href={`/legal${lr.qs({ f: k === "all" ? null : k })}`}
               className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}
             >
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {list.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -174,12 +179,13 @@ export default async function LegalPage({
               </tbody>
             </table>
             <p className="mt-2 text-right text-xs text-[var(--muted)]">
-              {list.length}건
+              {lr.count}건
             </p>
           </div>
         ) : (
           <Empty>해당하는 항목이 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

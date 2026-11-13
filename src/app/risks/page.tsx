@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { risksList } from "@/modules/listq/defs/quality";
 import { can } from "@/modules/auth/permissions";
 import { listRisks, riskStats, type RiskFilter } from "@/modules/quality/risk";
 import {
@@ -15,6 +17,7 @@ import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../_assist";
 import { TextAreaField } from "../_input";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { SubmitButton } from "../_submit";
 import {
   Badge,
@@ -40,18 +43,18 @@ const TABS: [RiskFilter, string][] = [
 export default async function RisksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; notice?: string; error?: string }>;
+  searchParams: Promise<Q>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "live") as RiskFilter;
-  const { list, names, threshold, quarter, review, lastReview } =
-    await listRisks(db, user, f);
+  const [{ list: allList, names, threshold, quarter, review, lastReview }, lr] = await Promise.all([listRisks(db, user, f), runList(db, risksList, user, q)]);
+  const list = lr.rows;
   const today = seoulDate(new Date());
   const manage = can(user, "risk.manage");
   const s = await riskStats(db);
-  const empty = !s.open && !s.acting && !s.done && f === "live" && !list.length;
+  const empty = !s.open && !s.acting && !s.done && f === "live" && !allList.length;
   const grid = (await listRisks(db, user, "live")).list;
   return (
     <>
@@ -184,13 +187,14 @@ export default async function RisksPage({
           {TABS.map(([k, label]) => (
             <Link
               key={k}
-              href={`/risks?f=${k}`}
+              href={`/risks${lr.qs({ f: k === "live" ? null : k })}`}
               className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}
             >
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {list.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -262,6 +266,7 @@ export default async function RisksPage({
         ) : (
           <Empty>해당하는 항목이 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );
