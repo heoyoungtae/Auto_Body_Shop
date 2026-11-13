@@ -867,3 +867,14 @@ export async function payrollTransfer(db: Db, actor: Actor, ym: string) {
   });
   return { r, lines, missing };
 }
+
+/** 통장 출금과 맞추기용: 승인·지급된 급여대장의 사람별 실지급액(이름·금액만) */
+export async function payrollNetLines(db: Db, sinceYm: string) {
+  const runs = (await db.select().from(payrollRun)).filter((r) => r.ym >= sinceYm && (r.status === "approved" || r.status === "paid"));
+  const out: { runId: string; docNo: string; ym: string; status: string; payDate: string; totalNet: number; lines: { name: string; net: number }[] }[] = [];
+  for (const r of runs) {
+    const slips = await db.select().from(payslip).where(eq(payslip.runId, r.id));
+    out.push({ runId: r.id, docNo: r.docNo, ym: r.ym, status: r.status, payDate: r.payDate, totalNet: r.totalNet, lines: slips.map((s) => readSlip(s.dataEnc)).map((d) => ({ name: d.name, net: d.net })) });
+  }
+  return out;
+}

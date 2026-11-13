@@ -30,6 +30,7 @@ import { AssetRows } from "../../asset-rows";
 import { ShowWhen } from "../../../consults/show-when";
 import { assetOptions, leaseFeePrefill } from "@/modules/asset/service";
 import { lastToolPrice } from "@/modules/equipment/tools";
+import { expensePrefill } from "@/modules/bank/service";
 import { listUsers } from "@/modules/auth/service";
 import { FX_CATEGORIES } from "@/modules/purchase/rules";
 import { EQ_KINDS } from "@/modules/equipment/rules";
@@ -42,7 +43,7 @@ const opts = (o: Record<string, string>) =>
 export default async function NewExpensePage({
   searchParams,
 }: {
-  searchParams: Promise<{ src?: string; from?: string; error?: string; p?: string | string[]; lease?: string; tool?: string; qty?: string }>;
+  searchParams: Promise<{ src?: string; from?: string; error?: string; p?: string | string[]; lease?: string; tool?: string; qty?: string; tx?: string }>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
@@ -64,9 +65,11 @@ export default async function NewExpensePage({
   const [lk, lid] = (q.lease ?? "").split(":");
   const lease = (lk === "fixture" || lk === "equipment") && lid ? await leaseFeePrefill(db, lk, lid).catch(() => null) : null;
   // 치공구 안전재고 부족(?tool=품명&qty=수량): 계정 '설비·공구', 대장 줄(치공구), 용도, 직전 단가로 공급가를 채운다
-  const toolPick = !src && !old && !lease && q.tool?.trim() ? { name: q.tool.trim().slice(0, 100), qty: Math.min(50, Math.max(1, Number(q.qty) || 1)) } : null;
+  const toolPick = !src && !old && !lease && !q.tx && q.tool?.trim() ? { name: q.tool.trim().slice(0, 100), qty: Math.min(50, Math.max(1, Number(q.qty) || 1)) } : null;
   const toolLast = toolPick ? await lastToolPrice(db, toolPick.name) : null;
-  const sources = src || old || lease || toolPick ? [] : await expenseSources(db);
+  // 통장 출금·카드 승인·홈택스 매입(?tx=거래): 받는 곳·금액·결제 방법·승인번호·날짜를 그 거래에서 채운다(다시 치지 않음)
+  const txPre = !src && !old && !lease && !toolPick && q.tx ? await expensePrefill(db, user, q.tx) : null;
+  const sources = src || old || lease || toolPick || txPre ? [] : await expenseSources(db);
   const [assetOpts, staff] = src ? [[], []] : await Promise.all([assetOptions(db), listUsers(db)]);
   const people = staff.filter((u) => u.active && !u.retiredOn).map((u) => ({ value: u.id, label: u.name }));
   const fxCats = Object.entries(FX_CATEGORIES).map(([value, label]) => ({ value, label }));
@@ -79,15 +82,17 @@ export default async function NewExpensePage({
     ? src.remainWon === src.totalWon
       ? src.supplyWon
       : Math.round(remain / 1.1)
-    : (old?.supplyWon ?? lease?.supply ?? (toolPick && toolLast ? toolPick.qty * toolLast : null));
-  const vat = src ? remain - (supply ?? 0) : (old?.vatWon ?? (lease ? vatOf(lease.supply) : null));
+    : (old?.supplyWon ?? lease?.supply ?? txPre?.supply ?? (toolPick && toolLast ? toolPick.qty * toolLast : null));
+  const vat = src ? remain - (supply ?? 0) : (old?.vatWon ?? (lease ? vatOf(lease.supply) : (txPre?.vat ?? null)));
   const fromSrc = src
     ? `${SOURCE_KINDS[src.kind]} ${src.docNo}`
     : old
       ? `반려된 ${old.docNo}`
       : lease
         ? `${lease.a.no} 사용계약`
-        : undefined;
+        : txPre
+          ? txPre.from
+          : undefined;
   return (
     <>
       <PageTitle
@@ -134,7 +139,9 @@ export default async function NewExpensePage({
               ? `${old.docNo} 고쳐 다시 올리기`
               : lease
                 ? `${lease.a.no} ${lease.a.name} 사용료 결의`
-                : "근거 전표 없이 결의(임차료·공과금·소모품·설비 구입 등)"
+                : txPre
+                  ? `${txPre.from} 결의`
+                  : "근거 전표 없이 결의(임차료·공과금·소모품·설비 구입 등)"
         }
         help={{ kind: "panel", id: "exp.form" }}
       >
@@ -183,6 +190,15 @@ export default async function NewExpensePage({
               </p>
             </>
           )}
+          {txPre && (
+            <>
+              <input type="hidden" name="tx" value={txPre.t.id} />
+              <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs md:col-span-2">
+                {txPre.from} {txPre.t.party ?? ""}
+                {txPre.t.approvalNo ? ` · 승인번호 ${txPre.t.approvalNo}` : ""}. 올리면 이 거래와 이어집니다. 계정을 고르고 영수증을 붙이세요.
+              </p>
+            </>
+          )}
           {old && <input type="hidden" name="fromId" value={old.id} />}
           {old && <input type="hidden" name="from" value={old.id} />}
           {src ? (
@@ -206,15 +222,15 @@ export default async function NewExpensePage({
                 help="exp.supplierId"
                 name="supplierId"
                 placeholder="협력업체가 아니면 비워 둠"
-                defaultValue={old?.supplierId ?? ""}
-                from={old ? fromSrc : undefined}
+                defaultValue={old?.supplierId ?? txPre?.supplierId ?? ""}
+                from={old || txPre?.supplierId ? fromSrc : undefined}
                 options={sups.map((s) => ({ value: s.id, label: s.name }))}
               />
               <TextField
                 help="exp.payeeName"
                 name="payeeName"
-                defaultValue={old && !old.supplierId ? old.payeeName : (lease?.payee ?? "")}
-                from={old || lease ? fromSrc : undefined}
+                defaultValue={old && !old.supplierId ? old.payeeName : (lease?.payee ?? txPre?.payee ?? "")}
+                from={old || lease || txPre ? fromSrc : undefined}
               />
             </>
           )}
@@ -252,7 +268,8 @@ export default async function NewExpensePage({
             help="exp.payMethod"
             name="payMethod"
             required
-            defaultValue={old?.payMethod ?? "transfer"}
+            defaultValue={old?.payMethod ?? txPre?.payMethod ?? "transfer"}
+            from={txPre ? fromSrc : undefined}
             options={opts(EXP_PAY_METHODS)}
           />
           <NumberField
@@ -286,8 +303,8 @@ export default async function NewExpensePage({
               name="purpose"
               required={!src}
               rows={2}
-              defaultValue={old?.purpose ?? lease?.purpose ?? (toolPick ? `치공구 보충: ${toolPick.name} ${toolPick.qty}개(안전재고 부족)` : "")}
-              from={old || lease ? fromSrc : undefined}
+              defaultValue={old?.purpose ?? lease?.purpose ?? txPre?.purpose ?? (toolPick ? `치공구 보충: ${toolPick.name} ${toolPick.qty}개(안전재고 부족)` : "")}
+              from={old || lease || txPre ? fromSrc : undefined}
             />
           </div>
           <SelectField
@@ -295,22 +312,22 @@ export default async function NewExpensePage({
             name="evidenceKind"
             required
             defaultValue={
-              src?.invoiceNo ? "tax_invoice" : (old?.evidenceKind ?? "")
+              src?.invoiceNo ? "tax_invoice" : (old?.evidenceKind ?? txPre?.evidenceKind ?? "")
             }
             placeholder="증빙 고르기"
-            from={src?.invoiceNo ? "발주서에 연결한 세금계산서" : undefined}
+            from={src?.invoiceNo ? "발주서에 연결한 세금계산서" : txPre?.evidenceKind ? fromSrc : undefined}
             options={opts(EVIDENCE_KINDS)}
           />
           <TextField
             help="exp.evidenceNo"
             name="evidenceNo"
-            defaultValue={src?.invoiceNo ?? old?.evidenceNo ?? ""}
-            from={src?.invoiceNo ? "발주서" : undefined}
+            defaultValue={src?.invoiceNo ?? old?.evidenceNo ?? txPre?.evidenceNo ?? ""}
+            from={src?.invoiceNo ? "발주서" : txPre?.evidenceNo ? fromSrc : undefined}
           />
           <DateField
             help="exp.evidenceOn"
             name="evidenceOn"
-            defaultValue={src?.invoiceOn ?? old?.evidenceOn ?? ""}
+            defaultValue={src?.invoiceOn ?? old?.evidenceOn ?? txPre?.evidenceOn ?? ""}
             quick={["today"]}
           />
           <DateField

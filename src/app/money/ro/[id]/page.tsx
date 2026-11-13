@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { receiptView } from "@/modules/money/receipts";
+import { receiptPrefill } from "@/modules/bank/service";
 import {
   AR_DUN_DAYS,
   CASH_RECEIPT_MUST,
@@ -39,7 +40,7 @@ export default async function RoMoneyPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ notice?: string; error?: string }>;
+  searchParams: Promise<{ notice?: string; error?: string; tx?: string }>;
 }) {
   const { id } = await params;
   const q = await searchParams;
@@ -58,8 +59,12 @@ export default async function RoMoneyPage({
   }
   const today = seoulDate();
   const may = can(user, "money.receive");
+  // 통장 입금에서 왔으면(?tx=) 금액·날짜·입금자를 그 입금에서 채운다
+  const txPre = q.tx ? await receiptPrefill(await getDb(), user, q.tx) : null;
   const method = (
-    v.deliveredMethod && v.deliveredMethod in PAY_IN_METHODS
+    txPre
+      ? "transfer"
+      : v.deliveredMethod && v.deliveredMethod in PAY_IN_METHODS
       ? v.deliveredMethod
       : "card"
   ) as keyof typeof PAY_IN_METHODS;
@@ -134,6 +139,7 @@ export default async function RoMoneyPage({
       </Card>
 
       {may && v.remain > 0 && v.due.from && (
+        <div id="pay">
         <Card title="수납 적기" help={{ kind: "panel", id: "money.pay" }}>
           <AssistForm
             id={`pay-${id}`}
@@ -141,12 +147,20 @@ export default async function RoMoneyPage({
             className="grid gap-3 md:grid-cols-2"
           >
             {hidden("pay")}
+            {txPre && (
+              <>
+                <input type="hidden" name="tx" value={txPre.t.id} />
+                <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-xs md:col-span-2">
+                  {txPre.from} {txPre.payer}. 저장하면 이 입금과 이어집니다. 증빙만 고르세요.
+                </p>
+              </>
+            )}
             <RadioRow
               help="money.method"
               name="method"
               required
               defaultValue={method}
-              from={v.deliveredMethod ? "출고 때 고른 수납 방법" : undefined}
+              from={txPre ? txPre.from : v.deliveredMethod ? "출고 때 고른 수납 방법" : undefined}
               options={Object.entries(PAY_IN_METHODS).map(([value, label]) => ({
                 value,
                 label,
@@ -159,14 +173,15 @@ export default async function RoMoneyPage({
               unit="원"
               min={1}
               max={v.remain}
-              defaultValue={v.remain}
-              from="남은 금액"
+              defaultValue={txPre ? Math.min(txPre.amount, v.remain) : v.remain}
+              from={txPre ? txPre.from : "남은 금액"}
             />
             <DateField
               help="money.receivedOn"
               name="receivedOn"
               required
-              defaultValue={today}
+              defaultValue={txPre?.on ?? today}
+              from={txPre ? txPre.from : undefined}
               quick={["today"]}
             />
             <SelectField
@@ -183,8 +198,8 @@ export default async function RoMoneyPage({
             <TextField
               help="money.payerName"
               name="payerName"
-              defaultValue={v.customerName}
-              from="고객"
+              defaultValue={txPre?.payer || v.customerName}
+              from={txPre?.payer ? txPre.from : "고객"}
             />
             <div className="md:col-span-2">
               <TextField help="money.note" name="note" />
@@ -199,6 +214,7 @@ export default async function RoMoneyPage({
             </div>
           </AssistForm>
         </Card>
+        </div>
       )}
 
       <Card title="입금 전표" help={{ kind: "panel", id: "money.payments" }}>

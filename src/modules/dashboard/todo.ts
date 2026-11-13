@@ -47,6 +47,7 @@ import { exitTodos } from "@/modules/staff/exit";
 import { staffFileTodos } from "@/modules/staff/files";
 import { assetTodos } from "@/modules/asset/service";
 import { receiptTodos } from "@/modules/money/receipts";
+import { bankTodos } from "@/modules/bank/service";
 import { expenseTodos } from "@/modules/money/expense";
 import { closeTodos } from "@/modules/money/close";
 import { goalTodos } from "@/modules/quality/goals";
@@ -659,6 +660,7 @@ export async function myTodos(
     ...(await assetTodos(db, user, today)),
     ...(await receiptTodos(db, user, today)),
     ...(await expenseTodos(db, user, today)),
+    ...(await bankTodos(db, user, today)),
     ...(await closeTodos(db, user, today)),
     ...(await goalTodos(db, user, today)),
     ...(await contextTodos(db, user, today)),

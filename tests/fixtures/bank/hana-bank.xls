@@ -1,0 +1,6 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head><body><table>
+<tr><td colspan="5">하나은행 거래내역</td></tr>
+<tr><th>거래일시</th><th>구분</th><th>적요</th><th>거래금액</th><th>거래후잔액</th></tr>
+<tr><td>2026-11-12 11:02</td><td>입금</td><td>김철수</td><td>500,000</td><td>1,500,000</td></tr>
+<tr><td>2026-11-12 13:20</td><td>출금</td><td>임대료 &amp; 관리비</td><td>1,100,000</td><td>400,000</td></tr>
+</table></body></html>

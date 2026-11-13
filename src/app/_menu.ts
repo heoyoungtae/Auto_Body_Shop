@@ -306,6 +306,12 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
+        label: "통장·카드 내역",
+        perm: ["bank.view"],
+        href: "/money/bank",
+        std: "STD-12",
+      },
+      {
         label: "마감",
         perm: ["money.close_day", "money.close_month"],
         href: "/money/close",

@@ -15,3 +15,4 @@ export * from "./safety";
 export * from "./environment";
 export * from "./money";
 export * from "./journal";
+export * from "./bank";
