@@ -9,6 +9,7 @@ import { productivity, revenue, sales, summary } from "./reports-mgmt";
 import { equipmentReport, people, purchase, safety } from "./reports-ops";
 import { customer, quality, review, rework } from "./reports-quality";
 import { stock, stockledger, turnover } from "./reports-stock";
+import { bsReport, cashflow, funds, ledger, plReport } from "./reports-books";
 import type { Unit } from "./service";
 
 export const BUILDERS: Record<string, Builder> = {
@@ -16,9 +17,14 @@ export const BUILDERS: Record<string, Builder> = {
   sales,
   revenue,
   productivity,
+  pl: plReport,
+  bs: bsReport,
+  cashflow,
+  funds,
   ar,
   ap,
   vat,
+  ledger,
   quality,
   rework,
   customer,
@@ -37,12 +43,12 @@ export class ReportAccessError extends Error {}
 export type RunResult = { def: ReportDef; p: Period; q: Period; cmp: CompareKind; body: ReportBody; trend: { labels: string[]; periods: Period[]; series: { key: string; label: string; unit: Unit; values: number[] }[] } | null };
 
 /** 보고서 하나 계산(권한 없거나 아직 안 만든 보고서면 오류) */
-export async function runReport(db: Db, actor: Actor, id: string, p: Period, cmp: CompareKind, now = new Date()): Promise<RunResult> {
+export async function runReport(db: Db, actor: Actor, id: string, p: Period, cmp: CompareKind, now = new Date(), opt: Record<string, string | undefined> = {}): Promise<RunResult> {
   const def = reportById(id);
   if (!def || def.phase || !BUILDERS[id]) throw new ReportAccessError("아직 만들지 않은 보고서입니다");
   if (!canReport(actor, def)) throw new ReportAccessError("이 보고서를 볼 권한이 없습니다");
   const q = comparePeriod(p, cmp);
-  const body = await BUILDERS[id]({ db, actor, p, q, now, today: seoulDate(now) });
+  const body = await BUILDERS[id]({ db, actor, p, q, now, today: seoulDate(now), opt });
   let trend: RunResult["trend"] = null;
   if (body.trends?.length) {
     const ps = recentPeriods(p, TREND_COUNT[p.kind]);

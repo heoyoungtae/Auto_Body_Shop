@@ -103,7 +103,7 @@ describe("보고서", () => {
     // 권한: 품질 담당은 회계·경영 보고서를 못 본다
     await expect(runReport(db, quality, "ar", p, "prev", now)).rejects.toThrow("권한");
     await expect(runReport(db, quality, "summary", p, "prev", now)).rejects.toThrow("권한");
-    await expect(runReport(db, owner, "pl", p, "prev", now)).rejects.toThrow("아직");
+    await expect(runReport(db, owner, "budget", p, "prev", now)).rejects.toThrow("아직");
     expect((await runReport(db, quality, "rework", p, "prev", now)).body.kpis.length).toBeGreaterThan(0);
     const csv = runCsv(qr);
     expect(csv.startsWith("\uFEFF14. 품질 월보")).toBe(true);
@@ -168,6 +168,6 @@ describe("보고서 센터 분류 탭", () => {
     expect(peek.length).toBeGreaterThan(0);
     expect(peek.length).toBeLessThanOrEqual(2);
     expect(await runPeek(db, who(["quality"]), "ar", p, now)).toEqual([]);
-    expect(await runPeek(db, who(["owner"]), "pl", p, now)).toEqual([]);
+    expect(await runPeek(db, who(["owner"]), "budget", p, now)).toEqual([]);
   });
 });

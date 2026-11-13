@@ -273,6 +273,12 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
   return { slips, skipped };
 }
 
+/** 급여대장 한 달의 회사 몫(4대보험 사업주 부담 등) 합계 — 회계 자동 분개용 */
+export async function employerTotalOfRun(db: Db, runId: string) {
+  const rows = await db.select({ d: payslip.dataEnc }).from(payslip).where(eq(payslip.runId, runId));
+  return rows.reduce((s, r) => s + (readSlip(r.d).employerTotal ?? 0), 0);
+}
+
 async function saveTotals(db: Db, runId: string, now: Date) {
   const rows = await db.select().from(payslip).where(eq(payslip.runId, runId));
   const ds = rows.map((r) => readSlip(r.dataEnc));

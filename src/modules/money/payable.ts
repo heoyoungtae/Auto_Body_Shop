@@ -363,7 +363,7 @@ export async function accruedIn(db: Db, from: string, to: string): Promise<{ cat
 }
 
 /** 선입금 발주서마다: 들어온(합격) 물건 값(부가세 포함)과 마지막 입고 날짜 */
-async function prepayReceipts(db: Db) {
+export async function prepayReceipts(db: Db) {
   const pre = await db.select().from(payable).where(eq(payable.kind, "prepay"));
   const poIds = [...new Set(pre.map((x) => x.sourceId))];
   if (!poIds.length) return [];

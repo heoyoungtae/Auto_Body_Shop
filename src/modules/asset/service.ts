@@ -314,6 +314,30 @@ export async function depreciationOfMonth(db: Db, ym: string) {
   return { won: total, count };
 }
 
+/** 달마다 감가상각비 합계(fromYm~toYm, 회계 자동 분개용). 자산마다 상각 입력은 한 번만 읽는다 */
+export async function depreciationByMonth(db: Db, fromYm: string, toYm: string) {
+  const out = new Map<string, number>();
+  if (fromYm > toYm) return out;
+  const inputs = new Map<string, { a: AssetView; d: DepInput }>();
+  for (let y = Number(fromYm.slice(0, 4)); y <= Number(toYm.slice(0, 4)); y++) {
+    for (const r of await depreciationRegister(db, y)) {
+      const key = `${r.a.kind}:${r.a.id}`;
+      if (!inputs.has(key)) inputs.set(key, { a: r.a, d: await depInput(db, r.a) });
+    }
+  }
+  for (const { a, d } of inputs.values()) {
+    for (let ym = fromYm; ym <= toYm; ym = nextYmOf(ym)) {
+      const w = a.depMethod === "expense" ? (a.depStartOn?.startsWith(ym) ? d.cost + (d.adds ?? []).filter((x) => x.on.startsWith(ym)).reduce((t, x) => t + x.won, 0) : 0) : depOfMonth(d, ym);
+      if (w > 0) out.set(ym, (out.get(ym) ?? 0) + w);
+    }
+  }
+  return out;
+}
+const nextYmOf = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+};
+
 export async function assetDep(db: Db, a: AssetView, year = Number(seoulDate().slice(0, 4))) {
   return depNow(await depInput(db, a), year);
 }

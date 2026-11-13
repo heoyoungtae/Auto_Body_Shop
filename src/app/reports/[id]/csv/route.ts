@@ -17,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const p = periodFromQuery(q, seoulDate());
   const c = q.c && isCompare(q.c) ? q.c : "prev";
   try {
-    const r = await runReport(await getDb(), user, id, p, c);
+    const r = await runReport(await getDb(), user, id, p, c, undefined, { acct: q.acct });
     const name = encodeURIComponent(`${def.title}_${p.from}_${p.to}.csv`);
     return new Response(runCsv(r), {
       headers: {
