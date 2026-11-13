@@ -14,6 +14,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
+import { JOBS, jobByTitle } from "./job-rules";
 import { assignmentIssue, CONTRACT_KIND, GENDER, INSPECTOR_LEVEL, isLevel, isSkill, SKILLS, type Levels } from "./rules";
 
 export class StaffError extends UserError {}
@@ -148,9 +149,10 @@ export async function getProfile(db: Db, actor: Actor, userId: string): Promise<
 /** 근로자 명부 저장(STD-11 4.5: 회계 담당, 대표) */
 export async function saveProfile(db: Db, actor: Actor, userId: string, input: ProfileView, now = new Date()) {
   if (!canSeeRoster(actor)) throw new StaffError("근로자 명부는 대표·회계 담당이 적습니다");
-  const [u] = await db.select({ id: appUser.id }).from(appUser).where(eq(appUser.id, userId));
+  const [u] = await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.id, userId));
   if (!u) throw new StaffError("없는 직원입니다");
-  if (!input.job.trim()) throw new StaffError("종사 업무(직무)를 적어 주세요");
+  if (!input.job.trim()) throw new StaffError("종사 업무(직무)를 골라 주세요");
+  const [before] = await db.select({ job: staffProfile.job }).from(staffProfile).where(eq(staffProfile.userId, userId));
   if (!ISO.test(input.hiredOn)) throw new StaffError("입사일을 골라 주세요");
   if (input.gender && !(input.gender in GENDER)) throw new StaffError("성별을 다시 골라 주세요");
   if (input.birth && (!ISO.test(input.birth) || input.birth > seoulDate(now))) throw new StaffError("생년월일을 확인해 주세요");
@@ -187,6 +189,13 @@ export async function saveProfile(db: Db, actor: Actor, userId: string, input: P
   await db.insert(staffProfile).values({ userId, ...values }).onConflictDoUpdate({ target: staffProfile.userId, set: values });
   // 개인정보는 감사 기록에 남기지 않는다(무엇을 바꿨는지만)
   await writeAudit(db, { actorId: actor.id, action: "staff.profile", entityType: "app_user", entityId: userId, after: { job: values.job, hiredOn: values.hiredOn, contractKind: values.contractKind, leftOn: values.leftOn, licenses: licenses.length } });
+  // 직무(F-11-08)가 새로 정해지거나 바뀌면: 본인에게 직무기술서 확인 요청, 계정에 그 직무의 역할이 없으면 대표에게 알림
+  const key = jobByTitle(values.job);
+  if (key && before?.job !== values.job && !values.leftOn) {
+    await notifyUser(db, userId, `직무기술서 확인 요청: ${values.job}`, `jd-${userId}-${values.job}`, "/jobs");
+    const roles = (await db.select({ role: userRole.role }).from(userRole).where(eq(userRole.userId, userId))).map((r) => r.role);
+    if (roles.length && !roles.includes(JOBS[key].role)) await notifyRole(db, "owner", `${u.name} 직무 '${values.job}' — 계정 역할에 없어 역할을 더해야 합니다`, `jd-role-${userId}-${values.job}`, "/settings/users");
+  }
 }
 
 /**
@@ -196,7 +205,9 @@ export async function saveProfile(db: Db, actor: Actor, userId: string, input: P
 export async function registerStaff(db: Db, actor: Actor, input: { name: string; loginId: string; roles: string[]; profile: ProfileView }, now = new Date()) {
   if (!canSeeRoster(actor)) throw new StaffError("직원 등록은 대표·회계 담당이 합니다");
   const manage = can(actor, "account.manage");
-  const roles = manage ? input.roles : [];
+  // 역할을 따로 고르지 않으면 직무기술서의 역할을 준다(같은 것을 두 번 고르지 않게)
+  const jobKey = jobByTitle(input.profile.job);
+  const roles = manage ? (input.roles.length ? input.roles : jobKey ? [JOBS[jobKey].role] : []) : [];
   if (manage && !roles.length) throw new StaffError("역할을 하나 이상 고르세요");
   const id = await db.transaction(async (tx) => {
     // 비밀번호는 앱이 임시로 만든다(대표 지시 2026-11-12). 첫 로그인 때 본인이 새로 정한다

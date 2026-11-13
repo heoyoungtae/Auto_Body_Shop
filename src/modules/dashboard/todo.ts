@@ -44,6 +44,7 @@ import { taxTodos } from "@/modules/money/tax-profile";
 import { lawTodos } from "@/modules/money/law-watch";
 import { reviewTodos } from "@/modules/staff/review";
 import { exitTodos } from "@/modules/staff/exit";
+import { onboardingTodos } from "@/modules/staff/onboarding";
 import { staffFileTodos } from "@/modules/staff/files";
 import { assetTodos } from "@/modules/asset/service";
 import { receiptTodos } from "@/modules/money/receipts";
@@ -656,6 +657,7 @@ export async function myTodos(
     ...(can(user, "payroll.view") ? await lawTodos(db, user) : []),
     ...(await reviewTodos(db, user, today)),
     ...(await exitTodos(db, user, today)),
+    ...(await onboardingTodos(db, user, today)),
     ...(await staffFileTodos(db, user, today)),
     ...(await assetTodos(db, user, today)),
     ...(await receiptTodos(db, user, today)),

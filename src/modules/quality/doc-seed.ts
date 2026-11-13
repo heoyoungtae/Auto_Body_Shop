@@ -413,6 +413,20 @@ export const SEED_DOCS: {
     owner: "회계 담당 → 대표",
   },
   {
+    no: "F-11-08",
+    name: "직무기술서",
+    kind: "form",
+    clause: "11.1",
+    owner: "대표 → [본인 확인]",
+  },
+  {
+    no: "F-11-09",
+    name: "신입 오리엔테이션 점검표",
+    kind: "form",
+    clause: "11.1, 11.2",
+    owner: "회계 담당·공장장 → 대표",
+  },
+  {
     no: "F-12-01",
     name: "지출 결의서",
     kind: "form",
