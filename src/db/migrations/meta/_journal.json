@@ -351,6 +351,13 @@
       "when": 1794546906423,
       "tag": "0049_bank_feed",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794579252443,
+      "tag": "0050_stock_cost",
+      "breakpoints": true
     }
   ]
 }

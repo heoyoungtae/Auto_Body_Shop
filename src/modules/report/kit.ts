@@ -62,7 +62,7 @@ export function totalRow(t: RTable): Cell[] | null {
   if (t.total === false || !t.rows.length) return null;
   if (t.total) return t.total;
   if (!t.cols.some((c) => c.num)) return null;
-  return t.cols.map((c, i) => (i === 0 ? "합계" : c.num && c.unit !== "%" && c.unit !== "일" && c.unit !== "점" ? sum(t.rows, (r) => (typeof r.cells[i] === "number" ? (r.cells[i] as number) : 0)) : null));
+  return t.cols.map((c, i) => (i === 0 ? "합계" : c.num && c.unit !== "%" && c.unit !== "일" && c.unit !== "점" && c.unit !== "회" ? sum(t.rows, (r) => (typeof r.cells[i] === "number" ? (r.cells[i] as number) : 0)) : null));
 }
 
 const DAY = 864e5;

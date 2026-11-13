@@ -38,7 +38,7 @@ export default async function StockItemPage({ params, searchParams }: { params: 
     <>
       <PageTitle
         help="stock.detail"
-        sub={`${STOCK_KINDS[i.kind as StockKind]}${i.spec ? ` · ${i.spec}` : ""}${i.packAmount ? ` · 1${i.unit}=${i.packAmount.toLocaleString("ko-KR")}${i.packUnit ?? ""}` : ""} · ${i.location ?? "위치 미정"} · 안전 재고 ${i.safetyQty}${i.unit} · 단가 ${won(i.unitWon)}(공급가, ${VAT_MODES[i.vatMode as VatMode] ?? "부가세 별도"}로 적음) · 계정 ${EXP_CATEGORIES[itemExpCategory(i) as keyof typeof EXP_CATEGORIES] ?? "-"}`}
+        sub={`${STOCK_KINDS[i.kind as StockKind]}${i.spec ? ` · ${i.spec}` : ""}${i.packAmount ? ` · 1${i.unit}=${i.packAmount.toLocaleString("ko-KR")}${i.packUnit ?? ""}` : ""} · ${i.location ?? "위치 미정"} · 안전 재고 ${i.safetyQty}${i.unit} · 최근 매입 단가 ${won(i.unitWon)}(공급가, ${VAT_MODES[i.vatMode as VatMode] ?? "부가세 별도"}로 적음) · 재고 금액 ${won(i.valueWon)}${i.qty > 0 ? `(평균 단가 ${won(Math.round(i.valueWon / i.qty))})` : ""} · 계정 ${EXP_CATEGORIES[itemExpCategory(i) as keyof typeof EXP_CATEGORIES] ?? "-"}`}
         actions={
           <div className="flex flex-wrap gap-2">
             {can(user, "stock.use") && i.active && (
@@ -126,6 +126,12 @@ export default async function StockItemPage({ params, searchParams }: { params: 
                     {m.qty}
                     {i.unit}
                   </b>
+                  {m.amountWon != null && (
+                    <span className="text-xs tabular-nums" title={`단가 ${won(m.unitWon ?? 0)} (입고는 매입 공급가, 나머지는 그때 평균 단가)`}>
+                      {m.amountWon > 0 ? "+" : ""}
+                      {won(m.amountWon)}
+                    </span>
+                  )}
                   {m.ref && <span className="text-xs">{m.ref}</span>}
                   {m.lot && <span className="text-xs">로트 {m.lot}</span>}
                   {m.note && <span className="text-xs text-[var(--muted)]">{m.note}</span>}
