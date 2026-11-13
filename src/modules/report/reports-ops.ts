@@ -205,7 +205,7 @@ export const safety: Builder = async (c) => {
       },
       {
         key: "hazLate",
-        title: "기한 지난 위험성평가 개선 조치(지금 기준)",
+        title: "기한 지난 위험성평가 개선 조치",
         help: "rep.t.hazLate",
         cols: [{ label: "공정" }, { label: "유해·위험 요인" }, { label: "조치" }, { label: "기한" }, { label: "지난 날", unit: "일", num: true }],
         rows: late.map((h) => ({ cells: [h.process, h.hazard, h.measure ?? "", h.due, daysBetween(h.due!, c.today)], href: `/hazards/${h.assessmentId}`, tone: "danger" as const })),
@@ -274,7 +274,7 @@ export const equipmentReport: Builder = async (c) => {
       },
       {
         key: "due",
-        title: "60일 안에 교정·법정 검사(지금 기준)",
+        title: "60일 안에 교정·법정 검사",
         help: "rep.t.equipDue",
         cols: [{ label: "설비" }, { label: "할 일" }, { label: "기한" }, { label: "남은 날", unit: "일", num: true }],
         rows: soon.map((x) => ({ cells: [`${x.e.no} ${x.e.name}`, x.what, x.on, daysBetween(c.today, x.on)], href: `/equipment/${x.e.id}`, tone: x.on < c.today ? ("danger" as const) : ("warn" as const) })),

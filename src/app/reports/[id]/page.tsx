@@ -12,7 +12,7 @@ import type { PanelHelpKey } from "@/modules/help/panels";
 import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, PageTitle } from "../../_ui";
 import { PeriodBar, periodHref } from "../_period-bar";
-import { PrintButton } from "../print-button";
+import { PdfButton, PrintButton } from "../print-button";
 
 /** 표 칸 숫자: 단위는 머리줄에 있으므로 숫자만(원·건·대는 정수, 나머지는 소수 한 자리) */
 const fmtNum = (v: number, unit?: string) => (unit === "원" || unit === "건" || unit === "대" || !unit ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString("ko-KR");
@@ -72,8 +72,9 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
               보고서 목록
             </Link>
             <PrintButton />
-            <a href={csv} className={buttonClass("secondary")}>
-              엑셀(CSV)
+            <PdfButton fileName={`${def.title}_${p.from}_${p.to}`} />
+            <a href={csv} className={buttonClass("secondary")} title="엑셀에서 바로 열리는 파일(CSV)">
+              엑셀
             </a>
           </div>
         }
@@ -220,6 +221,9 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
         </Card>
       )}
 
+      <p className="report-sheet hidden text-xs text-[var(--muted)] print:block">
+        출력: {today} · {user.name} · 통계·보고서 {def.no}. {def.title} · 비교: {COMPARE[cmp]} {r.q.label}
+      </p>
       {r.body.notes?.map((n, i) => (
         <p key={i} className="text-xs text-[var(--muted)]">
           {n}

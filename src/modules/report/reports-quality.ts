@@ -113,7 +113,7 @@ export const rework: Builder = async (c) => {
       },
       {
         key: "late",
-        title: "기한 지난 시정조치(지금 기준)",
+        title: "기한 지난 시정조치",
         help: "rep.t.ncLate",
         cols: [{ label: "번호" }, { label: "내용" }, { label: "기한" }, { label: "지난 날", unit: "일", num: true }],
         rows: late.map((n) => ({ cells: [n.docNo, n.content.slice(0, 40), n.dueOn, daysBetween(n.dueOn!, c.today)], href: `/nc/${n.id}`, tone: "danger" as const })),

@@ -119,6 +119,14 @@
   body {
     background: white !important;
   }
+  /* 보고서 인쇄·PDF: 패널이 쪽 사이에서 잘리지 않게, 도움말 ? 단추는 숨김 */
+  main:has(.report-sheet) section,
+  main:has(.report-sheet) tr {
+    break-inside: avoid;
+  }
+  main:has(.report-sheet) button[aria-label*="도움말"] {
+    display: none !important;
+  }
   @page {
     size: A4;
     margin: 12mm;

@@ -59,7 +59,7 @@ export const ar: Builder = async (c) => {
     tables: [
       {
         key: "aging",
-        title: "연령별 미수(지금 기준)",
+        title: "연령별 미수",
         help: "rep.t.aging",
         cols: [{ label: "지난 날수" }, { label: "고객", unit: "원", num: true }, { label: "보험사", unit: "원", num: true }, { label: "합계", unit: "원", num: true }],
         rows: BUCKETS.map((bk, i) => ({ cells: [bk.label, cb[i], ib[i], cb[i] + ib[i]], tone: i >= 2 && cb[i] + ib[i] > 0 ? ("danger" as const) : undefined })),
@@ -113,7 +113,7 @@ export const ap: Builder = async (c) => {
     tables: [
       {
         key: "supplier",
-        title: "업체별 잔액(지금 기준)",
+        title: "업체별 잔액",
         help: "rep.t.supplierAp",
         cols: [{ label: "업체" }, { label: "외상매입금", unit: "원", num: true }, { label: "미지급금", unit: "원", num: true }, { label: "합계", unit: "원", num: true }],
         rows: bal.bySupplier.map((s) => ({ cells: [s.name, s.trade, s.other, s.trade + s.other] })),
