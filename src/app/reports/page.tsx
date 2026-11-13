@@ -92,7 +92,7 @@ function ListsTab({ user }: { user: { id: string; roles: import("@/modules/auth/
   const lists = listGroups(user);
   return (
     <Card title="대장·전표 현황" help={{ kind: "panel", id: "rep.lists" }}>
-      <p className="mb-2 text-xs text-[var(--muted)]">앱에 입력한 대장·전표를 하나씩 봅니다. 목록 화면마다 기간·상태로 거르기는 2단계에서 붙입니다.</p>
+      <p className="mb-2 text-xs text-[var(--muted)]">앱에 입력한 대장·전표를 하나씩 봅니다. 목록 화면마다 위 '조회' 줄에서 기간(지난 달·올해·직접 지정)·찾기로 지난 기록을 보고, 건수·금액 합계를 보고, 엑셀로 내려받습니다.</p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {lists.map(({ g, items }) => (
           <div key={g.id}>

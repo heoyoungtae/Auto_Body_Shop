@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
 import { getDb } from "@/db/runtime";
-import { approvalDoc } from "@/db/schema";
+import type { approvalDoc } from "@/db/schema";
+import { runList, type Q } from "@/modules/listq/core";
+import { approvalsList } from "@/modules/listq/defs/work";
 import { inbox } from "@/modules/approval/service";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { buttonClass, Card, Empty, fmtTime, PageTitle, StatusBadge } from "../_ui";
 
 type Row = typeof approvalDoc.$inferSelect;
@@ -27,10 +29,11 @@ function List({ rows, empty }: { rows: Row[]; empty: React.ReactNode }) {
   );
 }
 
-export default async function ApprovalsPage() {
+export default async function ApprovalsPage({ searchParams }: { searchParams: Promise<Q> }) {
+  const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
-  const [todo, all] = await Promise.all([inbox(db, user.id), db.select().from(approvalDoc).orderBy(desc(approvalDoc.updatedAt)).limit(50)]);
+  const [todo, lr] = await Promise.all([inbox(db, user.id), runList(db, approvalsList, user, q)]);
   return (
     <>
       <PageTitle
@@ -48,8 +51,10 @@ export default async function ApprovalsPage() {
         <Card title={`내가 처리할 문서 ${todo.length}건`} help={{ kind: "panel", id: "approvals.todo" }}>
           <List rows={todo} empty="지금 내 차례인 결재가 없습니다. 차례가 오면 알림으로 알려 드립니다." />
         </Card>
-        <Card title="최근 문서" help={{ kind: "panel", id: "approvals.recent" }}>
-          <List rows={all} empty={<>아직 문서가 없습니다. 오른쪽 위 &lsquo;문서 개정 요청&rsquo;으로 첫 문서를 올려 보세요.</>} />
+        <Card title="모든 문서" help={{ kind: "panel", id: "approvals.recent" }}>
+          <ListBar r={lr} bare />
+          <List rows={lr.rows} empty={lr.loaded ? "조건에 맞는 문서가 없습니다." : <>아직 문서가 없습니다. 오른쪽 위 &lsquo;문서 개정 요청&rsquo;으로 첫 문서를 올려 보세요.</>} />
+          <ListPager r={lr} />
         </Card>
       </div>
     </>

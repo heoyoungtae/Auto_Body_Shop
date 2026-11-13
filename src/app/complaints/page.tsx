@@ -1,17 +1,13 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { csMonthly, listComplaints, type CpFilter } from "@/modules/cs/service";
+import { csMonthly } from "@/modules/cs/service";
+import { runList, type Q } from "@/modules/listq/core";
+import { complaintsList } from "@/modules/listq/defs/repair";
 import { CATEGORIES, CHANNELS, CP_STATUS, CP_TONE, REPEAT_PER_QUARTER, SURVEY_QUESTIONS, VERDICTS, type CpStatus } from "@/modules/cs/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager, ListTabs } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, fmtTime, PageTitle } from "../_ui";
-
-const FILTERS: [CpFilter, string][] = [
-  ["open", "진행 중"],
-  ["warranty", "보증 수리(해당·일부)"],
-  ["closed", "종결"],
-  ["all", "전체"],
-];
 
 const prevYm = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
@@ -23,14 +19,14 @@ const nextYm = (ym: string) => {
 };
 
 /** 불만·보증 목록과 월간 집계(STD-06 7.3) */
-export default async function ComplaintsPage({ searchParams }: { searchParams: Promise<{ f?: string; ym?: string }> }) {
+export default async function ComplaintsPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
-  await requireUser();
+  const user = await requireUser();
   const db = await getDb();
   const today = seoulDate();
-  const f = (FILTERS.find(([k]) => k === q.f)?.[0] ?? "open") as CpFilter;
   const ym = q.ym && /^\d{4}-\d{2}$/.test(q.ym) ? q.ym : today.slice(0, 7);
-  const [rows, m] = await Promise.all([listComplaints(db, f), csMonthly(db, ym)]);
+  const [lr, m] = await Promise.all([runList(db, complaintsList, user, q), csMonthly(db, ym)]);
+  const rows = lr.rows;
   const tile = (label: string, value: React.ReactNode, sub?: string) => (
     <div className="rounded-md border border-[var(--line)] p-3">
       <p className="text-xs text-[var(--muted)]">{label}</p>
@@ -53,13 +49,10 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
       </PageTitle>
       <div className="grid gap-4 2xl:grid-cols-[3fr_2fr]">
         <Card title="불만 처리부" help={{ kind: "panel", id: "cp.list" }}>
-          <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
-            {FILTERS.map(([k, label]) => (
-              <Link key={k} href={`/complaints?f=${k}&ym=${ym}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
-                {label}
-              </Link>
-            ))}
+          <div className="mb-3">
+            <ListTabs r={lr} />
           </div>
+          <ListBar r={lr} bare />
           {rows.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -106,6 +99,7 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
           ) : (
             <Empty>해당하는 불만이 없습니다.</Empty>
           )}
+          <ListPager r={lr} />
         </Card>
 
         <Card
@@ -113,11 +107,11 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
           help={{ kind: "panel", id: "cp.monthly" }}
           actions={
             <span className="flex gap-2 text-sm">
-              <Link href={`/complaints?f=${f}&ym=${prevYm(ym)}`} className="text-[var(--accent)]">
+              <Link href={`/complaints${lr.qs({ ym: prevYm(ym) })}`} className="text-[var(--accent)]">
                 ← 전달
               </Link>
               {ym < today.slice(0, 7) && (
-                <Link href={`/complaints?f=${f}&ym=${nextYm(ym)}`} className="text-[var(--accent)]">
+                <Link href={`/complaints${lr.qs({ ym: nextYm(ym) })}`} className="text-[var(--accent)]">
                   다음 달 →
                 </Link>
               )}

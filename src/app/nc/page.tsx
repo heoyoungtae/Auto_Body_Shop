@@ -1,20 +1,28 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { listNc } from "@/modules/quality/nc";
+import { runList, type Q } from "@/modules/listq/core";
+import { ncList } from "@/modules/listq/defs/quality";
 import { NC_SOURCES, NC_STATUS, NC_TONE, type NcStatus } from "@/modules/quality/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, fmtTime, PageTitle } from "../_ui";
 
 /** 부적합·시정 조치 목록(F-Q-10) */
-export default async function NcListPage({ searchParams }: { searchParams: Promise<{ s?: string; src?: string }> }) {
+export default async function NcListPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
-  await requireUser();
+  const user = await requireUser();
+  // 예전 주소(?s=closed|all|openish)는 상태로 읽는다(지금 s 는 찾기 칸)
+  if (q.s === "closed" || q.s === "all" || q.s === "openish") {
+    q.st = q.s;
+    delete q.s;
+  }
   const db = await getDb();
-  const status = q.s === "closed" ? "closed" : q.s === "all" ? "all" : "openish";
-  const rows = await listNc(db, { status, source: q.src });
+  const status = q.st === "closed" ? "closed" : q.st === "all" ? "all" : "openish";
+  const lr = await runList(db, ncList, user, q);
+  const rows = lr.rows;
   const today = seoulDate();
-  const link = (s: string, src = q.src) => `/nc?s=${s}${src ? `&src=${src}` : ""}`;
+  const link = (s: string, src = q.src) => `/nc${lr.qs({ st: s === "openish" ? null : s, src: src || null })}`;
   return (
     <>
       <PageTitle
@@ -48,6 +56,7 @@ export default async function NcListPage({ searchParams }: { searchParams: Promi
             </Link>
           ))}
         </div>
+        <ListBar r={lr} bare />
         {rows.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -92,6 +101,7 @@ export default async function NcListPage({ searchParams }: { searchParams: Promi
         ) : (
           <Empty>{status === "openish" ? "진행 중인 부적합이 없습니다." : "보고서가 없습니다."}</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

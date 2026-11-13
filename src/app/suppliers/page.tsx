@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { suppliersList } from "@/modules/listq/defs/purchase";
 import { can } from "@/modules/auth/permissions";
 import { SUPPLIER_KINDS, SUPPLIER_STATUS, SUPPLIER_TONE, type SupplierStatus } from "@/modules/purchase/rules";
 import { listSuppliers, type SupplierFilter } from "@/modules/purchase/supplier";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, Notice, PageTitle } from "../_ui";
 
 const TABS: [SupplierFilter, string][] = [
@@ -14,12 +17,13 @@ const TABS: [SupplierFilter, string][] = [
 ];
 
 /** 협력업체 대장(F-07-01) */
-export default async function SuppliersPage({ searchParams }: { searchParams: Promise<{ f?: string; notice?: string }> }) {
+export default async function SuppliersPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "registered") as SupplierFilter;
-  const rows = await listSuppliers(db, f);
+  const lr = await runList(db, suppliersList, user, q);
+  const rows = lr.rows;
   return (
     <>
       <PageTitle
@@ -39,11 +43,12 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
       <Card title="협력업체 대장" help={{ kind: "panel", id: "sup.list" }}>
         <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
           {TABS.map(([k, label]) => (
-            <Link key={k} href={`/suppliers?f=${k}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+            <Link key={k} href={`/suppliers${lr.qs({ f: k === "registered" ? null : k })}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {rows.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -81,6 +86,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
         ) : (
           <Empty>{f === "registered" ? "등록된 협력업체가 없습니다. 후보 업체를 등록하고 평가하세요." : "해당하는 업체가 없습니다."}</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

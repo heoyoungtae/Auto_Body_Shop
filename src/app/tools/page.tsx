@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { toolsList } from "@/modules/listq/defs/work";
 import { can } from "@/modules/auth/permissions";
 import { TOOL_KEEP, TOOL_STATUS, TOOL_TONE, type ToolKeep, type ToolStatus } from "@/modules/equipment/rules";
 import { listTools, refillHref, toolStock, type ToolFilter } from "@/modules/equipment/tools";
@@ -8,6 +10,7 @@ import { HelpButton } from "../_help-drawer";
 import { SubmitButton } from "../_submit";
 import { toolAction } from "./actions";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, ErrorBox, fmtTime, Notice, PageTitle } from "../_ui";
 
 const TABS: [ToolFilter, string][] = [
@@ -21,13 +24,14 @@ const TABS: [ToolFilter, string][] = [
 ];
 
 /** 치공구 대장(F-08-08) */
-export default async function ToolsPage({ searchParams }: { searchParams: Promise<{ f?: string; notice?: string; error?: string }> }) {
+export default async function ToolsPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const manage = can(user, "equip.manage");
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "active") as ToolFilter;
-  const [{ list, names }, stock] = await Promise.all([listTools(db, user, f), toolStock(db)]);
+  const [{ names }, stock, lr] = await Promise.all([listTools(db, user, f), toolStock(db), runList(db, toolsList, user, q)]);
+  const list = lr.rows;
   const shortCount = stock.filter((s) => s.short > 0).length;
   const box = "h-9 w-20 rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-right text-sm";
   const nm = (u: string | null) => (u ? (names.get(u) ?? "-") : null);
@@ -63,11 +67,12 @@ export default async function ToolsPage({ searchParams }: { searchParams: Promis
       <Card title="치공구 대장(F-08-08)" help={{ kind: "panel", id: "tool.list" }}>
         <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
           {TABS.map(([k, label]) => (
-            <Link key={k} href={`/tools?f=${k}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+            <Link key={k} href={`/tools${lr.qs({ f: k === "active" ? null : k })}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {list.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -108,6 +113,7 @@ export default async function ToolsPage({ searchParams }: { searchParams: Promis
         ) : (
           <Empty>해당하는 치공구가 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
       {stock.length > 0 && (
         <div className="mt-4">

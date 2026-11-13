@@ -218,7 +218,7 @@ export async function removeOsPhoto(db: Db, actor: Actor, id: string, path: stri
 
 export type OsFilter = "open" | "done" | "all";
 
-export async function listOutsource(db: Db, filter: OsFilter = "open") {
+export async function listOutsource(db: Db, filter: OsFilter = "open", max = 300) {
   const rows = await db
     .select({ j: outsourceJob, supplierName: supplier.name, roDocNo: repairOrder.docNo, plateNo: vehicle.plateNo })
     .from(outsourceJob)
@@ -226,7 +226,7 @@ export async function listOutsource(db: Db, filter: OsFilter = "open") {
     .innerJoin(repairOrder, eq(repairOrder.id, outsourceJob.repairOrderId))
     .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
     .orderBy(desc(outsourceJob.createdAt))
-    .limit(300);
+    .limit(max);
   return rows.filter((r) => (filter === "all" ? true : filter === "open" ? !["accepted", "cancelled"].includes(r.j.status) : ["accepted", "cancelled"].includes(r.j.status)));
 }
 

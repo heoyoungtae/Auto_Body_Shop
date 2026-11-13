@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { stockList } from "@/modules/listq/defs/purchase";
 import { can } from "@/modules/auth/permissions";
 import { STOCK_KINDS, STOP_REASONS, suggestOrderQty, type StockKind, type StopReason } from "@/modules/purchase/rules";
 import { listStock, type StockFilter } from "@/modules/purchase/stock";
@@ -7,6 +9,7 @@ import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../_assist";
 import { CheckGroup } from "../_input";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { SubmitButton } from "../_submit";
 import { Badge, buttonClass, Card, Empty, ErrorBox, Notice, PageTitle } from "../_ui";
 import { stockAction } from "./actions";
@@ -23,12 +26,13 @@ const TABS: [StockFilter, string][] = [
 ];
 
 /** 재고(STD-07 7절): 품목·수량·안전 재고·유효기간, 미달 품목 발주 요청 */
-export default async function StockPage({ searchParams }: { searchParams: Promise<{ f?: string; notice?: string; error?: string }> }) {
+export default async function StockPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "all") as StockFilter;
-  const rows = await listStock(db, f);
+  const lr = await runList(db, stockList, user, q);
+  const rows = lr.rows;
   const low = f === "low" ? rows : await listStock(db, "low");
   const manage = can(user, "stock.manage");
   const today = seoulDate();
@@ -75,11 +79,12 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
         <Card title="재고 품목" help={{ kind: "panel", id: "stock.list" }}>
           <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
             {TABS.map(([k, label]) => (
-              <Link key={k} href={`/stock?f=${k}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+              <Link key={k} href={`/stock${lr.qs({ f: k === "all" ? null : k })}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
                 {label}
               </Link>
             ))}
           </div>
+          <ListBar r={lr} bare />
           {rows.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -140,6 +145,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
           ) : (
             <Empty>{f === "all" ? "등록된 재고 품목이 없습니다. 도료·소모품부터 등록하세요." : f === "stopped" ? "사용 중지한 품목이 없습니다." : "해당하는 품목이 없습니다."}</Empty>
           )}
+        <ListPager r={lr} />
         </Card>
       </div>
     </>

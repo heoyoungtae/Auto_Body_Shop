@@ -302,7 +302,7 @@ export async function getComplaint(db: Db, id: string, today = seoulDate()) {
 
 export type CpFilter = "open" | "warranty" | "closed" | "all";
 
-export async function listComplaints(db: Db, f: CpFilter = "open") {
+export async function listComplaints(db: Db, f: CpFilter = "open", max = 300) {
   const where = f === "open" ? ne(complaint.status, "closed") : f === "closed" ? eq(complaint.status, "closed") : f === "warranty" ? inArray(complaint.verdict, ["covered", "partial"]) : undefined;
   return db
     .select({ c: complaint, plateNo: vehicle.plateNo, customerName: customer.name })
@@ -311,7 +311,7 @@ export async function listComplaints(db: Db, f: CpFilter = "open") {
     .leftJoin(customer, eq(customer.id, complaint.customerId))
     .where(where)
     .orderBy(f === "closed" ? desc(complaint.closedAt) : desc(complaint.urgent), asc(complaint.receivedAt))
-    .limit(300);
+    .limit(max);
 }
 
 /** 수리 건에 걸린 불만 */

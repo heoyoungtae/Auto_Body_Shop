@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { outsourceList } from "@/modules/listq/defs/purchase";
 import { listOutsource, type OsFilter } from "@/modules/purchase/outsource";
 import { OS_STATUS, OS_TONE, OUT_TYPES, type OsStatus, type OutType } from "@/modules/purchase/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, Card, Empty, Notice, PageTitle } from "../_ui";
 
 const TABS: [OsFilter, string][] = [
@@ -13,12 +16,13 @@ const TABS: [OsFilter, string][] = [
 ];
 
 /** 외주 의뢰 목록(F-07-03) */
-export default async function OutsourceListPage({ searchParams }: { searchParams: Promise<{ f?: string; notice?: string }> }) {
+export default async function OutsourceListPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
-  await requireUser();
+  const user = await requireUser();
   const db = await getDb();
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "open") as OsFilter;
-  const rows = await listOutsource(db, f);
+  const lr = await runList(db, outsourceList, user, q);
+  const rows = lr.rows;
   const today = seoulDate();
   return (
     <>
@@ -29,11 +33,12 @@ export default async function OutsourceListPage({ searchParams }: { searchParams
       <Card title="외주 의뢰서" help={{ kind: "panel", id: "os.list" }}>
         <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
           {TABS.map(([k, label]) => (
-            <Link key={k} href={`/outsource?f=${k}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+            <Link key={k} href={`/outsource${lr.qs({ f: k === "open" ? null : k })}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {rows.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -75,6 +80,7 @@ export default async function OutsourceListPage({ searchParams }: { searchParams
         ) : (
           <Empty>해당하는 외주가 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

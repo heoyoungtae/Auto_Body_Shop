@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { chemicalsList } from "@/modules/listq/defs/quality";
 import { can } from "@/modules/auth/permissions";
 import { listChemicals } from "@/modules/safety/chemical";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import {
   Badge,
   buttonClass,
@@ -25,21 +28,13 @@ const TABS = [
 export default async function ChemicalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; notice?: string; error?: string }>;
+  searchParams: Promise<Q>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
   const f = TABS.find(([k]) => k === q.f)?.[0] ?? "all";
-  const rows = await listChemicals(await getDb(), true);
-  const list = rows.filter((r) =>
-    f === "retired"
-      ? !r.active
-      : r.active &&
-        (f === "all" ||
-          (f === "nomsds" && !r.msdsPath) ||
-          (f === "notrained" && !r.trainedOn) ||
-          (f === "flammable" && r.flammable)),
-  );
+  const lr = await runList(await getDb(), chemicalsList, user, q);
+  const list = lr.rows;
   return (
     <>
       <PageTitle
@@ -65,13 +60,14 @@ export default async function ChemicalsPage({
           {TABS.map(([k, label]) => (
             <Link
               key={k}
-              href={`/chemicals?f=${k}`}
+              href={`/chemicals${lr.qs({ f: k === "all" ? null : k })}`}
               className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}
             >
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {list.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -127,6 +123,7 @@ export default async function ChemicalsPage({
         ) : (
           <Empty>해당하는 물질이 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

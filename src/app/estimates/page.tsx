@@ -1,44 +1,32 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { listAllEstimates, type EstimateFilter } from "@/modules/repair/estimate-approval";
+import { runList, type Q } from "@/modules/listq/core";
+import { estimatesList } from "@/modules/listq/defs/repair";
 import { ESTIMATE_KIND, ESTIMATE_STATUS_LABEL } from "@/modules/repair/estimate-rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager, ListTabs } from "../_list-bar";
 import { Badge, Card, Empty, PageTitle, fmtTime } from "../_ui";
 
-const FILTERS: Record<EstimateFilter, string> = { open: "진행 중(작성~승인 대기)", answered: "고객 답 받음", all: "전체" };
 const TONE: Record<string, "neutral" | "ok" | "warn" | "danger" | "accent"> = { draft: "warn", review: "accent", approved: "accent", sent: "neutral", accepted: "ok", partial: "warn", declined: "danger" };
 
 /** 견적·고객 승인(STD-03): 모든 수리 건의 견적을 한곳에서 챙긴다 */
-export default async function EstimatesPage({ searchParams }: { searchParams: Promise<{ f?: string }> }) {
+export default async function EstimatesPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
-  await requireUser();
-  const f: EstimateFilter = q.f === "answered" || q.f === "all" ? q.f : "open";
-  const rows = await listAllEstimates(await getDb(), f);
+  const user = await requireUser();
+  const r = await runList(await getDb(), estimatesList, user, q);
+  const f = q.f ?? "open";
+  const rows = r.rows;
   const today = seoulDate();
   return (
     <>
       <PageTitle help="estimates" std="F-03-02 · STD-03" sub="견적서(법정 서식)를 쓰고, 검토·발급해 고객 승인을 받습니다.">
         견적·고객 승인
       </PageTitle>
-      <div className="mt-4">
-        <Card
-          title="견적"
-          help={{ kind: "panel", id: "estimates.list" }}
-          actions={
-            <span className="flex flex-wrap gap-3 text-sm">
-              {(Object.keys(FILTERS) as EstimateFilter[]).map((k) =>
-                k === f ? (
-                  <b key={k}>{FILTERS[k]}</b>
-                ) : (
-                  <Link key={k} href={k === "open" ? "/estimates" : `/estimates?f=${k}`} className="text-[var(--accent)]">
-                    {FILTERS[k]}
-                  </Link>
-                ),
-              )}
-            </span>
-          }
-        >
+      <div className="mt-4 space-y-3">
+        <ListTabs r={r} />
+        <ListBar r={r} />
+        <Card title="견적" help={{ kind: "panel", id: "estimates.list" }}>
           {rows.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -52,7 +40,8 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {rows.map((r) => {
+                  {rows.map((x) => {
+                    const r = x;
                     const expired = r.status === "sent" && !!r.validUntil && r.validUntil < today;
                     return (
                       <tr key={r.id}>
@@ -83,8 +72,9 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
               </table>
             </div>
           ) : (
-            <Empty>{f === "open" ? "진행 중인 견적이 없습니다. 견적은 수리 건에서 진단을 확인한 뒤 '견적 쓰기'로 만듭니다." : "견적이 없습니다."}</Empty>
+            <Empty>{r.loaded && !r.count ? "조건에 맞는 견적이 없습니다." : f === "open" ? "진행 중인 견적이 없습니다. 견적은 수리 건에서 진단을 확인한 뒤 '견적 쓰기'로 만듭니다." : "견적이 없습니다."}</Empty>
           )}
+          <ListPager r={r} />
         </Card>
       </div>
     </>

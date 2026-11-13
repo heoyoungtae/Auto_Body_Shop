@@ -429,7 +429,7 @@ export async function cancelOrder(db: Db, actor: Actor, id: string, reason: stri
 
 export type OrderFilter = "open" | "review" | "receiving" | "done" | "all";
 
-export async function listOrders(db: Db, filter: OrderFilter = "open") {
+export async function listOrders(db: Db, filter: OrderFilter = "open", max = 300) {
   const rows = await db
     .select({ o: purchaseOrder, supplierName: supplier.name, roDocNo: repairOrder.docNo, plateNo: vehicle.plateNo })
     .from(purchaseOrder)
@@ -437,7 +437,7 @@ export async function listOrders(db: Db, filter: OrderFilter = "open") {
     .leftJoin(repairOrder, eq(repairOrder.id, purchaseOrder.repairOrderId))
     .leftJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
     .orderBy(desc(purchaseOrder.createdAt))
-    .limit(300);
+    .limit(max);
   const st = (s: string) =>
     filter === "all" ? true : filter === "open" ? !["received", "cancelled"].includes(s) : filter === "review" ? s === "draft" || s === "review" || s === "approved" : filter === "receiving" ? s === "sent" || s === "partial" : s === "received" || s === "cancelled";
   return rows.filter((r) => st(r.o.status));

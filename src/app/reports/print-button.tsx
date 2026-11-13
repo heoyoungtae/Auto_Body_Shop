@@ -1,8 +1,12 @@
 "use client";
 import { Button } from "../_ui";
 
-export function PrintButton() {
-  return <Button onClick={() => window.print()}>인쇄</Button>;
+export function PrintButton({ variant = "primary" }: { variant?: "primary" | "secondary" }) {
+  return (
+    <Button variant={variant} onClick={() => window.print()}>
+      인쇄
+    </Button>
+  );
 }
 
 /**
