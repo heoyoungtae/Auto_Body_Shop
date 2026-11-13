@@ -9,10 +9,12 @@ import {
 import {
   customerReceivables,
   insurerReceivables,
-  listPayments,
   unrecordedDeliveries,
 } from "@/modules/money/receipts";
-import { addDays, seoulDate } from "@/modules/platform/time";
+import { runList, type Q } from "@/modules/listq/core";
+import { paymentsList } from "@/modules/listq/defs/money";
+import { ListBar, ListPager } from "../_list-bar";
+import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
 import {
   Badge,
@@ -30,7 +32,7 @@ const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 export default async function MoneyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ notice?: string; error?: string }>;
+  searchParams: Promise<Q>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
@@ -46,8 +48,9 @@ export default async function MoneyPage({
     unrecordedDeliveries(db),
     customerReceivables(db),
     insurerReceivables(db),
-    listPayments(db, addDays(today, -6), today),
+    runList(db, paymentsList, user, q),
   ]);
+  const lr = pays;
   const carSum = car.reduce((a, r) => a + r.remain, 0);
   const iarSum = iar.reduce((a, r) => a + r.claimedWon, 0);
   return (
@@ -191,12 +194,13 @@ export default async function MoneyPage({
       </Card>
 
       <Card
-        title="최근 7일 입금 전표"
+        title="입금 전표"
         help={{ kind: "panel", id: "money.recent" }}
       >
-        {pays.length ? (
+        <ListBar r={lr} bare />
+        {lr.rows.length ? (
           <ul className="divide-y divide-[var(--line)] text-sm">
-            {pays.map(({ p, roDocNo, plateNo, customerName }) => (
+            {lr.rows.map(({ p, roDocNo, plateNo, customerName }) => (
               <li key={p.id} className="flex flex-wrap items-center gap-2 py-2">
                 <span className="text-xs text-[var(--muted)]">
                   {p.receivedOn}
@@ -239,8 +243,9 @@ export default async function MoneyPage({
             ))}
           </ul>
         ) : (
-          <Empty>최근 7일 입금 전표가 없습니다.</Empty>
+          <Empty>조건에 맞는 입금 전표가 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

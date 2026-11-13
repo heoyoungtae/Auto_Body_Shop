@@ -38,3 +38,31 @@ export const expensesList: ListDef<Exp> = {
     { label: "작성자", get: (r) => r.byName },
   ],
 };
+
+// ── 입금 전표 ──
+import { listPayments } from "@/modules/money/receipts";
+import { PAY_IN_METHODS, RECEIPT_KINDS } from "@/modules/money/rules";
+type Pay = Awaited<ReturnType<typeof listPayments>>[number];
+export const paymentsList: ListDef<Pay> = {
+  key: "payments",
+  title: "입금 전표",
+  href: "/money",
+  allowed: (u) => can(u, "money.view"),
+  load: (db, _u, _q, lq) => listPayments(db, lq.from ?? "2000-01-01", lq.to ?? "9999-12-31"),
+  preset: "month",
+  dates: [{ key: "received", label: "입금일", get: (r) => r.p.receivedOn }],
+  text: (r) => [r.p.docNo, r.roDocNo, r.customerName, r.plateNo, r.p.payerName, r.p.note],
+  cols: [
+    { label: "전표 번호", get: (r) => r.p.docNo },
+    { label: "입금일", get: (r) => r.p.receivedOn },
+    { label: "수리 건", get: (r) => r.roDocNo },
+    { label: "고객", get: (r) => r.customerName },
+    { label: "차량번호", get: (r) => r.plateNo },
+    { label: "낸 곳", get: (r) => (r.p.payer === "insurer" ? `보험사 ${r.p.payerName ?? ""}` : "고객") },
+    { label: "금액", get: (r) => r.p.amountWon, sum: true, unit: "원" },
+    { label: "결제 수단", get: (r) => PAY_IN_METHODS[r.p.method as keyof typeof PAY_IN_METHODS] },
+    { label: "증빙", get: (r) => RECEIPT_KINDS[r.p.receiptKind as keyof typeof RECEIPT_KINDS] },
+    { label: "취소 전표", get: (r) => (r.p.reversalOf ? "예" : "") },
+    { label: "메모", get: (r) => r.p.note },
+  ],
+};

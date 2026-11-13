@@ -39,7 +39,7 @@ export type ListDef<R> = {
   href: string;
   allowed: (u: Who) => boolean;
   /** 거르기 전 전체 줄. q = 화면 주소의 조건(상태 탭 f 등) */
-  load: (db: Db, u: Who, q: Q) => Promise<R[]>;
+  load: (db: Db, u: Who, q: Q, lq: LQ) => Promise<R[]>;
   /** 기간을 어느 날짜로 거를지(첫째가 기본) */
   dates: { key: string; label: string; get: (r: R) => DateLike }[];
   /** 찾기 칸이 뒤지는 글자들. 없으면 load 가 q.s 로 직접 찾는다(전화 끝 4자리 등) */
@@ -170,8 +170,9 @@ export class ListAccessError extends Error {}
 /** 목록 하나 실행(권한 → 불러오기 → 거르기) */
 export async function runList<R>(db: Db, def: ListDef<R>, u: Who, q: Q, today = seoulDate()): Promise<ListResult<R>> {
   if (!def.allowed(u)) throw new ListAccessError("이 목록을 볼 권한이 없습니다");
-  const rows = await def.load(db, u, q);
-  return applyLQ(def, rows, parseLQ(q, def, today), q);
+  const lq = parseLQ(q, def, today);
+  const rows = await def.load(db, u, q, lq);
+  return applyLQ(def, rows, lq, q);
 }
 
 /** 엑셀(CSV, BOM): 제목·조건 줄 → 머리줄 → 줄 → 합계 */

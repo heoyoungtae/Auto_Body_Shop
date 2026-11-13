@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { ordersList } from "@/modules/listq/defs/purchase";
 import { can } from "@/modules/auth/permissions";
 import { listOrders, type OrderFilter } from "@/modules/purchase/order";
 import { PO_KINDS, PO_STATUS, PO_TONE, type PoKind, type PoStatus } from "@/modules/purchase/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, fmtTime, Notice, PageTitle } from "../_ui";
 
 const TABS: [OrderFilter, string][] = [
@@ -16,12 +19,13 @@ const TABS: [OrderFilter, string][] = [
 ];
 
 /** 발주서 목록(F-07-02) */
-export default async function PurchasesPage({ searchParams }: { searchParams: Promise<{ f?: string; notice?: string }> }) {
+export default async function PurchasesPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? "open") as OrderFilter;
-  const rows = await listOrders(db, f);
+  const lr = await runList(db, ordersList, user, q);
+  const rows = lr.rows;
   const today = seoulDate();
   return (
     <>
@@ -42,11 +46,12 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
       <Card title="발주서" help={{ kind: "panel", id: "po.list" }}>
         <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
           {TABS.map(([k, label]) => (
-            <Link key={k} href={`/purchases?f=${k}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+            <Link key={k} href={`/purchases${lr.qs({ f: k === "open" ? null : k })}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {rows.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -92,6 +97,7 @@ export default async function PurchasesPage({ searchParams }: { searchParams: Pr
         ) : (
           <Empty>해당하는 발주서가 없습니다.</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );

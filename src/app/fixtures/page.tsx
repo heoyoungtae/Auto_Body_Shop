@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { runList, type Q } from "@/modules/listq/core";
+import { fixturesList } from "@/modules/listq/defs/purchase";
 import { can } from "@/modules/auth/permissions";
 import { listFixtures, type FixtureFilter } from "@/modules/purchase/fixture";
 import { FX_CATEGORIES, FX_STATUS, FX_TONE, type FxCategory, type FxStatus } from "@/modules/purchase/rules";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, Notice, PageTitle } from "../_ui";
 
 const TABS: [FixtureFilter, string][] = [
@@ -16,14 +19,15 @@ const TABS: [FixtureFilter, string][] = [
 ];
 
 /** 비품 대장(F-07-04) */
-export default async function FixturesPage({ searchParams }: { searchParams: Promise<{ f?: string; holder?: string; notice?: string }> }) {
+export default async function FixturesPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const manage = can(user, "fixture.manage");
   const f = (TABS.find(([k]) => k === q.f)?.[0] ?? (manage ? "active" : "mine")) as FixtureFilter;
-  const rows = await listFixtures(db, user, f, q.holder);
-  const total = rows.reduce((s, r) => s + r.f.priceWon, 0);
+  const lr = await runList(db, fixturesList, user, q);
+  const rows = lr.rows;
+  const total = lr.all.reduce((s, r) => s + r.f.priceWon, 0);
   return (
     <>
       <PageTitle
@@ -51,11 +55,12 @@ export default async function FixturesPage({ searchParams }: { searchParams: Pro
       <Card title="비품 대장" help={{ kind: "panel", id: "fx.list" }}>
         <div className="mb-3 flex flex-wrap gap-1.5 text-sm">
           {TABS.filter(([k]) => manage || k === "mine").map(([k, label]) => (
-            <Link key={k} href={`/fixtures?f=${k}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
+            <Link key={k} href={`/fixtures${lr.qs({ f: k === "active" ? null : k })}`} className={`rounded-full border px-3 py-1 ${f === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)]"}`}>
               {label}
             </Link>
           ))}
         </div>
+          <ListBar r={lr} bare />
         {rows.length ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -98,12 +103,13 @@ export default async function FixturesPage({ searchParams }: { searchParams: Pro
               </tbody>
             </table>
             <p className="mt-2 text-right text-xs text-[var(--muted)]">
-              {rows.length}개 · 구입 가격 합계 {total.toLocaleString("ko-KR")}원
+              {lr.count}개 · 구입 가격 합계 {total.toLocaleString("ko-KR")}원
             </p>
           </div>
         ) : (
           <Empty>{f === "mine" ? "나에게 지급된 비품이 없습니다." : "해당하는 비품이 없습니다."}</Empty>
         )}
+        <ListPager r={lr} />
       </Card>
     </>
   );
