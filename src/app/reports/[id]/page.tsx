@@ -13,6 +13,8 @@ import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, PageTitle } from "../../_ui";
 import { PeriodBar, periodHref } from "../_period-bar";
 import { PdfButton, PrintButton } from "../print-button";
+import { familyReports, FamilyTabs, ReportTabs, visibleTabs } from "../_tabs";
+import { RememberTab } from "../_remember-tab";
 
 /** 표 칸 숫자: 단위는 머리줄에 있으므로 숫자만(원·건·대는 정수, 나머지는 소수 한 자리) */
 const fmtNum = (v: number, unit?: string) => (unit === "원" || unit === "건" || unit === "대" || !unit ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString("ko-KR");
@@ -41,13 +43,15 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
         <PageTitle help="reports.view" sub={def.desc} std={def.std}>
           {def.no}. {def.title}
         </PageTitle>
+        <FamilyTabs tabs={visibleTabs(user)} current={def.family} link />
+        <ReportTabs list={familyReports(user, def.family)} current={def.id} qs="" />
         <Card title="아직 만들지 않은 보고서" help={{ kind: "panel", id: "rep.phase" }}>
           <p className="text-sm">
             <Badge tone="neutral">{def.phase}</Badge> {def.wait}
           </p>
           <p className="mt-2 text-sm">
-            <Link href="/reports" className="text-[var(--accent)]">
-              보고서 목록으로
+            <Link href={`/reports?tab=${def.family}`} className="text-[var(--accent)]">
+              {fam.label} 목록으로
             </Link>
           </p>
         </Card>
@@ -69,7 +73,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
         std={def.std}
         actions={
           <div className="no-print flex flex-wrap gap-2">
-            <Link href="/reports" className={buttonClass("secondary")}>
+            <Link href={`/reports?tab=${def.family}`} className={buttonClass("secondary")}>
               보고서 목록
             </Link>
             <PrintButton />
@@ -86,6 +90,9 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
         {def.no}. {def.title}
       </PageTitle>
 
+      <FamilyTabs tabs={visibleTabs(user)} current={def.family} link />
+      <RememberTab tab={def.family} />
+      <ReportTabs list={familyReports(user, def.family)} current={def.id} qs={periodHref("", p, cmp, p.kind === "custom" ? undefined : p.from)} />
       <PeriodBar base={base} p={p} q={r.q} cmp={cmp} today={today} />
 
       {r.body.kpis.length > 0 && (
