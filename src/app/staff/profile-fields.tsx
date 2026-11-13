@@ -1,16 +1,20 @@
 // 근로자 명부 칸(직원 등록·명부 고치기가 같이 쓴다)
 import type { ProfileView } from "@/modules/staff/service";
 import { CONTRACT_KIND, GENDER } from "@/modules/staff/rules";
+import { JOBS, ROSTER_JOBS, jobByTitle } from "@/modules/staff/job-rules";
 import { AddressField, DateField, SelectField, TextAreaField, TextField } from "../_input";
 
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
 export function ProfileFields({ p, isNew = false }: { p: ProfileView | null; isNew?: boolean }) {
   const lic = p?.licenses ?? [];
+  // 종사 업무는 직무기술서(F-11-08)에서 고른다. 예전에 직접 적은 값은 그대로 남겨 두고 고를 수 있게 한다
+  const jobOpts = ROSTER_JOBS.map((k) => ({ value: JOBS[k].title, label: JOBS[k].title }));
+  if (p?.job && !jobByTitle(p.job)) jobOpts.push({ value: p.job, label: `${p.job} (직무기술서에 없음 — 바꿔 주세요)` });
   return (
     <>
       <div className="grid gap-3 md:grid-cols-3">
-        <TextField help="staff.job" name="job" required defaultValue={p?.job ?? ""} />
+        <SelectField help="staff.job" name="job" required defaultValue={p?.job ?? ""} placeholder="직무 고르기" options={jobOpts} />
         <DateField help="staff.hiredOn" name="hiredOn" required defaultValue={p?.hiredOn ?? ""} quick={["today"]} />
         <SelectField help="staff.contractKind" name="contractKind" required defaultValue={p?.contractKind || "regular"} options={opts(CONTRACT_KIND)} />
         <DateField help="staff.contractEnd" name="contractEnd" defaultValue={p?.contractEnd ?? ""} quick={["nextMonth"]} />

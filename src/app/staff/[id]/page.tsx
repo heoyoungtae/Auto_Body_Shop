@@ -16,6 +16,9 @@ import { saveProfileAction } from "../actions";
 import { ProfileFields } from "../profile-fields";
 import { TempPasswordBox } from "../temp-password";
 import { StaffFilesCard } from "../staff-files";
+import { jobByTitle } from "@/modules/staff/job-rules";
+import { canSeeOnboarding, onboardingOf } from "@/modules/staff/onboarding";
+import { OnboardingItems } from "../onboarding/items";
 
 
 /** 근로자 명부 한 사람(F-11-01): 대표·회계가 적고, 본인은 본다 */
@@ -35,7 +38,8 @@ export default async function StaffProfilePage({ params, searchParams }: { param
       </>
     );
   }
-  const [p, hist, docs] = await Promise.all([getProfile(db, user, id), competencyHistory(db, id), listDocuments(db, user, id)]);
+  const [p, hist, docs, onboard] = await Promise.all([getProfile(db, user, id), competencyHistory(db, id), listDocuments(db, user, id), onboardingOf(db, id)]);
+  const jobKey = jobByTitle(p?.job);
   const has = (k: DocKind) => docs.some((r) => r.d.kind === k && r.d.status !== "cancelled");
   const today = seoulDate();
   const lic = p?.licenses ?? [];
@@ -62,7 +66,15 @@ export default async function StaffProfilePage({ params, searchParams }: { param
           ) : p ? (
             <dl className="grid gap-x-6 gap-y-2 text-sm md:grid-cols-[8rem_1fr]">
               <dt className="text-[var(--muted)]">종사 업무</dt>
-              <dd>{p.job}</dd>
+              <dd>
+                {jobKey ? (
+                  <Link href={`/jobs/${jobKey}`} className="text-[var(--accent)]">
+                    {p.job} 직무기술서
+                  </Link>
+                ) : (
+                  p.job
+                )}
+              </dd>
               <dt className="text-[var(--muted)]">입사일</dt>
               <dd>{p.hiredOn}</dd>
               <dt className="text-[var(--muted)]">계약 형태</dt>
@@ -123,6 +135,17 @@ export default async function StaffProfilePage({ params, searchParams }: { param
             </>
           )}
         </Card>
+
+        {onboard && (full || canSeeOnboarding(user) || user.id === id) && (
+          <Card title="신입 오리엔테이션(F-11-09)" help={{ kind: "panel", id: "staff.onboarding" }} actions={<Badge tone={onboard.done === onboard.total ? "ok" : "neutral"}>{onboard.done}/{onboard.total}</Badge>}>
+            <OnboardingItems items={onboard.items} today={today} />
+            {jobKey && (
+              <Link href={`/jobs/${jobKey}`} className="mt-3 inline-block text-sm font-semibold text-[var(--accent)]">
+                {p?.job} 직무기술서 →
+              </Link>
+            )}
+          </Card>
+        )}
 
         <StaffFilesCard db={db} user={user} userId={id} licenses={lic.map((l) => l.name).filter(Boolean)} leftOn={p?.leftOn} />
 

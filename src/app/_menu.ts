@@ -256,6 +256,13 @@ export const MENU: MenuGroup[] = [
         std: "STD-11.2",
       },
       { label: "계약서·서약서", href: "/staff/docs", std: "F-11-01·F-13-02" },
+      { label: "직무기술서", href: "/jobs", std: "F-11-08" },
+      {
+        label: "신입 오리엔테이션",
+        perm: ["staff.roster", "staff.assess"],
+        href: "/staff/onboarding",
+        std: "F-11-09",
+      },
       { label: "취업규칙", href: "/rules", std: "STD-11" },
       { label: "출퇴근·근태", href: "/attendance", std: "STD-11.4" },
       { label: "교육 훈련", href: "/training", std: "STD-11.2" },

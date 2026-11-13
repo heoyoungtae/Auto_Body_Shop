@@ -18,6 +18,8 @@ import { storeFile } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
 import { checkContract, DOC_KINDS, LEAVE_CHECKS, PLEDGE_VERSION, type ContractTerms, type DocKind, type PledgeTerms } from "./contract-rules";
 import { RULES_VERSION } from "./work-rules-text";
+import { concurrentJobs, contractDuties, JD_VERSION, jobByTitle, JOBS } from "./job-rules";
+import { rolesOf } from "@/modules/approval/line";
 import { getProfile } from "./service";
 
 export class DocError extends UserError {}
@@ -59,7 +61,7 @@ export async function contractDefaults(db: Db, actor: Actor, userId: string): Pr
       startOn: p?.hiredOn || seoulDate(),
       endOn: kind === "fixed" ? p?.contractEnd ?? "" : "",
       place: shop.name ? `${shop.name} 사업장(${shopAddressLine(shop)})` : "",
-      duties: p?.job ?? "",
+      duties: contractDuties(p?.job ?? ""),
       workDays: cal.workdays.filter((d) => d !== (off.includes(0) ? 0 : off[0] ?? 0)),
       workStart: "09:00",
       workEnd: "18:00",
@@ -224,6 +226,54 @@ export async function rulesAckStatus(db: Db) {
   const rows = await db.select({ userId: staffDocument.userId, terms: staffDocument.terms, signedAt: staffDocument.signedAt }).from(staffDocument).where(and(eq(staffDocument.kind, "rules_ack"), eq(staffDocument.status, "signed")));
   const out = new Map<string, Date>();
   for (const r of rows) if ((r.terms as PledgeTerms).version === RULES_VERSION && r.signedAt) out.set(r.userId, r.signedAt);
+  return out;
+}
+
+/** 이 사람이 확인할 직무(명부의 주 직무 + 계정 역할로 정해지는 겸직) */
+export async function myJobTitles(db: Db, userId: string): Promise<string[]> {
+  const [p] = await db.select({ job: staffProfile.job }).from(staffProfile).where(eq(staffProfile.userId, userId));
+  const main = jobByTitle(p?.job);
+  const roles = await rolesOf(db, userId);
+  return [...(main ? [JOBS[main].title] : []), ...concurrentJobs(roles, main).map((k) => JOBS[k].title)];
+}
+
+/** 직무기술서 확인: 직원이 /jobs 에서 읽고 서명한다. 판(JD_VERSION)이나 직무가 바뀌면 다시 받는다 */
+export async function ackJobDesc(db: Db, actor: Actor, png: Uint8Array | null, now = new Date()) {
+  const titles = await myJobTitles(db, actor.id);
+  if (!titles.length) throw new DocError("근로자 명부에 직무가 정해지지 않았습니다. 회계 담당이나 대표에게 직무를 정해 달라고 하세요");
+  const same = (t: PledgeTerms) => t.version === JD_VERSION && (t.job ?? []).join("|") === titles.join("|");
+  const mine = await db
+    .select()
+    .from(staffDocument)
+    .where(and(eq(staffDocument.userId, actor.id), eq(staffDocument.kind, "jd_ack"), ne(staffDocument.status, "cancelled")));
+  if (mine.some((d) => d.status === "signed" && same(d.terms as PledgeTerms))) throw new DocError("이 판의 직무기술서는 이미 확인했습니다");
+  // 직무나 판이 바뀐 서명 대기 확인서는 취소하고 새로 만든다
+  for (const d of mine.filter((d) => d.status === "ready" && !same(d.terms as PledgeTerms)))
+    await db.update(staffDocument).set({ status: "cancelled", updatedAt: now }).where(eq(staffDocument.id, d.id));
+  let doc = mine.find((d) => d.status === "ready" && same(d.terms as PledgeTerms));
+  if (!doc) {
+    [doc] = await db
+      .insert(staffDocument)
+      .values({ docNo: await nextDocNo(db, "PL", now), userId: actor.id, kind: "jd_ack", status: "ready", terms: { version: JD_VERSION, job: titles }, createdBy: actor.id, createdAt: now, updatedAt: now })
+      .returning();
+  }
+  await signDocument(db, actor, doc.id, png, now);
+  return doc;
+}
+
+/** 직원별 직무기술서 확인(지금 판). 값은 확인한 날과 확인한 직무 */
+export async function jdAckStatus(db: Db) {
+  // 늦게 만든 확인서가 뒤에 오게(같은 시각 서명이어도 마지막 것이 남는다)
+  const rows = await db
+    .select({ userId: staffDocument.userId, terms: staffDocument.terms, signedAt: staffDocument.signedAt })
+    .from(staffDocument)
+    .where(and(eq(staffDocument.kind, "jd_ack"), eq(staffDocument.status, "signed")))
+    .orderBy(staffDocument.signedAt, staffDocument.createdAt, staffDocument.docNo);
+  const out = new Map<string, { at: Date; job: string[] }>();
+  for (const r of rows) {
+    const t = r.terms as PledgeTerms;
+    if (t.version === JD_VERSION && r.signedAt) out.set(r.userId, { at: r.signedAt, job: t.job ?? [] });
+  }
   return out;
 }
 

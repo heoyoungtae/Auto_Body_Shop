@@ -7,6 +7,7 @@ export const DOC_KINDS = {
   pledge_join: { label: "정보보호·비밀유지 서약서", form: "F-13-02" },
   pledge_leave: { label: "퇴직 비밀유지 확인서", form: "F-13-03" },
   rules_ack: { label: "취업규칙 확인서", form: "HR-RULES" },
+  jd_ack: { label: "직무기술서 확인서", form: "F-11-08" },
 } as const;
 export type DocKind = keyof typeof DOC_KINDS;
 export const isDocKind = (s: string): s is DocKind => s in DOC_KINDS;
@@ -50,7 +51,10 @@ export type ContractTerms = {
   annualText?: string;
 };
 
-export type PledgeTerms = { version: string; leftOn?: string; checks?: string[]; note?: string };
+/** job: 직무기술서 확인서에 담는 직무 이름들(주 직무 + 겸직) */
+export type PledgeTerms = { version: string; leftOn?: string; checks?: string[]; note?: string; job?: string[] };
+
+export const JD_ACK_TEXT = "본인은 맡은 직무의 직무기술서(목적·주요 업무·자격·역량·견제 장치와 앱에서 하는 일)를 읽었고, 그 내용대로 일하겠습니다. 궁금한 점은 공장장이나 대표에게 물어 설명을 들었습니다.";
 
 export const RULES_ACK_TEXT = "본인은 회사 취업규칙을 받아 끝까지 읽었고, 그 내용을 확인하였습니다. 궁금한 점은 회계 담당이나 대표에게 물어 설명을 들었습니다.";
 

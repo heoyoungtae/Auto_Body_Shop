@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { seoulDate } from "@/modules/platform/time";
-import { CONTRACT_TYPES, DOC_KINDS, DOC_STATUS, fmtDays, INSURANCES, LEAVE_CHECKS, LEAVE_PLEDGE_TEXT, PAY_METHODS, PAY_TYPES, PLEDGE_JOIN_ITEMS, RULES_ACK_TEXT, WEEKDAYS, type ContractTerms, type DocKind, type PledgeTerms } from "@/modules/staff/contract-rules";
+import { CONTRACT_TYPES, DOC_KINDS, DOC_STATUS, fmtDays, INSURANCES, LEAVE_CHECKS, LEAVE_PLEDGE_TEXT, PAY_METHODS, PAY_TYPES, JD_ACK_TEXT, PLEDGE_JOIN_ITEMS, RULES_ACK_TEXT, WEEKDAYS, type ContractTerms, type DocKind, type PledgeTerms } from "@/modules/staff/contract-rules";
 import { canWriteDocs, DELIVER_HOW, getDocument, type Party } from "@/modules/staff/documents";
 import { AssistForm } from "../../../_assist";
 import { CheckGroup, SelectField, TextAreaField, TextField } from "../../../_input";
@@ -275,6 +275,16 @@ function PledgeBody({ kind, t, party, shop, date, signPath }: { kind: DocKind; t
             확인한 취업규칙: {shop.name || "회사"} 취업규칙({t.version}) —{" "}
             <Link href="/rules" className="text-[var(--accent)] print:text-black">
               앱 › 취업규칙
+            </Link>
+          </p>
+        </>
+      ) : kind === "jd_ack" ? (
+        <>
+          <p>{JD_ACK_TEXT}</p>
+          <p className="mt-2">
+            확인한 직무기술서: {(t.job ?? []).join(", ")} ({t.version}) —{" "}
+            <Link href="/jobs" className="text-[var(--accent)] print:text-black">
+              앱 › 직무기술서
             </Link>
           </p>
         </>
