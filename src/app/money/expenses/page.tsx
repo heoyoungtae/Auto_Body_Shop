@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
-import { listExpenses, type ExpenseFilter } from "@/modules/money/expense";
+import { runList, type Q } from "@/modules/listq/core";
+import { expensesList } from "@/modules/listq/defs/money";
 import {
   EVIDENCE_KINDS,
   EXP_CATEGORIES,
   EXP_STATUS,
 } from "@/modules/money/rules";
 import { requireUser } from "../../_lib/session";
+import { ListBar, ListPager, ListTabs } from "../../_list-bar";
 import {
   Badge,
   buttonClass,
@@ -19,12 +21,6 @@ import {
 } from "../../_ui";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
-const TABS: { f: ExpenseFilter; label: string }[] = [
-  { f: "open", label: "진행 중" },
-  { f: "unpaid", label: "지급할 것" },
-  { f: "paid", label: "지급함" },
-  { f: "all", label: "전체" },
-];
 const TONE = {
   draft: "neutral",
   in_progress: "warn",
@@ -38,7 +34,7 @@ const TONE = {
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string; notice?: string; error?: string }>;
+  searchParams: Promise<Q>;
 }) {
   const q = await searchParams;
   const user = await requireUser();
@@ -48,8 +44,8 @@ export default async function ExpensesPage({
         지출 결의는 공장장·회계 담당·대표가 봅니다.
       </p>
     );
-  const f = (TABS.some((t) => t.f === q.f) ? q.f : "open") as ExpenseFilter;
-  const list = await listExpenses(await getDb(), f);
+  const r = await runList(await getDb(), expensesList, user, q);
+  const list = r.rows;
   return (
     <>
       <PageTitle
@@ -72,17 +68,8 @@ export default async function ExpensesPage({
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <Link
-            key={t.f}
-            href={`/money/expenses?f=${t.f}`}
-            className={buttonClass(t.f === f ? "primary" : "secondary")}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </div>
+      <ListTabs r={r} />
+      <ListBar r={r} />
       <Card title="결의서" help={{ kind: "panel", id: "exp.list" }}>
         {list.length ? (
           <ul className="divide-y divide-[var(--line)] text-sm">
@@ -116,8 +103,9 @@ export default async function ExpensesPage({
             ))}
           </ul>
         ) : (
-          <Empty>결의서가 없습니다.</Empty>
+          <Empty>조건에 맞는 결의서가 없습니다.</Empty>
         )}
+        <ListPager r={r} />
       </Card>
     </>
   );
