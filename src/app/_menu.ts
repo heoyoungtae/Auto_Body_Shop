@@ -17,7 +17,7 @@ export type MenuGroup = { id: string; label: string; items: MenuItem[] };
 /** 메뉴 맨 위에 따로 두는 화면(묶음 밖) */
 export const TOP: MenuItem[] = [
   { label: "대시보드", href: "/home" },
-  { label: "통계·보고서", href: "/reports", perm: ["report.view"] },
+  { label: "통계·보고서", href: "/reports", perm: ["report.mgmt", "report.acct", "report.quality", "report.stock", "report.people", "report.safety"] },
 ];
 
 export const MENU: MenuGroup[] = [

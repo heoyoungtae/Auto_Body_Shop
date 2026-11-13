@@ -1,16 +1,14 @@
-// 통계·보고서: 기간(일·주·월·분기·연) 계산, 권한별 영역, 앞 기간 비교, CSV, 대시보드 경영 현황
+// 통계·보고서: 기간(일·주·월·분기·반기·연·직접 지정) 계산, 보고서별 권한, 앞 기간·작년 비교, CSV, 대시보드 경영 현황
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
 import { fiveSMonthly, wasteLog } from "@/db/schema";
 import { moneyPanel, safetyPanel } from "@/modules/dashboard/service";
-import { periodOf, recentPeriods } from "@/modules/report/period";
-import {
-  buildReport,
-  buildTrend,
-  delta,
-  kpiPanel,
-  reportCsv,
-} from "@/modules/report/service";
+import type { Role } from "@/modules/auth/roles";
+import { PANEL_HELP } from "@/modules/help/panels";
+import { canAnyReport, canReport, REPORTS } from "@/modules/report/catalog";
+import { customPeriod, periodOf, prevPeriod, recentPeriods, yoyPeriod } from "@/modules/report/period";
+import { BUILDERS, runCsv, runReport } from "@/modules/report/run";
+import { delta, kpiPanel } from "@/modules/report/service";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -47,6 +45,12 @@ describe("기간", () => {
       to: "2026-12-31",
       next: "2027-01-01",
     });
+    expect(periodOf("half", "2026-08-15")).toMatchObject({ from: "2026-07-01", to: "2026-12-31", label: "2026년 하반기" });
+    const c = customPeriod("2026-03-10", "2026-03-01");
+    expect(c).toMatchObject({ kind: "custom", from: "2026-03-01", to: "2026-03-10", days: 10 });
+    expect(prevPeriod(c)).toMatchObject({ from: "2026-02-19", to: "2026-02-28" });
+    expect(yoyPeriod(periodOf("month", "2024-02-10"))).toMatchObject({ from: "2023-02-01", to: "2023-02-28" });
+    expect(yoyPeriod(customPeriod("2024-02-29", "2024-03-05"))).toMatchObject({ from: "2023-02-28", to: "2023-03-05" });
     const r = recentPeriods(periodOf("month", "2026-02-10"), 3);
     expect(r.map((p) => p.from)).toEqual([
       "2025-12-01",
@@ -81,53 +85,58 @@ describe("보고서", () => {
     const quality = { id: ids.quality, roles: ["quality" as const] };
     const p = periodOf("month", "2026-10-15");
     const now = new Date("2026-11-11T03:00:00Z");
-    const a = await buildReport(db, owner, p, now);
-    expect(a.map((s) => s.id)).toEqual([
-      "ops",
-      "money",
-      "quality",
-      "customer",
-      "field",
-      "safety",
-    ]);
-    const q = await buildReport(db, quality, p, now);
-    expect(q.map((s) => s.id)).not.toContain("money");
-    const fiveS = a
-      .find((s) => s.id === "quality")!
-      .metrics.find((m) => m.key === "fiveS")!;
+    const qr = await runReport(db, owner, "quality", p, "prev", now);
+    const fiveS = qr.body.kpis.find((m) => m.key === "fiveS")!;
     expect(fiveS).toMatchObject({ value: 90, prev: 80, ok: true });
     expect(delta(fiveS)).toEqual({ text: "▲ 10점", tone: "ok" });
-    const waste = a
-      .find((s) => s.id === "safety")!
-      .metrics.find((m) => m.key === "wasteGen")!;
+    const sf = await runReport(db, owner, "safety", p, "prev", now);
+    const waste = sf.body.kpis.find((m) => m.key === "wasteGen")!;
     expect(waste).toMatchObject({ value: 12.5, prev: 0 });
     expect(delta(waste)?.tone).toBe("danger");
+    expect(sf.body.tables.find((t) => t.key === "waste")!.rows[0].cells).toEqual(["폐도료·폐시너·세척 용제", 12.5, 0]);
     // 분기로 보면 두 달 평균
-    const qq = await buildReport(
-      db,
-      owner,
-      periodOf("quarter", "2026-10-15"),
-      now,
-    );
-    expect(
-      qq
-        .find((s) => s.id === "quality")!
-        .metrics.find((m) => m.key === "fiveS")!.value,
-    ).toBe(90);
-    const csv = reportCsv(p, a);
-    expect(csv.startsWith("﻿기간,영역,항목")).toBe(true);
+    const qq = await runReport(db, owner, "quality", periodOf("quarter", "2026-10-15"), "prev", now);
+    expect(qq.body.kpis.find((m) => m.key === "fiveS")!.value).toBe(90);
+    // 작년 같은 기간과 비교
+    const yoy = await runReport(db, owner, "quality", p, "yoy", now);
+    expect(yoy.q).toMatchObject({ from: "2025-10-01", to: "2025-10-31" });
+    // 권한: 품질 담당은 회계·경영 보고서를 못 본다
+    await expect(runReport(db, quality, "ar", p, "prev", now)).rejects.toThrow("권한");
+    await expect(runReport(db, quality, "summary", p, "prev", now)).rejects.toThrow("권한");
+    await expect(runReport(db, owner, "pl", p, "prev", now)).rejects.toThrow("아직");
+    expect((await runReport(db, quality, "rework", p, "prev", now)).body.kpis.length).toBeGreaterThan(0);
+    const csv = runCsv(qr);
+    expect(csv.startsWith("\uFEFF14. 품질 월보")).toBe(true);
     expect(csv).toContain("3정5S 점수");
-    const t = await buildTrend(db, owner, p);
-    expect(t.labels).toHaveLength(12);
-    expect(t.series.map((s) => s.key)).toEqual([
-      "sales",
-      "consults",
-      "intake",
-      "delivered",
-    ]);
-    expect(
-      (await buildTrend(db, quality, p)).series.map((s) => s.key),
-    ).not.toContain("sales");
+    const sm = await runReport(db, owner, "summary", p, "prev", now);
+    expect(sm.trend!.labels).toHaveLength(12);
+    expect(sm.trend!.series.map((s) => s.key)).toEqual(["sales", "intake", "delivered"]);
+  });
+
+  it("만든 보고서는 모두 계산되고, 표 칸 수가 머리줄과 같다", async () => {
+    const owner = { id: ids.owner, roles: ["owner" as const] };
+    const now = new Date("2026-11-11T03:00:00Z");
+    for (const r of REPORTS.filter((x) => !x.phase)) {
+      expect(BUILDERS[r.id], r.id).toBeTruthy();
+      expect(PANEL_HELP[`rep.r.${r.id}` as keyof typeof PANEL_HELP], `rep.r.${r.id} 도움말`).toBeTruthy();
+      for (const p of [periodOf("month", "2026-11-11"), customPeriod("2026-01-01", "2026-11-11")]) {
+        const out = await runReport(db, owner, r.id, p, "yoy", now);
+        for (const t of out.body.tables) for (const row of t.rows) expect(row.cells.length, `${r.id}/${t.key}`).toBe(t.cols.length);
+      }
+    }
+  });
+
+  it("보고서별 열람 권한(사용자 결정 2026-11-13)", () => {
+    const see = (roles: Role[]) => REPORTS.filter((r) => canReport({ roles }, r)).map((r) => r.id);
+    expect(see(["technician"])).toEqual([]);
+    expect(canAnyReport({ roles: ["advisor"] })).toBe(false);
+    expect(see(["accounting"])).toEqual(expect.arrayContaining(["ar", "ap", "vat", "pl", "stock", "purchase"]));
+    expect(see(["accounting"])).not.toContain("summary");
+    expect(see(["quality"])).toEqual(["quality", "rework", "customer", "review"]);
+    expect(see(["safety"])).toEqual(["safety", "equipment"]);
+    expect(see(["plant_manager"])).not.toContain("ar");
+    expect(see(["plant_manager"])).toContain("people");
+    expect(see(["owner"])).toHaveLength(REPORTS.length);
   });
 
   it("대시보드 경영 현황·매출·안전 패널", async () => {

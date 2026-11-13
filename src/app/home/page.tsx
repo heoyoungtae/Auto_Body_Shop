@@ -17,6 +17,7 @@ import {
   todayInfo,
   type PanelId,
 } from "@/modules/dashboard/service";
+import { canAnyReport } from "@/modules/report/catalog";
 import { kpiPanel } from "@/modules/report/service";
 import { workBoard, workTodos } from "@/modules/repair/work";
 import { INC_KIND } from "@/modules/safety/rules";
@@ -137,8 +138,8 @@ export default async function HomePage({
         title={`경영 현황 · ${Number(kpi.today.slice(5, 7))}월 1일~오늘`}
         help={{ kind: "panel", id: "dash.kpi" }}
         actions={
-          can(user, "report.view") ? (
-            <More href="/reports">보고서</More>
+          can(user, "report.mgmt") ? (
+            <More href="/reports/summary">보고서</More>
           ) : undefined
         }
       >
@@ -517,7 +518,7 @@ export default async function HomePage({
             </span>
           )}
         </p>
-        {can(user, "report.view") && (
+        {canAnyReport(user) && (
           <p className="mt-1 text-xs">
             <Link href="/reports" className="text-[var(--accent)]">
               기간별 통계·보고서

@@ -352,12 +352,42 @@ export const PERMS = {
     roles: ["owner", "plant_manager"],
     note: "자기 업무일지는 누구나 봄. 이 권한이 있으면 다른 직원 일지와 직원별 요약을 봄",
   },
-  "report.view": {
+  "report.mgmt": {
     area: "경영",
-    label: "통계·보고서(일·주·월·분기·연) 보기",
+    label: "경영보고서(경영 요약·영업 실적·매출 분석·생산성) 보기",
     std: "STD-Q Q.10",
-    roles: ["owner", "plant_manager", "quality", "accounting"],
-    note: "매출·수금 영역은 '청구·수납·미수 보기' 권한이 있어야 보임",
+    roles: ["owner", "plant_manager"],
+    note: "통계·보고서 센터에는 내가 볼 수 있는 보고서만 보임(사용자 결정 2026-11-13)",
+  },
+  "report.acct": {
+    area: "경영",
+    label: "회계보고서(채권·채무·부가세, 앞으로 재무제표·현금흐름) 보기",
+    std: "STD-12",
+    roles: ["owner", "accounting"],
+  },
+  "report.quality": {
+    area: "경영",
+    label: "품질보고서(품질 월보·재작업·고객 만족·경영검토 자료) 보기",
+    std: "STD-Q Q.9",
+    roles: ["owner", "plant_manager", "quality"],
+  },
+  "report.stock": {
+    area: "경영",
+    label: "재고·구매보고서 보기",
+    std: "STD-07",
+    roles: ["owner", "plant_manager", "accounting"],
+  },
+  "report.people": {
+    area: "경영",
+    label: "인력·근태·교육 보고서(인건비 포함) 보기",
+    std: "STD-11",
+    roles: ["owner", "plant_manager"],
+  },
+  "report.safety": {
+    area: "경영",
+    label: "안전·환경·설비 보고서 보기",
+    std: "STD-08·09·10",
+    roles: ["owner", "plant_manager", "safety"],
   },
   "training.manage": {
     area: "인사",

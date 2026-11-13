@@ -3838,6 +3838,16 @@ export const FIELD_HELP = {
   "journal.safetyNote": { label: "있었던 일", hint: "'있음'이면 꼭: 언제·어디서·무엇", example: "오후 3시 B 구역, 샌딩 중 장갑 찢어져 손가락 긁힘" },
   "journal.addendum": { label: "덧붙일 말", hint: "마감 뒤 더할 것. 앞 내용은 고치지 않습니다", example: "고객이 저녁에 전화해 출고를 금요일로 미룸" },
   "journal.returnNote": { label: "보완 요청 사유", hint: "보완 요청할 때만", example: "앱 밖에서 한 일의 시간을 적어 주세요" },
+  "rep.from": {
+    label: "시작일",
+    hint: "보고서를 볼 기간의 첫날",
+    detail: "끝일과 함께 넣으면 그 사이를 봅니다(예: 개업일부터 오늘까지). 거꾸로 넣으면 앞뒤를 바꿔 봅니다. 최대 5년입니다.",
+  },
+  "rep.to": {
+    label: "끝일",
+    hint: "보고서를 볼 기간의 마지막 날",
+    detail: "비교 기간은 바로 앞 같은 일 수(앞 기간) 또는 한 해 전 같은 날짜(작년 같은 기간)입니다.",
+  },
   "rep.at": {
     label: "보고 날짜",
     hint: "이 날이 들어 있는 기간(일·주·월·분기·연)을 봅니다",
