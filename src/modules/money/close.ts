@@ -582,6 +582,11 @@ export async function decideMonth(
     entityId: ym,
     after: ok ? null : { note: note.trim() },
   });
+  // 마감 때 보고서 저장(보고서 센터 5단계). 보고서 모듈이 이 모듈을 쓰므로 여기서 불러온다
+  if (ok) {
+    const { saveMonthSnapshots } = await import("@/modules/report/snapshot");
+    await saveMonthSnapshots(db, actor.id, ym, now);
+  }
   if (m.preparedBy && m.preparedBy !== actor.id)
     await notifyUser(
       db,

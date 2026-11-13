@@ -55,6 +55,16 @@ export const FORMS = {
       },
     ],
   },
+  // 월간 경영보고서(보고서 센터 5단계): 회계 담당이 그 달 핵심 숫자를 묶어 올리고 대표가 승인한다(대표가 올리면 본인 결재)
+  "MGMT-M": {
+    code: "MGMT-M",
+    name: "월간 경영보고서",
+    prefix: "MR",
+    steps: [
+      { kind: "draft", label: "작성", assignees: ["drafter"] },
+      { kind: "approve", label: "승인", assignees: ["owner"] },
+    ],
+  },
 } satisfies Record<string, FormDef>;
 
 export type FormCode = keyof typeof FORMS;

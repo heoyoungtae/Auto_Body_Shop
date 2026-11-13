@@ -10,6 +10,7 @@ import { equipmentReport, people, purchase, safety } from "./reports-ops";
 import { customer, quality, review, rework } from "./reports-quality";
 import { stock, stockledger, turnover } from "./reports-stock";
 import { bsReport, cashflow, funds, ledger, plReport } from "./reports-books";
+import { budgetReport } from "./reports-plan";
 import type { Unit } from "./service";
 
 export const BUILDERS: Record<string, Builder> = {
@@ -17,6 +18,7 @@ export const BUILDERS: Record<string, Builder> = {
   sales,
   revenue,
   productivity,
+  budget: budgetReport,
   pl: plReport,
   bs: bsReport,
   cashflow,

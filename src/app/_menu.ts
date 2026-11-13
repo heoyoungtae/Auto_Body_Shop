@@ -318,6 +318,18 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
+        label: "연간 예산",
+        perm: ["money.close_month"],
+        href: "/money/budget",
+        std: "STD-12",
+      },
+      {
+        label: "월간 경영보고서",
+        perm: ["money.close_month"],
+        href: "/reports/monthly",
+        std: "STD-Q Q.10",
+      },
+      {
         label: "마감",
         perm: ["money.close_day", "money.close_month"],
         href: "/money/close",

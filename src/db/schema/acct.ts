@@ -1,7 +1,7 @@
 // 회계 기반(보고서 센터 4단계): 개업일 기초 잔액과 자금 전표.
 // 분개는 저장하지 않는다. 정비명세서·입금 전표·지출 결의·외상·급여·감가상각·재고 움직임에서 그때그때 만든다(modules/acct/journal.ts).
 // 그 밖의 돈(자본금·대출·이자·세금 납부·대표 인출 등)만 자금 전표로 적는다. 전표는 고치지 않고 취소 전표(reversalOf)로 지운다.
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { bankTx } from "./bank";
 import { appUser, createdAt, id } from "./platform";
 
@@ -42,4 +42,48 @@ export const fundSlip = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("fund_slip_no_uq").on(t.docNo), index("fund_slip_on_idx").on(t.on)],
+);
+
+/** 연간 예산(보고서 센터 5단계): 달별·묶음별 금액. key 는 modules/acct/budget.ts BUDGET_ROWS. 연초에 대표가 적고 달별로 고칠 수 있다 */
+export const budgetLine = pgTable(
+  "budget_line",
+  {
+    id: id(),
+    /** 연월(2027-01) */
+    ym: text("ym").notNull(),
+    key: text("key").notNull(),
+    won: integer("won").notNull(),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("budget_line_uq").on(t.ym, t.key)],
+);
+
+/** 월 마감 승인 때 저장한 그 달 보고서(숫자 줄·표). 나중에 전표가 바뀌어도 마감 때 숫자를 다시 본다 */
+export const reportSnapshot = pgTable(
+  "report_snapshot",
+  {
+    id: id(),
+    ym: text("ym").notNull(),
+    reportId: text("report_id").notNull(),
+    body: jsonb("body").notNull(),
+    savedBy: uuid("saved_by").references(() => appUser.id),
+    savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("report_snapshot_uq").on(t.ym, t.reportId)],
+);
+
+/** 월간 경영보고서(MR): 그 달 핵심 숫자를 묶어 대표 결재. sections 는 올릴 때 숫자 그대로(결재받은 숫자가 바뀌지 않게) */
+export const mgmtReport = pgTable(
+  "mgmt_report",
+  {
+    id: id(),
+    ym: text("ym").notNull(),
+    approvalDocId: uuid("approval_doc_id").notNull(),
+    sections: jsonb("sections").notNull(),
+    comment: text("comment"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("mgmt_report_ym_idx").on(t.ym)],
 );
