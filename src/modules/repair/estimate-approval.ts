@@ -174,7 +174,7 @@ const OPEN_STATUSES = ["draft", "review", "approved", "sent"] as const;
 const ANSWERED = ["accepted", "partial", "declined"] as const;
 
 /** 견적 목록(견적·고객 승인 화면). open=작성~승인 대기, answered=고객 답 받음 */
-export async function listAllEstimates(db: Db, filter: EstimateFilter = "open") {
+export async function listAllEstimates(db: Db, filter: EstimateFilter = "open", max = 300) {
   const where = filter === "open" ? inArray(estimate.status, [...OPEN_STATUSES]) : filter === "answered" ? inArray(estimate.status, [...ANSWERED]) : ne(estimate.status, "void");
   return db
     .select({
@@ -189,6 +189,7 @@ export async function listAllEstimates(db: Db, filter: EstimateFilter = "open") 
       sentAt: estimate.approvalSentAt,
       sentOk: estimate.approvalSentOk,
       approvedAt: estimate.approvedAt,
+      createdAt: estimate.createdAt,
       roId: repairOrder.id,
       roNo: repairOrder.docNo,
       customerName: customer.name,
@@ -201,5 +202,5 @@ export async function listAllEstimates(db: Db, filter: EstimateFilter = "open") 
     .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
     .where(where)
     .orderBy(desc(estimate.createdAt))
-    .limit(300);
+    .limit(max);
 }

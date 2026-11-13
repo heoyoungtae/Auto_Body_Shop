@@ -1,15 +1,20 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { recentCustomers, searchCustomers } from "@/modules/customer/service";
+import { runList, type Q } from "@/modules/listq/core";
+import { customersList } from "@/modules/listq/defs/repair";
 import { RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
 import { requireUser } from "../_lib/session";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Empty, PageTitle } from "../_ui";
 
-export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const { q } = await searchParams;
-  await requireUser();
+export default async function CustomersPage({ searchParams }: { searchParams: Promise<Q> }) {
+  const sp = await searchParams;
+  if (sp.q && !sp.s) sp.s = sp.q; // 예전 주소(?q=)
+  const user = await requireUser();
   const db = await getDb();
-  const rows = q?.trim() ? await searchCustomers(db, q, 100) : await recentCustomers(db, 50);
+  const r = await runList(db, customersList, user, sp);
+  const q = r.lq.s;
+  const rows = r.rows;
   return (
     <>
       <PageTitle
@@ -23,11 +28,9 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       >
         고객·차량
       </PageTitle>
-      <form method="get" className="mb-3 flex gap-2">
-        <input type="search" name="q" defaultValue={q} placeholder="전화번호, 끝 4자리, 차량번호, 이름" aria-label="고객 찾기" className="h-11 min-w-0 flex-1 rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3" />
-        <button className={buttonClass("secondary")}>찾기</button>
-      </form>
-      <p className="mb-2 text-xs text-[var(--muted)]">{q ? `'${q}' 찾은 결과 ${rows.length}명` : "최근에 상담·수정한 고객 50명"}</p>
+      <div className="mb-3">
+        <ListBar r={r} unitLabel="명" />
+      </div>
       {rows.length ? (
         <ul className="divide-y divide-[var(--line)] rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm">
           {rows.map((c) => (
@@ -55,8 +58,9 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           ))}
         </ul>
       ) : (
-        <Empty action={<Link href="/consults/new" className={buttonClass()}>새 상담</Link>}>{q ? "찾은 고객이 없습니다." : "아직 고객이 없습니다. 첫 상담을 적으면 고객과 차량이 함께 등록됩니다."}</Empty>
+        <Empty action={<Link href="/consults/new" className={buttonClass()}>새 상담</Link>}>{q || r.loaded ? "조건에 맞는 고객이 없습니다." : "아직 고객이 없습니다. 첫 상담을 적으면 고객과 차량이 함께 등록됩니다."}</Empty>
       )}
+      <ListPager r={r} />
     </>
   );
 }

@@ -42,12 +42,14 @@ export type ListDef<R> = {
   load: (db: Db, u: Who, q: Q) => Promise<R[]>;
   /** 기간을 어느 날짜로 거를지(첫째가 기본) */
   dates: { key: string; label: string; get: (r: R) => DateLike }[];
-  /** 찾기 칸이 뒤지는 글자들 */
-  text: (r: R) => (string | number | null | undefined)[];
+  /** 찾기 칸이 뒤지는 글자들. 없으면 load 가 q.s 로 직접 찾는다(전화 끝 4자리 등) */
+  text?: (r: R) => (string | number | null | undefined)[];
   /** 엑셀 칸(합계 줄은 sum 칸) */
   cols: ListCol<R>[];
   /** 주소에 남겨 엑셀·쪽 넘김에 그대로 넘길 다른 조건 이름(상태 탭 등) */
   keep?: string[];
+  /** 찾기 칸 안내(예: 이름·전화 끝 4자리·차량번호) */
+  searchHint?: string;
   /** 기본 기간(없으면 전체) */
   preset?: Preset;
   /** 상태 탭(주소 이름 param, 첫째가 기본). 화면 단추·엑셀 조건 줄에 쓴다 */
@@ -73,7 +75,7 @@ export function isoOf(v: DateLike): string | null {
 /** 주소 조건 → 조회 조건(잘못된 값은 기본값으로) */
 export function parseLQ<R>(q: Q, def: ListDef<R>, today = seoulDate()): LQ {
   const preset: Preset = isPreset(q.p) ? q.p : (def.preset ?? "all");
-  const dateKey = def.dates.some((d) => d.key === q.d) ? q.d! : (def.dates[0]?.key ?? "");
+  const dateKey = def.dates.some((d) => d.key === q.dk) ? q.dk! : (def.dates[0]?.key ?? "");
   const s = (q.s ?? "").trim().slice(0, 60);
   const page = Math.max(1, Math.min(10000, Number.parseInt(q.pg ?? "1", 10) || 1));
   let from: string | null = null;
@@ -136,7 +138,7 @@ export function applyLQ<R>(def: ListDef<R>, rows: R[], lq: LQ, q: Q = {}): ListR
       if (lq.from && d < lq.from) return false;
       if (lq.to && d > lq.to) return false;
     }
-    if (needle && !def.text(r).some((t) => t != null && norm(String(t)).includes(needle))) return false;
+    if (needle && def.text && !def.text(r).some((t) => t != null && norm(String(t)).includes(needle))) return false;
     return true;
   });
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
@@ -152,7 +154,7 @@ export function applyLQ<R>(def: ListDef<R>, rows: R[], lq: LQ, q: Q = {}): ListR
     if (lq.from) base.from = lq.from;
     if (lq.to) base.to = lq.to;
   }
-  if (def.dates.length > 1 && lq.dateKey !== def.dates[0].key) base.d = lq.dateKey;
+  if (def.dates.length > 1 && lq.dateKey !== def.dates[0].key) base.dk = lq.dateKey;
   if (lq.s) base.s = lq.s;
   const qs = (over: Record<string, string | number | null> = {}) => {
     const m = new Map(Object.entries(base));

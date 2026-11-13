@@ -4,7 +4,7 @@
 import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, consultation, customer, repairOrder, roDamage, roPhoto, vehicle } from "@/db/schema";
+import { appUser, consultation, customer, repairOrder, repairStatement, roDamage, roPhoto, vehicle } from "@/db/schema";
 import type { Role } from "@/modules/auth/roles";
 import { notifyRole } from "@/modules/platform/notify";
 import { changeConsent, consentState, saveVehicle } from "@/modules/customer/service";
@@ -257,6 +257,7 @@ export async function listRepairs(db: Db, filter: "open" | "intake" | "checked" 
       consultId: repairOrder.consultationId,
       photos: sql<number>`(select count(*)::int from ${roPhoto} where ${roPhoto.repairOrderId} = ${repairOrder.id})`,
       damages: sql<number>`(select count(*)::int from ${roDamage} where ${roDamage.repairOrderId} = ${repairOrder.id})`,
+      outAt: sql<Date | null>`(select max(${repairStatement.deliveredAt}) from ${repairStatement} where ${repairStatement.repairOrderId} = ${repairOrder.id})`.mapWith(repairStatement.deliveredAt),
     })
     .from(repairOrder)
     .innerJoin(customer, eq(customer.id, repairOrder.customerId))

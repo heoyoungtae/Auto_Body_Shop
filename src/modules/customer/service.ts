@@ -117,7 +117,7 @@ export async function recentCustomers(db: Db, limit = 50) {
 async function customerSummary(db: Db, c: typeof customer.$inferSelect) {
   const vehicles = await db.select().from(vehicle).where(eq(vehicle.customerId, c.id)).orderBy(desc(vehicle.updatedAt));
   const [last] = await db.select({ id: consultation.id, docNo: consultation.docNo, at: consultation.at, result: consultation.result }).from(consultation).where(eq(consultation.customerId, c.id)).orderBy(desc(consultation.at)).limit(1);
-  return { id: c.id, name: c.name, phone: c.phoneMasked, memo: c.memo, vehicles, consent: await consentState(db, c.id), last: last ?? null };
+  return { id: c.id, name: c.name, phone: c.phoneMasked, memo: c.memo, createdAt: c.createdAt, vehicles, consent: await consentState(db, c.id), last: last ?? null };
 }
 
 export async function getCustomer(db: Db, id: string) {
@@ -469,7 +469,7 @@ export async function markReplied(db: Db, actorId: string, id: string, now = new
 export type ConsultFilter = "active" | "reservations" | "due" | "all";
 
 /** 상담 목록. 표시: 회신 기한 지남, 재연락 날 됨, 오늘 예약 */
-export async function listConsultations(db: Db, filter: ConsultFilter, now = new Date(), q?: string, date?: string) {
+export async function listConsultations(db: Db, filter: ConsultFilter, now = new Date(), q?: string, date?: string, max = 200) {
   const today = seoulDate(now);
   const conds = [];
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) conds.push(eq(consultation.result, "reserved"), gte(consultation.reservedAt, seoulDateTime(date, "00:00")), lt(consultation.reservedAt, seoulDateTime(addDays(date, 1), "00:00")));
@@ -516,7 +516,7 @@ export async function listConsultations(db: Db, filter: ConsultFilter, now = new
     .leftJoin(appUser, eq(appUser.id, consultation.advisorId))
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(filter === "reservations" ? asc(consultation.reservedAt) : desc(consultation.at))
-    .limit(200);
+    .limit(max);
   return rows.map((r) => ({ ...r, flags: consultFlags(r, today) }));
 }
 

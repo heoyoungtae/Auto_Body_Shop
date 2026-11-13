@@ -23,14 +23,22 @@ function Hidden({ qs, omit }: { qs: string; omit: string[] }) {
   );
 }
 
-export function ListBar<R>({ r, unitLabel = "건" }: { r: ListResult<R>; unitLabel?: string }) {
+export function ListBar<R>({ r, unitLabel = "건", bare = false }: { r: ListResult<R>; unitLabel?: string; /** 이미 있는 패널 안에 넣을 때(테두리 없이) */ bare?: boolean }) {
   const { def, lq } = r;
   const base = def.href.split("?")[0];
   const dt = def.dates.find((d) => d.key === lq.dateKey);
   const csv = `/lists/${def.key}/csv${r.qs()}`;
   const filtered = lq.from || lq.to || lq.s;
+  const Wrap = ({ children }: { children: React.ReactNode }) =>
+    bare ? (
+      <div className="mb-3 border-b border-[var(--line)] pb-3">{children}</div>
+    ) : (
+      <Card title="조회" help={{ kind: "panel", id: "list.bar" }}>
+        {children}
+      </Card>
+    );
   return (
-    <Card title="조회" help={{ kind: "panel", id: "list.bar" }}>
+    <Wrap>
       <div className="no-print flex flex-wrap items-center gap-1">
         {(Object.keys(PRESETS) as Preset[])
           .filter((k) => k !== "custom" && (def.dates.length > 0 || k === "all"))
@@ -42,7 +50,7 @@ export function ListBar<R>({ r, unitLabel = "건" }: { r: ListResult<R>; unitLab
         {lq.preset === "custom" && <span className={buttonClass("primary")}>직접 지정</span>}
         <form method="get" action={base} className="ml-auto flex items-center gap-1" role="search">
           <Hidden qs={r.qs()} omit={["s"]} />
-          <input type="search" name="s" defaultValue={lq.s} placeholder="찾기(번호·이름·차량·업체 등)" aria-label={`${def.title} 찾기`} className="h-11 w-56 max-w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm" />
+          <input type="search" name="s" defaultValue={lq.s} placeholder={def.searchHint ?? "번호·이름·차량번호·업체 일부"} aria-label={`${def.title} 찾기`} className="h-11 w-56 max-w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm" />
           <Button type="submit" variant="secondary">
             찾기
           </Button>
@@ -54,8 +62,8 @@ export function ListBar<R>({ r, unitLabel = "건" }: { r: ListResult<R>; unitLab
           <div className="mt-2 flex flex-wrap items-end gap-4">
             {def.dates.length > 1 && (
               <form method="get" action={base} className="flex flex-wrap items-end gap-2">
-                <Hidden qs={r.qs()} omit={["d"]} />
-                <SelectField help="list.date" name="d" defaultValue={lq.dateKey} options={def.dates.map((d) => ({ value: d.key, label: d.label }))} />
+                <Hidden qs={r.qs()} omit={["dk"]} />
+                <SelectField help="list.date" name="dk" defaultValue={lq.dateKey} options={def.dates.map((d) => ({ value: d.key, label: d.label }))} />
                 <Button type="submit" variant="secondary">
                   이 날짜로 거르기
                 </Button>
@@ -92,7 +100,7 @@ export function ListBar<R>({ r, unitLabel = "건" }: { r: ListResult<R>; unitLab
           </a>
         </span>
       </div>
-    </Card>
+    </Wrap>
   );
 }
 

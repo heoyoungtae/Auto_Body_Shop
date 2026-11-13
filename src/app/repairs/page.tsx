@@ -4,7 +4,8 @@ import { getDb } from "@/db/runtime";
 import { intakePanel } from "@/modules/dashboard/service";
 import { listConsultations } from "@/modules/customer/service";
 import { INSURANCE_LABEL, seoulParts } from "@/modules/customer/rules";
-import { listRepairs } from "@/modules/repair/service";
+import { runList, type Q } from "@/modules/listq/core";
+import { repairsList } from "@/modules/listq/defs/repair";
 import { RO_STATUS_LABEL } from "@/modules/repair/rules";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
@@ -13,8 +14,9 @@ import { SubmitButton } from "../_submit";
 import { requireUser } from "../_lib/session";
 import { Badge, buttonClass, Card, Empty, ErrorBox, PageTitle, fmtTime } from "../_ui";
 import { startRepairAction } from "./actions";
+import { ListBar, ListPager, ListTabs } from "../_list-bar";
 
-export default async function RepairsPage({ searchParams }: { searchParams: Promise<{ error?: string; f?: string }> }) {
+export default async function RepairsPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
@@ -22,8 +24,8 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
   const today = seoulDate(now);
   const canWrite = can(user, "repair.write");
   const all = q.f === "all";
-  const qc = q.f === "qc";
-  const [panel, due, repairs, policy] = await Promise.all([intakePanel(db, now), listConsultations(db, "due", now), listRepairs(db, all ? "all" : qc ? "qc" : "open"), loadPolicy(db, today)]);
+  const [panel, due, r, policy] = await Promise.all([intakePanel(db, now), listConsultations(db, "due", now), runList(db, repairsList, user, q), loadPolicy(db, today)]);
+  const repairs = r.rows;
   const late = due.filter((c) => c.result === "reserved");
   const arrivals = [...late.map((c) => ({ ...c, tag: "late" as const })), ...panel.todayRows.map((c) => ({ ...c, tag: "today" as const })), ...panel.nextRows.map((c) => ({ ...c, tag: "next" as const }))];
   const minPhotos = Math.min(policy["intake.min_photos"], 8);
@@ -84,29 +86,11 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
           </Card>
         </div>
         <div className="xl:col-span-3">
-          <Card
-            title="수리 건"
-            help={{ kind: "panel", id: "repairs.list" }}
-            actions={
-              <span className="flex gap-3 text-sm">
-                {(qc || all) && (
-                  <Link href="/repairs" className="text-[var(--accent)]">
-                    진행 중
-                  </Link>
-                )}
-                {!qc && (
-                  <Link href="/repairs?f=qc" className="text-[var(--accent)]">
-                    검사·출고 대기만
-                  </Link>
-                )}
-                {!all && (
-                  <Link href="/repairs?f=all" className="text-[var(--accent)]">
-                    출고·취소 포함
-                  </Link>
-                )}
-              </span>
-            }
-          >
+          <div className="mb-3 space-y-3">
+            <ListTabs r={r} />
+            <ListBar r={r} />
+          </div>
+          <Card title="수리 건" help={{ kind: "panel", id: "repairs.list" }}>
             {repairs.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -153,8 +137,9 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
                 </table>
               </div>
             ) : (
-              <Empty>{all ? "수리 건이 없습니다." : "진행 중인 수리 건이 없습니다. 왼쪽 입고 예정에서 '입고 시작'을 누르면 생깁니다."}</Empty>
+              <Empty>{r.loaded && r.count === 0 ? "조건에 맞는 수리 건이 없습니다." : all ? "수리 건이 없습니다." : "진행 중인 수리 건이 없습니다. 왼쪽 입고 예정에서 '입고 시작'을 누르면 생깁니다."}</Empty>
             )}
+            <ListPager r={r} />
           </Card>
         </div>
       </div>
