@@ -365,6 +365,13 @@
       "when": 1794583592749,
       "tag": "0051_acct_books",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794586764293,
+      "tag": "0052_mgmt_budget",
+      "breakpoints": true
     }
   ]
 }

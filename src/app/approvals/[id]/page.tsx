@@ -30,6 +30,9 @@ import { ActForm } from "./act-form";
 import { actAction, cancelAction, resubmitAction } from "../actions";
 
 const FIELD_LABEL: Record<string, string> = {
+  ym: "달",
+  comment: "의견",
+  report: "핵심 숫자",
   target: "대상",
   policyKey: "정책값",
   delegationTask: "전결 업무",
@@ -287,6 +290,12 @@ export default async function ApprovalDetail({
               className={buttonClass()}
             >
               지출 결의서(증빙·지급) 보기
+            </Link>
+          )}
+
+          {doc.formCode === "MGMT-M" && typeof data.ym === "string" && (
+            <Link href={`/reports/monthly?ym=${data.ym}`} className={buttonClass()}>
+              월간 경영보고서 화면으로
             </Link>
           )}
 

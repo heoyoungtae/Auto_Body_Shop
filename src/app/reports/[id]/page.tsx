@@ -6,11 +6,12 @@ import { canReport, FAMILIES, reportById } from "@/modules/report/catalog";
 import { totalRow } from "@/modules/report/kit";
 import { COMPARE, isCompare, periodFromQuery, PERIOD_KINDS } from "@/modules/report/period";
 import { runReport } from "@/modules/report/run";
+import { getSnapshot } from "@/modules/report/snapshot";
 import { delta, fmtMetric } from "@/modules/report/service";
 import { seoulDate } from "@/modules/platform/time";
 import type { PanelHelpKey } from "@/modules/help/panels";
 import { requireUser } from "../../_lib/session";
-import { Badge, buttonClass, Card, PageTitle } from "../../_ui";
+import { Badge, buttonClass, Card, fmtTime, PageTitle } from "../../_ui";
 import { PeriodBar, periodHref } from "../_period-bar";
 import { PdfButton, PrintButton } from "../print-button";
 import { familyReports, FamilyTabs, ReportTabs, visibleTabs } from "../_tabs";
@@ -21,7 +22,7 @@ const fmtNum = (v: number, unit?: string) => (unit === "원" || unit === "건" |
 
 const toneCls = { danger: "text-[var(--danger)]", warn: "text-[var(--warn,#b45309)]", ok: "text-[var(--ok)]" } as const;
 
-export default async function ReportPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ k?: string; at?: string; from?: string; to?: string; c?: string; acct?: string }> }) {
+export default async function ReportPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ k?: string; at?: string; from?: string; to?: string; c?: string; acct?: string; saved?: string }> }) {
   const { id } = await params;
   const q = await searchParams;
   const user = await requireUser();
@@ -60,7 +61,15 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
   const today = seoulDate();
   const p = periodFromQuery(q, today);
   const cmp = q.c && isCompare(q.c) ? q.c : "prev";
-  const r = await runReport(await getDb(), user, id, p, cmp, undefined, { acct: q.acct });
+  const db = await getDb();
+  const r = await runReport(db, user, id, p, cmp, undefined, { acct: q.acct });
+  // 월 마감 승인 때 저장한 그 달 보고서(마감 저장본)
+  const snap = p.kind === "month" && !q.acct ? await getSnapshot(db, p.from.slice(0, 7), id) : null;
+  const showSaved = !!snap && q.saved === "1";
+  if (showSaved) {
+    r.body = { ...snap.body, trends: undefined };
+    r.trend = null;
+  }
   const base = `/reports/${id}`;
   const extra = q.acct ? `&acct=${encodeURIComponent(q.acct)}` : "";
   const csv = `${periodHref(`${base}/csv`, p, cmp, p.from)}${extra}`;
@@ -95,6 +104,28 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
       <RememberTab tab={def.family} />
       <ReportTabs list={familyReports(user, def.family)} current={def.id} qs={periodHref("", p, cmp, p.kind === "custom" ? undefined : p.from)} />
       <PeriodBar base={base} p={p} q={r.q} cmp={cmp} today={today} />
+
+      {snap && (
+        <Card title={showSaved ? "마감 저장본을 보는 중" : "마감 저장본 있음"} help={{ kind: "panel", id: "rep.saved" }}>
+          <p className="text-sm">
+            {showSaved ? (
+              <>
+                {fmtTime(snap.savedAt)} 월 마감 승인 때 저장한 숫자입니다. 추이 그래프는 없습니다.{" "}
+                <Link href={periodHref(base, p, cmp, p.from)} className="text-[var(--accent)]">
+                  지금 계산으로 보기
+                </Link>
+              </>
+            ) : (
+              <>
+                이 달은 월 마감 승인({fmtTime(snap.savedAt)}) 때 숫자를 저장해 두었습니다.{" "}
+                <Link href={`${periodHref(base, p, cmp, p.from)}&saved=1`} className="text-[var(--accent)]">
+                  마감 저장본 보기
+                </Link>
+              </>
+            )}
+          </p>
+        </Card>
+      )}
 
       {r.body.kpis.length > 0 && (
         <Card title="핵심 숫자" help={{ kind: "panel", id: `rep.r.${id}` as PanelHelpKey }}>

@@ -35,7 +35,7 @@ export const REPORTS: ReportDef[] = [
   R({ id: "sales", no: 2, family: "mgmt", title: "영업 실적", desc: "상담 → 예약 → 입고 → 출고 단계별 건수와 놓친 수, 유입 경로, 보험/자비", std: "STD-01~02" }),
   R({ id: "revenue", no: 3, family: "mgmt", title: "매출 분석", desc: "보험사별·수리 종류별·공임/부품 구성, 건당 매출", std: "STD-12" }),
   R({ id: "productivity", no: 4, family: "mgmt", title: "생산성·작업", desc: "기술자별·공정별 작업 시간과 표준 대비 효율, 수리 기간", std: "STD-04" }),
-  R({ id: "budget", no: 5, family: "mgmt", title: "손익분기·예산 대비", desc: "월 고정비, 손익분기 매출, 예산 대비 실적", std: "STD-12", phase: "5단계", wait: "연초 예산 입력과 손익계산서(4단계)가 있어야 합니다" }),
+  R({ id: "budget", no: 5, family: "mgmt", title: "손익분기·예산 대비", desc: "월 고정비, 손익분기 매출, 예산 대비 실적", std: "STD-12", perm: "report.acct" }),
   R({ id: "pl", no: 6, family: "acct", title: "손익계산서", desc: "매출 − 매출원가 − 판관비 = 영업이익, 월별·누계", std: "STD-12" }),
   R({ id: "bs", no: 7, family: "acct", title: "재무상태표", desc: "기준일의 자산·부채·자본", std: "STD-12" }),
   R({ id: "cashflow", no: 8, family: "acct", title: "현금흐름표", desc: "영업·투자·재무 활동별로 들어오고 나간 돈", std: "STD-12" }),
