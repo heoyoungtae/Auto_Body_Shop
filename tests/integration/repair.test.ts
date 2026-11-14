@@ -49,7 +49,8 @@ const intake = (o: Partial<IntakeInput> = {}): IntakeInput => ({
   fuelPct: 50,
   bodyNotes: ["알루미늄 패널", "모르는 값"],
   warningLights: "없음",
-  marks: [{ x: 100, y: 20, kind: "O", part: "?" }, { x: 30, y: 150, kind: "S" }, { x: 1, y: 1, kind: "Z" }],
+  // 예전 도면 좌표(x·y) 2개 + 새 전개도(부위·면·칸) 1개 + 버릴 것 2개
+  marks: [{ x: 100, y: 20, kind: "O", part: "?" }, { x: 30, y: 150, kind: "S" }, { x: 1, y: 1, kind: "Z" }, { part: "f_bumper", view: "front", cell: 6, kind: "O" }, { part: "nope", view: "top", cell: 1, kind: "D" }] as never,
   valuables: "",
   valuablesNone: true,
   devices: ["블랙박스"],
@@ -98,9 +99,10 @@ describe("접수·입고(STD-02)", () => {
     await saveIntake(db, ids.advisor, id, intake({ colorCode: "swp" }), now);
     let r = await getRepair(db, id);
     expect(r.bodyNotes).toEqual(["알루미늄 패널"]);
-    expect(r.marks.map((m) => [m.kind, m.part])).toEqual([
-      ["O", "f_bumper"],
-      ["S", "l_f_door"],
+    expect(r.marks).toEqual([
+      { kind: "O", part: "f_bumper", view: "top", cell: 4 },
+      { kind: "S", part: "l_f_door", view: "left", cell: 4 },
+      { kind: "O", part: "f_bumper", view: "front", cell: 6 },
     ]);
     expect(r.vehicle.mileage).toBe(45210);
     expect(r.vehicle.colorCode).toBe("SWP");
@@ -158,6 +160,8 @@ describe("접수·입고(STD-02)", () => {
     await signIntake(db, ids.advisor, id, { ...intake(), signaturePng: PNG, consentNow: false }, now);
     let r = await getRepair(db, id);
     expect(r.damages.map((d) => [d.part, d.method])).toEqual([["f_bumper", "pdr"]]);
+    // 같은 부위의 O 표시는 한 줄, 처음 찍은 면의 칸이 위치로 넘어온다
+    expect([r.damages[0].view, r.damages[0].cells]).toEqual(["top", [4]]);
     const line = r.damages[0];
     await expect(confirmDiagnosis(db, boss, id, "", now)).rejects.toThrow(/도막 두께/);
     await expect(confirmDiagnosis(db, tech, id, "", now)).rejects.toThrow(/공장장/);
@@ -165,8 +169,13 @@ describe("접수·입고(STD-02)", () => {
     const base = { id: line.id, part: "f_bumper", kind: "D", sizeCm: 15, depthMm: 4, paintLayer: "base", crease: true, broken: false, structural: false, filmPanel: [110, 250, 120], filmAdjacent: [100, 105, 98] };
     await expect(saveDamage(db, tech, id, { ...base, method: "replace" })).rejects.toThrow(/사유/);
     await saveDamage(db, tech, id, { ...base, method: "replace", methodReason: "고객이 교환 원함" });
-    await saveDamage(db, tech, id, { part: "l_f_door", kind: "S", sizeCm: 20, depthMm: null, paintLayer: "clear", crease: false, broken: false, structural: false, filmPanel: [], filmAdjacent: [] });
+    await saveDamage(db, tech, id, { part: "l_f_door", view: "left", cells: [8, 7, 99, 7], subPart: "도어 몰딩", kind: "S", sizeCm: 20, depthMm: null, paintLayer: "clear", crease: false, broken: false, structural: false, filmPanel: [], filmAdjacent: [] });
     r = await getRepair(db, id);
+    expect([r.damages[1].view, r.damages[1].cells, r.damages[1].subPart]).toEqual(["left", [7, 8], "도어 몰딩"]);
+    // 그 면에 없는 부위(앞모습의 왼쪽 앞도어)면 칸 없이 부위 전체
+    await saveDamage(db, tech, id, { id: r.damages[1].id, part: "l_f_door", view: "front", cells: [1], kind: "S", sizeCm: 20, depthMm: null, paintLayer: "clear", crease: false, broken: false, structural: false, filmPanel: [], filmAdjacent: [] });
+    r = await getRepair(db, id);
+    expect([r.damages[1].view, r.damages[1].cells, r.damages[1].subPart]).toEqual([null, [], null]);
     expect(r.damages.map((d) => [d.part, d.method, d.suggested])).toEqual([
       ["f_bumper", "replace", "partial"],
       ["l_f_door", "polish", "polish"],

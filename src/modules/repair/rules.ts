@@ -1,12 +1,13 @@
 // 입고 점검(F-02-01) 규칙 — 서버와 화면(저장 전 점검)이 같이 쓴다. 사내 표준서 STD-02 4절.
 // 화면에서도 불러오므로 DB 스키마를 가져오지 않는다(스키마가 여기 값을 쓴다).
+import { fromLegacy, isPart, isView, partLabel, shapeOf, viewsOf, type View } from "./body-map";
 
 /** 사진 자리: 8방향 + 계기판 + 도어 라벨(색상 코드) + 손상 근접·기타 */
 export const PHOTO_SLOTS = ["front", "front_left", "left", "rear_left", "rear", "rear_right", "right", "front_right", "dash", "label", "close", "other"] as const;
 export type PhotoSlot = (typeof PHOTO_SLOTS)[number];
 
-/** 차체 도면 표시: x·y 는 도면 좌표(가로 200 × 세로 400), kind O=수리 대상, D=찌그러짐, S=긁힘, C=깨짐·크랙, R=부식, W=휠 */
-export type BodyMark = { x: number; y: number; part: string; kind: "O" | "D" | "S" | "C" | "R" | "W"; note?: string };
+/** 입고 도면 표시: 부위·면·칸(0~8, body-map.ts), kind O=수리 대상, D=찌그러짐, S=긁힘, C=깨짐·크랙, R=부식, W=휠 */
+export type BodyMark = { part: string; view: View; cell: number; kind: "O" | "D" | "S" | "C" | "R" | "W"; note?: string };
 
 export const RO_STATUS_LABEL = {
   intake: "입고 점검 중",
@@ -53,44 +54,26 @@ export const MARK_KINDS = {
 export type MarkKind = keyof typeof MARK_KINDS;
 export const isMarkKind = (k: string): k is MarkKind => k in MARK_KINDS;
 
-/** 차체 도면의 부위(위에서 본 모습, 앞이 위). x·y·w·h 는 도면 좌표(가로 200 × 세로 400) */
-export const BODY_PARTS: { id: string; label: string; x: number; y: number; w: number; h: number; round?: boolean }[] = [
-  { id: "f_bumper", label: "앞범퍼", x: 40, y: 8, w: 120, h: 22 },
-  { id: "hood", label: "후드", x: 48, y: 32, w: 104, h: 70 },
-  { id: "windshield", label: "앞유리", x: 52, y: 104, w: 96, h: 30 },
-  { id: "roof", label: "지붕", x: 54, y: 136, w: 92, h: 120 },
-  { id: "rear_glass", label: "뒷유리", x: 52, y: 258, w: 96, h: 28 },
-  { id: "trunk", label: "트렁크·테일게이트", x: 48, y: 288, w: 104, h: 64 },
-  { id: "r_bumper", label: "뒷범퍼", x: 40, y: 354, w: 120, h: 22 },
-  { id: "l_f_fender", label: "왼쪽 앞펜더", x: 22, y: 34, w: 24, h: 74 },
-  { id: "l_f_door", label: "왼쪽 앞도어", x: 22, y: 110, w: 30, h: 82 },
-  { id: "l_r_door", label: "왼쪽 뒷도어", x: 22, y: 194, w: 30, h: 76 },
-  { id: "l_quarter", label: "왼쪽 뒤펜더(쿼터)", x: 22, y: 272, w: 24, h: 78 },
-  { id: "r_f_fender", label: "오른쪽 앞펜더", x: 154, y: 34, w: 24, h: 74 },
-  { id: "r_f_door", label: "오른쪽 앞도어", x: 148, y: 110, w: 30, h: 82 },
-  { id: "r_r_door", label: "오른쪽 뒷도어", x: 148, y: 194, w: 30, h: 76 },
-  { id: "r_quarter", label: "오른쪽 뒤펜더(쿼터)", x: 154, y: 272, w: 24, h: 78 },
-  { id: "l_mirror", label: "왼쪽 사이드미러", x: 4, y: 108, w: 16, h: 14, round: true },
-  { id: "r_mirror", label: "오른쪽 사이드미러", x: 180, y: 108, w: 16, h: 14, round: true },
-  { id: "l_f_wheel", label: "왼쪽 앞바퀴", x: 6, y: 52, w: 14, h: 40, round: true },
-  { id: "r_f_wheel", label: "오른쪽 앞바퀴", x: 180, y: 52, w: 14, h: 40, round: true },
-  { id: "l_r_wheel", label: "왼쪽 뒷바퀴", x: 6, y: 290, w: 14, h: 40, round: true },
-  { id: "r_r_wheel", label: "오른쪽 뒷바퀴", x: 180, y: 290, w: 14, h: 40, round: true },
-];
-export const partLabel = (id: string) => BODY_PARTS.find((p) => p.id === id)?.label ?? id;
+export { BODY_PARTS, partLabel, partName, isPart } from "./body-map";
 
-/** 도면 좌표 → 부위 */
-export function partAt(x: number, y: number): string | null {
-  const hit = BODY_PARTS.find((p) => x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h);
-  return hit?.id ?? null;
-}
-
+/** 입고 도면 표시를 걸러 저장 모양으로 맞춘다. 예전 도면 좌표(x·y)로 온 것은 새 전개도의 부위·면·칸으로 옮긴다 */
 export function cleanMarks(raw: unknown): BodyMark[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((m): m is BodyMark => !!m && typeof m === "object" && typeof m.x === "number" && typeof m.y === "number" && typeof m.kind === "string" && isMarkKind(m.kind))
-    .slice(0, 80)
-    .map((m) => ({ x: Math.max(0, Math.min(200, Math.round(m.x))), y: Math.max(0, Math.min(400, Math.round(m.y))), kind: m.kind, part: partAt(m.x, m.y) ?? String(m.part ?? "기타").slice(0, 30), ...(m.note ? { note: String(m.note).slice(0, 100) } : {}) }));
+  const out: BodyMark[] = [];
+  for (const m of raw.slice(0, 80)) {
+    if (!m || typeof m !== "object" || typeof m.kind !== "string" || !isMarkKind(m.kind)) continue;
+    const note = m.note ? { note: String(m.note).slice(0, 100) } : {};
+    if (typeof m.part === "string" && isPart(m.part) && typeof m.view === "string" && isView(m.view) && shapeOf(m.view, m.part)) {
+      const cell = Number.isInteger(m.cell) && m.cell >= 0 && m.cell <= 8 ? m.cell : 4;
+      out.push({ part: m.part, view: m.view, cell, kind: m.kind, ...note });
+    } else if (typeof m.x === "number" && typeof m.y === "number") {
+      const at = fromLegacy(m.x, m.y);
+      if (at) out.push({ ...at, kind: m.kind, ...note });
+    } else if (typeof m.part === "string" && isPart(m.part)) {
+      out.push({ part: m.part, view: viewsOf(m.part)[0], cell: 4, kind: m.kind, ...note });
+    }
+  }
+  return out;
 }
 
 export const FUEL_OPTIONS = [
@@ -168,6 +151,15 @@ export type PaintLayer = keyof typeof PAINT_LAYERS;
 export const isPaintLayer = (s: string): s is PaintLayer => s in PAINT_LAYERS;
 
 export const METHODS = { pdr: "덴트(PDR)", polish: "광택", partial: "부분 판금+도장(블렌딩)", replace: "교환+도장", outsource: "외주 진단 후 결정" } as const;
+/** 차 그림에서 수리 방법을 나타내는 색(밝은·어두운 화면 모두 읽히는 중간 밝기) */
+export const METHOD_COLORS: Record<keyof typeof METHODS, string> = { pdr: "#1f9d6a", polish: "#7fae2a", partial: "#e08a1e", replace: "#d4433b", outsource: "#7a52c7" };
+/** 손상 정도(경 1·중 2·심 3): 따로 묻지 않고 크기·깊이·도장 손상·꺾임·파손으로 정한다 */
+export function damageSeverity(d: { sizeCm: number | null; depthMm?: number | null; paintLayer: string; crease?: boolean; broken?: boolean; structural?: boolean }): 1 | 2 | 3 {
+  if (d.broken || d.structural || d.crease || d.paintLayer === "metal" || (d.sizeCm ?? 0) >= 25) return 3;
+  if ((d.sizeCm ?? 0) >= 10 || (d.depthMm ?? 0) >= 5 || d.paintLayer === "primer" || d.paintLayer === "base") return 2;
+  return 1;
+}
+export const SEVERITY_LABEL = { 1: "경", 2: "중", 3: "심" } as const;
 export type Method = keyof typeof METHODS;
 export const isMethod = (s: string): s is Method => s in METHODS;
 
@@ -194,7 +186,7 @@ export function suggestMethod(f: DamageFacts): { method: Method; why: string } {
 /** 센서·카메라·레이더가 있는 부위: 수리 뒤 보정 필요(STD-02 5절). 차량 수리 사양(veh.options)으로 판단 */
 export function needsCalibration(part: string, options: string[]): string | null {
   const has = (o: string) => options.includes(o);
-  if (part === "f_bumper" && (has("radar_front") || has("pdc_front") || has("svm"))) return "전방 레이더·센서·카메라";
+  if ((part === "f_bumper" || part === "grille") && (has("radar_front") || has("pdc_front") || has("svm"))) return "전방 레이더·센서·카메라";
   if (part === "r_bumper" && (has("pdc_rear") || has("bsd") || has("svm"))) return "후방 센서·후측방 레이더·카메라";
   if ((part === "l_mirror" || part === "r_mirror") && (has("svm") || has("bsd"))) return "사이드미러 카메라·경고등";
   if ((part === "l_quarter" || part === "r_quarter") && has("bsd")) return "후측방 레이더(BSD)";

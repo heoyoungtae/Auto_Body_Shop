@@ -1,6 +1,6 @@
 // 견적 규칙(STD-03 4절, 법정 서식 별지 제89호의3). 화면과 서버가 같이 쓴다(DB 없음).
 import { gradeWon, GROUP_LABEL, laborWon, paintWon, partGroup, pdrCode, type LaborTable, type PaintGrade } from "./labor";
-import { partLabel, type Issue } from "./rules";
+import { partName, type Issue } from "./rules";
 
 /** 법정 서식 부품 코드(서식 하단 7번) */
 export const PART_CODES = { A: "A 신품(제작사·부품업체, 보증부품 포함)", B: "B 재제조품", C: "C 중고품(재생품 포함)", D: "D 인증대체부품", F: "F 수입부품" } as const;
@@ -39,7 +39,10 @@ export type LineDraft = {
   note?: string | null;
 };
 
-type Damage = { id: string; part: string; sizeCm: number | null; method: string; calibrate: boolean; crease?: boolean | null };
+type Damage = { id: string; part: string; subPart?: string | null; sizeCm: number | null; method: string; calibrate: boolean; crease?: boolean | null };
+
+/** 도장하지 않는 부위 묶음(유리·램프·그릴·휠은 교환·탈부착만) */
+const NO_PAINT = new Set(["wheel", "glass", "lamp", "grille"]);
 
 /** 진단 줄 → 견적 항목(다시 적지 않게). 금액은 공임 기준표로 계산하고, 부품 단가만 비워 둔다 */
 export function buildLines(damages: Damage[], t: LaborTable, grade: PaintGrade, kind: EstimateKind, partsPref?: string | null): LineDraft[] {
@@ -51,17 +54,17 @@ export function buildLines(damages: Damage[], t: LaborTable, grade: PaintGrade, 
     const won = paintWon(g, grade, t);
     if (won == null) return [];
     const out: LineDraft[] = [
-      { ...base, damageId: d.id, category: "paint", laborCode: `PNT-${g}`, name: `${partLabel(d.part)} 도장`, laborWon: won },
-      { ...base, damageId: d.id, category: "paint", laborCode: "BLEND", name: `${partLabel(d.part)} 인접 패널 블렌딩`, laborWon: gradeWon(t.BLEND, grade, t) },
+      { ...base, damageId: d.id, category: "paint", laborCode: `PNT-${g}`, name: `${partName(d.part, d.subPart)} 도장`, laborWon: won },
+      { ...base, damageId: d.id, category: "paint", laborCode: "BLEND", name: `${partName(d.part, d.subPart)} 인접 패널 블렌딩`, laborWon: gradeWon(t.BLEND, grade, t) },
     ];
     // 도장 재료비(도료·부자재)는 공임과 따로 적는다(보험 견적 관행)
-    if (t[`MAT-${g}`] != null) out.push({ ...base, damageId: d.id, category: "paint", laborCode: `MAT-${g}`, name: `${partLabel(d.part)} 도장 재료비`, laborWon: gradeWon(t[`MAT-${g}`], grade, t) });
-    if (t["MAT-blend"] != null) out.push({ ...base, damageId: d.id, category: "paint", laborCode: "MAT-blend", name: `${partLabel(d.part)} 블렌딩 재료비`, laborWon: gradeWon(t["MAT-blend"], grade, t) });
+    if (t[`MAT-${g}`] != null) out.push({ ...base, damageId: d.id, category: "paint", laborCode: `MAT-${g}`, name: `${partName(d.part, d.subPart)} 도장 재료비`, laborWon: gradeWon(t[`MAT-${g}`], grade, t) });
+    if (t["MAT-blend"] != null) out.push({ ...base, damageId: d.id, category: "paint", laborCode: "MAT-blend", name: `${partName(d.part, d.subPart)} 블렌딩 재료비`, laborWon: gradeWon(t["MAT-blend"], grade, t) });
     return out;
   };
   for (const d of damages) {
     const g = partGroup(d.part);
-    const name = partLabel(d.part);
+    const name = partName(d.part, d.subPart);
     const push = (x: LineDraft | null | LineDraft[]) => (Array.isArray(x) ? out.push(...x) : x && out.push(x));
     if (d.method === "pdr") {
       const x = labor(d, "dent", pdrCode(d.sizeCm), `${name} 덴트(PDR)`);
@@ -76,11 +79,11 @@ export function buildLines(damages: Damage[], t: LaborTable, grade: PaintGrade, 
     else if (d.method === "polish") push(labor(d, "polish", "POL", `${name} 광택`));
     else if (d.method === "partial") {
       push(labor(d, "sheet", `SHT-${g}`, `${name} 판금`));
-      if (g !== "wheel" && g !== "glass") push(paint(d));
+      if (!NO_PAINT.has(g)) push(paint(d));
     } else if (d.method === "replace") {
       push(labor(d, "detach", `RR-${g}`, `${name} 탈부착(교환)`));
       out.push({ ...base, damageId: d.id, category: "part", laborCode: null, name: `${GROUP_LABEL[g]} 부품(${name})`, partCode: partCodeFromPref(partsPref) });
-      if (g !== "wheel" && g !== "glass") push(paint(d));
+      if (!NO_PAINT.has(g)) push(paint(d));
     } else if (d.method === "outsource") out.push({ ...base, damageId: d.id, category: "outsource", laborCode: "OUT-DIAG", name: `${name} 외주 진단(프레임 계측)`, laborWon: t["OUT-DIAG"] });
     if (d.calibrate) out.push({ ...base, damageId: d.id, category: "etc", laborCode: "CAL", name: `${name} 센서·카메라 보정`, laborWon: t.CAL });
   }

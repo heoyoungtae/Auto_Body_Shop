@@ -6,6 +6,8 @@ import { rolesOf } from "@/modules/approval/line";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
 import { getEstimate } from "@/modules/repair/estimate";
+import { listDamage } from "@/modules/repair/service";
+import { EstimateMap } from "../../../estimate-map";
 import { ESTIMATE_KIND, ESTIMATE_STATUS_LABEL, estimateIssues, LINE_CATEGORIES, PART_CODES, totals } from "@/modules/repair/estimate-rules";
 import { fmtMinutes, gradeWon, laborWon, lineNameOf, PAINT_GRADES, usesGradeCoef, type PaintGrade } from "@/modules/repair/labor";
 import { laborCatalog, loadLabor } from "@/modules/repair/labor-store";
@@ -162,6 +164,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const db = await getDb();
   const e = await getEstimate(db, eid);
   const shop = await loadShopInfo(db);
+  const damages = await listDamage(db, e.repairOrderId);
   const canWrite = can(user, "estimate.write");
   const draft = e.status === "draft" && canWrite;
   const t = totals(e.lines);
@@ -232,7 +235,8 @@ export default async function EstimatePage({ params, searchParams }: { params: P
           </Card>
 
           <Card title="견적 내용" help={{ kind: "panel", id: "est.lines" }}>
-            <div className="overflow-x-auto">
+            <EstimateMap damages={damages} scope={`est-lines-${e.id}`} />
+            <div className="overflow-x-auto" id={`est-lines-${e.id}`}>
               <table className="w-full text-sm">
                 <thead className="text-left text-xs text-[var(--muted)]">
                   <tr>
@@ -247,7 +251,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
                   {e.lines.map((l) => (
-                    <tr key={l.id} className="align-top">
+                    <tr key={l.id} className="align-top transition-colors" data-damage={l.damageId ?? undefined}>
                       <td className="py-1.5 pr-2 whitespace-nowrap">{ESTIMATE_KIND[l.payer as keyof typeof ESTIMATE_KIND]}</td>
                       <td className="py-1.5 pr-2">
                         {draft ? (
