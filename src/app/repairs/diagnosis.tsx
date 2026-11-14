@@ -1,21 +1,25 @@
 // 손상 진단(STD-02 5절) — 수리 건 화면 안의 부분. 줄마다 따로 저장하고, 공장장이 확인하면 견적 대기로 넘어간다.
 import type { roDamage } from "@/db/schema";
-import { BODY_PARTS, DAMAGE_KINDS, diagnosisIssues, METHODS, PAINT_LAYERS, partLabel, repainted } from "@/modules/repair/rules";
+import { cellsLabel } from "@/modules/repair/body-map";
+import { damageSeverity, DAMAGE_KINDS, diagnosisIssues, METHODS, PAINT_LAYERS, partName, repainted, SEVERITY_LABEL } from "@/modules/repair/rules";
 import { AssistForm } from "../_assist";
 import { CheckGroup, NumberField, SelectField, TextAreaField, TextField } from "../_input";
 import { SubmitButton } from "../_submit";
 import { Badge, Card } from "../_ui";
 import { confirmDiagnosisAction, damageAction } from "./actions";
+import { CarMap } from "./car-map";
+import { damageFills, damagePins, MethodLegend, methodColor, viewOf } from "./damage-map";
 import { MethodHint } from "./method-hint";
+import { PartPicker } from "./part-picker";
 
 type Damage = typeof roDamage.$inferSelect;
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
-function DamageFields({ d, repaintUm, options }: { d?: Damage; repaintUm: number; options: string[] }) {
+function DamageFields({ d, repaintUm, options, others }: { d?: Damage; repaintUm: number; options: string[]; others: Damage[] }) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-        <SelectField help="dmg.part" name="part" required defaultValue={d?.part ?? ""} placeholder="고르기" options={BODY_PARTS.map((p) => ({ value: p.id, label: p.label }))} />
+      <PartPicker initial={d ? { part: d.part, view: viewOf(d), cells: d.cells } : undefined} subPart={d?.subPart} others={damageFills(others, true)} from={d?.note?.startsWith("입고 도면에서 불러옴") ? "입고 도면" : undefined} />
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         <SelectField help="dmg.kind" name="kind" required defaultValue={d?.kind ?? "D"} options={opts(DAMAGE_KINDS)} />
         <NumberField help="dmg.size" name="sizeCm" unit="cm" min={0} max={500} defaultValue={d?.sizeCm ?? null} />
         <NumberField help="dmg.depth" name="depthMm" unit="mm" min={0} max={200} defaultValue={d?.depthMm ?? null} />
@@ -62,12 +66,17 @@ function Summary({ d, repaintUm }: { d: Damage; repaintUm: number }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
       <b>
-        {d.seq}. {partLabel(d.part)}
+        {d.seq}. {partName(d.part, d.subPart)}
       </b>
+      <span className="text-[var(--muted)]">{cellsLabel(viewOf(d), d.cells)}</span>
       <span>{DAMAGE_KINDS[d.kind as keyof typeof DAMAGE_KINDS] ?? d.kind}</span>
       {d.sizeCm != null && <span className="text-[var(--muted)]">{d.sizeCm}cm</span>}
       <span className="text-[var(--muted)]">{PAINT_LAYERS[d.paintLayer as keyof typeof PAINT_LAYERS]}</span>
-      <Badge tone="accent">{METHODS[d.method as keyof typeof METHODS]}</Badge>
+      <span className="text-[var(--muted)]">정도 {SEVERITY_LABEL[damageSeverity(d)]}</span>
+      <span className="inline-flex items-center gap-1 rounded-full border border-[var(--line)] px-2 py-0.5 text-xs font-medium">
+        <span className="size-2.5 rounded-full" style={{ background: methodColor(d.method) }} />
+        {METHODS[d.method as keyof typeof METHODS]}
+      </span>
       {d.method !== d.suggested && <Badge tone="warn">제안과 다름</Badge>}
       {d.calibrate && <Badge tone="warn">센서 보정</Badge>}
       {repainted(film, repaintUm) && <Badge tone="danger">재도장 이력</Badge>}
@@ -82,6 +91,12 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
   return (
     <section id="diagnosis" className="space-y-4">
       <Card title="손상 진단" help={{ kind: "panel", id: "ro.diagnosis" }}>
+        {damages.length > 0 && (
+          <div className="mb-4">
+            <CarMap label="진단한 손상 위치(색은 수리 방법)" fills={damageFills(damages)} pins={damagePins(damages)} />
+            <MethodLegend />
+          </div>
+        )}
         {damages.length ? (
           <ul className="divide-y divide-[var(--line)] text-sm">
             {damages.map((d) => (
@@ -94,7 +109,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
                     <AssistForm id={`dmg-${d.id}`} action={damageAction} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
                       <input type="hidden" name="id" value={roId} />
                       <input type="hidden" name="damageId" value={d.id} />
-                      <DamageFields d={d} repaintUm={repaintUm} options={options} />
+                      <DamageFields d={d} repaintUm={repaintUm} options={options} others={damages.filter((x) => x.id !== d.id)} />
                       <div className="flex flex-wrap gap-2">
                         <SubmitButton name="intent" value="save">
                           이 줄 저장
@@ -122,7 +137,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
             <summary className="cursor-pointer text-sm font-semibold text-[var(--accent)]">+ 손상 부위 넣기</summary>
             <AssistForm id={`dmg-new-${roId}`} action={damageAction} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
               <input type="hidden" name="id" value={roId} />
-              <DamageFields repaintUm={repaintUm} options={options} />
+              <DamageFields repaintUm={repaintUm} options={options} others={damages} />
               <SubmitButton name="intent" value="save">
                 넣기
               </SubmitButton>

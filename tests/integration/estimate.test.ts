@@ -62,6 +62,11 @@ describe("견적(STD-03)", () => {
     ]);
     expect(lines[4].laborWon).toBe(108_000); // 재료비 90,000 × 펄 120%
     // 꺾임(라인) 덴트는 시간 × 라인 가산 130%
+    // 세부 부위를 적으면 줄 이름에 붙고, 램프는 도장하지 않는다
+    const sub = buildLines([{ id: "s", part: "f_bumper", subPart: "하단 스포일러(립)", sizeCm: 10, method: "partial", calibrate: false }], t, "solid", "general");
+    expect(sub[0].name).toBe("앞범퍼(하단 스포일러(립)) 판금");
+    const lamp = buildLines([{ id: "l", part: "l_headlamp", sizeCm: 5, method: "replace", calibrate: false }], t, "solid", "general");
+    expect(lamp.map((l) => l.category)).toEqual(["detach", "part"]);
     const [crease] = buildLines([{ id: "c", part: "hood", sizeCm: 15, method: "pdr", calibrate: false, crease: true }], t, "solid", "general");
     expect(crease.laborMinutes).toBe(156); // 120분 × 1.3
     expect(crease.name).toContain("라인 가산");

@@ -2,7 +2,7 @@
 // 기본값은 개업 전 '제안값'이다. 공장장이 표준 시간을 정하고 대표가 승인해 바꾼다(설정 › 공임 기준표, 이력 남음).
 // 화면에서도 쓰므로 DB 를 부르지 않는다(읽기·저장은 labor-store.ts).
 
-export type PartGroup = "bumper" | "hood" | "roof" | "trunk" | "door" | "fender" | "quarter" | "mirror" | "glass" | "wheel";
+export type PartGroup = "bumper" | "hood" | "roof" | "trunk" | "door" | "fender" | "quarter" | "mirror" | "glass" | "wheel" | "sill" | "lamp" | "grille";
 
 export const GROUP_LABEL: Record<PartGroup, string> = {
   bumper: "범퍼",
@@ -15,6 +15,9 @@ export const GROUP_LABEL: Record<PartGroup, string> = {
   mirror: "사이드미러",
   glass: "유리",
   wheel: "휠",
+  sill: "사이드실",
+  lamp: "램프",
+  grille: "그릴",
 };
 
 /** 차체 도면 부위 → 공임 묶음 */
@@ -28,6 +31,9 @@ export function partGroup(part: string): PartGroup {
   if (part.endsWith("quarter")) return "quarter";
   if (part.endsWith("mirror")) return "mirror";
   if (part === "windshield" || part === "rear_glass") return "glass";
+  if (part.endsWith("sill")) return "sill";
+  if (part.endsWith("lamp")) return "lamp";
+  if (part === "grille") return "grille";
   return "wheel";
 }
 
@@ -117,6 +123,8 @@ const BASE: LaborDef[] = [
   hours("RR-mirror", "탈부착(교환)", "사이드미러", 30),
   hours("RR-glass", "탈부착(교환)", "유리", 90),
   hours("RR-wheel", "탈부착(교환)", "휠", 20),
+  hours("RR-lamp", "탈부착(교환)", "램프(헤드·리어, 1개)", 30),
+  hours("RR-grille", "탈부착(교환)", "그릴", 30),
   // 도장·판금하려고 떼었다 다시 붙이는 것(교환 아님)
   hours("RI-bumper", "탈부착(도장할 때)", "범퍼", 40),
   hours("RI-headlamp", "탈부착(도장할 때)", "헤드램프(1개)", 30),

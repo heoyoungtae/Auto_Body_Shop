@@ -32,6 +32,20 @@
   /* 차트 계열색(검증한 범주 팔레트 1·2번) */
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  /* 차량 전개도(car-map.tsx): 펄 화이트 차체, 푸른빛 유리 */
+  --car-body-hi: #fdfeff;
+  --car-body-lo: #e3e9ef;
+  --car-seam: #c3ccd5;
+  --car-outline: #8f9caa;
+  --car-glass-hi: #e3eef6;
+  --car-glass-lo: #a8bfd0;
+  --car-tire: #2f363d;
+  --car-rim: #b9c3cc;
+  --car-rim-hi: #f4f7f9;
+  --car-shadow: #5d6d7c;
+  --car-hover: #dcebfd;
+  --car-tail: #e46a62;
+  --car-grille: #59636d;
   color-scheme: light;
 }
 
@@ -57,6 +71,19 @@
     --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.5);
     --series-1: #3987e5;
     --series-2: #d95926;
+    --car-body-hi: #39424d;
+    --car-body-lo: #242a32;
+    --car-seam: #4d5864;
+    --car-outline: #6b7886;
+    --car-glass-hi: #4a6475;
+    --car-glass-lo: #273946;
+    --car-tire: #0b0d10;
+    --car-rim: #66727e;
+    --car-rim-hi: #aab5bf;
+    --car-shadow: #000000;
+    --car-hover: #1d3352;
+    --car-tail: #b8433c;
+    --car-grille: #15191d;
     color-scheme: dark;
   }
 }
@@ -312,3 +339,28 @@ html:has(#tab-bar) main {
     clear: both;
   }
 }
+
+/* 차량 전개도(car-map.tsx) */
+.car-map .cm-part { stroke: var(--car-seam); stroke-width: 1; stroke-linejoin: round; transition: fill 0.15s, stroke 0.15s; }
+.car-map .cm-pick { cursor: pointer; outline: none; }
+.car-map .cm-pick:hover:not(.cm-wheel), .car-map .cm-pick:focus-visible:not(.cm-wheel) { fill: var(--car-hover); }
+.car-map .cm-tail.cm-pick:hover, .car-map .cm-grille.cm-pick:hover, .car-map .cm-lamp.cm-pick:hover { fill-opacity: 0.75; stroke: var(--accent); stroke-width: 2; }
+.car-map .cm-wheel { stroke: none; }
+.car-map .cm-wheel.cm-pick:hover, .car-map .cm-wheel:focus-visible { stroke: var(--accent); stroke-width: 3; }
+.car-map .cm-sel, .car-map .cm-hi { stroke: var(--accent); stroke-width: 2.5; }
+.car-map .cm-hi:not(.cm-wheel) { fill: var(--car-hover); }
+.car-map .cm-outline { stroke: var(--car-outline); stroke-width: 1.6; stroke-linejoin: round; pointer-events: none; }
+.car-map .cm-glass-decor { stroke: var(--car-seam); stroke-width: 0.8; opacity: 0.92; }
+.car-map .cm-line { fill: none; stroke: var(--car-seam); stroke-width: 1; opacity: 0.8; }
+.car-map .cm-lamp { fill: var(--car-glass-hi); stroke: var(--car-outline); stroke-width: 0.8; }
+.car-map .cm-tail { fill: #e0645c; opacity: 0.85; }
+.car-map .cm-handle { fill: var(--car-seam); }
+.car-map .cm-plate { fill: var(--surface); stroke: var(--car-outline); stroke-width: 0.8; }
+.car-map .cm-spoke { stroke: var(--car-rim); stroke-width: 3; stroke-linecap: round; }
+.car-map .cm-hub { fill: var(--car-rim-hi); stroke: var(--car-rim); }
+.car-map .cm-grid { stroke: var(--accent); stroke-width: 0.9; stroke-dasharray: 3 2.5; opacity: 0.85; }
+.car-map .cm-cell-sel { fill: var(--accent); opacity: 0.22; stroke: var(--accent); stroke-width: 1.2; }
+.car-map .cm-pin { stroke: #fff; stroke-width: 1.8; filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.35)); }
+.car-map .cm-label { font-size: 13px; font-weight: 600; fill: var(--fg); }
+.car-map .cm-hint { font-size: 11px; font-weight: 400; fill: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .car-map .cm-part { transition: none; } }

@@ -101,6 +101,11 @@ export const roDamage = pgTable(
     seq: integer("seq").notNull(),
     /** 차체 도면 부위 id(BODY_PARTS) */
     part: text("part").notNull(),
+    /** 고른 면(전개도 right·top·left·front·rear)과 그 면의 3×3 칸(0~8). 비면 부위 전체 */
+    view: text("view"),
+    cells: jsonb("cells").$type<number[]>().notNull().default([]),
+    /** 세부 부위(범퍼 커버·하단 스포일러 등, 직접 적은 것 포함) */
+    subPart: text("sub_part"),
     kind: text("kind").notNull(),
     sizeCm: integer("size_cm"),
     depthMm: integer("depth_mm"),

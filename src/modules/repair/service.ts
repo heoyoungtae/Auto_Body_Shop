@@ -36,6 +36,7 @@ import {
   type PaintLayer,
   type PhotoSlot,
 } from "./rules";
+import { cleanCells, isView, shapeOf } from "./body-map";
 
 export class RepairError extends UserError {}
 
@@ -229,7 +230,7 @@ export async function getRepair(db: Db, id: string) {
   ]);
   return {
     ...r,
-    marks: r.marks as BodyMark[],
+    marks: cleanMarks(r.marks),
     consult: c,
     customer: { id: cu.id, name: cu.name, phone: cu.phoneMasked },
     vehicle: v,
@@ -282,6 +283,11 @@ const CONFIRM_ROLES: Role[] = rolesFor("diag.confirm");
 export type DamageInput = {
   id?: string;
   part: string;
+  /** 고른 면과 그 면의 3×3 칸(body-map.ts). 비우면 부위 전체 */
+  view?: string;
+  cells?: number[];
+  /** 세부 부위(SUB_PARTS 중 하나 또는 직접 적음) */
+  subPart?: string;
   kind: string;
   sizeCm: number | null;
   depthMm: number | null;
@@ -311,11 +317,15 @@ export async function seedDiagnosis(db: Db, actorId: string, id: string) {
   const [c] = await db.select({ damageTypes: consultation.damageTypes }).from(consultation).where(eq(consultation.id, r.consultationId));
   const [v] = await db.select({ options: vehicle.options }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
   const kind = c?.damageTypes.includes("찌그러짐") || !c?.damageTypes.includes("긁힘") ? "D" : "S";
-  const parts = [...new Set((r.marks as BodyMark[]).filter((m) => m.kind === "O").map((m) => m.part))].filter((p) => BODY_PARTS.some((b) => b.id === p));
+  // 같은 부위에 찍은 O 표시들은 한 줄로 묶고, 처음 찍은 면의 칸들을 위치로 옮긴다
+  const marks = cleanMarks(r.marks).filter((m) => m.kind === "O");
+  const parts = [...new Set(marks.map((m) => m.part))];
   let seq = 0;
   for (const part of parts) {
+    const view = marks.find((m) => m.part === part)!.view;
+    const cells = cleanCells(marks.filter((m) => m.part === part && m.view === view).map((m) => m.cell));
     const s = suggestMethod({ kind, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
-    await db.insert(roDamage).values({ repairOrderId: id, seq: ++seq, part, kind, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상·도막 두께를 재어 고치세요", createdBy: actorId });
+    await db.insert(roDamage).values({ repairOrderId: id, seq: ++seq, part, view, cells, kind, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상·도막 두께를 재어 고치세요", createdBy: actorId });
   }
   return parts.length;
 }
@@ -324,7 +334,10 @@ export async function saveDamage(db: Db, actor: { id: string; roles: Role[] }, r
   if (!actor.roles.some((x) => DIAG_ROLES.includes(x))) throw new RepairError("손상 진단은 기술자·공장장·대표가 합니다");
   const r = await roRow(db, roId);
   mustDiagnose(r);
-  if (!BODY_PARTS.some((b) => b.id === input.part)) throw new RepairError("부위를 골라 주세요");
+  if (!BODY_PARTS.some((b) => b.id === input.part)) throw new RepairError("부위를 골라 주세요 — 차 그림에서 손상된 곳을 누릅니다");
+  // 면·칸은 그 부위가 실제로 그 면에 있을 때만 남긴다(없으면 부위 전체)
+  const view = input.view && isView(input.view) && shapeOf(input.view, input.part) ? input.view : null;
+  const cells = view ? cleanCells(input.cells ?? []) : [];
   if (!(input.kind in DAMAGE_KINDS)) throw new RepairError("손상 종류를 골라 주세요");
   if (!isPaintLayer(input.paintLayer)) throw new RepairError("도장 손상 범위를 골라 주세요");
   if (input.sizeCm != null && (input.sizeCm < 0 || input.sizeCm > 500)) throw new RepairError("크기는 0~500cm로 적어 주세요");
@@ -335,6 +348,9 @@ export async function saveDamage(db: Db, actor: { id: string; roles: Role[] }, r
   const [v] = await db.select({ options: vehicle.options }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
   const values = {
     part: input.part,
+    view,
+    cells: cells.length >= 9 ? [] : cells,
+    subPart: clean(input.subPart)?.slice(0, 40) ?? null,
     kind: input.kind,
     sizeCm: input.sizeCm,
     depthMm: input.depthMm,

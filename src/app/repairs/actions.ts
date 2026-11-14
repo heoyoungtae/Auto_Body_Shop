@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { addPhoto, confirmDiagnosis, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
 import { parseFilm } from "@/modules/repair/rules";
+import { parseCells } from "@/modules/repair/body-map";
 import { createEstimate, issueEstimate, removeLine, reviewEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
 import { approveInStore, recordInsurerApproval, sendApprovalLink } from "@/modules/repair/estimate-approval";
 import { ROLE_LABEL } from "@/modules/auth/roles";
@@ -140,6 +141,9 @@ function readDamage(form: FormData): DamageInput {
   return {
     id: str("damageId") || undefined,
     part: str("part"),
+    view: str("view") || undefined,
+    cells: parseCells(str("cells")),
+    subPart: str("subPart"),
     kind: str("kind"),
     sizeCm: num("sizeCm"),
     depthMm: num("depthMm"),
