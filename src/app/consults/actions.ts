@@ -21,6 +21,13 @@ function readConsultForm(form: FormData) {
   return {
     damageTypes: all("damageTypes"),
     damageParts: str("damageParts"),
+    damageZones: (() => {
+      try {
+        return JSON.parse(str("damageZones") || "[]") as unknown;
+      } catch {
+        return [];
+      }
+    })(),
     cause: str("cause"),
     photoCount: num("photoCount") ?? 0,
     methods: all("methods"),

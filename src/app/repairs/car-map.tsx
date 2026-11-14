@@ -1,16 +1,18 @@
 "use client";
-// 차량 전개도 그림(세단 다섯 면). 부위를 누르면 그 부위·면·3×3 칸을 알려 준다.
+// 차량 전개도 그림(차형별 다섯 면: 세단·해치백·SUV·승합·화물). 부위를 누르면 그 부위·면·3×3 칸을 알려 준다.
 // 표시(pins: 동그라미 기호)와 칠(fills: 칸을 부드럽게 칠함)을 받아 그린다. 입고 도면·진단·견적이 같이 쓴다.
 import { useId, useState } from "react";
+import { CarArtDefs, EndUnder, FrontOver, RearOver, SideOver, SideUnder, SideWheels, TopOver } from "./car-art";
 import {
+  BODY_SPECS,
+  type BodyType,
+  type CarLook,
   cellAt,
   cellRect,
-  END_DECOR,
   MAP_H,
   MAP_W,
   partLabel,
-  SIDE_DECOR,
-  VIEW_DEFS,
+  viewDefsOf,
   VIEW_HINT,
   VIEW_LABEL,
   type Shape,
@@ -36,6 +38,7 @@ export function CarMap({
   onPick,
   label = "차량 전개도",
   className = "",
+  car,
 }: {
   pins?: MapPin[];
   fills?: MapFill[];
@@ -46,8 +49,14 @@ export function CarMap({
   onPick?: (part: string, view: View, cell: number) => void;
   label?: string;
   className?: string;
+  /** 차형·부착물(vehicle → carOf). 없으면 세단 */
+  car?: CarLook;
 }) {
+  const body: BodyType = car?.body ?? "sedan";
+  const attach = car?.attach ?? [];
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const VIEW_DEFS = viewDefsOf(body);
+  const art = BODY_SPECS[body].art;
   const [face, setFace] = useState<"all" | View>("all");
   const vb = face === "all" ? `0 0 ${MAP_W} ${MAP_H}` : (() => { const v = VIEW_DEFS.find((d) => d.view === face)!; return `${v.x - 14} ${v.y - 30} ${v.w + 28} ${v.h + 40}`; })();
   const pick = (e: React.MouseEvent<SVGPathElement> | React.KeyboardEvent<SVGPathElement>, v: ViewDef, s: Shape) => {
@@ -80,6 +89,7 @@ export function CarMap({
       </div>
       <svg viewBox={vb} className="car-map block h-auto w-full select-none" role="img" aria-label={label}>
         <defs>
+          <CarArtDefs uid={uid} />
           <linearGradient id={`${uid}-body`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="170">
             <stop offset="0" stopColor="var(--car-body-hi)" />
             <stop offset="1" stopColor="var(--car-body-lo)" />
@@ -124,7 +134,7 @@ export function CarMap({
                 d={s.d}
                 data-part={s.part}
                 className={`cm-part ${wheel ? "cm-wheel" : ""} ${s.look ? `cm-${s.look}` : ""} ${onPick ? "cm-pick" : ""} ${isSel ? "cm-sel" : ""} ${isHi ? "cm-hi" : ""}`}
-                fill={wheel ? "var(--car-tire)" : s.look === "glass" || s.look === "lamp" ? `url(#${uid}-glass)` : s.look === "tail" ? "var(--car-tail)" : s.look === "grille" ? "var(--car-grille)" : `url(#${uid}-body)`}
+                fill={wheel ? "var(--car-tire)" : s.look === "glass" || s.look === "lamp" ? `url(#${uid}-glassArt)` : s.look === "tail" ? `url(#${uid}-tail)` : s.look === "grille" ? `url(#${uid}-mesh)` : `url(#${uid}-body)`}
                 tabIndex={onPick ? 0 : undefined}
                 role={onPick ? "button" : undefined}
                 aria-label={onPick ? `${partLabel(s.part)} (${VIEW_LABEL[v.view]})` : undefined}
@@ -152,43 +162,18 @@ export function CarMap({
               <g transform={tf}>
                 {side && <ellipse cx={232} cy={160} rx={236} ry={9} fill={`url(#${uid}-shadow)`} />}
                 {v.view === "top" && <ellipse cx={232} cy={104} rx={240} ry={96} fill={`url(#${uid}-shadow)`} opacity="0.5" />}
-                {end && END_DECOR.tires.map(([x, y]) => <rect key={x} x={x} y={y} width={26} height={20} rx={5} fill="var(--car-tire)" />)}
+                {end && <EndUnder />}
                 {end && <ellipse cx={100} cy={164} rx={96} ry={6} fill={`url(#${uid}-shadow)`} />}
+                {side && <SideUnder art={art} />}
                 <g clipPath={`url(#${uid}-sil-${v.view})`}>{clipped.map(shapeEl)}</g>
+                {/* 꾸밈(명암·창·램프): 누르지 않음 */}
+                {side && <SideOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} attach={attach} />}
+                {v.view === "front" && <FrontOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} attach={attach} />}
+                {v.view === "rear" && <RearOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} attach={attach} />}
+                {v.view === "top" && <TopOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} shapes={v.shapes} attach={attach} />}
                 <path d={v.silhouette} fill="none" className="cm-outline" />
-                {/* 꾸밈: 누르지 않음 */}
-                <g pointerEvents="none">
-                  {side && (
-                    <>
-                      {SIDE_DECOR.glass.map((d) => (
-                        <path key={d} d={d} fill={`url(#${uid}-glass)`} className="cm-glass-decor" />
-                      ))}
-                      <path d={SIDE_DECOR.line} className="cm-line" />
-                      <path d={SIDE_DECOR.headlamp} className="cm-lamp" />
-                      <path d={SIDE_DECOR.taillamp} className="cm-tail" />
-                      {SIDE_DECOR.handles.map(([x, y]) => (
-                        <rect key={x} x={x} y={y} width={20} height={4.5} rx={2.25} className="cm-handle" />
-                      ))}
-                    </>
-                  )}
-                  {v.view === "front" && <path d={END_DECOR.frontGlass} fill={`url(#${uid}-glass)`} className="cm-glass-decor" />}
-                  {v.view === "rear" && <path d={END_DECOR.rearGlass} fill={`url(#${uid}-glass)`} className="cm-glass-decor" />}
-                  {end && <rect x={END_DECOR.plate[0]} y={END_DECOR.plate[1]} width={END_DECOR.plate[2]} height={END_DECOR.plate[3]} rx={2} className="cm-plate" />}
-                </g>
                 {free.map(shapeEl)}
-                {side && (
-                  <g pointerEvents="none">
-                    {SIDE_DECOR.wheels.map(([x, y]) => (
-                      <g key={x}>
-                        <circle cx={x} cy={y} r={20} fill={`url(#${uid}-rim)`} />
-                        {[0, 72, 144, 216, 288].map((a) => (
-                          <line key={a} x1={x} y1={y} x2={x + 17 * Math.cos((a * Math.PI) / 180)} y2={y + 17 * Math.sin((a * Math.PI) / 180)} className="cm-spoke" />
-                        ))}
-                        <circle cx={x} cy={y} r={4.5} className="cm-hub" />
-                      </g>
-                    ))}
-                  </g>
-                )}
+                {side && <SideWheels uid={uid} art={art} />}
                 {/* 칠: 칸을 둥글게, 정도가 셀수록 진하게 */}
                 <g pointerEvents="none">
                   {myFills.map((f, i) => {

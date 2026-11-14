@@ -41,6 +41,7 @@ export default async function EditConsult({ params, searchParams }: { params: Pr
             />
           )}
           <ConsultFields
+            vehicles={c.vehicles}
             channel={false}
             today={today}
             p={{ ...c, reservedDate: resv?.date, reservedTime: resv?.time }}

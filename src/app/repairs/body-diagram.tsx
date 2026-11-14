@@ -2,11 +2,11 @@
 // 차체 도면(F-02-01): 펼친 차 그림(앞·뒤·위·왼쪽·오른쪽)에 기존 손상을 기호로 찍는다(STD-02 4절 4단계).
 // 기호를 고르고 부위를 누르면 누른 자리(부위 안 3×3 칸)에 표시가 생기고, 표시를 다시 누르면 지워진다. 값은 숨은 칸 marks(JSON)로 보낸다.
 import { useEffect, useRef, useState } from "react";
-import { cellLabel, VIEW_LABEL } from "@/modules/repair/body-map";
+import { type CarLook, cellLabel, VIEW_LABEL } from "@/modules/repair/body-map";
 import { MARK_KINDS, partLabel, type BodyMark, type MarkKind } from "@/modules/repair/rules";
 import { CarMap } from "./car-map";
 
-export function BodyDiagram({ initial, readOnly = false, name = "marks" }: { initial: BodyMark[]; readOnly?: boolean; name?: string }) {
+export function BodyDiagram({ initial, readOnly = false, name = "marks", car }: { initial: BodyMark[]; readOnly?: boolean; name?: string; car?: CarLook }) {
   const [marks, setMarks] = useState<BodyMark[]>(initial);
   const [kind, setKind] = useState<MarkKind>("S");
   const hidden = useRef<HTMLInputElement>(null);
@@ -59,6 +59,7 @@ export function BodyDiagram({ initial, readOnly = false, name = "marks" }: { ini
           </div>
         )}
         <CarMap
+          car={car}
           label="차체 도면(펼친 차 그림)"
           fills={marks.map((m) => ({ part: m.part, view: m.view, cells: [m.cell], color: MARK_KINDS[m.kind].color, strength: 0.28 }))}
           pins={marks.map((m, i) => ({

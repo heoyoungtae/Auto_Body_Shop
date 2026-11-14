@@ -2,7 +2,7 @@
 // 수리 건은 상담 일지에서만 만든다: 고객·차량·보험·손상은 상담에서 그대로 불러오고 다시 묻지 않는다.
 // 점검 내용은 몇 번이고 나눠 저장할 수 있고, 고객 서명으로 마치면 잠긴다('다시 점검'으로만 풀림).
 import { rolesFor } from "@/modules/auth/permissions";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, consultation, customer, repairOrder, repairStatement, roDamage, roPhoto, vehicle } from "@/db/schema";
 import type { Role } from "@/modules/auth/roles";
@@ -54,12 +54,21 @@ export async function startRepair(db: Db, actorId: string, consultationId: strin
     const docNo = await nextDocNo(tx, "RO", now);
     const [ro] = await tx
       .insert(repairOrder)
-      .values({ docNo, consultationId, customerId: c.customerId, vehicleId: c.vehicleId!, insurance: c.insurance, insurer: c.insurer, claimNo: c.claimNo, inAt: now, keyTag: docNo, advisorId: actorId })
+      // 상담에서 차 그림에 찍은 부위는 입고 도면의 수리 대상(O)으로 미리 찍어 둔다(다시 찍지 않게)
+      .values({ docNo, consultationId, customerId: c.customerId, vehicleId: c.vehicleId!, insurance: c.insurance, insurer: c.insurer, claimNo: c.claimNo, inAt: now, keyTag: docNo, advisorId: actorId, marks: consultMarks(c.damageZones) })
       .returning({ id: repairOrder.id });
     await tx.update(consultation).set({ result: "converted", updatedAt: now }).where(eq(consultation.id, consultationId));
     await writeAudit(tx, { actorId, action: "repair.create", entityType: "repair_order", entityId: docNo, after: { consult: c.docNo } });
     return { id: ro.id, created: true };
   });
+}
+
+/** 상담 부위 → 입고 도면 O 표시(같은 부위·면·칸은 한 번) */
+function consultMarks(zones: unknown): BodyMark[] {
+  const seen = new Set<string>();
+  return cleanMarks(zones)
+    .map((m) => ({ part: m.part, view: m.view, cell: m.cell, kind: "O" as const }))
+    .filter((m) => !seen.has(`${m.part}${m.view}${m.cell}`) && !!seen.add(`${m.part}${m.view}${m.cell}`));
 }
 
 async function roRow(db: Db, id: string) {
@@ -142,7 +151,7 @@ export async function signIntake(db: Db, actorId: string, id: string, input: Int
   await saveIntake(db, actorId, id, input, now);
   const r = await roRow(db, id);
   const [v] = await db.select({ mileage: vehicle.mileage }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
-  const photos = await db.select({ slot: roPhoto.slot }).from(roPhoto).where(eq(roPhoto.repairOrderId, id));
+  const photos = await db.select({ slot: roPhoto.slot }).from(roPhoto).where(and(eq(roPhoto.repairOrderId, id), isNull(roPhoto.damageId)));
   let consent = await consentState(db, r.customerId);
   const policy = await loadPolicy(db, seoulDate(now));
   const issues = intakeIssues(
@@ -213,9 +222,46 @@ export async function removePhoto(db: Db, actorId: string, photoId: string) {
   if (!p) return;
   const r = await roRow(db, p.repairOrderId);
   mustBeOpen(r);
-  await db.delete(roPhoto).where(eq(roPhoto.id, photoId));
+  await db.delete(roPhoto).where(eq(roPhoto.id, p.id));
   await removeStored(p.path);
   await writeAudit(db, { actorId, action: "repair.photo_remove", entityType: "repair_order", entityId: r.docNo, after: { slot: p.slot } });
+}
+
+/** 손상 부위(진단 줄)에 근접 사진 붙이기. 진단부터 출고 전까지, 줄마다 6장까지 */
+export const DAMAGE_PHOTO_MAX = 6;
+const DAMAGE_PHOTO_STATUSES = ["checked", "estimating", "working", "inspecting"];
+export async function addDamagePhoto(db: Db, actor: { id: string; roles: Role[] }, roId: string, damageId: string, bytes: Uint8Array, meta: { width?: number; height?: number } = {}) {
+  if (!actor.roles.some((x) => DIAG_ROLES.includes(x) || x === "advisor")) throw new RepairError("손상 부위 사진은 기술자·공장장·상담원·대표가 붙입니다");
+  const r = await roRow(db, roId);
+  if (!DAMAGE_PHOTO_STATUSES.includes(r.status)) throw new RepairError(r.status === "intake" ? "입고 점검 중에는 '입고 사진'의 손상 부위 근접 자리에 올립니다" : `${r.docNo}는 출고 단계라 사진을 더 붙이지 않습니다`);
+  const [d] = await db.select().from(roDamage).where(and(eq(roDamage.id, damageId), eq(roDamage.repairOrderId, roId)));
+  if (!d) throw new RepairError("없는 진단 줄입니다");
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(roPhoto).where(eq(roPhoto.damageId, damageId));
+  if (n >= DAMAGE_PHOTO_MAX) throw new RepairError(`손상 부위 사진은 ${DAMAGE_PHOTO_MAX}장까지입니다. 필요 없는 사진을 지우고 올리세요`);
+  if (!bytes.length) throw new RepairError("사진이 비어 있습니다");
+  if (bytes.length > MAX_IMAGE_BYTES) throw new RepairError("사진이 너무 큽니다(6MB까지). 화면에서 다시 올리면 줄여서 보냅니다");
+  const type = sniffImage(bytes);
+  if (!type) throw new RepairError("사진 파일만 올릴 수 있습니다(JPG·PNG·WEBP)");
+  const path = await storeFile(`ro/${r.docNo}`, bytes, IMAGE_TYPES[type]);
+  await db.insert(roPhoto).values({ repairOrderId: roId, slot: "close", damageId, path, width: meta.width ?? null, height: meta.height ?? null, bytes: bytes.length, takenBy: actor.id });
+  await writeAudit(db, { actorId: actor.id, action: "repair.damage_photo_add", entityType: "repair_order", entityId: r.docNo, after: { part: d.part, bytes: bytes.length } });
+}
+
+export async function removeDamagePhoto(db: Db, actor: { id: string; roles: Role[] }, roId: string, path: string) {
+  if (!actor.roles.some((x) => DIAG_ROLES.includes(x) || x === "advisor")) throw new RepairError("손상 부위 사진은 기술자·공장장·상담원·대표가 지웁니다");
+  const [p] = await db.select().from(roPhoto).where(and(eq(roPhoto.repairOrderId, roId), eq(roPhoto.path, path)));
+  if (!p?.damageId) return;
+  const r = await roRow(db, p.repairOrderId);
+  if (!DAMAGE_PHOTO_STATUSES.includes(r.status)) throw new RepairError(`${r.docNo}는 출고 단계라 사진을 지우지 않습니다`);
+  await db.delete(roPhoto).where(eq(roPhoto.id, p.id));
+  await removeStored(p.path);
+  await writeAudit(db, { actorId: actor.id, action: "repair.damage_photo_remove", entityType: "repair_order", entityId: r.docNo });
+}
+
+/** 손상 줄 사진(견적 그림에서 부위를 누르면 보여 준다) */
+export async function listDamagePhotos(db: Db, roId: string) {
+  const rows = await db.select({ damageId: roPhoto.damageId, path: roPhoto.path }).from(roPhoto).where(eq(roPhoto.repairOrderId, roId)).orderBy(asc(roPhoto.createdAt));
+  return rows.filter((p): p is { damageId: string; path: string } => !!p.damageId);
 }
 
 /** 수리 건 한 건: 상담(불러온 값)·고객·차량·사진·담당 */
@@ -234,7 +280,8 @@ export async function getRepair(db: Db, id: string) {
     consult: c,
     customer: { id: cu.id, name: cu.name, phone: cu.phoneMasked },
     vehicle: v,
-    photos: photos.map((p) => ({ ...p, slot: p.slot as PhotoSlot })),
+    photos: photos.filter((p) => !p.damageId).map((p) => ({ ...p, slot: p.slot as PhotoSlot })),
+    damagePhotos: photos.filter((p) => p.damageId).map((p) => ({ damageId: p.damageId!, path: p.path })),
     advisor: adv?.name ?? null,
     consent: await consentState(db, r.customerId),
     damages: await listDamage(db, id),
@@ -256,7 +303,7 @@ export async function listRepairs(db: Db, filter: "open" | "intake" | "checked" 
       plateNo: vehicle.plateNo,
       model: vehicle.model,
       consultId: repairOrder.consultationId,
-      photos: sql<number>`(select count(*)::int from ${roPhoto} where ${roPhoto.repairOrderId} = ${repairOrder.id})`,
+      photos: sql<number>`(select count(*)::int from ${roPhoto} where ${roPhoto.repairOrderId} = ${repairOrder.id} and ${roPhoto.damageId} is null)`,
       damages: sql<number>`(select count(*)::int from ${roDamage} where ${roDamage.repairOrderId} = ${repairOrder.id})`,
       outAt: sql<Date | null>`(select max(${repairStatement.deliveredAt}) from ${repairStatement} where ${repairStatement.repairOrderId} = ${repairOrder.id})`.mapWith(repairStatement.deliveredAt),
     })
@@ -314,7 +361,7 @@ export async function seedDiagnosis(db: Db, actorId: string, id: string) {
   const r = await roRow(db, id);
   const [has] = await db.select({ id: roDamage.id }).from(roDamage).where(eq(roDamage.repairOrderId, id)).limit(1);
   if (has) return 0;
-  const [c] = await db.select({ damageTypes: consultation.damageTypes }).from(consultation).where(eq(consultation.id, r.consultationId));
+  const [c] = await db.select({ damageTypes: consultation.damageTypes, zones: consultation.damageZones }).from(consultation).where(eq(consultation.id, r.consultationId));
   const [v] = await db.select({ options: vehicle.options }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
   const kind = c?.damageTypes.includes("찌그러짐") || !c?.damageTypes.includes("긁힘") ? "D" : "S";
   // 같은 부위에 찍은 O 표시들은 한 줄로 묶고, 처음 찍은 면의 칸들을 위치로 옮긴다
@@ -324,8 +371,11 @@ export async function seedDiagnosis(db: Db, actorId: string, id: string) {
   for (const part of parts) {
     const view = marks.find((m) => m.part === part)!.view;
     const cells = cleanCells(marks.filter((m) => m.part === part && m.view === view).map((m) => m.cell));
-    const s = suggestMethod({ kind, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
-    await db.insert(roDamage).values({ repairOrderId: id, seq: ++seq, part, view, cells, kind, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상·도막 두께를 재어 고치세요", createdBy: actorId });
+    // 상담에서 그 부위에 찍은 손상 종류가 있으면 그것(휠 긁힘은 긁힘), 없으면 상담 손상 유형으로
+    const z = cleanMarks(c?.zones ?? []).find((m) => m.part === part);
+    const k = z ? (z.kind === "W" ? "S" : z.kind) : kind;
+    const s = suggestMethod({ kind: k, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
+    await db.insert(roDamage).values({ repairOrderId: id, seq: ++seq, part, view, cells, kind: k, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상·도막 두께를 재어 고치세요", createdBy: actorId });
   }
   return parts.length;
 }
@@ -385,6 +435,11 @@ export async function removeDamage(db: Db, actor: { id: string; roles: Role[] },
   mustDiagnose(r);
   const [d] = await db.select().from(roDamage).where(and(eq(roDamage.id, damageId), eq(roDamage.repairOrderId, roId)));
   if (!d) return;
+  // 줄에 붙인 사진도 함께 지운다
+  for (const p of await db.select().from(roPhoto).where(eq(roPhoto.damageId, damageId))) {
+    await db.delete(roPhoto).where(eq(roPhoto.id, p.id));
+    await removeStored(p.path);
+  }
   await db.delete(roDamage).where(eq(roDamage.id, damageId));
   await writeAudit(db, { actorId: actor.id, action: "repair.damage_remove", entityType: "repair_order", entityId: r.docNo, after: { part: d.part } });
 }

@@ -154,7 +154,7 @@ export default async function NewConsult({ searchParams }: { searchParams: Promi
                 </fieldset>
               </>
             )}
-            <ConsultFields p={s.p} src={s.src} today={today} />
+            <ConsultFields p={s.p} src={s.src} today={today} vehicles={cust?.vehicles ?? []} />
             <SaveCheck fullDates={cal.filter((d) => d.full).map((d) => d.date)} closed={Object.fromEntries(cal.filter((d) => d.closed).map((d) => [d.date, d.closed!]))} />
             <SubmitButton>상담 일지 저장</SubmitButton>
           </AssistForm>
