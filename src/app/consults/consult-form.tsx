@@ -1,6 +1,10 @@
 // 상담 일지(F-01-01) 입력 칸 묶음 — 새 상담과 고치기가 같이 쓴다.
 // 앞선 기록(고른 고객·차량, 지난 상담)에서 온 값에는 '○○에서 불러옴'을 붙인다.
 import type { ReactNode } from "react";
+import { ConsultZones } from "./consult-zones";
+import { carOf } from "@/modules/repair/body-map";
+
+type VehicleLookRow = { id: string; model: string | null; bodyType: string | null; options: string[] };
 import { CONSENT_PICK, CONSENT_TEXT, CAUSES, CHANNEL_LABEL, DAMAGE_TYPES, INSURANCE_LABEL, METHODS, PARTS_PREF, RESULT_LABEL, TIME_SLOTS } from "@/modules/customer/rules";
 import { CheckGroup, DateField, NumberField, SelectField, TextAreaField, TextField } from "../_input";
 import { ShowWhen } from "./show-when";
@@ -12,6 +16,7 @@ export type ConsultPrefill = {
   mileage?: number | null;
   damageTypes?: string[];
   damageParts?: string | null;
+  damageZones?: { part: string; view: string; cell: number; kind: string }[];
   cause?: string | null;
   photoCount?: number;
   methods?: string[];
@@ -113,7 +118,7 @@ export function NewVehicleFields({ from, v, hints }: { from?: string; v?: Vehicl
 }
 
 /** 상담 내용·요구·예상 금액·결과. src 는 값을 불러온 곳(지난 상담 번호) */
-export function ConsultFields({ p, src, today, channel = true }: { p: ConsultPrefill; src?: string; today: string; channel?: boolean }) {
+export function ConsultFields({ p, src, today, channel = true, vehicles = [] }: { p: ConsultPrefill; src?: string; today: string; channel?: boolean; /** 고를 수 있는 차량(그림 차형용) */ vehicles?: VehicleLookRow[] }) {
   const f = (has: unknown) => (has != null && has !== "" && !(Array.isArray(has) && !has.length) ? src : undefined);
   return (
     <>
@@ -122,6 +127,7 @@ export function ConsultFields({ p, src, today, channel = true }: { p: ConsultPre
           {channel && <SelectField help="consult.channel" name="channel" required defaultValue={p.channel ?? "phone"} options={opts(CHANNEL_LABEL)} />}
           <SelectField help="consult.cause" name="cause" defaultValue={p.cause ?? ""} placeholder="고르기" options={list(CAUSES)} from={f(p.cause)} />
         </div>
+        <ConsultZones initial={p.damageZones ?? []} cars={Object.fromEntries(vehicles.map((v) => [v.id, carOf(v)]))} />
         <CheckGroup help="consult.damageTypes" name="damageTypes" options={list(DAMAGE_TYPES)} defaultChecked={p.damageTypes ?? []} />
         <TextAreaField help="consult.damageParts" name="damageParts" rows={2} defaultValue={p.damageParts ?? undefined} from={f(p.damageParts)} />
         <div className="grid gap-4 lg:grid-cols-3">

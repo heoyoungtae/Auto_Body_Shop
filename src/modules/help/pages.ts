@@ -344,6 +344,22 @@ export const PAGE_HELP = {
     refs: ["부록 D 정책값의 '영업일' 기한"],
     terms: ["영업일"],
   },
+  "settings.bodyParts": {
+    title: "차 부위·세부 부위",
+    purpose: "차 그림의 큰 부위 안에서 진단·견적에 쓰는 세부 부품 이름을 정비소에 맞게 더합니다(STD-02 5절 손상 진단). 차종마다 부품이 더 잘게 나뉜 경우를 받기 위한 곳입니다.",
+    who: "모든 직원이 보고, 공장장·대표가 바꿉니다.",
+    steps: [
+      "표에서 부위마다 기본 세부 부위와 더한 것을 봅니다.",
+      "더할 부위 줄의 '더하기·고치기'를 누릅니다.",
+      "오른쪽 칸에 한 줄에 하나씩 적고 '저장'을 누릅니다.",
+      "진단 화면에서 그 부위를 고르면 '세부 부위' 목록에 나오는지 봅니다.",
+    ],
+    tips: [
+      "목록에 없어도 진단 화면에서 직접 적을 수 있습니다. 자주 쓰는 이름만 여기에 더하세요.",
+      "칸을 비우고 저장하면 더한 것이 모두 빠집니다. 이미 쓴 진단 줄 이름은 그대로 남습니다.",
+    ],
+    refs: ["STD-02 5절 손상 진단"],
+  },
   "settings.punch": {
     title: "출퇴근 장소(와이파이)",
     purpose:
@@ -2517,6 +2533,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/kakao": "settings.kakao",
   "/settings/gift": "settings.gift",
   "/settings/punch": "settings.punch",
+  "/settings/body-parts": "settings.bodyParts",
   "/settings/calendar": "settings.calendar",
   "/messages/send": "messages.send",
   "/messages/templates": "messages.templates",

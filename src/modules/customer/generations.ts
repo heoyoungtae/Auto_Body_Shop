@@ -127,8 +127,11 @@ export const VEHICLE_OPTIONS = {
   bsd: "후측방 레이더(BSD)",
   svm: "서라운드뷰 카메라",
   led_head: "LED·매트릭스 헤드램프",
-  sunroof: "파노라마 선루프",
+  sunroof: "선루프(파노라마 포함)",
   paint3: "3코트(펄)·무광 도장",
+  spoiler: "스포일러(트렁크·지붕)",
+  side_step: "사이드 스텝",
+  roof_rack: "루프랙(지붕 레일)",
 } as const;
 export type VehicleOption = keyof typeof VEHICLE_OPTIONS;
 export const isVehicleOption = (k: string): k is VehicleOption => k in VEHICLE_OPTIONS;

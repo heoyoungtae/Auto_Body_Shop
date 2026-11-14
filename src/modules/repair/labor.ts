@@ -25,7 +25,9 @@ export function partGroup(part: string): PartGroup {
   if (part.endsWith("bumper")) return "bumper";
   if (part === "hood") return "hood";
   if (part === "roof") return "roof";
-  if (part === "trunk") return "trunk";
+  if (part === "trunk" || part === "bed_gate") return "trunk";
+  if (part.endsWith("_bed")) return "quarter";
+  if (part === "bed_floor") return "roof";
   if (part.includes("door")) return "door";
   if (part.endsWith("f_fender")) return "fender";
   if (part.endsWith("quarter")) return "quarter";

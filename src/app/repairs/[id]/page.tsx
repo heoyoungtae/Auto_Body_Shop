@@ -15,6 +15,8 @@ import {
   RO_STATUS_LABEL,
 } from "@/modules/repair/rules";
 import { loadPolicy } from "@/modules/platform/policy";
+import { loadSubParts } from "@/modules/repair/sub-parts";
+import { carOf } from "@/modules/repair/body-map";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
 import {
@@ -109,7 +111,7 @@ export default async function RepairDetail({
     outsourceOfRo(db, id),
     usedOnRo(db, id),
   ]);
-  const policy = await loadPolicy(db, seoulDate());
+  const [policy, subExtras] = await Promise.all([loadPolicy(db, seoulDate()), loadSubParts(db)]);
   const canWrite = can(user, "repair.write");
   const canDiagnose = can(user, "diag.write");
   const canConfirm = can(user, "diag.confirm");
@@ -298,7 +300,7 @@ export default async function RepairDetail({
               <PhotoSlots roId={r.id} photos={photos} minPhotos={minPhotos} />
             </Card>
             <Card title="차체 도면" help={{ kind: "panel", id: "ro.diagram" }}>
-              <BodyDiagram initial={r.marks} />
+              <BodyDiagram initial={r.marks} car={carOf(v)} />
             </Card>
             <Card title="실내·열쇠" help={{ kind: "panel", id: "ro.inside" }}>
               <div className="space-y-4">
@@ -736,6 +738,10 @@ export default async function RepairDetail({
                 repaintUm={policy["diagnosis.repaint_um"]}
                 options={v.options ?? []}
                 diagNote={r.diagNote}
+                photos={r.damagePhotos}
+                canPhoto={canDiagnose || user.roles.includes("advisor")}
+                subExtras={subExtras}
+                car={carOf(v)}
               />
             )}
             <Card
@@ -781,7 +787,7 @@ export default async function RepairDetail({
               />
             </Card>
             <Card title="차체 도면" help={{ kind: "panel", id: "ro.diagram" }}>
-              <BodyDiagram initial={r.marks} readOnly />
+              <BodyDiagram initial={r.marks} readOnly car={carOf(v)} />
             </Card>
           </div>
           <div className="space-y-4">

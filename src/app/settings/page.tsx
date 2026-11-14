@@ -6,6 +6,7 @@ import { Card, PageTitle } from "../_ui";
 const ITEMS: { href: string; title: string; body: string; help: PageHelpKey }[] = [
   { help: "settings.shop", href: "/settings/shop", title: "사업장 정보", body: "업체명·대표자·사업자등록번호·정비업 등록번호·주소. 법정 견적서·정비명세서에 찍힙니다." },
   { help: "settings.labor", href: "/settings/labor", title: "공임 기준표(F-03-01)", body: "시간당 공임, 작업별 표준 시간, 패널당 도장 단가와 도장 등급 계수. 견적이 이 표로 계산됩니다." },
+  { help: "settings.bodyParts", href: "/settings/body-parts", title: "차 부위·세부 부위", body: "차 그림의 부위 안에서 쓰는 세부 부품 이름. 기본 목록에 없는 부품을 더하면 진단 화면 목록에 나옵니다." },
   { help: "settings.policies", href: "/settings/policies", title: "정책값(부록 D)", body: "기한·주기·기준 점수 같은 숫자 규칙. 대표가 바꾸고, 바꾼 이력이 남습니다." },
   { help: "settings.delegation", href: "/settings/delegation", title: "전결 규정(부록 B)", body: "업무와 금액별 최종 승인자. 대표가 구간을 바꿉니다." },
   { help: "settings.users", href: "/settings/users", title: "로그인 계정·대리 승인", body: "계정의 상태·역할·접속 기기, 임시 비밀번호·잠금·로그아웃, 대표 부재 시 대리 승인자. 새 직원은 직원 명부에서 등록합니다." },

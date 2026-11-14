@@ -1,12 +1,13 @@
 // 손상 진단(STD-02 5절) — 수리 건 화면 안의 부분. 줄마다 따로 저장하고, 공장장이 확인하면 견적 대기로 넘어간다.
 import type { roDamage } from "@/db/schema";
-import { cellsLabel } from "@/modules/repair/body-map";
+import { type CarLook, cellsLabel } from "@/modules/repair/body-map";
 import { damageSeverity, DAMAGE_KINDS, diagnosisIssues, METHODS, PAINT_LAYERS, partName, repainted, SEVERITY_LABEL } from "@/modules/repair/rules";
 import { AssistForm } from "../_assist";
 import { CheckGroup, NumberField, SelectField, TextAreaField, TextField } from "../_input";
 import { SubmitButton } from "../_submit";
 import { Badge, Card } from "../_ui";
-import { confirmDiagnosisAction, damageAction } from "./actions";
+import { PhotoStrip } from "../photo-strip";
+import { confirmDiagnosisAction, damageAction, removeDamagePhotoAction, uploadDamagePhotoAction } from "./actions";
 import { CarMap } from "./car-map";
 import { damageFills, damagePins, MethodLegend, methodColor, viewOf } from "./damage-map";
 import { MethodHint } from "./method-hint";
@@ -15,10 +16,10 @@ import { PartPicker } from "./part-picker";
 type Damage = typeof roDamage.$inferSelect;
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
-function DamageFields({ d, repaintUm, options, others }: { d?: Damage; repaintUm: number; options: string[]; others: Damage[] }) {
+function DamageFields({ d, repaintUm, options, others, extra, car }: { d?: Damage; repaintUm: number; options: string[]; others: Damage[]; extra?: Record<string, string[]>; car?: CarLook }) {
   return (
     <div className="space-y-4">
-      <PartPicker initial={d ? { part: d.part, view: viewOf(d), cells: d.cells } : undefined} subPart={d?.subPart} others={damageFills(others, true)} from={d?.note?.startsWith("입고 도면에서 불러옴") ? "입고 도면" : undefined} />
+      <PartPicker initial={d ? { part: d.part, view: viewOf(d), cells: d.cells } : undefined} subPart={d?.subPart} others={damageFills(others, true)} from={d?.note?.startsWith("입고 도면에서 불러옴") ? "입고 도면" : undefined} extra={extra} car={car} />
       <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         <SelectField help="dmg.kind" name="kind" required defaultValue={d?.kind ?? "D"} options={opts(DAMAGE_KINDS)} />
         <NumberField help="dmg.size" name="sizeCm" unit="cm" min={0} max={500} defaultValue={d?.sizeCm ?? null} />
@@ -85,15 +86,26 @@ function Summary({ d, repaintUm }: { d: Damage; repaintUm: number }) {
   );
 }
 
-export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repaintUm, options, diagNote }: { roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; repaintUm: number; options: string[]; diagNote: string | null }) {
+export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repaintUm, options, diagNote, photos = [], canPhoto = false, subExtras, car }: { roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; repaintUm: number; options: string[]; diagNote: string | null; photos?: { damageId: string; path: string }[]; canPhoto?: boolean; subExtras?: Record<string, string[]>; car?: CarLook }) {
   const editable = status === "checked" && canDiagnose;
+  // 손상 줄 사진(가까이 찍은 것): 진단부터 검사까지 붙이고 뺄 수 있다. 견적·손님 설명에 같이 쓴다
+  const photoEditable = canPhoto && ["checked", "estimating", "working", "inspecting"].includes(status);
+  const linePhotos = (d: Damage) => {
+    const list = photos.filter((p) => p.damageId === d.id).map((p) => p.path);
+    if (!list.length && !photoEditable) return null;
+    return (
+      <div className="mt-2">
+        <PhotoStrip fields={{ id: roId, damageId: d.id }} upload={uploadDamagePhotoAction} remove={removeDamagePhotoAction} photos={list} editable={photoEditable} label={`${d.seq}. ${partName(d.part, d.subPart)}`} />
+      </div>
+    );
+  };
   const issues = diagnosisIssues(damages);
   return (
     <section id="diagnosis" className="space-y-4">
       <Card title="손상 진단" help={{ kind: "panel", id: "ro.diagnosis" }}>
         {damages.length > 0 && (
           <div className="mb-4">
-            <CarMap label="진단한 손상 위치(색은 수리 방법)" fills={damageFills(damages)} pins={damagePins(damages)} />
+            <CarMap label="진단한 손상 위치(색은 수리 방법)" fills={damageFills(damages)} pins={damagePins(damages)} car={car} />
             <MethodLegend />
           </div>
         )}
@@ -109,7 +121,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
                     <AssistForm id={`dmg-${d.id}`} action={damageAction} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
                       <input type="hidden" name="id" value={roId} />
                       <input type="hidden" name="damageId" value={d.id} />
-                      <DamageFields d={d} repaintUm={repaintUm} options={options} others={damages.filter((x) => x.id !== d.id)} />
+                      <DamageFields d={d} repaintUm={repaintUm} options={options} others={damages.filter((x) => x.id !== d.id)} extra={subExtras} car={car} />
                       <div className="flex flex-wrap gap-2">
                         <SubmitButton name="intent" value="save">
                           이 줄 저장
@@ -126,6 +138,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
                     {(d.methodReason || d.note) && <p className="mt-0.5 text-xs text-[var(--muted)]">{[d.methodReason && `다른 방법 사유: ${d.methodReason}`, d.note].filter(Boolean).join(" · ")}</p>}
                   </>
                 )}
+                {linePhotos(d)}
               </li>
             ))}
           </ul>
@@ -137,7 +150,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
             <summary className="cursor-pointer text-sm font-semibold text-[var(--accent)]">+ 손상 부위 넣기</summary>
             <AssistForm id={`dmg-new-${roId}`} action={damageAction} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
               <input type="hidden" name="id" value={roId} />
-              <DamageFields repaintUm={repaintUm} options={options} others={damages} />
+              <DamageFields repaintUm={repaintUm} options={options} others={damages} extra={subExtras} car={car} />
               <SubmitButton name="intent" value="save">
                 넣기
               </SubmitButton>

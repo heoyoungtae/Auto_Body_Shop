@@ -15,6 +15,8 @@ import { loadPolicy } from "@/modules/platform/policy";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { generationFor, isVehicleOption } from "./generations";
 import { decodeVin, makerOf, normalizeVin, VIN_RE } from "./vehicles";
+import { cleanMarks } from "@/modules/repair/rules";
+import { isBodyType } from "@/modules/repair/body-map";
 import {
   addBusinessDays,
   CONSENT_VERSION,
@@ -175,6 +177,8 @@ export type VehicleInput = {
   mileage?: number | null;
   /** 수리 사양(VEHICLE_OPTIONS 키). 주면 통째로 바꾸고, 안 주면 지난 값 유지 */
   options?: string[];
+  /** 차형(BODY_TYPES 키). 빈 글자면 지우고(차종 이름으로 짐작), 안 주면 지난 값 유지 */
+  bodyType?: string;
 };
 
 export async function saveVehicle(db: Db, actorId: string, customerId: string, input: VehicleInput, today = seoulDate()) {
@@ -207,6 +211,7 @@ export async function saveVehicle(db: Db, actorId: string, customerId: string, i
     trim: clean(input.trim) ?? old?.trim ?? null,
     colorCode: clean(input.colorCode)?.toUpperCase() ?? old?.colorCode ?? null,
     options: input.options ? input.options.filter(isVehicleOption) : (old?.options ?? []),
+    bodyType: input.bodyType === undefined ? (old?.bodyType ?? null) : isBodyType(input.bodyType) ? input.bodyType : null,
     ...(mileage != null ? { mileage, mileageOn: today } : {}),
     updatedAt: new Date(),
   };
@@ -243,6 +248,8 @@ export type ConsultInput = {
   channel: (typeof consultation.$inferInsert)["channel"];
   damageTypes: string[];
   damageParts?: string;
+  /** 차 그림에서 찍은 부위(입고 도면 모양). 걸러서 저장한다 */
+  damageZones?: unknown;
   cause?: string;
   photoCount?: number;
   methods: string[];
@@ -316,7 +323,7 @@ export async function createConsultation(db: Db, actorId: string, input: Consult
 async function createConsultationTx(db: Db, actorId: string, input: ConsultInput, now: Date) {
   const today = seoulDate(now);
   const policy = await loadPolicy(db, today);
-  if (!input.damageTypes.length && !clean(input.damageParts)) throw new CustomerError("손상 유형이나 부위를 하나 이상 적어 주세요");
+  if (!input.damageTypes.length && !clean(input.damageParts) && !cleanMarks(input.damageZones).length) throw new CustomerError("손상 유형이나 부위를 하나 이상 적어 주세요");
   const estMin = input.estMin ?? null;
   const estMax = input.estMax ?? null;
   if (estMin != null && estMax != null && estMin > estMax) throw new CustomerError("예상 금액의 최소가 최대보다 큽니다");
@@ -373,6 +380,7 @@ async function createConsultationTx(db: Db, actorId: string, input: ConsultInput
         vehicleId,
         damageTypes: input.damageTypes,
         damageParts: clean(input.damageParts),
+        damageZones: zonesOf(input.damageZones),
         cause: clean(input.cause),
         photoCount: Math.max(0, input.photoCount ?? 0),
         mileage: input.mileage ?? null,
@@ -418,6 +426,7 @@ export async function updateConsultation(db: Db, actorId: string, id: string, in
       vehicleId: input.vehicleId === undefined ? c.vehicleId : input.vehicleId,
       damageTypes: input.damageTypes,
       damageParts: clean(input.damageParts),
+      damageZones: zonesOf(input.damageZones),
       cause: clean(input.cause),
       photoCount: Math.max(0, input.photoCount ?? 0),
       // 주행거리는 입고 점검에서 계기판으로 받는다(사용자 지시 2026-11-08). 지난 상담에 적힌 값은 그대로 둔다
@@ -711,4 +720,9 @@ export async function colorHints(db: Db) {
   const out: Record<string, string[]> = {};
   for (const r of rows) (out[r.model!] ??= []).push(r.code!);
   return out;
+}
+
+/** 상담 손상 부위: 입고 도면 표시와 같은 모양으로 거르되, 수리 대상(O)은 쓰지 않는다(상담은 손상 종류만) */
+function zonesOf(raw: unknown) {
+  return cleanMarks(raw).filter((m) => m.kind !== "O").slice(0, 40);
 }

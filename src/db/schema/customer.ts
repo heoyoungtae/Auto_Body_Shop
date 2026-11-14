@@ -42,6 +42,8 @@ export const vehicle = pgTable(
     colorCode: text("color_code"),
     /** 수리 사양: 레이더·센서·카메라·램프·선루프·3코트 도장 등(VEHICLE_OPTIONS 키) */
     options: jsonb("options").$type<string[]>().notNull().default([]),
+    /** 차형(세단·해치백·SUV·승합·화물, body-map BODY_TYPES). 비우면 차종 이름으로 짐작 */
+    bodyType: text("body_type"),
     /** 마지막으로 안 주행거리(km)와 그날. 상담 때는 고객 말, 입고 때는 계기판 확인 값 */
     mileage: integer("mileage"),
     mileageOn: date("mileage_on"),
@@ -98,6 +100,8 @@ export const consultation = pgTable(
     /** 손상 유형(찌그러짐·긁힘·도장 박리·부식·기타), 부위, 경위 */
     damageTypes: jsonb("damage_types").$type<string[]>().notNull().default([]),
     damageParts: text("damage_parts"),
+    /** 차 그림에서 찍은 손상 부위(부위·면·칸·기호, 입고 도면과 같은 모양). 입고 때 수리 대상(O)으로 넘어간다 */
+    damageZones: jsonb("damage_zones").$type<{ part: string; view: string; cell: number; kind: string }[]>().notNull().default([]),
     cause: text("cause"),
     photoCount: integer("photo_count").notNull().default(0),
     /** 고객이 말한 주행거리(km, 대략) */

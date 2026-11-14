@@ -84,6 +84,8 @@ export const roPhoto = pgTable(
     height: integer("height"),
     bytes: integer("bytes").notNull(),
     note: text("note"),
+    /** 진단 줄(손상 부위)에 붙인 근접 사진이면 그 줄. 입고 사진은 비어 있다 */
+    damageId: uuid("damage_id"),
     takenBy: uuid("taken_by").references(() => appUser.id),
     createdAt: createdAt(),
   },

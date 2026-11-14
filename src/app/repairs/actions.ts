@@ -3,7 +3,7 @@ import { rolesFor } from "@/modules/auth/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { addPhoto, confirmDiagnosis, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
+import { addDamagePhoto, addPhoto, confirmDiagnosis, removeDamagePhoto, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
 import { parseFilm } from "@/modules/repair/rules";
 import { parseCells } from "@/modules/repair/body-map";
 import { createEstimate, issueEstimate, removeLine, reviewEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
@@ -115,6 +115,35 @@ export async function uploadPhotoAction(form: FormData): Promise<{ ok: true } | 
     return { ok: false, error: userMessage(e) };
   }
   revalidatePath(`/repairs/${id}`);
+  return { ok: true };
+}
+
+/** 손상 부위(진단 줄) 사진 올리기·지우기. 화면이 직접 부르고 결과를 받는다 */
+export async function uploadDamagePhotoAction(form: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser([...STAFF]);
+  const id = String(form.get("id") ?? "");
+  const file = form.get("file");
+  try {
+    if (!(file instanceof Blob)) throw new UserError("사진을 고르지 않았습니다");
+    await addDamagePhoto(await getDb(), user, id, String(form.get("damageId") ?? ""), new Uint8Array(await file.arrayBuffer()), {
+      width: Number(form.get("width")) || undefined,
+      height: Number(form.get("height")) || undefined,
+    });
+  } catch (e) {
+    return { ok: false, error: userMessage(e) };
+  }
+  revalidatePath(`/repairs/${id}`);
+  return { ok: true };
+}
+
+export async function removeDamagePhotoAction(form: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser([...STAFF]);
+  try {
+    await removeDamagePhoto(await getDb(), user, String(form.get("id") ?? ""), String(form.get("path") ?? ""));
+  } catch (e) {
+    return { ok: false, error: userMessage(e) };
+  }
+  revalidatePath(`/repairs/${String(form.get("id") ?? "")}`);
   return { ok: true };
 }
 

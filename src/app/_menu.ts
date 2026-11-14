@@ -400,6 +400,11 @@ export const MENU: MenuGroup[] = [
         href: "/settings/calendar",
       },
       {
+        label: "차 부위·세부 부위",
+        perm: ["diag.confirm"],
+        href: "/settings/body-parts",
+      },
+      {
         label: "출퇴근 장소(와이파이)",
         roles: ["owner"],
         href: "/settings/punch",
