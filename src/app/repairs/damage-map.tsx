@@ -34,3 +34,60 @@ export function MethodLegend() {
   );
 }
 
+
+/** 견적 승인 묶음(진단 줄 id 로 묶임) → 승인 그림 구역. 진단 줄이 없는 묶음(직접 넣은 줄)은 그림에 없다 */
+export const approvalZones = (groups: { key: string }[], list: Damage[]) =>
+  groups.flatMap((g) => {
+    const d = list.find((x) => x.id === g.key);
+    return d ? [{ key: g.key, seq: d.seq, part: d.part, view: viewOf(d), cells: d.cells, label: partName(d.part, d.subPart) }] : [];
+  });
+
+/** 작업 진행 색(대기·작업 중·끝·안 고침) */
+export const PROGRESS = {
+  wait: { label: "작업 전", color: "#9aa3ab" },
+  doing: { label: "작업 중", color: "#f59e0b" },
+  done: { label: "끝", color: "#16a34a" },
+  skip: { label: "안 고침(승인 안 됨)", color: "#d1d5db" },
+} as const;
+type Prog = { state: keyof typeof PROGRESS; process: string | null };
+
+export const progressFills = (list: Damage[], prog: Map<string, Prog>): MapFill[] =>
+  list.map((d) => {
+    const p = prog.get(d.id)?.state ?? "wait";
+    return { part: d.part, view: viewOf(d), cells: d.cells, color: PROGRESS[p].color, strength: p === "skip" ? 0.25 : 0.6 };
+  });
+export const progressPins = (list: Damage[], prog: Map<string, Prog>, processName: (p: string) => string): MapPin[] =>
+  list.flatMap((d) => {
+    const view = viewOf(d);
+    if (!view) return [];
+    const p = prog.get(d.id) ?? { state: "wait" as const, process: null };
+    const cell = d.cells.length ? d.cells[Math.floor(d.cells.length / 2)] : 4;
+    const now = p.state === "doing" && p.process ? ` · 지금 ${processName(p.process)}` : p.state === "wait" && p.process ? ` · 첫 공정 ${processName(p.process)}` : "";
+    return [{ key: d.id, part: d.part, view, cell, color: PROGRESS[p.state].color, text: String(d.seq), title: `${d.seq}. ${partName(d.part, d.subPart)} · ${PROGRESS[p.state].label}${now}` }];
+  });
+
+export function ProgressLegend({ list, prog, processName }: { list: Damage[]; prog: Map<string, Prog>; processName: (p: string) => string }) {
+  return (
+    <div className="mt-1 space-y-1 text-xs text-[var(--muted)]">
+      <p className="flex flex-wrap gap-x-3 gap-y-1">
+        {(Object.keys(PROGRESS) as (keyof typeof PROGRESS)[]).map((k) => (
+          <span key={k} className="inline-flex items-center gap-1">
+            <span className="size-2.5 rounded-sm" style={{ background: PROGRESS[k].color }} />
+            {PROGRESS[k].label} {list.filter((d) => (prog.get(d.id)?.state ?? "wait") === k).length}
+          </span>
+        ))}
+      </p>
+      <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
+        {list.map((d) => {
+          const p = prog.get(d.id) ?? { state: "wait" as const, process: null };
+          return (
+            <li key={d.id}>
+              {d.seq}. {partName(d.part, d.subPart)} — <span style={{ color: p.state === "skip" ? undefined : PROGRESS[p.state].color }}>{PROGRESS[p.state].label}</span>
+              {p.state === "doing" && p.process ? `(${processName(p.process)})` : ""}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}

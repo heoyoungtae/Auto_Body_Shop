@@ -4,7 +4,11 @@ import { getDb } from "@/db/runtime";
 import { getWorkOrder } from "@/modules/repair/work";
 import { processEquipmentWarnings } from "@/modules/equipment/service";
 import { fmtMinutes } from "@/modules/repair/labor";
-import { PROCESSES, WO_STATUS_LABEL, isProcess, processLabel } from "@/modules/repair/work-rules";
+import { PROCESSES, WO_STATUS_LABEL, damageProgress, isProcess, processLabel } from "@/modules/repair/work-rules";
+import { listDamage } from "@/modules/repair/service";
+import { carOf } from "@/modules/repair/body-map";
+import { CarMap } from "../../repairs/car-map";
+import { progressFills, progressPins, ProgressLegend } from "../../repairs/damage-map";
 import { AssistForm } from "../../_assist";
 import { CheckGroup, DateField, NumberField, SelectField, TextAreaField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
@@ -66,6 +70,8 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
   const v = w.vehicle;
   const lineName = (lid: string) => w.lines.find((l) => l.id === lid)?.name;
   // 시작 전에 보여 줄 설비 경고(STD-08 5.4)
+  const damages = await listDamage(db, w.ro.id);
+  const prog = damageProgress(damages.map((d) => d.id), w.lines, w.steps);
   const eqWarn = new Map(await Promise.all([...new Set(w.steps.filter((s) => !s.startedAt).map((s) => s.process))].map(async (p) => [p, await processEquipmentWarnings(db, p)] as const)));
 
   return (
@@ -92,6 +98,15 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
       <p className="mt-3 text-sm">
         {w.customerName} · <b>{v.plateNo}</b> {[v.maker, v.model, v.generation].filter(Boolean).join(" ")} · 색상 {v.colorCode ?? "—"} · 출고 약속 <b>{w.dueDate ?? "—"}</b>
       </p>
+
+      {damages.length > 0 && (
+        <div className="mt-4">
+          <Card title="부위별 작업 진행" help={{ kind: "panel", id: "work.progressMap" }}>
+            <CarMap label="부위별 작업 진행(회색=작업 전, 주황=작업 중, 초록=끝)" fills={progressFills(damages, prog)} pins={progressPins(damages, prog, processLabel)} car={carOf(v)} />
+            <ProgressLegend list={damages} prog={prog} processName={processLabel} />
+          </Card>
+        </div>
+      )}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
         <div className="space-y-4 xl:col-span-2">

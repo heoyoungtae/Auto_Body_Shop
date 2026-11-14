@@ -9,6 +9,11 @@ import { SignMark } from "../../sign-mark";
 import { requireUser } from "../../../_lib/session";
 import { buttonClass, PageTitle } from "../../../_ui";
 import { PrintButton } from "../estimate/[eid]/print/print-button";
+import { and, eq } from "drizzle-orm";
+import { estimate, estimateLine, repairOrder, vehicle } from "@/db/schema";
+import { listDamage } from "@/modules/repair/service";
+import { carOf } from "@/modules/repair/body-map";
+import { DamageSheet } from "../../damage-sheet";
 
 type Line = { payer: string; category: string; name: string; partCode: string | null; partNo: string | null; qty: number; unitWon: number; laborWon: number };
 type Snap = { owner: string; plateNo: string; carName: string; mileage: number | null; registeredOn: string | null; requestedOn: string; completedOn: string; shop: ShopInfo; writer: string | null; writerSign?: string | null; estimateNo: string; lines: Line[]; warranty: { kind: string; until: string }[]; legalFreeDays: number; noWashDays: number };
@@ -26,7 +31,14 @@ const NOTES = [
 export default async function StatementPrint({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await requireUser();
-  const st = await statementOf(await getDb(), id);
+  const db = await getDb();
+  const st = await statementOf(db, id);
+  // 손상 부위도: 승인해서 고친 진단 줄만(승인 안 한 부위는 빼고)
+  const done = st ? await db.select({ damageId: estimateLine.damageId }).from(estimateLine).innerJoin(estimate, eq(estimate.id, estimateLine.estimateId)).where(and(eq(estimate.repairOrderId, id), eq(estimateLine.approved, true))) : [];
+  const fixed = new Set(done.map((x) => x.damageId).filter(Boolean));
+  const damages = st ? (await listDamage(db, id)).filter((d) => fixed.has(d.id)) : [];
+  const [ro] = st ? await db.select({ vehicleId: repairOrder.vehicleId }).from(repairOrder).where(eq(repairOrder.id, id)) : [];
+  const [veh] = ro ? await db.select().from(vehicle).where(eq(vehicle.id, ro.vehicleId)) : [];
   const s = (st?.snapshot ?? null) as Snap | null;
   const MIN_ROWS = 12;
   const [y, m, d] = (st?.issuedOn ?? "").split("-");
@@ -212,6 +224,7 @@ export default async function StatementPrint({ params }: { params: Promise<{ id:
           </p>
         </article>
       )}
+      {st && s && <DamageSheet damages={damages} car={carOf(veh)} docNo={st.docNo} plateNo={s.plateNo} carName={s.carName} kind="statement" />}
     </div>
   );
 }

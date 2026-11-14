@@ -7,6 +7,7 @@ import { AmountChecklist, CheckGroup, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { ErrorBox, Notice, PageTitle } from "../../_ui";
 import { SignaturePad } from "../../repairs/signature-pad";
+import { ApprovalMap } from "../../repairs/approval-map";
 import { approveEstimateAction } from "./actions";
 
 const won = (n: number) => n.toLocaleString("ko-KR");
@@ -83,6 +84,7 @@ export default async function EstimateApprovalPage({ params, searchParams }: { p
 
           <AssistForm id={`approve-${open.docNo}`} action={approveEstimateAction} className="space-y-4">
             <input type="hidden" name="token" value={token} />
+            {open.zones.length > 0 && <ApprovalMap zones={open.zones} car={open.car} />}
             <AmountChecklist
               help="approve.groups"
               name="groups"

@@ -15,7 +15,7 @@ import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } fro
 import { seoulDate } from "@/modules/platform/time";
 import { checkAssignment, currentLevels } from "@/modules/staff/service";
 import { processEquipmentWarnings } from "@/modules/equipment/service";
-import { blockers, buildSteps, finishIssues, isProcess, minutesBetween, processLabel, PROCESSES } from "./work-rules";
+import { blockers, buildSteps, damageProgress, finishIssues, isProcess, minutesBetween, processLabel, PROCESSES } from "./work-rules";
 
 export class WorkError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -268,4 +268,15 @@ export async function assignRest(db: Db, actor: Actor, woId: string, input: { as
   if (bad.length) throw new WorkError(`역량이 단독 기준에 못 미치는 공정이 있어 한꺼번에 정할 수 없습니다: ${bad.join(", ")}. 그 공정은 지도자를 함께 정해 하나씩 배정해 주세요`);
   for (const s of steps) await assignStep(db, actor, s.id, { assignee: input.assignee, planDate: input.planDate, stdMinutes: null }, now);
   return steps.length;
+}
+
+/** 수리 건의 부위별 작업 진행(가장 최근 작업 지시서 기준). 지시서가 없으면 null */
+export async function roProgress(db: Db, roId: string, damageIds: string[]) {
+  const [w] = await db.select().from(workOrder).where(eq(workOrder.repairOrderId, roId)).orderBy(desc(workOrder.createdAt)).limit(1);
+  if (!w) return null;
+  const [steps, lines] = await Promise.all([
+    db.select().from(workStep).where(eq(workStep.workOrderId, w.id)),
+    db.select({ id: estimateLine.id, damageId: estimateLine.damageId, approved: estimateLine.approved }).from(estimateLine).where(eq(estimateLine.estimateId, w.estimateId)),
+  ]);
+  return damageProgress(damageIds, lines, steps);
 }
