@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { COMMON_TRIMS, generationFor, generationsOf, genLabel, VEHICLE_OPTIONS, yearMismatch } from "@/modules/customer/generations";
 import { decodeVin, MAKER_NAMES, MAKERS, makerOf } from "@/modules/customer/vehicles";
+import { BODY_TYPES, bodyGuess } from "@/modules/repair/body-map";
 import { CheckGroup, SelectField, TextField } from "../_input";
 
 export type VehicleValues = {
@@ -18,6 +19,7 @@ export type VehicleValues = {
   year?: number | null;
   colorCode?: string | null;
   options?: string[] | null;
+  bodyType?: string | null;
 };
 export type VehicleHints = { colors: Record<string, string[]>; trims: Record<string, string[]> };
 
@@ -134,6 +136,14 @@ export function VehicleFields({ v, from, hints = { colors: {}, trims: {} } }: { 
         </div>
         <TextField help="veh.trim" name="trim" defaultValue={v?.trim ?? undefined} from={tag(v?.trim)} suggestions={trimList} autoComplete="off" />
         <TextField help="veh.color" name="colorCode" defaultValue={v?.colorCode ?? undefined} from={tag(v?.colorCode)} suggestions={colorList.map((c) => ({ value: c, label: `${model}에서 쓴 코드` }))} autoComplete="off" />
+        <SelectField
+          help="veh.body"
+          name="bodyType"
+          defaultValue={v?.bodyType ?? ""}
+          from={tag(v?.bodyType)}
+          placeholder={`차종 이름으로 짐작(${BODY_TYPES[bodyGuess(model) ?? "sedan"]}${bodyGuess(model) ? "" : " — 모름"})`}
+          options={Object.entries(BODY_TYPES).map(([value, label]) => ({ value, label }))}
+        />
       </div>
       <input type="hidden" name="optionsShown" value="1" />
       <CheckGroup help="veh.options" name="options" options={Object.entries(VEHICLE_OPTIONS).map(([value, label]) => ({ value, label }))} defaultChecked={v?.options ?? []} />

@@ -14,5 +14,6 @@ export function readVehicle(form: FormData): Omit<VehicleInput, "id"> {
     year: year ? Number(year) : null,
     colorCode: s("colorCode"),
     options: form.has("optionsShown") ? form.getAll("options").map(String) : undefined,
+    bodyType: form.has("optionsShown") ? s("bodyType") : undefined,
   };
 }

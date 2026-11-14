@@ -12,6 +12,8 @@ import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "
 import { confirmAction, repliedAction } from "../actions";
 import { startRepairAction } from "../../repairs/actions";
 import { repairsOfConsults } from "@/modules/repair/service";
+import { ConsultZonesView } from "../consult-zones";
+import { BODY_TYPES, bodyOf, carOf } from "@/modules/repair/body-map";
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
@@ -94,6 +96,7 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
                 {c.consent.required ? <Badge tone="ok">필수 동의</Badge> : pending ? <Badge tone="warn">링크 동의 대기 · {fmtTime(pending.expiresAt)}까지</Badge> : <Badge tone="danger">필수 동의 없음</Badge>} {c.consent.marketing && <Badge>광고 문자 동의</Badge>} {c.consent.photo && <Badge>사진 홍보 동의</Badge>}
               </Row>
               <Row k="차량">{v && [v.plateNo, v.maker, [v.model, v.generation].filter(Boolean).join(" "), v.trim, v.year && `${v.year}년식`].filter(Boolean).join(" · ")}</Row>
+              <Row k="차형">{v && `${BODY_TYPES[bodyOf(v)]}${v.bodyType ? "" : " (차종 이름으로 짐작)"}`}</Row>
               <Row k="수리 사양">{v?.options?.length ? v.options.map((o) => VEHICLE_OPTIONS[o as VehicleOption] ?? o).join(", ") : null}</Row>
               <Row k="색상 코드">{v?.colorCode}</Row>
               <Row k="차대번호">{v?.vin}</Row>
@@ -126,6 +129,7 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
                 ) : null}
               </Row>
             </dl>
+            <ConsultZonesView zones={c.damageZones ?? []} car={carOf(v)} />
           </Card>
         </div>
         <div className="space-y-4">
