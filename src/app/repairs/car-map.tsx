@@ -1,10 +1,10 @@
 "use client";
 // 차량 전개도 그림(차형별 다섯 면: 세단·해치백·SUV·승합·화물). 부위를 누르면 그 부위·면·3×3 칸을 알려 준다.
 // 표시(pins: 동그라미 기호)와 칠(fills: 칸을 부드럽게 칠함)을 받아 그린다. 입고 도면·진단·견적이 같이 쓴다.
+// 그리는 순서: 부위 구역(옅은 바탕) → 칠 → 실제 차 선화(public/car/*.svg, 누르기는 통과) → 칸 선 → 기호.
 import { useId, useState } from "react";
-import { CarArtDefs, EndUnder, FrontOver, RearOver, SideOver, SideUnder, SideWheels, TopOver } from "./car-art";
 import {
-  BODY_SPECS,
+  ATTACH_LABEL,
   type BodyType,
   type CarLook,
   cellAt,
@@ -56,7 +56,6 @@ export function CarMap({
   const attach = car?.attach ?? [];
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const VIEW_DEFS = viewDefsOf(body);
-  const art = BODY_SPECS[body].art;
   const [face, setFace] = useState<"all" | View>("all");
   const vb = face === "all" ? `0 0 ${MAP_W} ${MAP_H}` : (() => { const v = VIEW_DEFS.find((d) => d.view === face)!; return `${v.x - 14} ${v.y - 30} ${v.w + 28} ${v.h + 40}`; })();
   const pick = (e: React.MouseEvent<SVGPathElement> | React.KeyboardEvent<SVGPathElement>, v: ViewDef, s: Shape) => {
@@ -86,26 +85,19 @@ export function CarMap({
             {FACE_LABEL[f]}
           </button>
         ))}
+        {attach.length > 0 && (
+          <span className="ml-auto flex flex-wrap items-center gap-1 text-xs text-[var(--muted)]" title="차에 붙은 것(차량 정보의 옵션). 그림에는 따로 그리지 않는다">
+            부착:
+            {attach.map((a) => (
+              <span key={a} className="rounded-full border border-[var(--line-strong)] px-2 py-0.5 text-[var(--fg)]">
+                {ATTACH_LABEL[a] ?? a}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
       <svg viewBox={vb} className="car-map block h-auto w-full select-none" role="img" aria-label={label}>
         <defs>
-          <CarArtDefs uid={uid} />
-          <linearGradient id={`${uid}-body`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="170">
-            <stop offset="0" stopColor="var(--car-body-hi)" />
-            <stop offset="1" stopColor="var(--car-body-lo)" />
-          </linearGradient>
-          <linearGradient id={`${uid}-glass`} x1="0" y1="0" x2="0.4" y2="1">
-            <stop offset="0" stopColor="var(--car-glass-hi)" />
-            <stop offset="1" stopColor="var(--car-glass-lo)" />
-          </linearGradient>
-          <radialGradient id={`${uid}-rim`}>
-            <stop offset="0" stopColor="var(--car-rim-hi)" />
-            <stop offset="1" stopColor="var(--car-rim)" />
-          </radialGradient>
-          <radialGradient id={`${uid}-shadow`}>
-            <stop offset="0" stopColor="var(--car-shadow)" stopOpacity="0.55" />
-            <stop offset="1" stopColor="var(--car-shadow)" stopOpacity="0" />
-          </radialGradient>
           {VIEW_DEFS.map((v) => (
             <clipPath key={v.view} id={`${uid}-sil-${v.view}`}>
               <path d={v.silhouette} />
@@ -134,7 +126,7 @@ export function CarMap({
                 d={s.d}
                 data-part={s.part}
                 className={`cm-part ${wheel ? "cm-wheel" : ""} ${s.look ? `cm-${s.look}` : ""} ${onPick ? "cm-pick" : ""} ${isSel ? "cm-sel" : ""} ${isHi ? "cm-hi" : ""}`}
-                fill={wheel ? "var(--car-tire)" : s.look === "glass" || s.look === "lamp" ? `url(#${uid}-glassArt)` : s.look === "tail" ? `url(#${uid}-tail)` : s.look === "grille" ? `url(#${uid}-mesh)` : `url(#${uid}-body)`}
+                fill={wheel ? "var(--car-tire)" : s.clip === false ? "transparent" : s.look ? `var(--car-${s.look})` : "var(--car-body)"}
                 tabIndex={onPick ? 0 : undefined}
                 role={onPick ? "button" : undefined}
                 aria-label={onPick ? `${partLabel(s.part)} (${VIEW_LABEL[v.view]})` : undefined}
@@ -160,20 +152,8 @@ export function CarMap({
                 {VIEW_LABEL[v.view]} <tspan className="cm-hint">· {VIEW_HINT[v.view]}</tspan>
               </text>
               <g transform={tf}>
-                {side && <ellipse cx={232} cy={160} rx={236} ry={9} fill={`url(#${uid}-shadow)`} />}
-                {v.view === "top" && <ellipse cx={232} cy={104} rx={240} ry={96} fill={`url(#${uid}-shadow)`} opacity="0.5" />}
-                {end && <EndUnder />}
-                {end && <ellipse cx={100} cy={164} rx={96} ry={6} fill={`url(#${uid}-shadow)`} />}
-                {side && <SideUnder art={art} />}
                 <g clipPath={`url(#${uid}-sil-${v.view})`}>{clipped.map(shapeEl)}</g>
-                {/* 꾸밈(명암·창·램프): 누르지 않음 */}
-                {side && <SideOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} attach={attach} />}
-                {v.view === "front" && <FrontOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} attach={attach} />}
-                {v.view === "rear" && <RearOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} attach={attach} />}
-                {v.view === "top" && <TopOver uid={uid} sil={`${uid}-sil-${v.view}`} art={art} shapes={v.shapes} attach={attach} />}
-                <path d={v.silhouette} fill="none" className="cm-outline" />
                 {free.map(shapeEl)}
-                {side && <SideWheels uid={uid} art={art} />}
                 {/* 칠: 칸을 둥글게, 정도가 셀수록 진하게 */}
                 <g pointerEvents="none">
                   {myFills.map((f, i) => {
@@ -192,6 +172,8 @@ export function CarMap({
                     return s.clip === false ? <g key={i}>{g}</g> : <g key={i} clipPath={`url(#${uid}-sil-${v.view})`}>{g}</g>;
                   })}
                 </g>
+                {/* 실제 차 선화: 누르기는 아래 부위로 통과 */}
+                <image href={v.art.img} x={v.art.x} y={v.art.y} width={v.art.w} height={v.art.h} preserveAspectRatio="none" className="cm-art" aria-hidden="true" />
                 {/* 고르는 중인 부위의 3×3 칸 선 */}
                 {sel && (
                   <g pointerEvents="none" clipPath={sel.clip === false ? undefined : `url(#${uid}-sil-${v.view})`}>
@@ -246,6 +228,17 @@ export function CarMap({
           });
         })()}
       </svg>
+      <p className="mt-0.5 text-right text-[10px] text-[var(--muted)]">
+        차 도면:{" "}
+        <a href="https://getoutlines.com" target="_blank" rel="noopener noreferrer" className="underline">
+          GetOutlines
+        </a>{" "}
+        (
+        <a href="https://creativecommons.org/licenses/by/4.0/deed.ko" target="_blank" rel="noopener noreferrer" className="underline">
+          CC BY 4.0
+        </a>
+        ), 선화로 바꾸고 엠블럼을 지움
+      </p>
     </div>
   );
 }

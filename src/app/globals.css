@@ -32,32 +32,16 @@
   /* 차트 계열색(검증한 범주 팔레트 1·2번) */
   --series-1: #2a78d6;
   --series-2: #eb6834;
-  /* 차량 전개도(car-map.tsx): 펄 화이트 차체, 푸른빛 유리 */
-  --car-body-hi: #fdfeff;
-  --car-body-lo: #e3e9ef;
-  --car-seam: #c3ccd5;
-  --car-outline: #8f9caa;
-  --car-glass-hi: #e3eef6;
-  --car-glass-lo: #a8bfd0;
-  --car-tire: #2f363d;
-  --car-rim: #b9c3cc;
-  --car-rim-hi: #f4f7f9;
-  --car-shadow: #5d6d7c;
+  /* 차량 전개도(car-map.tsx): 흰 차체에 검은 선화, 유리·램프는 옅게 */
+  --car-body: #ffffff;
+  --car-glass: #e4eef7;
+  --car-lamp: #fdf6e3;
+  --car-tail: #fbe1dd;
+  --car-grille: #eceff2;
+  --car-tire: #e6e9ec;
   --car-hover: #dcebfd;
-  --car-tail: #c9372f;
-  --car-tail-hi: #ff8a7d;
-  --car-grille: #2a3036;
-  --car-grille-hi: #59636d;
-  --car-sheen: #ffffff;
-  --car-depth: #1c2a38;
-  --car-trim: #23292f;
-  --car-glass-deep: #5c7487;
-  --car-arch: #15191d;
-  --car-tire-hi: #4a535b;
-  --car-rim-lo: #7c8790;
-  --car-disc: #9aa3ab;
-  --car-caliper: #c8463d;
-  --car-drl: #f4fbff;
+  --car-line: none;
+  --car-line-op: 0.88;
   color-scheme: light;
 }
 
@@ -83,31 +67,15 @@
     --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.5);
     --series-1: #3987e5;
     --series-2: #d95926;
-    --car-body-hi: #39424d;
-    --car-body-lo: #242a32;
-    --car-seam: #4d5864;
-    --car-outline: #6b7886;
-    --car-glass-hi: #4a6475;
-    --car-glass-lo: #273946;
-    --car-tire: #0b0d10;
-    --car-rim: #66727e;
-    --car-rim-hi: #aab5bf;
-    --car-shadow: #000000;
+    --car-body: #1b2027;
+    --car-glass: #1c2b38;
+    --car-lamp: #2b2a20;
+    --car-tail: #3a2222;
+    --car-grille: #22272d;
+    --car-tire: #14171b;
     --car-hover: #1d3352;
-    --car-tail: #a3302a;
-    --car-tail-hi: #ff7a6e;
-    --car-grille: #0e1114;
-    --car-grille-hi: #3a434c;
-    --car-sheen: #c9d6e2;
-    --car-depth: #000000;
-    --car-trim: #0b0d10;
-    --car-glass-deep: #16222b;
-    --car-arch: #050607;
-    --car-tire-hi: #2a3138;
-    --car-rim-lo: #4b555e;
-    --car-disc: #59626a;
-    --car-caliper: #b33b33;
-    --car-drl: #e6f3ff;
+    --car-line: invert(1);
+    --car-line-op: 0.8;
     color-scheme: dark;
   }
 }
@@ -365,15 +333,12 @@ html:has(#tab-bar) main {
 }
 
 /* 차량 전개도(car-map.tsx) */
-.car-map .cm-part { stroke: var(--car-seam); stroke-width: 1; stroke-linejoin: round; transition: fill 0.15s, stroke 0.15s; }
+.car-map .cm-part { stroke: transparent; stroke-width: 1; stroke-linejoin: round; transition: fill 0.15s, stroke 0.15s; }
 .car-map .cm-pick { cursor: pointer; outline: none; }
-.car-map .cm-pick:hover:not(.cm-wheel):not(.cm-tail):not(.cm-grille):not(.cm-lamp), .car-map .cm-pick:focus-visible:not(.cm-wheel) { fill: var(--car-hover); }
-.car-map .cm-tail.cm-pick:hover, .car-map .cm-grille.cm-pick:hover, .car-map .cm-lamp.cm-pick:hover { stroke: var(--accent); stroke-width: 2; }
-.car-map .cm-wheel { stroke: none; }
-.car-map .cm-wheel.cm-pick:hover, .car-map .cm-wheel:focus-visible { stroke: var(--accent); stroke-width: 3; }
-.car-map .cm-sel, .car-map .cm-hi { stroke: var(--accent); stroke-width: 2.5; }
-.car-map .cm-hi:not(.cm-wheel) { fill: var(--car-hover); }
-.car-map .cm-outline { stroke: var(--car-outline); stroke-width: 1.6; stroke-linejoin: round; pointer-events: none; }
+.car-map .cm-pick:hover, .car-map .cm-pick:focus-visible { fill: var(--car-hover); stroke: var(--accent); stroke-width: 1.2; }
+.car-map .cm-sel, .car-map .cm-hi { stroke: var(--accent); stroke-width: 2.2; }
+.car-map .cm-hi { fill: var(--car-hover); }
+.car-map .cm-art { filter: var(--car-line); opacity: var(--car-line-op); pointer-events: none; }
 .car-map .cm-grid { stroke: var(--accent); stroke-width: 0.9; stroke-dasharray: 3 2.5; opacity: 0.85; }
 .car-map .cm-cell-sel { fill: var(--accent); opacity: 0.22; stroke: var(--accent); stroke-width: 1.2; }
 .car-map .cm-pin { stroke: #fff; stroke-width: 1.8; filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.35)); }
