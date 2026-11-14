@@ -80,3 +80,34 @@ export function finishIssues(process: string, input: { checks: string[]; photos:
 }
 
 export const minutesBetween = (a: Date, b: Date) => Math.max(0, Math.round((b.getTime() - a.getTime()) / 60000));
+
+/** 부위별 작업 진행(차 그림 색): 진단 줄(손상 부위)마다 그 줄의 승인 견적 줄이 든 공정을 본다.
+ *  done=그 공정이 모두 끝남, doing=하나라도 시작함(지금 공정 이름), wait=아직 시작 전, skip=승인하지 않아 고치지 않음 */
+export type PartProgress = { state: "wait" | "doing" | "done" | "skip"; process: string | null };
+export function damageProgress(
+  damageIds: string[],
+  lines: { id: string; damageId: string | null; approved: boolean | null }[],
+  steps: { process: string; lineIds: string[]; seq: number; startedAt: Date | null; endedAt: Date | null }[],
+): Map<string, PartProgress> {
+  const out = new Map<string, PartProgress>();
+  const ordered = [...steps].sort((a, b) => a.seq - b.seq);
+  for (const d of damageIds) {
+    const mine = lines.filter((l) => l.damageId === d && l.approved === true).map((l) => l.id);
+    if (!mine.length) {
+      out.set(d, { state: "skip", process: null });
+      continue;
+    }
+    const ss = ordered.filter((s) => s.lineIds.some((x) => mine.includes(x)));
+    if (!ss.length || ss.every((s) => !s.startedAt && !s.endedAt)) {
+      out.set(d, { state: "wait", process: ss[0]?.process ?? null });
+      continue;
+    }
+    if (ss.every((s) => s.endedAt)) {
+      out.set(d, { state: "done", process: null });
+      continue;
+    }
+    const now = ss.find((s) => s.startedAt && !s.endedAt) ?? ss.find((s) => !s.endedAt)!;
+    out.set(d, { state: "doing", process: now.process });
+  }
+  return out;
+}

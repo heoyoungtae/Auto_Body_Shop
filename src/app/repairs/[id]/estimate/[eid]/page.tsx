@@ -25,6 +25,8 @@ import { approvalMethodLabel } from "@/modules/repair/estimate-approval";
 import { approvalGroups } from "@/modules/repair/estimate-rules";
 import { seoulDate } from "@/modules/platform/time";
 import { AmountChecklist } from "../../../../_input";
+import { type ApprovalZone, ApprovalMap } from "../../../approval-map";
+import { approvalZones } from "../../../damage-map";
 
 type Est = Awaited<ReturnType<typeof getEstimate>>;
 
@@ -33,7 +35,7 @@ function groupOptions(lines: Est["lines"]) {
 }
 
 /** 고객 승인(STD-03 5절): 링크 보내기·매장 서명·보험사 회신, 받은 뒤에는 기록 */
-function Approval({ e, roId, canWrite, today }: { e: Est; roId: string; canWrite: boolean; today: string }) {
+function Approval({ e, roId, canWrite, today, zones }: { e: Est; roId: string; canWrite: boolean; today: string; zones: ApprovalZone[] }) {
   const answered = e.status === "accepted" || e.status === "partial" || e.status === "declined";
   if (answered) {
     const ok = totals(e.lines, true);
@@ -82,6 +84,7 @@ function Approval({ e, roId, canWrite, today }: { e: Est; roId: string; canWrite
         <summary className="cursor-pointer font-semibold text-[var(--accent)]">매장에서 서명 받기</summary>
         <AssistForm id={`est-store-${e.id}`} action={estimateAction} className="mt-2 space-y-3">
           <Hidden roId={roId} id={e.id} intent="store" />
+          <ApprovalMap zones={zones} car={carOf(e.vehicle)} />
           <AmountChecklist help="approve.groups" name="groups" totalLabel="고른 작업(부가세 별도)" options={opts} />
           <TextField help="approve.name" name="approverName" required defaultValue={e.customer.name} from="고객 기록" />
           <SignaturePad hint="고객이 이 칸에 서명합니다(태블릿을 건네 주세요)" />
@@ -93,6 +96,7 @@ function Approval({ e, roId, canWrite, today }: { e: Est; roId: string; canWrite
           <summary className="cursor-pointer font-semibold text-[var(--accent)]">보험사 회신 기록</summary>
           <AssistForm id={`est-ins-${e.id}`} action={estimateAction} className="mt-2 space-y-3">
             <Hidden roId={roId} id={e.id} intent="insurer" />
+            <ApprovalMap zones={zones} car={carOf(e.vehicle)} />
             <AmountChecklist help="approve.groups" name="groups" totalLabel="보험사가 인정한 작업(부가세 별도)" options={opts} />
             <TextField help="approve.insurerName" name="approverName" required />
             <TextField help="approve.insurerRef" name="insurerRef" required />
@@ -397,7 +401,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
           {e.issuedOn && e.status !== "void" && (
             <div id="approval">
               <Card title="고객 승인" help={{ kind: "panel", id: "est.approval" }}>
-                <Approval e={e} roId={roId} canWrite={canWrite} today={today} />
+                <Approval e={e} roId={roId} canWrite={canWrite} today={today} zones={approvalZones(approvalGroups(e.lines), damages)} />
               </Card>
             </div>
           )}

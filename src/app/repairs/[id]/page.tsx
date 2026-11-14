@@ -45,8 +45,10 @@ import { listEstimates } from "@/modules/repair/estimate";
 import { ESTIMATE_STATUS_LABEL } from "@/modules/repair/estimate-rules";
 import { createEstimateAction } from "../actions";
 import { IntakeCheck } from "../intake-check";
-import { workOrdersOfRo } from "@/modules/repair/work";
-import { WO_STATUS_LABEL } from "@/modules/repair/work-rules";
+import { roProgress, workOrdersOfRo } from "@/modules/repair/work";
+import { WO_STATUS_LABEL, processLabel } from "@/modules/repair/work-rules";
+import { CarMap } from "../car-map";
+import { progressFills, progressPins, ProgressLegend } from "../damage-map";
 import { createWorkOrderAction } from "../../work/actions";
 import { PhotoSlots } from "../photo-slots";
 import { SignaturePad } from "../signature-pad";
@@ -111,7 +113,7 @@ export default async function RepairDetail({
     outsourceOfRo(db, id),
     usedOnRo(db, id),
   ]);
-  const [policy, subExtras] = await Promise.all([loadPolicy(db, seoulDate()), loadSubParts(db)]);
+  const [policy, subExtras, prog] = await Promise.all([loadPolicy(db, seoulDate()), loadSubParts(db), wos.length ? roProgress(db, id, r.damages.map((d) => d.id)) : null]);
   const canWrite = can(user, "repair.write");
   const canDiagnose = can(user, "diag.write");
   const canConfirm = can(user, "diag.confirm");
@@ -581,6 +583,12 @@ export default async function RepairDetail({
                       고객이 승인한 견적이 있습니다. 공장장이 승인 항목으로 작업
                       지시서를 만듭니다.
                     </p>
+                  )}
+                  {prog && r.damages.length > 0 && (
+                    <div className="mt-3">
+                      <CarMap label="부위별 작업 진행" fills={progressFills(r.damages, prog)} pins={progressPins(r.damages, prog, processLabel)} car={carOf(v)} />
+                      <ProgressLegend list={r.damages} prog={prog} processName={processLabel} />
+                    </div>
                   )}
                   {r.status === "working" && canConfirm && !wos.length && (
                     <form action={createWorkOrderAction} className="mt-3">

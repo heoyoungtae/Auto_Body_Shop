@@ -339,6 +339,9 @@ html:has(#tab-bar) main {
 .car-map .cm-sel, .car-map .cm-hi { stroke: var(--accent); stroke-width: 2.2; }
 .car-map .cm-hi { fill: var(--car-hover); }
 .car-map .cm-art { filter: var(--car-line); opacity: var(--car-line-op); pointer-events: none; }
+/* 인쇄 쪽(손상 부위도): 어두운 화면에서도 흰 종이 색으로 */
+.print-light { --car-body: #ffffff; --car-glass: #e4eef7; --car-lamp: #fdf6e3; --car-tail: #fbe1dd; --car-grille: #eceff2; --car-tire: #e6e9ec; --car-line: none; --car-line-op: 0.9; --fg: #000; --muted: #444; }
+@media print { .print-page { break-before: page; } }
 .car-map .cm-grid { stroke: var(--accent); stroke-width: 0.9; stroke-dasharray: 3 2.5; opacity: 0.85; }
 .car-map .cm-cell-sel { fill: var(--accent); opacity: 0.22; stroke: var(--accent); stroke-width: 1.2; }
 .car-map .cm-pin { stroke: #fff; stroke-width: 1.8; filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.35)); }

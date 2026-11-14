@@ -9,6 +9,9 @@ import { SignMark } from "../../../../sign-mark";
 import { requireUser } from "../../../../../_lib/session";
 import { buttonClass, PageTitle } from "../../../../../_ui";
 import { PrintButton } from "./print-button";
+import { listDamage } from "@/modules/repair/service";
+import { carOf } from "@/modules/repair/body-map";
+import { DamageSheet } from "../../../../damage-sheet";
 
 type Snap = { owner: string; plateNo: string; carName: string; mileage: number | null; registeredOn: string | null; vin: string | null; shop: ShopInfo; writer: string | null; writerSign?: string | null };
 const won = (n: number) => (n ? n.toLocaleString("ko-KR") : "");
@@ -33,7 +36,10 @@ const NOTES = [
 export default async function EstimatePrint({ params }: { params: Promise<{ id: string; eid: string }> }) {
   const { id: roId, eid } = await params;
   await requireUser();
-  const e = await getEstimate(await getDb(), eid);
+  const db = await getDb();
+  const e = await getEstimate(db, eid);
+  const used = new Set(e.lines.map((l) => l.damageId).filter(Boolean));
+  const damages = (await listDamage(db, e.repairOrderId)).filter((d) => used.has(d.id));
   const s = e.snapshot as Partial<Snap>;
   const issued = !!e.issuedOn && !!s.shop;
   const t = totals(e.lines);
@@ -232,6 +238,7 @@ export default async function EstimatePrint({ params }: { params: Promise<{ id: 
           {e.validUntil && <p className="mt-2 text-[10px] text-neutral-600">유효기간: {e.validUntil}까지 · 예상 출고일 {e.dueDate ?? "—"} · 추가 작업은 사전 승인 후 진행합니다(사내 표준서 STD-03 5절).</p>}
         </article>
       )}
+      {issued && <DamageSheet damages={damages} car={carOf(e.vehicle)} docNo={e.docNo} plateNo={s.plateNo ?? e.vehicle.plateNo} carName={s.carName ?? ""} kind="estimate" />}
     </div>
   );
 }

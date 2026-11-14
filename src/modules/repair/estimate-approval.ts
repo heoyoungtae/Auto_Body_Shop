@@ -4,7 +4,9 @@
 import { rolesFor } from "@/modules/auth/permissions";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, customer, estimate, estimateLine, repairOrder, vehicle } from "@/db/schema";
+import { appUser, customer, estimate, estimateLine, repairOrder, roDamage, vehicle } from "@/db/schema";
+import { carOf, isView } from "./body-map";
+import { partName } from "./rules";
 import { randomToken, sha256 } from "@/modules/auth/crypto";
 import type { Role } from "@/modules/auth/roles";
 import { appUrl, phoneForNotice } from "@/modules/customer/service";
@@ -65,6 +67,8 @@ export async function approvalView(db: Db, token: string, now = new Date()) {
   if (e.status !== "sent") return { state: "invalid" as const };
   if (e.validUntil && e.validUntil < seoulDate(now)) return { state: "expired" as const, validUntil: e.validUntil };
   const s = e.snapshot as { carName?: string; plateNo?: string; shop?: { name: string; phone: string } };
+  const groups = approvalGroups(e.lines);
+  const damages = await db.select().from(roDamage).where(eq(roDamage.repairOrderId, e.repairOrderId));
   return {
     state: "open" as const,
     docNo: e.docNo,
@@ -77,8 +81,11 @@ export async function approvalView(db: Db, token: string, now = new Date()) {
     validUntil: e.validUntil,
     dueDate: e.dueDate,
     lines: e.lines,
-    groups: approvalGroups(e.lines),
+    groups,
     totals: totals(e.lines),
+    // 그림: 묶음(진단 줄)마다 부위·면·칸. 손님에게는 부위 위치만 보인다(사진·메모는 안 보냄)
+    zones: damages.filter((d) => groups.some((g) => g.key === d.id)).map((d) => ({ key: d.id, seq: d.seq, part: d.part, view: d.view && isView(d.view) ? d.view : null, cells: d.cells, label: partName(d.part, d.subPart) })),
+    car: carOf(e.vehicle),
   };
 }
 

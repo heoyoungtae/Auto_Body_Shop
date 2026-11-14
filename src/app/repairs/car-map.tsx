@@ -39,6 +39,7 @@ export function CarMap({
   label = "차량 전개도",
   className = "",
   car,
+  plain = false,
 }: {
   pins?: MapPin[];
   fills?: MapFill[];
@@ -51,6 +52,8 @@ export function CarMap({
   className?: string;
   /** 차형·부착물(vehicle → carOf). 없으면 세단 */
   car?: CarLook;
+  /** 인쇄용: 면 단추를 숨긴다 */
+  plain?: boolean;
 }) {
   const body: BodyType = car?.body ?? "sedan";
   const attach = car?.attach ?? [];
@@ -74,7 +77,7 @@ export function CarMap({
   return (
     <div className={`min-w-0 ${className}`}>
       <div className="mb-1.5 flex flex-wrap gap-1" role="group" aria-label="볼 면">
-        {FACES.map((f) => (
+        {!plain && FACES.map((f) => (
           <button
             key={f}
             type="button"

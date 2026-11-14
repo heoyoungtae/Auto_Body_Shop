@@ -144,6 +144,10 @@ describe("견적(STD-03)", () => {
     const groups = approvalGroups(e.lines);
     expect(groups.length).toBe(2); // 앞범퍼 묶음, 앞문 덴트
     const bumper = groups.find((g) => g.names.some((n) => n.includes("부품")))!;
+    // 손님 링크 그림: 진단 줄 묶음마다 부위 하나씩(키 = 묶음 키), 차형도 함께
+    expect(view.zones.map((z) => z.key).sort()).toEqual(groups.filter((g) => !g.key.startsWith("line:")).map((g) => g.key).sort());
+    expect(view.zones.every((z) => z.part && z.label)).toBe(true);
+    expect(view.car.body).toBeTruthy();
 
     await expect(approveByLink(db, token, { groups: [bumper.key], name: "홍길동", agree: true, signaturePng: null }, {}, now)).rejects.toThrow(/서명/);
     await expect(approveByLink(db, token, { groups: [bumper.key], name: "홍길동", agree: false, signaturePng: PNG }, {}, now)).rejects.toThrow(/체크/);
