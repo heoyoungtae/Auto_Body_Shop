@@ -12,6 +12,28 @@ export const customer = pgTable(
     phoneHash: text("phone_hash"),
     phoneMasked: text("phone_masked"),
     memo: text("memo"),
+    /**
+     * 고객 구분: person 개인 · business 업체(렌터카·중고차 상품화·법인 차량 등). 업체 고객은 사업자번호·결제 조건으로
+     * 외상 출고하고 월말에 업체별 청구서 한 장으로 받는다(대표 결정 2026-11-17). 업체는 개인정보 동의 대상이 아니다
+     */
+    kind: text("kind").notNull().default("person"),
+    bizNo: text("biz_no"),
+    /** 업체 담당자 이름(연락처는 위 phone 칸이 업체 대표번호) */
+    contactName: text("contact_name"),
+    /** 세금계산서 받을 이메일 */
+    taxEmail: text("tax_email"),
+    /** 결제 조건(PAY_TERMS: now 출고 때 · month_end 당월 말 · next_end 익월 말 · next_day 익월 payDay일) */
+    payTerm: text("pay_term"),
+    payDay: integer("pay_day"),
+    /** 외상 한도(원, 부가세 포함). 비우면 한도 없음. 넘으면 출고 때 경고·확인 */
+    creditLimitWon: integer("credit_limit_won"),
+    /** 세금계산서: monthly 월 합계(청구서 한 장) · each 건별(출고마다) */
+    invoiceMode: text("invoice_mode").notNull().default("monthly"),
+    /** 업체 쪽 주문 앱(우리가 접속해 주문 확인·진행 상태 등록): techbay 테크베이 · other 그 밖의 앱. 비우면 없음 */
+    portal: text("portal"),
+    portalUrl: text("portal_url"),
+    /** 그쪽 앱 쓰는 요령(로그인 방법·상태 이름 등). 아이디·비밀번호는 적지 않는다 */
+    portalNote: text("portal_note"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -163,4 +185,34 @@ export const consentRequest = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("consent_request_token_uq").on(t.tokenHash), index("consent_request_customer_idx").on(t.customerId)],
+);
+
+/**
+ * 업체 쪽 주문 앱의 주문(테크베이 등). 우리 상담(CS)·수리 건(RO)과 그쪽 주문번호를 잇고,
+ * 그쪽 앱에 등록해야 할 진행 상태(입고·작업 시작·수리 완료·출고)를 누가 언제 등록했는지 남긴다
+ */
+export const portalOrder = pgTable(
+  "portal_order",
+  {
+    id: id(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    /** techbay · other */
+    platform: text("platform").notNull(),
+    /** 그쪽 주문 식별값(테크베이 hash_id, 손으로 적은 주문번호) */
+    extId: text("ext_id").notNull(),
+    /** 화면에 보일 그쪽 주문번호 */
+    extNo: text("ext_no"),
+    requestedAt: text("requested_at"),
+    plateNo: text("plate_no"),
+    /** 불러올 때 받은 내용(차량·요청 항목·메모) */
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    consultationId: uuid("consultation_id").references(() => consultation.id),
+    /** 그쪽 앱에 등록한 진행 상태 */
+    posted: jsonb("posted").$type<{ step: string; at: string; by: string; note?: string }[]>().notNull().default([]),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("portal_order_ext_uq").on(t.platform, t.extId), index("portal_order_consult_idx").on(t.consultationId)],
 );

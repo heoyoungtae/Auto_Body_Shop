@@ -44,6 +44,12 @@ export const MENU: MenuGroup[] = [
         std: "STD-01",
       },
       {
+        label: "업체 주문 앱(테크베이)",
+        perm: ["portal.order"],
+        href: "/portal-orders",
+        std: "STD-01",
+      },
+      {
         label: "접수·입고",
         perm: ["repair.write", "diag.write", "diag.confirm"],
         href: "/repairs",
@@ -292,6 +298,12 @@ export const MENU: MenuGroup[] = [
         label: "청구·수납",
         perm: ["money.view"],
         href: "/money",
+        std: "STD-12",
+      },
+      {
+        label: "업체 외상(외상매출금)",
+        perm: ["money.view"],
+        href: "/money/accounts",
         std: "STD-12",
       },
       {

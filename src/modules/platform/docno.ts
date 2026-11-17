@@ -35,6 +35,7 @@ export const DOC_PREFIXES = [
   "PE",
   "RT",
   "PM",
+  "BL",
   "FS",
   "MR",
 ] as const;

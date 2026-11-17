@@ -116,6 +116,7 @@ export async function deliveryAction(form: FormData) {
         receiverName: s("receiverName"),
         proxy: s("receiver") === "proxy",
         proxyNote: s("proxyNote"),
+        creditOk: form.getAll("creditOk").map(String).includes("ok"),
         signaturePng: sig
           ? new Uint8Array(Buffer.from(sig[1], "base64"))
           : null,

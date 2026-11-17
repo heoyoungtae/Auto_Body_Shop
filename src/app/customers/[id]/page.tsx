@@ -13,7 +13,13 @@ import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, Empty, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { ConsentFields, NewVehicleFields } from "../../consults/consult-form";
-import { consentAction, moveVehicleAction, updateCustomerAction, vehicleAction } from "../actions";
+import { businessAction, consentAction, moveVehicleAction, updateCustomerAction, vehicleAction } from "../actions";
+import { BusinessFields } from "../business-fields";
+import { RadioRow } from "../../_input";
+import { ShowWhen } from "../../consults/show-when";
+import { creditCheck } from "@/modules/money/credit";
+import { portalOrders } from "@/modules/partner/service";
+import { CUSTOMER_KINDS, INVOICE_MODES, PORTALS, PORTAL_STEPS } from "@/modules/money/credit-rules";
 
 export default async function CustomerDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string; show?: string }> }) {
   const [{ id }, q] = await Promise.all([params, searchParams]);
@@ -25,6 +31,10 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const canWrite = can(user, "customer.write");
   // 전체 번호는 누를 때만, 본 기록이 남는다(설계서 9.2)
   const full = q.show === "phone" && canWrite ? await revealPhone(db, user.id, id) : null;
+  const biz = c.kind === "business" ? c.biz : null;
+  const credit = biz ? await creditCheck(db, c.id, 0) : null;
+  const orders = biz?.portal ? (await portalOrders(db, 300)).filter((o) => o.o.customerId === c.id).slice(0, 20) : [];
+  const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
   return (
     <div>
@@ -67,6 +77,85 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               </AssistForm>
             )}
           </Card>
+
+          <Card title={biz ? "업체 정보·거래 조건" : "고객 구분"} help={{ kind: "panel", id: "customer.terms" }}>
+            {biz && credit && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                <Badge tone="accent">업체</Badge>
+                <span>사업자 {biz.bizNo}</span>
+                <span>· 결제 {credit.term}</span>
+                <span>· 세금계산서 {INVOICE_MODES[biz.invoiceMode as keyof typeof INVOICE_MODES] ?? biz.invoiceMode}</span>
+                <span className="tabular-nums">
+                  · 외상 잔액 <b>{won(credit.balance)}</b>
+                  {credit.limit != null && ` / 한도 ${won(credit.limit)}`}
+                </span>
+                {credit.overdue > 0 && <Badge tone="danger">연체 {won(credit.overdue)}</Badge>}
+                {can(user, "money.view") && (
+                  <Link href={`/money/accounts/${c.id}`} className="text-[var(--accent)] hover:underline">
+                    거래처 원장
+                  </Link>
+                )}
+              </div>
+            )}
+            {canWrite ? (
+              <AssistForm id={`biz-${c.id}`} action={businessAction} className="space-y-4">
+                <input type="hidden" name="id" value={c.id} />
+                <ShowWhen field="kind" initial={c.kind} cases={{ business: <BusinessFields v={biz ?? undefined} /> }}>
+                  <RadioRow help="cust.kind" name="kind" required defaultValue={c.kind} options={Object.entries(CUSTOMER_KINDS).map(([value, label]) => ({ value, label }))} />
+                </ShowWhen>
+                <SubmitButton variant="secondary">구분·거래 조건 저장</SubmitButton>
+              </AssistForm>
+            ) : (
+              <p className="text-sm">{CUSTOMER_KINDS[c.kind as keyof typeof CUSTOMER_KINDS] ?? c.kind} 고객</p>
+            )}
+          </Card>
+
+          {biz?.portal && (
+            <Card
+              title={`주문 앱 — ${PORTALS[biz.portal as keyof typeof PORTALS] ?? biz.portal}`}
+              help={{ kind: "panel", id: "customer.portal" }}
+              actions={
+                <span className="flex flex-wrap gap-2">
+                  {biz.portalUrl && (
+                    <a href={biz.portalUrl} target="_blank" rel="noopener noreferrer" className={buttonClass("secondary")}>
+                      앱 열기 ↗
+                    </a>
+                  )}
+                  {biz.portal === "techbay" && can(user, "portal.order") && (
+                    <Link href={`/portal-orders?customer=${c.id}`} className={buttonClass()}>
+                      주문 불러오기
+                    </Link>
+                  )}
+                </span>
+              }
+            >
+              {biz.portalNote && <p className="mb-2 whitespace-pre-line text-xs text-[var(--muted)]">{biz.portalNote}</p>}
+              {orders.length ? (
+                <ul className="divide-y divide-[var(--line)] text-sm">
+                  {orders.map((o) => (
+                    <li key={o.o.id} className="flex flex-wrap items-center gap-2 py-2">
+                      <span className="tabular-nums">주문 {o.o.extNo ?? o.o.extId}</span>
+                      <b>{o.o.plateNo}</b>
+                      {o.ro ? (
+                        <Link href={`/repairs/${o.ro.id}#portal`} className="text-[var(--accent)] hover:underline">
+                          {o.ro.docNo}
+                        </Link>
+                      ) : (
+                        o.o.consultationId && (
+                          <Link href={`/consults/${o.o.consultationId}`} className="text-[var(--accent)] hover:underline">
+                            상담
+                          </Link>
+                        )
+                      )}
+                      {o.todo.length > 0 ? <Badge tone="warn">등록할 상태: {o.todo.map((s) => PORTAL_STEPS[s]).join("·")}</Badge> : o.posted.length > 0 && <Badge tone="ok">등록 {o.posted.length}단계</Badge>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>아직 이은 주문이 없습니다. {biz.portal === "techbay" ? "'주문 불러오기'로 테크베이 주문을 가져오세요." : "상담 화면에서 그쪽 주문번호를 이어 두세요."}</Empty>
+              )}
+            </Card>
+          )}
 
           <Card title={`차량 ${c.vehicles.length}대`} help={{ kind: "panel", id: "customer.vehicles" }}>
             <div className="space-y-3">
@@ -134,6 +223,11 @@ export default async function CustomerDetail({ params, searchParams }: { params:
           </Card>
         </div>
 
+        {biz ? (
+          <Card title="개인정보 동의(F-13-01)" help={{ kind: "panel", id: "customer.consent" }}>
+            <p className="text-sm text-[var(--muted)]">업체 고객은 개인정보 동의 대상이 아닙니다(업체 대표번호·담당 업무 연락). 담당자 개인 휴대폰을 따로 받으면 메모에 적지 말고 개인 고객으로 동의를 받아 주세요.</p>
+          </Card>
+        ) : (
         <Card title="개인정보 동의(F-13-01)" help={{ kind: "panel", id: "customer.consent" }}>
           <div className="space-y-3 text-sm">
             <p className="flex flex-wrap gap-1">
@@ -159,6 +253,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
             </ul>
           </div>
         </Card>
+        )}
       </div>
     </div>
   );

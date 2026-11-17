@@ -58,7 +58,7 @@ export const DELIVERY_NOTICES = {
 } as const;
 export type DeliveryNotice = keyof typeof DELIVERY_NOTICES;
 
-export const PAY_METHODS = { card: "카드", cash: "현금", transfer: "계좌 이체", insurance: "보험사 직접 지급", receivable: "미수(나중에 받음)" } as const;
+export const PAY_METHODS = { card: "카드", cash: "현금", transfer: "계좌 이체", insurance: "보험사 직접 지급", receivable: "미수(나중에 받음)", credit: "외상(업체 결제 조건으로 청구)" } as const;
 
 /** 법정 서식(별지 제89호의2) 안내 1: 정비 잘못으로 생긴 고장의 무상 점검·정비 기간 */
 export function legalFreeDays(registeredOn: string | null, mileage: number | null, today: string) {

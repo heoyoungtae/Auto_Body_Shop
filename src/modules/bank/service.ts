@@ -4,7 +4,8 @@
 // 유료 자동 연동(코드에프·팝빌 등)을 붙일 때는 그 결과를 insertTxs(db, rows, "api") 로 넣으면 아래가 그대로 돈다.
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appConfig, bankImport, bankTx, insuranceClaim, payable, payment, repairOrder, supplier } from "@/db/schema";
+import { openBills, recordBillPayment } from "@/modules/money/credit";
+import { appConfig, arBill, bankImport, bankTx, insuranceClaim, payable, payment, repairOrder, supplier } from "@/db/schema";
 import { decrypt, encrypt, randomToken, sha256 } from "@/modules/auth/crypto";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
@@ -354,14 +355,14 @@ export async function recentImports(db: Db, limit = 15) {
 // ── 맞추기 ──
 type Tx = typeof bankTx.$inferSelect;
 export type Cand = {
-  kind: "payment" | "expense" | "payroll" | "payable" | "tx" | "claim" | "receipt";
+  kind: "payment" | "expense" | "payroll" | "payable" | "tx" | "claim" | "receipt" | "bill";
   id: string;
   no: string;
   label: string;
   /** 저절로 이어도 될 만큼 확실한가 */
   sure: boolean;
   /** 이 후보를 고르면 할 일: link 연결만 · claim 보험 입금 확인 · receipt 수납 적기(화면) · pay 지급 처리 · payroll 급여 지급 처리 */
-  act: "link" | "claim" | "receipt" | "pay" | "payroll";
+  act: "link" | "claim" | "receipt" | "pay" | "payroll" | "bill";
   note?: string;
   /** 보험 입금이 청구보다 적을 때 */
   cutWon?: number;
@@ -382,7 +383,8 @@ async function pools(db: Db, now: Date) {
   const runs = await payrollNetLines(db, addDaysIso(today, -120).slice(0, 7));
   const pyb = await db.select({ p: payable, bizNo: supplier.bizNo }).from(payable).leftJoin(supplier, eq(supplier.id, payable.supplierId)).where(gte(payable.accruedOn, since));
   const sups = await db.select({ id: supplier.id, name: supplier.name, bizNo: supplier.bizNo }).from(supplier);
-  return { used, pays, exps, claims, ar, runs, pyb, sups, today };
+  const bills = await openBills(db);
+  return { used, pays, exps, claims, ar, runs, pyb, sups, bills, today };
 }
 type Pools = Awaited<ReturnType<typeof pools>>;
 
@@ -408,7 +410,12 @@ export function candidatesFor(t: Tx, P: Pools, cardTxs: Tx[] = []): Cand[] {
         if ((byName && t.amountWon <= claimed) || t.amountWon === claimed)
           out.push({ kind: "claim", id: c.repairOrderId, no: c.docNo, label: `보험 청구 ${c.docNo} ${roDocNo} ${c.insurer} 청구 ${won(claimed)}`, sure: false, act: "claim", cutWon: claimed - t.amountWon });
       }
+      // 업체 외상: 거래처 청구서 남은 금액과 같거나, 입금자 이름이 업체와 비슷하면(나눠 보낸 경우)
+      for (const b of P.bills)
+        if (b.remain === t.amountWon || (nameLike(b.name, t.party) && t.amountWon <= b.remain))
+          out.push({ kind: "bill", id: b.id, no: b.docNo, label: `거래처 청구서 ${b.docNo} ${b.name} 남은 ${won(b.remain)} · 받을 날 ${b.dueOn}`, sure: false, act: "bill" });
       for (const a of P.ar) {
+        if (a.credit) continue; // 업체 외상은 청구서로 받는다
         const who = a.who.split(" ")[0];
         if (a.remain === t.amountWon || (nameLike(who, t.party) && t.amountWon <= a.remain))
           out.push({ kind: "receipt", id: a.roId, no: a.docNo, label: `고객 미수 ${a.docNo} ${a.who} 남은 ${won(a.remain)}`, sure: false, act: "receipt" });
@@ -568,11 +575,11 @@ export async function linkTx(db: Db, actor: Actor, txId: string, kind: string, i
 }
 
 /** 수납 적기·결의서 쓰기 화면에서 저장한 뒤 그 전표를 잇는다(앞 화면에서 넘긴 tx) */
-export async function linkCreated(db: Db, actor: Actor, txId: string, kind: "payment" | "expense", id: string, no: string, now = new Date()) {
+export async function linkCreated(db: Db, actor: Actor, txId: string, kind: "payment" | "expense" | "bill", id: string, no: string, now = new Date()) {
   if (!can(actor, "bank.view") || !txId) return;
   const [t] = await db.select().from(bankTx).where(eq(bankTx.id, txId));
   if (!t || (t.matchKind && t.matchKind !== "class")) return;
-  await setMatch(db, txId, { kind, id, no }, false, actor.id, now);
+  await setMatch(db, txId, { kind, id, no, note: kind === "bill" ? txId : null }, false, actor.id, now);
   await writeAudit(db, { actorId: actor.id, action: "bank.link", entityType: "bank_tx", entityId: txId, after: { kind, no, created: true } });
 }
 
@@ -608,6 +615,18 @@ export async function confirmClaimFromTx(db: Db, actor: Actor, txId: string, roI
   const [p] = await db.select().from(payment).where(eq(payment.docNo, voucher));
   await setMatch(db, txId, { kind: "payment", id: p.id, no: voucher }, false, actor.id, now);
   return voucher;
+}
+
+/** 업체 입금: 거래처 청구서에 입금을 적고(수리 건별 입금 전표) 잇는다 */
+export async function billPayFromTx(db: Db, actor: Actor, txId: string, billId: string, now = new Date()) {
+  mustView(actor);
+  const t = await getTx(db, txId);
+  if (t.kind !== "in") throw new BankError("입금 거래만 청구서 입금으로 적습니다");
+  if (t.matchKind && t.matchKind !== "class") throw new BankError("이미 맞춘 거래입니다");
+  const r = await recordBillPayment(db, actor, billId, { amountWon: t.amountWon, receivedOn: t.on, method: "transfer", payerName: t.party ?? "", note: `통장 입금 ${t.on}` }, now);
+  const [b] = await db.select({ docNo: arBill.docNo }).from(arBill).where(eq(arBill.id, billId));
+  await setMatch(db, txId, { kind: "bill", id: billId, no: b.docNo, note: txId }, false, actor.id, now);
+  return { docNo: b.docNo, vouchers: r.vouchers.map((v) => v.docNo), remain: r.remain };
 }
 
 /** 승인된 결의서를 이 출금으로 지급 처리하고 잇는다 */
@@ -690,7 +709,7 @@ export async function bankFlows(db: Db, from: string, to: string) {
     if ((t.matchKind === "class" || t.matchKind === "fund") && t.cls && isTxClass(t.cls)) {
       if (t.cls === "personal" || t.cls === "self") continue;
       add(`cls:${t.cls}`, TX_CLASSES[t.cls].label, TX_CLASSES[t.cls].flow, t);
-    } else if (t.matchKind === "payment") add("payment", "고객 수납·보험사 입금", "영업", t);
+    } else if (t.matchKind === "payment" || t.matchKind === "bill") add("payment", "고객 수납·보험사 입금", "영업", t);
     else if (t.matchKind === "expense") add("expense", "지출 결의 지급", "영업", t);
     else if (t.matchKind === "payroll") add("payroll", "급여", "영업", t);
     else add("open", "아직 안 맞춘 거래", "미분류", t);

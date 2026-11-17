@@ -21,9 +21,14 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
         help="customers"
         sub="고객은 상담할 때 생깁니다. 같은 전화번호·차량번호는 한 고객으로 모입니다."
         actions={
-          <Link href="/consults/new" className={buttonClass()}>
-            새 상담
-          </Link>
+          <>
+            <Link href="/customers/new" className={buttonClass("secondary")}>
+              업체 고객 등록
+            </Link>
+            <Link href="/consults/new" className={buttonClass()}>
+              새 상담
+            </Link>
+          </>
         }
       >
         고객·차량
@@ -36,7 +41,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           {rows.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 hover:bg-[var(--surface-2)]">
               <Link href={`/customers/${c.id}`} className="min-w-40">
-                <b className="text-[var(--accent)]">{c.name}</b> <span className="text-[var(--muted)]">{c.phone ?? "연락처 없음"}</span>
+                <b className="text-[var(--accent)]">{c.name}</b> {c.kind === "business" && <Badge tone="accent">업체</Badge>} <span className="text-[var(--muted)]">{c.phone ?? "연락처 없음"}</span>
               </Link>
               <span className="flex flex-1 flex-wrap gap-1">
                 {c.vehicles.map((v) => (
@@ -47,6 +52,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
               </span>
               <span className="flex items-center gap-2 text-xs text-[var(--muted)]">
                 {!c.consent.required && <Badge tone="warn">동의 없음</Badge>}
+                {c.biz.portal && <Badge>주문 앱</Badge>}
                 {c.consent.marketing && <Badge>광고 동의</Badge>}
                 {c.last && (
                   <Link href={`/consults/${c.last.id}`} className="hover:underline">

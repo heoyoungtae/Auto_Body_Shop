@@ -16,6 +16,8 @@ import { addDays, seoulDate } from "@/modules/platform/time";
 import { generationFor, isVehicleOption } from "./generations";
 import { decodeVin, makerOf, normalizeVin, VIN_RE } from "./vehicles";
 import { cleanMarks } from "@/modules/repair/rules";
+import { formatBizNo as fmtBizNo, validBizNo as bizNoOk } from "@/modules/platform/shop";
+import { isArPayTerm, isInvoiceMode, isPortal, TECHBAY_URL } from "@/modules/money/credit-rules";
 import { isBodyType } from "@/modules/repair/body-map";
 import {
   addBusinessDays,
@@ -36,9 +38,11 @@ type Tx = Db;
 const clean = (s: string | null | undefined) => (s ?? "").trim() || null;
 
 // ── 동의 ──
-export type ConsentState = { required: boolean; photo: boolean; marketing: boolean; at: Date | null; method: string | null; version: string | null; current: boolean };
+export type ConsentState = { required: boolean; photo: boolean; marketing: boolean; at: Date | null; method: string | null; version: string | null; current: boolean; /** 업체 고객: 개인정보 동의 대상이 아님(업체 대표번호·담당 업무 연락) */ business?: boolean };
 
 export async function consentState(db: Db, customerId: string): Promise<ConsentState> {
+  const [cu] = await db.select({ kind: customer.kind }).from(customer).where(eq(customer.id, customerId));
+  if (cu?.kind === "business") return { required: true, photo: false, marketing: false, at: null, method: null, version: null, current: true, business: true };
   const [row] = await db.select().from(consent).where(eq(consent.customerId, customerId)).orderBy(desc(consent.at)).limit(1);
   if (!row) return { required: false, photo: false, marketing: false, at: null, method: null, version: null, current: false };
   return { required: row.required, photo: row.photo, marketing: row.marketing, at: row.at, method: row.method, version: row.version, current: row.version === CONSENT_VERSION };
@@ -119,7 +123,7 @@ export async function recentCustomers(db: Db, limit = 50) {
 async function customerSummary(db: Db, c: typeof customer.$inferSelect) {
   const vehicles = await db.select().from(vehicle).where(eq(vehicle.customerId, c.id)).orderBy(desc(vehicle.updatedAt));
   const [last] = await db.select({ id: consultation.id, docNo: consultation.docNo, at: consultation.at, result: consultation.result }).from(consultation).where(eq(consultation.customerId, c.id)).orderBy(desc(consultation.at)).limit(1);
-  return { id: c.id, name: c.name, phone: c.phoneMasked, memo: c.memo, createdAt: c.createdAt, vehicles, consent: await consentState(db, c.id), last: last ?? null };
+  return { id: c.id, name: c.name, phone: c.phoneMasked, memo: c.memo, createdAt: c.createdAt, kind: c.kind, biz: c, vehicles, consent: await consentState(db, c.id), last: last ?? null };
 }
 
 export async function getCustomer(db: Db, id: string) {
@@ -231,6 +235,86 @@ export async function moveVehicle(db: Db, actorId: string, vehicleId: string, to
   if (!v) throw new CustomerError("없는 차량입니다");
   await db.update(vehicle).set({ customerId: toCustomerId, updatedAt: new Date() }).where(eq(vehicle.id, vehicleId));
   await writeAudit(db, { actorId, action: "vehicle.move", entityType: "vehicle", entityId: v.plateNo, before: { customerId: v.customerId }, after: { customerId: toCustomerId } });
+}
+
+// ── 업체 고객(대표 결정 2026-11-17) ──
+export type BusinessInput = {
+  bizNo: string;
+  contactName: string;
+  taxEmail: string;
+  payTerm: string;
+  payDay: number | null;
+  creditLimitWon: number | null;
+  invoiceMode: string;
+  portal: string;
+  portalUrl: string;
+  portalNote: string;
+};
+
+function businessFields(i: BusinessInput) {
+  const bizNo = i.bizNo.replace(/\D/g, "");
+  if (!bizNo) throw new CustomerError("업체 고객은 사업자등록번호를 적어 주세요(세금계산서에 씁니다)");
+  if (!bizNoOk(bizNo)) throw new CustomerError("사업자등록번호가 맞지 않습니다. 사업자등록증의 10자리를 다시 확인해 주세요");
+  if (!isArPayTerm(i.payTerm)) throw new CustomerError("결제 조건을 골라 주세요");
+  if (i.payTerm === "next_day" && (i.payDay == null || i.payDay < 1 || i.payDay > 31)) throw new CustomerError("결제일(1~31)을 적어 주세요");
+  if (i.creditLimitWon != null && i.creditLimitWon < 0) throw new CustomerError("외상 한도는 0 이상입니다(비우면 한도 없음)");
+  if (!isInvoiceMode(i.invoiceMode)) throw new CustomerError("세금계산서 발행 방식을 골라 주세요");
+  const email = i.taxEmail.trim();
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new CustomerError("세금계산서 이메일을 확인해 주세요");
+  const portal = i.portal && i.portal !== "none" ? i.portal : null;
+  if (portal && !isPortal(portal)) throw new CustomerError("주문 앱을 골라 주세요");
+  const url = i.portalUrl.trim();
+  if (url && !/^https?:\/\//.test(url)) throw new CustomerError("주문 앱 주소는 https:// 로 시작합니다");
+  return {
+    kind: "business" as const,
+    bizNo: fmtBizNo(bizNo),
+    contactName: clean(i.contactName),
+    taxEmail: email || null,
+    payTerm: i.payTerm,
+    payDay: i.payTerm === "next_day" ? i.payDay : null,
+    creditLimitWon: i.creditLimitWon,
+    invoiceMode: i.invoiceMode,
+    portal,
+    portalUrl: portal ? url || (portal === "techbay" ? TECHBAY_URL : null) : null,
+    portalNote: portal ? clean(i.portalNote) : null,
+  };
+}
+
+/** 업체 고객 바로 등록(상담 없이). 연락처는 업체 대표번호라 개인정보 동의를 받지 않는다 */
+export async function createBusinessCustomer(db: Db, actorId: string, input: { name: string; phone: string; memo: string } & BusinessInput) {
+  const name = input.name.trim();
+  if (!name) throw new CustomerError("업체 이름(상호)을 적어 주세요");
+  const f = businessFields(input);
+  const [dupBiz] = await db.select({ id: customer.id, name: customer.name }).from(customer).where(eq(customer.bizNo, f.bizNo));
+  if (dupBiz) throw new CustomerError(`같은 사업자번호의 고객(${dupBiz.name})이 이미 있습니다`);
+  const phone = input.phone.trim() ? phoneOf(input.phone) : null;
+  if (phone) {
+    const same = await findByPhone(db, phone);
+    if (same) throw new CustomerError(`같은 번호의 고객(${same.name})이 이미 있습니다. 그 고객 화면에서 '업체'로 바꿔 주세요`);
+  }
+  const [c] = await db
+    .insert(customer)
+    .values({ name, memo: clean(input.memo), ...f, ...(phone ? { phoneEnc: encrypt(phone), phoneHash: phoneHash(phone), phoneMasked: maskPhone(phone) } : {}), createdBy: actorId })
+    .returning({ id: customer.id });
+  await writeAudit(db, { actorId, action: "customer.create", entityType: "customer", entityId: c.id, after: { name, kind: "business", bizNo: f.bizNo, payTerm: f.payTerm } });
+  return c.id;
+}
+
+/** 고객 구분·업체 정보 바꾸기 */
+export async function updateBusiness(db: Db, actorId: string, id: string, kind: string, input: BusinessInput) {
+  const [old] = await db.select().from(customer).where(eq(customer.id, id));
+  if (!old) throw new CustomerError("없는 고객입니다");
+  if (kind !== "business") {
+    if (old.kind !== "business") return;
+    await db.update(customer).set({ kind: "person", updatedAt: new Date() }).where(eq(customer.id, id));
+    await writeAudit(db, { actorId, action: "customer.kind", entityType: "customer", entityId: id, before: { kind: old.kind }, after: { kind: "person" } });
+    return;
+  }
+  const f = businessFields(input);
+  const [dupBiz] = await db.select({ id: customer.id, name: customer.name }).from(customer).where(eq(customer.bizNo, f.bizNo));
+  if (dupBiz && dupBiz.id !== id) throw new CustomerError(`같은 사업자번호의 고객(${dupBiz.name})이 이미 있습니다`);
+  await db.update(customer).set({ ...f, updatedAt: new Date() }).where(eq(customer.id, id));
+  await writeAudit(db, { actorId, action: "customer.business", entityType: "customer", entityId: id, before: { kind: old.kind, payTerm: old.payTerm, creditLimitWon: old.creditLimitWon }, after: { payTerm: f.payTerm, payDay: f.payDay, creditLimitWon: f.creditLimitWon, portal: f.portal } });
 }
 
 // ── 상담 일지(F-01-01) ──

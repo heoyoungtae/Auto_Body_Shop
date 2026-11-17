@@ -8,7 +8,7 @@ import {
   importFile,
   issueToken,
   linkTx,
-  payFromTx,
+  billPayFromTx, payFromTx,
   payrollFromTx,
   removeAccount,
   saveAccount,
@@ -51,6 +51,11 @@ export async function txAction(form: FormData) {
       case "pay":
         msg = `${await payFromTx(db, user, txId, s("id"))}을(를) 이 출금 날짜로 지급 처리했습니다`;
         break;
+      case "bill": {
+        const r = await billPayFromTx(db, user, txId, s("id"));
+        msg = `청구서 ${r.docNo}에 입금을 적었습니다(입금 전표 ${r.vouchers.join(", ")}${r.remain > 0 ? ` · 남은 ${r.remain.toLocaleString("ko-KR")}원` : " · 다 받음"})`;
+        break;
+      }
       case "payroll":
         msg = `${await payrollFromTx(db, user, txId, s("id"))} 급여를 지급 처리했습니다`;
         break;

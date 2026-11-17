@@ -89,7 +89,7 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
         <input type="hidden" name="id" value={c.id} />
         <input type="hidden" name="no" value={c.no} />
         <input type="hidden" name="note" value={c.note ?? ""} />
-        <SubmitButton>{c.act === "pay" ? "지급 처리" : c.act === "payroll" ? "급여 지급 처리" : "잇기"}</SubmitButton>
+        <SubmitButton>{c.act === "pay" ? "지급 처리" : c.act === "payroll" ? "급여 지급 처리" : c.act === "bill" ? "청구서 입금 적기" : "잇기"}</SubmitButton>
       </form>
     );
   };
@@ -98,6 +98,7 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
     if (kind === "expense") return `/money/expenses/${id}`;
     if (kind === "payment") return roOf.get(id) ? `/money/ro/${roOf.get(id)}` : null;
     if (kind === "payable") return "/money/payables";
+    if (kind === "bill") return `/money/accounts/bills/${id}`;
     if (kind === "payroll") return "/payroll";
     if (kind === "fund") return "/money/books";
     if (kind === "tx") return `#tx-${id}`;

@@ -369,6 +369,8 @@ export type ArRow = {
   lastFollow: string | null;
   promisedOn: string | null;
   insurance: boolean;
+  /** 업체 외상 출고(결제 조건·청구서로 받음. 30일 독촉 대신 받을 날로 본다) */
+  credit: boolean;
 };
 
 /** 고객 미수: 출고한(또는 명세서 발급한) 건 중 남은 금액이 있는 것. 오래된 순 */
@@ -424,6 +426,7 @@ export async function customerReceivables(
       lastFollow: f ? seoulDate(f.at) : null,
       promisedOn: f?.promisedOn ?? null,
       insurance: r.ro.insurance !== "self",
+      credit: r.st.payMethod === "credit",
     });
   }
   return out.sort((a, b) => (b.days ?? -1) - (a.days ?? -1));
@@ -541,7 +544,7 @@ export async function receiptTodos(db: Db, actor: Actor, today: string) {
   }
   if (can(actor, "money.close_month")) {
     for (const a of await customerReceivables(db)) {
-      if (a.days == null || a.days < AR_DUN_DAYS) continue;
+      if (a.days == null || a.days < AR_DUN_DAYS || a.credit) continue;
       if (a.lastFollow && daysBetween(a.lastFollow, today) < 7) continue;
       if (a.promisedOn && a.promisedOn >= today) continue;
       out.push({

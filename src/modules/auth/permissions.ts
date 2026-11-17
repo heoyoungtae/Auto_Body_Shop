@@ -18,6 +18,13 @@ export const PERMS = {
     std: "STD-01",
     roles: ["owner", "plant_manager", "advisor"],
   },
+  "portal.order": {
+    area: "고객·상담",
+    label: "업체 주문 앱(테크베이 등) 주문 불러오기·진행 상태 등록",
+    std: "STD-01",
+    roles: ["owner", "plant_manager", "advisor"],
+    note: "업체 쪽 앱 로그인(인증번호)은 대표·공장장·상담원 누구나 합니다",
+  },
   "consult.write": {
     area: "고객·상담",
     label: "상담·예약 쓰기",

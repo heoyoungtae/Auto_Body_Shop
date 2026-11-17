@@ -173,6 +173,7 @@ export const customersList: ListDef<Cust> = {
   ],
   cols: [
     { label: "고객", get: (r) => r.name },
+    { label: "구분", get: (r) => (r.kind === "business" ? "업체" : "개인") },
     { label: "연락처", get: (r) => r.phone },
     { label: "차량", get: (r) => r.vehicles.map((v) => `${v.plateNo} ${v.model ?? ""}`.trim()).join(", ") },
     { label: "등록일", get: (r) => isoOf(r.createdAt) },

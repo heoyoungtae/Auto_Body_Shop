@@ -16,6 +16,7 @@ import { ShowWhen } from "../../../consults/show-when";
 import { SignaturePad } from "../../signature-pad";
 import { deliveryAction } from "../../qc-actions";
 import { claimView } from "@/modules/repair/claims";
+import { creditCheck } from "@/modules/money/credit";
 
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
@@ -30,6 +31,10 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
   const desk = can(user, "delivery.do");
   const ready = r.status === "ready";
   const cv = r.insurance !== "self" ? await claimView(db, id) : null;
+  // 업체 고객: 외상 현황(잔액·한도·연체)과 이번 출고를 더했을 때의 경고
+  const credit = r.insurance === "self" ? await creditCheck(db, r.customer.id, st?.totalWon ?? 0) : null;
+  const biz = credit?.business ? credit : null;
+  const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
   const snap = (st?.snapshot ?? {}) as { warranty?: { kind: string; until: string }[]; legalFreeDays?: number; byPayer?: { insurance: number; general: number } };
 
   return (
@@ -89,7 +94,25 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
                 <input type="hidden" name="roId" value={id} />
                 <input type="hidden" name="intent" value="deliver" />
                 <CheckGroup help="dl.notices" name="notices" options={opts({ ...DELIVERY_NOTICES, care: `도장 후 ${policy["delivery.no_wash_days"]}일 동안 세차·왁스 금지 안내를 받았습니다` })} />
-                <SelectField help="dl.payMethod" name="payMethod" required defaultValue={r.insurance !== "self" ? "insurance" : ""} placeholder="고르기" options={opts(PAY_METHODS)} />
+                <ShowWhen
+                  field="payMethod"
+                  initial={r.insurance !== "self" ? "insurance" : biz ? "credit" : ""}
+                  cases={
+                    biz?.warnings.length
+                      ? { credit: <CheckGroup help="dl.creditOk" name="creditOk" options={[{ value: "ok", label: "경고를 확인하고 외상 출고(대표에게 알림)" }]} /> }
+                      : {}
+                  }
+                >
+                  <SelectField
+                    help="dl.payMethod"
+                    name="payMethod"
+                    required
+                    defaultValue={r.insurance !== "self" ? "insurance" : biz ? "credit" : ""}
+                    from={biz ? "업체 결제 조건" : undefined}
+                    placeholder="고르기"
+                    options={opts(biz ? PAY_METHODS : Object.fromEntries(Object.entries(PAY_METHODS).filter(([k]) => k !== "credit")))}
+                  />
+                </ShowWhen>
                 <ShowWhen field="receiver" initial="self" cases={{ proxy: <TextField help="dl.proxyNote" name="proxyNote" required /> }}>
                   <SelectField
                     help="dl.receiver"
@@ -101,7 +124,7 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
                     ]}
                   />
                 </ShowWhen>
-                <TextField help="dl.receiverName" name="receiverName" required defaultValue={r.customer.name} from="고객 기록" />
+                <TextField help="dl.receiverName" name="receiverName" required defaultValue={biz?.customer.contactName ?? r.customer.name} from={biz?.customer.contactName ? "업체 담당자" : "고객 기록"} />
                 <SignaturePad hint="인수하는 분이 차량 상태를 확인하고 이 칸에 서명합니다" />
                 <SubmitButton>인수 서명 받고 출고</SubmitButton>
               </AssistForm>
@@ -123,6 +146,33 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
           )}
         </div>
         <div className="space-y-4 xl:sticky xl:top-4">
+          {biz && (
+            <Card title="업체 외상 현황" help={{ kind: "panel", id: "dl.credit" }}>
+              <div className="space-y-1 text-sm">
+                <p>
+                  <b>{biz.customer.name}</b> · 결제 조건 {biz.term}
+                  {biz.customer.portal && <Badge tone="accent">주문 앱 있음</Badge>}
+                </p>
+                <p className="tabular-nums">
+                  외상 잔액 {won(biz.balance)}
+                  {biz.limit != null && ` / 한도 ${won(biz.limit)}`}
+                </p>
+                {st && r.status !== "delivered" && (
+                  <p className="text-xs text-[var(--muted)]">
+                    이번 출고 {won(st.totalWon)}를 외상으로 하면 받을 날은 {biz.dueOn}입니다(월말 청구서에 묶이면 청구서의 받을 날).
+                  </p>
+                )}
+                {biz.warnings.map((w) => (
+                  <p key={w} className="text-xs font-semibold text-[var(--danger)]">
+                    ⚠ {w}
+                  </p>
+                ))}
+                <Link href={`/money/accounts/${biz.customer.id}`} className="text-xs text-[var(--accent)] hover:underline">
+                  거래처 원장 보기
+                </Link>
+              </div>
+            </Card>
+          )}
           {cv && (
             <Card title="고객에게 받을 금액" help={{ kind: "panel", id: "dl.collect" }}>
               {cv.claim ? (

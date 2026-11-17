@@ -71,6 +71,8 @@ import {
   type PoStatus,
 } from "@/modules/purchase/rules";
 import { CP_STATUS } from "@/modules/cs/rules";
+import { portalOrderView } from "@/modules/partner/service";
+import { PortalSteps } from "../../portal-orders/portal-steps";
 
 const opts = (xs: string[]) => xs.map((x) => ({ value: x, label: x }));
 const WARNING_LIGHTS = [
@@ -114,6 +116,8 @@ export default async function RepairDetail({
     usedOnRo(db, id),
   ]);
   const [policy, subExtras, prog] = await Promise.all([loadPolicy(db, seoulDate()), loadSubParts(db), wos.length ? roProgress(db, id, r.damages.map((d) => d.id)) : null]);
+  // 업체 주문 앱(테크베이 등)으로 들어온 주문: 그쪽 앱에 등록할 진행 상태
+  const portal = await portalOrderView(db, { consultationId: r.consultationId });
   const canWrite = can(user, "repair.write");
   const canDiagnose = can(user, "diag.write");
   const canConfirm = can(user, "diag.confirm");
@@ -465,6 +469,22 @@ export default async function RepairDetail({
       ) : (
         <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
           <div className="space-y-4 xl:col-span-2">
+            {portal && (
+              <div id="portal">
+                <Card title={`업체 주문 앱 — ${portal.platformLabel}`} help={{ kind: "panel", id: "ro.portal" }}>
+                  <div className="space-y-2 text-sm">
+                    <p className="flex flex-wrap items-center gap-2">
+                      <span>
+                        {portal.customerName} 주문 <b>{portal.o.extNo ?? portal.o.extId}</b>
+                      </span>
+                      {portal.todo.length > 0 ? <Badge tone="warn">그쪽 앱에 등록할 것 {portal.todo.length}단계</Badge> : <Badge tone="ok">등록할 것 없음</Badge>}
+                    </p>
+                    {portal.note && <p className="whitespace-pre-line text-xs text-[var(--muted)]">{portal.note}</p>}
+                    {can(user, "portal.order") ? <PortalSteps v={portal} back={`/repairs/${r.id}#portal`} /> : null}
+                  </div>
+                </Card>
+              </div>
+            )}
             {r.insurance !== "self" && (
               <Card title="보험 청구" help={{ kind: "panel", id: "ro.claim" }}>
                 <div className="flex flex-wrap items-center gap-3 text-sm">
