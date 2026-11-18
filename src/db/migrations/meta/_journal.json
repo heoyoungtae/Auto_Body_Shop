@@ -386,6 +386,13 @@
       "when": 1794661269113,
       "tag": "0054_body_map_2",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794956266299,
+      "tag": "0055_partner_credit",
+      "breakpoints": true
     }
   ]
 }

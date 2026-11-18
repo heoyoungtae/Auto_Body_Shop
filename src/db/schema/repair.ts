@@ -325,6 +325,10 @@ export const repairStatement = pgTable(
     signature: text("signature"),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     deliveredBy: uuid("delivered_by").references(() => appUser.id),
+    /** 외상 출고(payMethod=credit): 결제 조건으로 정한 받을 날. 청구서에 묶이면 청구서의 받을 날을 따른다 */
+    creditDueOn: text("credit_due_on"),
+    /** 묶인 거래처 청구서(ar_bill) */
+    billId: uuid("bill_id"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("repair_statement_no_uq").on(t.docNo), index("repair_statement_ro_idx").on(t.repairOrderId)],

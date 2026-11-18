@@ -3,6 +3,7 @@ import { rolesFor } from "@/modules/auth/permissions";
 import { readVehicle } from "../consults/vehicle-form";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
+import { createBusinessCustomer, updateBusiness, type BusinessInput } from "@/modules/customer/service";
 import { changeConsent, findByPhone, moveVehicle, saveVehicle, sendConsentRequest, updateCustomer, type ConsentInput } from "@/modules/customer/service";
 import { CustomerError } from "@/modules/customer/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
@@ -71,4 +72,46 @@ export async function moveVehicleAction(form: FormData) {
     redirect(errorUrl(`/customers/${id}`, userMessage(e)));
   }
   redirect(noticeUrl(`/customers/${to}`, "차량을 이 고객에게 옮겼습니다"));
+}
+
+const numOf = (f: FormData, k: string) => {
+  const d = str(f, k).replace(/[^\d]/g, "");
+  return d ? Number(d) : null;
+};
+const bizInput = (f: FormData): BusinessInput => ({
+  bizNo: str(f, "bizNo"),
+  contactName: str(f, "contactName"),
+  taxEmail: str(f, "taxEmail"),
+  payTerm: str(f, "payTerm"),
+  payDay: numOf(f, "payDay"),
+  creditLimitWon: numOf(f, "creditLimitWon"),
+  invoiceMode: str(f, "invoiceMode") || "monthly",
+  portal: str(f, "portal") || "none",
+  portalUrl: str(f, "portalUrl"),
+  portalNote: str(f, "portalNote"),
+});
+
+/** 업체 고객 바로 등록(상담 없이) */
+export async function createBusinessAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  let id: string;
+  try {
+    id = await createBusinessCustomer(await getDb(), user.id, { name: str(form, "name"), phone: str(form, "phone"), memo: str(form, "memo"), ...bizInput(form) });
+  } catch (e) {
+    redirect(errorUrl("/customers/new", userMessage(e)));
+  }
+  redirect(noticeUrl(`/customers/${id}`, "업체 고객을 등록했습니다"));
+}
+
+/** 고객 구분(개인·업체)과 업체 정보 저장 */
+export async function businessAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  const id = str(form, "id");
+  const kind = str(form, "kind");
+  try {
+    await updateBusiness(await getDb(), user.id, id, kind, bizInput(form));
+  } catch (e) {
+    redirect(errorUrl(`/customers/${id}`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/customers/${id}`, kind === "business" ? "업체 정보를 저장했습니다" : "개인 고객으로 바꿨습니다"));
 }

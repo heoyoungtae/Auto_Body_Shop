@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { approvalDoc } from "./approval";
 import { appUser, createdAt, id } from "./platform";
+import { customer } from "./customer";
 import { supplier } from "./purchase";
 import { repairOrder } from "./repair";
 
@@ -38,6 +39,8 @@ export const payment = pgTable(
     reversalOf: uuid("reversal_of"),
     /** 누가 냈나: customer 고객(수납) · insurer 보험사(보험 청구 입금 확인 때 자동). 고객 미수 계산은 customer 만 */
     payer: text("payer").notNull().default("customer"),
+    /** 거래처 청구서 입금이면 그 청구서(한 번 입금을 수리 건별로 나눠 적는다) */
+    billId: uuid("bill_id"),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
   },
@@ -192,4 +195,36 @@ export const payable = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("payable_supplier_idx").on(t.supplierId), index("payable_source_idx").on(t.sourceId), index("payable_settle_idx").on(t.settleExpenseId)],
+);
+
+/**
+ * 거래처 청구서(BL). 업체 고객의 외상 출고(정비명세서)를 달마다 한 장으로 모아 청구한다.
+ * 받을 날은 업체 결제 조건으로 계산하고, 입금은 수리 건별 입금 전표(payment.billId)로 나눠 적는다
+ */
+export const arBill = pgTable(
+  "ar_bill",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    /** 청구하는 달(YYYY-MM, 출고일 기준) */
+    ym: text("ym").notNull(),
+    issuedOn: text("issued_on").notNull(),
+    dueOn: text("due_on").notNull(),
+    payTerm: text("pay_term").notNull(),
+    supplyWon: integer("supply_won").notNull(),
+    vatWon: integer("vat_won").notNull(),
+    totalWon: integer("total_won").notNull(),
+    /** 월 합계 세금계산서(공급한 달 다음 달 10일까지 발급) */
+    taxInvoiceNo: text("tax_invoice_no"),
+    taxInvoiceOn: text("tax_invoice_on"),
+    note: text("note"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelReason: text("cancel_reason"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("ar_bill_no_uq").on(t.docNo), index("ar_bill_customer_idx").on(t.customerId)],
 );

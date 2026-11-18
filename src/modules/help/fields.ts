@@ -1592,9 +1592,9 @@ export const FIELD_HELP = {
   },
   "dl.payMethod": {
     label: "수납 방법",
-    hint: "보험 수리는 '보험사 직접 지급'. 못 받았으면 '미수'",
+    hint: "보험 수리는 '보험사 직접 지급'. 업체 고객은 '외상'. 못 받았으면 '미수'",
     detail:
-      "미수로 출고하면 회계 담당에게 알림이 갑니다(STD-12). 보험 자기부담금 처리는 보험 청구 기능에서 이어집니다.",
+      "미수로 출고하면 회계 담당에게 알림이 갑니다(STD-12). 보험 자기부담금 처리는 보험 청구 기능에서 이어집니다. 외상은 업체 고객만 고를 수 있고, 결제 조건으로 받을 날을 정해 달마다 청구서로 받습니다.",
   },
   "dl.receiver": { label: "인수자", hint: "고객 본인 또는 대리인" },
   "dl.proxyNote": {
@@ -4659,6 +4659,150 @@ export const FIELD_HELP = {
     hint: "공공데이터포털 마이페이지의 일반 인증키(Decoding)",
     detail:
       "공공데이터포털(data.go.kr)에서 '한국천문연구원 특일 정보'를 활용신청하면 바로 승인되고 인증키가 나옵니다. 키는 암호화해 저장하고 화면에 다시 보여 주지 않습니다. 비워 두면 공휴일을 직접 넣어야 합니다.",
+  },
+  // ── 업체 고객·외상(2026-11-17)
+  "cust.kind": {
+    label: "고객 구분",
+    hint: "사업자로 거래하고 외상·월말 청구하면 '업체'",
+    detail: "업체로 바꾸면 사업자등록번호·결제 조건을 받고, 출고 때 '외상'을 고를 수 있습니다. 업체는 개인정보 동의 대상이 아닙니다.",
+  },
+  "cust.bizName": {
+    label: "업체 이름(상호)",
+    hint: "사업자등록증의 상호 그대로",
+    example: "○○렌터카(주)",
+  },
+  "cust.bizPhone": {
+    label: "업체 대표번호",
+    hint: "업체 사무실 번호. 담당자 개인 휴대폰은 적지 않습니다",
+    example: "02-1234-5678",
+  },
+  "cust.bizNo": {
+    label: "사업자등록번호",
+    hint: "10자리. 세금계산서에 씁니다",
+    example: "123-45-67890",
+    detail: "국세청 검증 숫자로 확인합니다. 틀리면 저장되지 않습니다.",
+  },
+  "cust.contactName": {
+    label: "담당자",
+    hint: "주문·정산을 맡는 사람 이름",
+    example: "김과장",
+  },
+  "cust.taxEmail": {
+    label: "세금계산서 이메일",
+    hint: "전자 세금계산서를 받을 주소",
+    example: "tax@example.com",
+  },
+  "cust.payTerm": {
+    label: "결제 조건",
+    hint: "언제 돈을 받기로 했는지. 받을 날을 이것으로 계산합니다",
+    detail: "출고 때: 그 자리에서 결제. 당월 말: 출고한 달 말일. 익월 말: 다음 달 말일. 익월 ○일: 다음 달 정한 날(예: 익월 10일). 은행이 쉬는 날이면 다음 영업일입니다. 달마다 청구서로 묶으면 청구한 달 기준으로 계산합니다.",
+  },
+  "cust.payDay": {
+    label: "결제일",
+    hint: "다음 달 며칠에 받을지(1~31). '익월 ○일'일 때만 나옵니다",
+    example: "10",
+  },
+  "cust.creditLimit": {
+    label: "외상 한도",
+    hint: "받지 않은 채로 둘 수 있는 최대 금액(부가세 포함). 비우면 한도 없음",
+    example: "5,000,000",
+    detail: "출고 때 잔액 + 이번 금액이 한도를 넘으면 경고하고, 확인하고 출고하면 대표에게 알림이 갑니다.",
+  },
+  "cust.invoiceMode": {
+    label: "세금계산서",
+    hint: "보통 월 합계(청구서 한 장)",
+    detail: "월 합계: 한 달 출고분을 청구서 한 장으로 묶고 세금계산서도 한 장(다음 달 10일까지). 건별: 출고할 때마다 발행(입금 적을 때 번호를 적음).",
+  },
+  "cust.portal": {
+    label: "주문 앱",
+    hint: "업체가 자기 앱으로 주문하면 고릅니다",
+    detail: "테크베이: 이 앱이 인증번호로 로그인해 주문을 불러옵니다. 그 밖의 앱: 그쪽 주문번호를 상담에 이어 두고, 진행 상태 등록할 일을 챙깁니다.",
+  },
+  "cust.portalUrl": {
+    label: "주문 앱 주소",
+    hint: "그쪽 앱(웹) 주소. 화면의 '앱 열기'가 엽니다",
+    example: "https://techbay-reconditioning.prnd.co.kr",
+  },
+  "cust.portalNote": {
+    label: "앱 쓰는 요령",
+    hint: "로그인 방법·상태 이름 등. 아이디·비밀번호는 적지 않습니다",
+    example: "테크베이: 대표 휴대폰 인증번호 로그인. '작업중'은 판금 시작 때 누름",
+  },
+  "dl.creditOk": {
+    label: "외상 경고 확인",
+    hint: "한도 넘음·연체를 알고도 외상으로 출고할 때 체크",
+    detail: "체크하고 출고하면 대표에게 알림이 갑니다. 받을 날이 지난 돈이 있으면 먼저 업체에 연락하는 것이 좋습니다.",
+  },
+  "bill.items": {
+    label: "청구할 출고 건",
+    hint: "지난달까지 출고한 건이 미리 골라져 있습니다",
+  },
+  "bill.note": {
+    label: "청구서 메모",
+    hint: "청구서 아래에 찍힐 말(입금 계좌 등)",
+    example: "입금 계좌: ○○은행 123-456-789 (예금주 ○○공업사)",
+  },
+  "bill.amount": {
+    label: "받은 금액",
+    hint: "업체가 보낸 돈(부가세 포함). 남은 금액을 넘을 수 없습니다",
+  },
+  "bill.receivedOn": {
+    label: "받은 날",
+    hint: "통장에 들어온 날",
+  },
+  "bill.method": {
+    label: "받은 방법",
+    hint: "업체는 보통 계좌 이체",
+  },
+  "bill.payerName": {
+    label: "입금자",
+    hint: "통장에 찍힌 보낸 사람 이름",
+  },
+  "bill.payNote": {
+    label: "메모",
+    hint: "나눠 받음·수수료 뺌 등",
+  },
+  "bill.taxInvoiceNo": {
+    label: "세금계산서 승인 번호",
+    hint: "홈택스 등에서 발행하고 받은 승인 번호",
+    example: "20261210-41000000-12345678",
+  },
+  "bill.taxInvoiceOn": {
+    label: "발행한 날",
+    hint: "세금계산서를 발급한 날(다음 달 10일까지)",
+  },
+  "bill.cancelReason": {
+    label: "취소 사유",
+    hint: "왜 취소하는지",
+    example: "금액 잘못 묶음, 다시 만듦",
+  },
+  "portal.customer": {
+    label: "업체",
+    hint: "주문을 받을 업체 고객(주문 앱이 테크베이인 업체)",
+  },
+  "portal.orders": {
+    label: "불러올 주문",
+    hint: "상담으로 만들 주문. 이미 불러온 것은 빠져 있습니다",
+  },
+  "portal.phone": {
+    label: "로그인 휴대폰",
+    hint: "테크베이에 등록된 정비소 휴대폰 번호",
+    example: "010-1234-5678",
+  },
+  "portal.code": {
+    label: "인증번호",
+    hint: "문자로 받은 숫자(5분 안에)",
+    example: "123456",
+  },
+  "portal.url": {
+    label: "테크베이 웹 주소",
+    hint: "공업사용 사이트 주소(https)",
+    example: "https://techbay-reconditioning.prnd.co.kr",
+  },
+  "portal.extNo": {
+    label: "그쪽 주문번호",
+    hint: "업체 앱에 보이는 주문(접수) 번호",
+    example: "A-20261117-031",
   },
 } satisfies Record<string, FieldHelp>;
 

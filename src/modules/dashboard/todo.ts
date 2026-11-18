@@ -48,6 +48,8 @@ import { onboardingTodos } from "@/modules/staff/onboarding";
 import { staffFileTodos } from "@/modules/staff/files";
 import { assetTodos } from "@/modules/asset/service";
 import { receiptTodos } from "@/modules/money/receipts";
+import { creditTodos } from "@/modules/money/credit";
+import { portalTodos } from "@/modules/partner/service";
 import { bankTodos } from "@/modules/bank/service";
 import { expenseTodos } from "@/modules/money/expense";
 import { closeTodos } from "@/modules/money/close";
@@ -661,6 +663,8 @@ export async function myTodos(
     ...(await staffFileTodos(db, user, today)),
     ...(await assetTodos(db, user, today)),
     ...(await receiptTodos(db, user, today)),
+    ...(await creditTodos(db, user, today)),
+    ...(await portalTodos(db, user)),
     ...(await expenseTodos(db, user, today)),
     ...(await bankTodos(db, user, today)),
     ...(await closeTodos(db, user, today)),

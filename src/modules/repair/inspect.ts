@@ -20,6 +20,7 @@ import { inspectorIssue } from "@/modules/staff/service";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { totals } from "./estimate-rules";
+import { afterCreditDelivery, creditCheck } from "@/modules/money/credit";
 import { DELIVERY_NOTICES, judge, legalFreeDays, PAY_METHODS, type InspectInput } from "./inspect-rules";
 import { processLabel } from "./work-rules";
 
@@ -223,7 +224,7 @@ function addMonths(date: string, months: number) {
   return dt.toISOString().slice(0, 10);
 }
 
-export type DeliverInput = { payMethod: string; notices: string[]; receiverName: string; proxy: boolean; proxyNote: string; signaturePng: Uint8Array | null };
+export type DeliverInput = { payMethod: string; notices: string[]; receiverName: string; proxy: boolean; proxyNote: string; signaturePng: Uint8Array | null; /** 외상 경고(한도·연체)를 보고 출고하기로 확인함 */ creditOk?: boolean };
 
 /** 인도: 안내 확인 4가지, 수납, 인수 서명(대리인이면 위임 확인) → 출고 */
 export async function deliver(db: Db, actor: Actor, roId: string, input: DeliverInput, now = new Date()) {
@@ -233,6 +234,15 @@ export async function deliver(db: Db, actor: Actor, roId: string, input: Deliver
   const [s] = await db.select().from(repairStatement).where(eq(repairStatement.repairOrderId, roId));
   if (!s) throw new InspectError("정비명세서를 먼저 발급합니다");
   if (!(input.payMethod in PAY_METHODS)) throw new InspectError("수납 방법을 골라 주세요");
+  // 외상: 업체 고객만. 한도를 넘거나 연체가 있으면 확인 체크를 받는다(막지는 않음, 대표에게 알림)
+  let creditWarn: string[] = [];
+  if (input.payMethod === "credit") {
+    if (r.insurance !== "self") throw new InspectError("보험 수리 건은 외상으로 출고하지 않습니다. 고객 몫을 나중에 받으면 '미수(나중에 받음)'를 고르세요");
+    const chk = await creditCheck(db, r.customerId, s.totalWon, now);
+    if (!chk.business) throw new InspectError("외상은 업체 고객만 고릅니다. 개인 고객은 '미수(나중에 받음)'를 고르세요. 업체라면 고객 화면에서 '업체'로 바꿔 주세요");
+    creditWarn = chk.warnings;
+    if (creditWarn.length && !input.creditOk) throw new InspectError(`외상 경고: ${creditWarn.join(" / ")}. 확인하고 출고하려면 '경고를 확인하고 외상 출고'에 체크하세요`);
+  }
   const missing = Object.keys(DELIVERY_NOTICES).filter((k) => !input.notices.includes(k));
   if (missing.length) throw new InspectError(`안내 확인 ${missing.length}개가 비었습니다. 고객에게 설명하고 체크해 주세요`);
   if (!input.receiverName.trim()) throw new InspectError("인수하는 분의 이름을 적어 주세요");
@@ -248,6 +258,7 @@ export async function deliver(db: Db, actor: Actor, roId: string, input: Deliver
     await tx.update(repairOrder).set({ status: "delivered", updatedAt: now }).where(eq(repairOrder.id, roId));
   });
   await writeAudit(db, { actorId: actor.id, action: "repair.deliver", entityType: "repair_order", entityId: r.docNo, after: { statement: s.docNo, pay: input.payMethod, proxy: input.proxy } });
+  if (input.payMethod === "credit") await afterCreditDelivery(db, roId, r.docNo, s.id, r.customerId, creditWarn, now);
   if (input.payMethod === "receivable") await notifyRole(db, "accounting", `미수 출고: ${r.docNo} ${s.totalWon.toLocaleString("ko-KR")}원 — 수납을 챙기세요(STD-12)`, `ar-${r.docNo}`, `/repairs/${roId}/delivery`);
 }
 

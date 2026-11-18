@@ -2,6 +2,13 @@ import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { consultFlags, getConsultation, pendingConsent } from "@/modules/customer/service";
+import { eq } from "drizzle-orm";
+import { customer } from "@/db/schema";
+import { portalOrderView } from "@/modules/partner/service";
+import { PortalSteps } from "../../portal-orders/portal-steps";
+import { portalStepAction } from "../../portal-orders/actions";
+import { AssistForm } from "../../_assist";
+import { TextField } from "../../_input";
 import { CHANNEL_LABEL, INSURANCE_LABEL, RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { VEHICLE_OPTIONS, type VehicleOption } from "@/modules/customer/generations";
@@ -30,6 +37,9 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
   const db = await getDb();
   const c = await getConsultation(db, id);
   const pending = c.consent.required ? null : await pendingConsent(db, c.customer.id);
+  // 업체 주문 앱: 이어진 주문(테크베이에서 불러온 것 포함) 또는 주문번호 잇기
+  const portal = await portalOrderView(db, { consultationId: id });
+  const [bizCu] = await db.select({ kind: customer.kind, portal: customer.portal, portalUrl: customer.portalUrl }).from(customer).where(eq(customer.id, c.customer.id));
   const today = seoulDate();
   const canWrite = can(user, "consult.write");
   const flags = consultFlags(c, today);
@@ -103,6 +113,40 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
               <Row k="주행거리">{c.mileage != null ? `${c.mileage.toLocaleString("ko-KR")}km(고객 말)` : v?.mileage != null ? `${v.mileage.toLocaleString("ko-KR")}km(${v.mileageOn})` : null}</Row>
             </dl>
           </Card>
+          {(portal || (bizCu?.kind === "business" && bizCu.portal)) && (
+            <Card title="업체 주문 앱" help={{ kind: "panel", id: "consult.portal" }}>
+              {portal ? (
+                <div className="space-y-2 text-sm">
+                  <p>
+                    {portal.platformLabel} 주문 <b>{portal.o.extNo ?? portal.o.extId}</b>
+                    {portal.o.requestedAt && ` · 요청 ${portal.o.requestedAt.slice(0, 10)}`}
+                  </p>
+                  {portal.ro ? (
+                    <PortalSteps v={portal} back={`/consults/${id}`} />
+                  ) : (
+                    <p className="text-xs text-[var(--muted)]">입고 접수를 하면 그쪽 앱에 등록할 진행 상태(입고·작업 시작·수리 완료·출고)를 챙겨 드립니다.</p>
+                  )}
+                </div>
+              ) : (
+                can(user, "portal.order") && (
+                  <AssistForm id={`portal-link-${id}`} action={portalStepAction} className="flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="intent" value="link" />
+                    <input type="hidden" name="consultationId" value={id} />
+                    <input type="hidden" name="back" value={`/consults/${id}`} />
+                    <div className="min-w-56 flex-1">
+                      <TextField help="portal.extNo" name="extNo" required />
+                    </div>
+                    <SubmitButton variant="secondary">주문번호 잇기</SubmitButton>
+                    {bizCu?.portalUrl && (
+                      <a href={bizCu.portalUrl} target="_blank" rel="noopener noreferrer" className="self-center text-xs text-[var(--accent)]">
+                        그쪽 앱 열기 ↗
+                      </a>
+                    )}
+                  </AssistForm>
+                )
+              )}
+            </Card>
+          )}
           <Card title="상담 내용" help={{ kind: "panel", id: "consult.content" }}>
             <dl className="grid text-sm sm:grid-cols-2 sm:gap-x-6">
               <Row k="손상 유형">{c.damageTypes.join(", ")}</Row>
