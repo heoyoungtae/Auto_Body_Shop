@@ -49,9 +49,18 @@ if [ -z "${CF_API_TOKEN:-}" ]; then
   CF_API_TOKEN="${t//[[:space:]]/}"
 fi
 cf GET /user/tokens/verify >/dev/null 2>&1 || { bad "토큰이 맞지 않습니다. 다시 만들어 붙여 넣으세요"; exit 1; }
+setenv "CF_API_TOKEN=$CF_API_TOKEN"   # 토큰은 한 번만 보이므로 맞으면 바로 저장(다음 실행 때 다시 안 물음)
 ZONE_ID=$(cf_zone_id)
-[ -n "$ZONE_ID" ] || { bad "토큰이 $SITE_HOST 의 영역을 볼 수 없습니다. 토큰을 만들 때 Zone Resources 에 도메인을 골랐는지 확인하세요"; exit 1; }
-setenv "CF_API_TOKEN=$CF_API_TOKEN"
+if [ -z "$ZONE_ID" ]; then
+  echo "  영역(Zone) ID 를 자동으로 못 찾았습니다."
+  echo "  클라우드플레어 첫 화면 › 도메인(${SITE_HOST#*.}) 누르기 › 오른쪽 아래 'API' 칸의 Zone ID 옆 복사(Click to copy)"
+  read -r -p "  Zone ID 를 붙여 넣고 Enter: " z; z="${z//[[:space:]]/}"
+  if [[ "$z" =~ ^[0-9a-f]{32}$ ]] && cf GET "/zones/$z/dns_records?per_page=1" >/dev/null 2>&1; then
+    setenv "CF_ZONE_ID=$z"; ZONE_ID="$z"
+  else
+    bad "Zone ID 가 맞지 않거나 토큰이 이 영역 DNS 를 볼 수 없습니다. 토큰의 Zone 이 ${SITE_HOST#*.} 인지 확인하세요"; exit 1
+  fi
+fi
 ok "토큰 확인"
 
 say "2/6 이 PC 주소 확인"
