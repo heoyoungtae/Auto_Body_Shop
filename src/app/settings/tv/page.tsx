@@ -74,7 +74,7 @@ export default async function TvSettingsPage({ searchParams }: { searchParams: P
             <li>
               <b>크롬캐스트·구글 TV</b>: PC와 TV를 같은 와이파이에 두고, 크롬에서 TV 링크를 연 뒤 ⋮ → 저장 및 공유 → 전송 → 탭 전송에서 TV를 고릅니다.
             </li>
-            <li>TV는 절전·자동 꺼짐을 끄고 입력을 HDMI로 고정합니다.</li>
+            <li>TV는 절전·자동 꺼짐을 끄고 입력을 HDMI로 고정합니다. 퇴근 뒤에는 TV 전원을 꺼 두세요(현황판도 1분마다 화면을 조금씩 옮기고 밤 22시~6시에는 어둡게 해서 화면이 타는 것을 막습니다).</li>
           </ol>
           <p className="mt-3 mb-1 text-xs font-semibold text-[var(--muted)]">상태와 색</p>
           <ul className="grid gap-1 text-sm sm:grid-cols-2">
