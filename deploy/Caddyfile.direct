@@ -1,0 +1,13 @@
+# 사업장 미니 PC '국내 직접 접속'(minipc/direct.sh on)용. 공유기는 443 하나만 열기 때문에 80번 확인(HTTP-01)은 끄고 443번 확인(TLS-ALPN-01)으로 인증서를 받는다.
+{$SITE_HOST} {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	encode gzip
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy app:3000
+}

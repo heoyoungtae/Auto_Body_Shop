@@ -121,6 +121,10 @@ describe("서버(미니 PC)와 같은 정비소 인터넷", () => {
     await expect(punchOut(db, tech(), "9.9.9.9", at("18:00"))).rejects.toThrow(/정비소 인터넷/);
     await expect(punchOut(db, tech(), "2001:db8:aa:cc::7", at("18:00"))).rejects.toThrow(/정비소 인터넷/);
     await punchOut(db, tech(), "2001:db8:aa:bb:1234::9", at("18:00")); // 같은 회선의 IPv6 휴대폰
+    // 국내 직접 접속: 공유기 안쪽 주소로 들어온 와이파이 기기
+    await expect(punchIn(db, pm(), "172.30.1.23", at("09:00"))).rejects.toThrow(/정비소 인터넷/);
+    vi.stubEnv("SERVER_LAN_CIDR", "172.30.1.0/24");
+    await punchIn(db, pm(), "172.30.1.23", at("09:00"));
   });
 });
 
