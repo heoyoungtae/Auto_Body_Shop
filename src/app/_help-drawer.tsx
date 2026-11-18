@@ -59,6 +59,7 @@ export function HelpProvider({ children }: { children: ReactNode }) {
           tabIndex={-1}
           role="complementary"
           aria-label="도움말"
+          id="help-drawer"
           className="fixed inset-y-0 right-0 z-40 flex w-[88vw] max-w-[400px] flex-col border-l border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-lg)] outline-none"
         >
           <div className="flex min-h-14 items-center gap-1 border-b border-[var(--line)] px-2">

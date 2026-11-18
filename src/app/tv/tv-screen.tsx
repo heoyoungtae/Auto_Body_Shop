@@ -116,7 +116,7 @@ export function TvScreen({ initial, k, help, signedIn }: { initial: TvData; k: s
       <style>{CSS}</style>
       <div className="tv-move" style={{ transform: `translate(${offsets[shift][0]}px, ${offsets[shift][1]}px)` }}>
         <header className="tv-head">
-          <div className="tv-shop">{data.shop} · 정비 현황</div>
+          <div className="tv-shop">{data.shop ? `${data.shop} · 정비 현황` : "정비 현황"}</div>
           <div className="tv-date">{clock.date}</div>
           <div className="tv-clock">{clock.time}</div>
           <div className="tv-tools">
@@ -259,6 +259,8 @@ function toggleFs() {
 }
 
 const CSS = `
+/* 도움말 창은 TV 화면(z 80)보다 위에 연다 */
+#help-drawer{z-index:90}
 .tv-root{position:fixed;inset:0;z-index:80;background:#0c1524;color:#eef3fa;overflow:hidden;font-size:clamp(12px,1.95vh,24px);font-family:inherit}
 .tv-root.dim .tv-move{filter:brightness(.55)}
 .tv-move{height:100%;display:flex;flex-direction:column;transition:filter 2s,transform 1s}
