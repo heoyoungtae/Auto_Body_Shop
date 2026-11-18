@@ -147,7 +147,7 @@ bash ~/auto-body-shop/deploy/minipc/screen.sh
 
 **저절로 되는 것**
 
-- 매일 03:00 DB와 사진을 암호화해 미니 PC 안 `~/backups`에 둡니다(14일치). 결과는 앱 알림으로 오고, 실패하면 대표에게 알림이 갑니다.
+- 매일 03:00 DB(14일치)와 사진 묶음(최근 3개)을 암호화해 미니 PC 안 `~/backups`에 둡니다. 결과는 앱 알림으로 오고, 실패하면 대표에게 알림이 갑니다.
 - 새 버전을 올리기 직전에도 DB를 따로 백업합니다(30일치).
 
 **8-1. 백업 디스크(강력 추천)**
@@ -162,14 +162,16 @@ bash ~/auto-body-shop/deploy/minipc/screen.sh
    bash ~/auto-body-shop/deploy/minipc/backup-disk.sh
    ```
 
-   이제 매일 외장 디스크에도 복사됩니다(60일치). 디스크를 빼 두면 백업 결과에 '백업 디스크 없음'이 뜹니다.
+   이제 매일 외장 디스크에 DB(60일치, 암호화)를 복사하고, 사진은 `files` 폴더에 **바뀐 것만** 더합니다(앱에서 지운 사진도 남아 있음). 1TB면 몇 년 쓸 수 있고, 남은 공간은 백업 결과 알림에 나옵니다. 디스크를 빼 두면 '백업 디스크 없음'이 뜹니다.
+   - 용량: **외장 SSD 1TB** 추천(삼성 T7·샌디스크 익스트림 등). 외장 HDD 2TB도 괜찮지만 충격에 약합니다.
+   - 사진 폴더는 암호화되지 않으니 디스크는 잠금장치가 있는 곳에 보관하세요.
 
 **8-2. 바깥 보관(권장)**
 
 불이나 도난에 대비해 하루 한 번 정비소 밖에도 둡니다. 테스트 서버를 쓰던 오라클 계정의 무료 저장소(20GB)를 그대로 쓸 수 있습니다.
 
 1. 오라클 클라우드 → Storage → Buckets → Create Bucket(이름 `abs-backup`).
-2. 버킷 → **Lifecycle Policy Rules → Create**: 7일 지난 파일 삭제(무료 20GB 넘지 않게).
+2. 버킷 → **Lifecycle Policy Rules → Create**: 14일 지난 파일 삭제(무료 20GB 넘지 않게). DB는 매일, 사진 묶음은 일요일에만 올라갑니다.
 3. 버킷 → **Pre-Authenticated Requests → Create**: 대상 Bucket, 'Permit object writes', 만료 1년 뒤. 만들어진 주소(끝이 `/o/`)를 복사합니다.
 4. 미니 PC 터미널에서(따옴표 안에 주소를 붙여 넣기):
 
@@ -177,7 +179,7 @@ bash ~/auto-body-shop/deploy/minipc/screen.sh
    printf 'BACKUP_PAR_URL=%s\n' '복사한주소' | bash ~/auto-body-shop/deploy/set-env.sh
    ```
 
-> 사진이 많이 쌓여 하루 백업이 1GB를 넘으면 사진은 '바뀐 것만' 보내도록 바꾸겠습니다. 그때 Claude에게 말씀해 주세요.
+> 사진 묶음이 5GB를 넘으면(백업 결과 알림의 '파일' 크기) 바깥 보관 방법을 바꿔야 하니 Claude에게 말씀해 주세요.
 
 **8-3. 정전 대비(UPS)**
 
