@@ -1,6 +1,6 @@
 // 출퇴근 기록과 연장근무 인정(사용자 결정 2026-11-11): 정비소 인터넷에서만 버튼, 승인 ∩ 실제만 인정,
 // 승인 없는 초과는 사후 신청, 공장장 지시 + 직원 동의, 출퇴근 정정, 급여 반영
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { notification } from "@/db/schema";
@@ -8,7 +8,7 @@ import { act, getDoc } from "@/modules/approval/service";
 import { DEFAULT_CALENDAR } from "@/modules/platform/business-days";
 import { answerOrder, orderOvertime, pendingOrders, requestLeave } from "@/modules/staff/attendance";
 import { actualDays, dayStatus, missingDays, punchIn, punchOut, punchTodos, savePunchConfig } from "@/modules/staff/punch";
-import { ipAllowed, recognizedMinutes, unapprovedMinutes, validIpRule } from "@/modules/staff/punch-rules";
+import { ipAllowed, recognizedMinutes, unapprovedMinutes, v6Prefix64, validIpRule } from "@/modules/staff/punch-rules";
 import { summarizeAttendance } from "@/modules/staff/payroll-rules";
 import { seedShop, testDb } from "./db";
 
@@ -26,6 +26,12 @@ const at = (hm: string, day = "2026-11-10") => new Date(`${day}T${hm}:00+09:00`)
 const SHOP = "211.234.10.5";
 
 describe("출퇴근 규칙", () => {
+  it("IPv6 앞 64비트", () => {
+    expect(v6Prefix64("2001:db8:aa:bb::1")).toBe("2001:db8:aa:bb");
+    expect(v6Prefix64("2001:0db8:00aa:00bb:1:2:3:4")).toBe("2001:db8:aa:bb");
+    expect(v6Prefix64("::1")).toBe("0:0:0:0");
+    expect(v6Prefix64("211.234.10.5")).toBeNull();
+  });
   it("인터넷 주소: 하나·대역·IPv6, 형식 검사", () => {
     expect(ipAllowed("211.234.10.5", ["211.234.10.5"])).toBe(true);
     expect(ipAllowed("::ffff:211.234.10.77", ["211.234.10.0/24"])).toBe(true);
@@ -98,6 +104,23 @@ describe("출근·퇴근", () => {
     const a = await actualDays(db, "2026-11-11", "2026-11-11", [ids.tech1]);
     expect(a.get(`${ids.tech1}|2026-11-11`)).toMatchObject({ span: { from: 535, to: 1170 }, fixed: true });
     expect((await missingDays(db, ids.tech1, at("09:00", "2026-11-16"))).map((m) => m.day)).not.toContain("2026-11-11");
+  });
+});
+
+describe("서버(미니 PC)와 같은 정비소 인터넷", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  it("클라우드 서버에서는 켤 수 없고, 미니 PC 에서는 서버의 지금 공인 IP 를 따라간다", async () => {
+    await savePunchConfig(db, owner(), "", true);
+    await punchIn(db, tech(), "9.9.9.9", at("09:00")); // SERVER_ON_SITE 가 없으면 무시되어 어디서나
+    vi.stubEnv("SERVER_ON_SITE", "1");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(`fl=1\nip=${String(url).includes("[") ? "2001:db8:aa:bb::1" : SHOP}\nts=1\n`)));
+    await savePunchConfig(db, owner(), "", true);
+    await expect(punchOut(db, tech(), "9.9.9.9", at("18:00"))).rejects.toThrow(/정비소 인터넷/);
+    await expect(punchOut(db, tech(), "2001:db8:aa:cc::7", at("18:00"))).rejects.toThrow(/정비소 인터넷/);
+    await punchOut(db, tech(), "2001:db8:aa:bb:1234::9", at("18:00")); // 같은 회선의 IPv6 휴대폰
   });
 });
 

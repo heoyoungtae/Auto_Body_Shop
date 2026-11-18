@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { loadPunchConfig } from "@/modules/staff/punch";
+import { loadPunchConfig, serverOnSite, serverPublicIp } from "@/modules/staff/punch";
 import { normalizeIp } from "@/modules/staff/punch-rules";
 import { PlaceCard } from "../../attendance/punch-panels";
 import { requestMeta, requireUser } from "../../_lib/session";
@@ -11,7 +11,8 @@ export default async function PunchSettingsPage({ searchParams }: { searchParams
   const { error, notice } = await searchParams;
   const user = await requireUser();
   const owner = user.roles.includes("owner");
-  const [cfg, meta] = await Promise.all([owner ? loadPunchConfig(await getDb()) : Promise.resolve(null), requestMeta()]);
+  const onSite = serverOnSite();
+  const [cfg, meta, serverIp] = await Promise.all([owner ? loadPunchConfig(await getDb()) : Promise.resolve(null), requestMeta(), owner ? serverPublicIp() : Promise.resolve("")]);
   return (
     <>
       <PageTitle help="settings.punch" std="STD-11 4절" sub="정비소 와이파이에 연결한 기기에서만 출근·퇴근을 누를 수 있게 정비소 인터넷 주소(공인 IP)를 넣습니다.">
@@ -23,7 +24,7 @@ export default async function PunchSettingsPage({ searchParams }: { searchParams
       </div>
       {cfg ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
-          <PlaceCard ips={cfg.ips} myIp={normalizeIp(meta.ip)} />
+          <PlaceCard ips={cfg.ips} myIp={normalizeIp(meta.ip)} sameAsServer={cfg.sameAsServer} onSite={onSite} serverIp={serverIp} />
           <Card title="확인하는 법" help={{ kind: "panel", id: "punch.today" }}>
             <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--muted)]">
               <li>정비소 와이파이에 연결한 휴대폰이나 사무실 PC로 이 화면을 엽니다.</li>

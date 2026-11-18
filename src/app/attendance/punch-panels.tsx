@@ -7,7 +7,7 @@ import type { DayStatus } from "@/modules/staff/punch";
 import { durText } from "@/modules/staff/punch-rules";
 import { TIME_OPTIONS } from "@/modules/staff/leave-rules";
 import { AssistForm } from "../_assist";
-import { DateField, SelectField, TextAreaField } from "../_input";
+import { CheckGroup, DateField, SelectField, TextAreaField } from "../_input";
 import { SubmitButton } from "../_submit";
 import { Badge, buttonClass, Card, Empty } from "../_ui";
 import { answerOrderAction, orderOvertimeAction, punchInAction, punchOutAction, requestLeaveAction, savePunchConfigAction } from "./actions";
@@ -244,16 +244,28 @@ export function OrderCard({ users, today, defaultFrom }: { users: { id: string; 
   );
 }
 
-export function PlaceCard({ ips, myIp }: { ips: string[]; myIp: string }) {
+/** onSite: 서버가 정비소 미니 PC 일 때 '서버와 같은 인터넷' 칸을 보인다. serverIp 는 서버가 지금 쓰는 정비소 공인 IP */
+export function PlaceCard({ ips, myIp, sameAsServer = false, onSite = false, serverIp = "" }: { ips: string[]; myIp: string; sameAsServer?: boolean; onSite?: boolean; serverIp?: string }) {
+  const none = !ips.length && !sameAsServer;
+  const prefill = ips.length ? ips.join("\n") : onSite ? "" : myIp;
   return (
     <Card title="정비소 인터넷 주소" help={{ kind: "panel", id: "punch.config" }}>
       <AssistForm id="punch-config" action={savePunchConfigAction} className="space-y-3">
-        <TextAreaField help="punch.ips" name="ips" rows={2} defaultValue={ips.length ? ips.join("\n") : myIp} />
+        {onSite && (
+          <>
+            <CheckGroup help="punch.sameAsServer" name="sameAsServer" options={[{ value: "1", label: "서버(미니 PC)와 같은 정비소 인터넷이면 허용" }]} defaultChecked={sameAsServer || none ? ["1"] : []} />
+            <p className="text-xs text-[var(--muted)]">
+              서버가 지금 쓰는 정비소 주소: <b>{serverIp || "알아내지 못함(인터넷 연결 확인)"}</b>
+              {serverIp && myIp ? (serverIp === myIp ? " · 이 기기도 같은 인터넷입니다" : " · 이 기기는 다른 인터넷입니다") : ""}
+            </p>
+          </>
+        )}
+        <TextAreaField help="punch.ips" name="ips" rows={2} defaultValue={prefill} />
         <p className="text-xs text-[var(--muted)]">
           지금 이 기기의 주소: <b>{myIp || "알 수 없음"}</b>
-          {ips.length ? "" : " (아직 저장 전이라 칸에 미리 넣었습니다. 정비소 와이파이에 연결한 상태에서 저장하세요)"}
+          {ips.length || onSite ? "" : " (아직 저장 전이라 칸에 미리 넣었습니다. 정비소 와이파이에 연결한 상태에서 저장하세요)"}
         </p>
-        {!ips.length && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다.</p>}
+        {none && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다.</p>}
         <SubmitButton>저장</SubmitButton>
       </AssistForm>
     </Card>

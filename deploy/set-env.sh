@@ -4,7 +4,7 @@
 # 사용: printf 'BACKUP_PAR_URL=%s\n' "$URL" | bash deploy/set-env.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-ALLOWED="BACKUP_PAR_URL INIT_OWNER_LOGIN INIT_OWNER_PASSWORD INIT_OWNER_NAME SITE_HOST APP_URL"
+ALLOWED="BACKUP_PAR_URL INIT_OWNER_LOGIN INIT_OWNER_PASSWORD INIT_OWNER_NAME SITE_HOST APP_URL TUNNEL_TOKEN BACKUP_COPY_DIR"
 touch .env && chmod 600 .env
 changed=0
 while IFS= read -r line || [ -n "$line" ]; do

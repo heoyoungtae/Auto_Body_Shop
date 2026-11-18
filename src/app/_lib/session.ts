@@ -39,7 +39,10 @@ export async function clearSessionCookie() {
 
 export async function requestMeta(): Promise<Meta> {
   const h = await headers();
-  return { ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null, userAgent: h.get("user-agent") };
+  // 사업장 미니 PC 는 클라우드플레어 터널로만 들어오므로 클라우드플레어가 넣는 실제 접속 주소를 쓴다(TRUST_CF_IP=1).
+  // 다른 서버에서는 손님이 이 머리글을 꾸며 보낼 수 있으니 믿지 않는다.
+  const cf = process.env.TRUST_CF_IP === "1" ? h.get("cf-connecting-ip")?.trim() : null;
+  return { ip: cf || (h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null), userAgent: h.get("user-agent") };
 }
 
 export function errorUrl(path: string, message: string) {

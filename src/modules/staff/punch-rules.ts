@@ -38,6 +38,18 @@ export function validIpRule(rule: string) {
   return bits == null && /^[0-9a-f:]+$/i.test(addr) && addr.includes(":");
 }
 
+/** IPv6 주소의 앞 64비트(한 회선·공유기가 받는 범위). IPv6 가 아니면 null */
+export function v6Prefix64(ip: string | null | undefined) {
+  const a = normalizeIp(ip);
+  if (!a.includes(":") || !/^[0-9a-f:]+$/.test(a)) return null;
+  const [head, tail = ""] = a.split("::");
+  const h = head ? head.split(":") : [];
+  const t = a.includes("::") ? (tail ? tail.split(":") : []) : [];
+  const full = a.includes("::") ? [...h, ...Array(8 - h.length - t.length).fill("0"), ...t] : h;
+  if (full.length !== 8) return null;
+  return full.slice(0, 4).map((x) => parseInt(x || "0", 16).toString(16)).join(":");
+}
+
 /** 접속 주소가 등록한 정비소 인터넷 주소 중 하나에 드는지 */
 export function ipAllowed(ip: string | null | undefined, rules: string[]) {
   const a = normalizeIp(ip);
