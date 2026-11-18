@@ -116,19 +116,19 @@ export function TvScreen({ initial, k, help, signedIn }: { initial: TvData; k: s
       <style>{CSS}</style>
       <div className="tv-move" style={{ transform: `translate(${offsets[shift][0]}px, ${offsets[shift][1]}px)` }}>
         <header className="tv-head">
-          <div className="tv-shop">{data.shop} · 정비 현황</div>
+          <div className="tv-shop">{data.shop ? `${data.shop} · 정비 현황` : "정비 현황"}</div>
           <div className="tv-date">{clock.date}</div>
           <div className="tv-clock">{clock.time}</div>
           <div className="tv-tools">
             <span className="tv-help">
               <HelpButton topic={{ kind: "page", id: help }} name="TV 현황판" />
             </span>
-            <button type="button" onClick={toggleFs} title="전체화면 (F 키)">
-              ⛶ 전체화면
+            <button type="button" onClick={toggleFs} title="전체화면 (F 키)" aria-label="전체화면">
+              ⛶
             </button>
             {signedIn && (
-              <Link href="/home" title="앱으로 돌아가기">
-                ✕ 닫기
+              <Link href="/home" title="닫기(앱으로 돌아가기)" aria-label="닫기">
+                ✕
               </Link>
             )}
           </div>
@@ -259,6 +259,8 @@ function toggleFs() {
 }
 
 const CSS = `
+/* 도움말 창은 TV 화면(z 80)보다 위에 연다 */
+#help-drawer{z-index:90}
 .tv-root{position:fixed;inset:0;z-index:80;background:#0c1524;color:#eef3fa;overflow:hidden;font-size:clamp(12px,1.95vh,24px);font-family:inherit}
 .tv-root.dim .tv-move{filter:brightness(.55)}
 .tv-move{height:100%;display:flex;flex-direction:column;transition:filter 2s,transform 1s}
@@ -267,8 +269,8 @@ const CSS = `
 .tv-date{font-size:1.05em;color:#9fb0c6;white-space:nowrap}
 .tv-clock{font-size:2em;font-weight:800;font-variant-numeric:tabular-nums}
 .tv-tools{display:flex;gap:.5em;align-items:center;font-size:.75em}
-.tv-tools button,.tv-tools a{background:#173b86;color:#eef3fa;border:1px solid #3a63b8;border-radius:.5em;padding:.35em .8em;cursor:pointer;white-space:nowrap}
-.tv-help button{background:#173b86;color:#eef3fa;border-color:#3a63b8;width:2.2em;height:2.2em;font-size:1em}
+.tv-tools button,.tv-tools a{background:#173b86;color:#eef3fa;border:1px solid #3a63b8;border-radius:.5em;width:2.2em;height:2.2em;display:inline-flex;align-items:center;justify-content:center;font-size:1em;cursor:pointer;white-space:nowrap}
+.tv-help button{border-radius:.5em}
 .tv-kpi{display:grid;grid-template-columns:repeat(6,1fr);gap:.7em;padding:.7em 1.6em 0}
 .tv-tile{background:#142235;border:1px solid #24364f;border-radius:.6em;padding:.3em .7em;display:flex;align-items:center;gap:.6em;min-width:0}
 .tv-tile i{width:.6em;align-self:stretch;border-radius:.25em;flex:none}

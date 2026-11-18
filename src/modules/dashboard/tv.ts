@@ -183,7 +183,7 @@ export async function tvBoard(db: Db, now = new Date()): Promise<TvData> {
   ].sort((a, b) => b.late - a.late || a.sort.localeCompare(b.sort));
 
   return {
-    shop: shop.name || "정비 현황",
+    shop: shop.name,
     today,
     at: now.toISOString(),
     kpi: {
