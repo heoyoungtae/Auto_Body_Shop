@@ -9,9 +9,17 @@ cf() { # cf METHOD PATH [JSON]
     curl -fsS -m 30 -X "$m" -H "Authorization: Bearer $CF_API_TOKEN" "$CF_API$p"
   fi
 }
-# 앱 주소가 속한 영역(zone) id. 토큰이 볼 수 있는 영역 중 주소 끝이 같은 것
+# 앱 주소가 속한 영역(zone) id. .env 의 CF_ZONE_ID 가 있으면 그것, 없으면 토큰이 볼 수 있는 영역 중 주소 끝이 같은 것.
+# 새 토큰 화면(Zone policy)으로 만든 토큰은 영역 목록 응답 모양이 달라 목록을 못 읽을 수 있어 이름으로도 찾아본다.
 cf_zone_id() {
-  cf GET "/zones?per_page=50" | jq -r --arg h "$SITE_HOST" '.result[] | select(($h == .name) or ($h | endswith("." + .name))) | .id' | head -1
+  [ -n "${CF_ZONE_ID:-}" ] && { echo "$CF_ZONE_ID"; return 0; }
+  local h="$SITE_HOST" id
+  while [[ "$h" == *.* ]]; do
+    id=$(cf GET "/zones?name=$h" 2>/dev/null | jq -r '(.result // []) | if type=="array" then .[] else . end | objects | .id // empty' 2>/dev/null | head -1)
+    [ -n "$id" ] && { echo "$id"; return 0; }
+    h="${h#*.}"
+  done
+  cf GET "/zones?per_page=50" 2>/dev/null | jq -r --arg h "$SITE_HOST" '(.result // []) | if type=="array" then .[] else . end | objects | select(($h == .name) or ($h | endswith("." + .name))) | .id' 2>/dev/null | head -1
 }
 cf_record() { # 앱 주소의 DNS 기록(JSON 한 줄). 없으면 빈 줄
   cf GET "/zones/$ZONE_ID/dns_records?name=$SITE_HOST" | jq -c '.result[0] // empty'
