@@ -61,6 +61,8 @@ dev=$(ip -4 route get 1.1.1.1 | sed -n 's/.* dev \([^ ]*\).*/\1/p')
 cidr=$(ip -4 -o addr show dev "$dev" | awk '{print $4}' | head -1)
 net=$(python3 -c "import ipaddress,sys;print(ipaddress.ip_interface(sys.argv[1]).network)" "$cidr")
 [ -n "$pub" ] && [ -n "$lan" ] || { bad "주소를 알아내지 못했습니다(인터넷 연결 확인)"; exit 1; }
+case "$lan" in 10.*|172.1[6-9].*|172.2?.*|172.3[01].*|192.168.*) ;; *)
+  bad "이 PC 가 공유기를 거치지 않고 인터넷에 바로 꽂혀 있습니다(주소 $lan). 랜선을 KT 기가 와이파이 공유기의 노란 LAN 포트로 옮기고 다시 실행하세요(설명서 9-1)."; exit 1;; esac
 ok "정비소 공인 IP $pub, 이 PC 내부 주소 $lan (내부망 $net)"
 # 이 PC 의 DNS 를 클라우드플레어·구글로 고정(공유기 DNS 가 멈춰도 인증서·주소 갱신이 되게). 내부 주소는 공유기 'DHCP 고정 할당'으로 고정한다(9-1)
 con=$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v d="$dev" '$2==d{print $1; exit}')
