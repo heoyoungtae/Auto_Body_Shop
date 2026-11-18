@@ -1,4 +1,5 @@
 // 진단 줄을 차 그림에 올리는 공통 값(진단·견적 화면이 같이 쓴다). 상태·이벤트가 없어 서버·브라우저 어디서나 부른다.
+import { TV_STATES } from "@/modules/dashboard/tv-rules";
 import type { roDamage } from "@/db/schema";
 import { cellsLabel, isView } from "@/modules/repair/body-map";
 import { damageSeverity, METHOD_COLORS, METHODS, partName } from "@/modules/repair/rules";
@@ -42,11 +43,11 @@ export const approvalZones = (groups: { key: string }[], list: Damage[]) =>
     return d ? [{ key: g.key, seq: d.seq, part: d.part, view: viewOf(d), cells: d.cells, label: partName(d.part, d.subPart) }] : [];
   });
 
-/** 작업 진행 색(대기·작업 중·끝·안 고침) */
+/** 작업 진행 색(대기·작업 중·끝·안 고침). TV 현황판의 작업 대기·작업 중·출고 대기 색과 같다(색약에도 구분되는 색, 대표 결정 2026-11-18) */
 export const PROGRESS = {
-  wait: { label: "작업 전", color: "#9aa3ab" },
-  doing: { label: "작업 중", color: "#f59e0b" },
-  done: { label: "끝", color: "#16a34a" },
+  wait: { label: "작업 전", color: TV_STATES.wait.color },
+  doing: { label: "작업 중", color: TV_STATES.work.color },
+  done: { label: "끝", color: TV_STATES.ready.color },
   skip: { label: "안 고침(승인 안 됨)", color: "#d1d5db" },
 } as const;
 type Prog = { state: keyof typeof PROGRESS; process: string | null };

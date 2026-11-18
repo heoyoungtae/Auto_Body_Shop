@@ -363,6 +363,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "bank.account_edit": "통장·카드 고침",
   "bank.account_remove": "통장·카드 지움",
   "bank.token_issue": "문자 받는 주소 새로 만듦",
+  "tv.token_issue": "TV 현황판 링크 새로 만듦",
+  "tv.token_revoke": "TV 현황판 링크 끊음",
   "bank.import": "통장·카드 엑셀 올림",
   "bank.import_undo": "통장·카드 엑셀 되돌림",
   "bank.link": "통장 거래 맞춤",
