@@ -1,0 +1,63 @@
+# 사업장 미니 PC(ASUS NUC14MLK15, Ubuntu 24.04)용. 오라클 테스트 서버의 compose.yml 과 달리
+# - 앱 이미지를 미니 PC 에서 직접 빌드한다(update.sh, 밤에 자동).
+# - 밖에서 들어오는 길은 클라우드플레어 터널(tunnel) 하나뿐이다. 공유기 포트를 열지 않고, HTTPS 인증서도 클라우드플레어가 맡는다.
+# - 앱은 이 PC 안(127.0.0.1:3000)에서만 바로 열 수 있다. 인터넷이 끊겨도 미니 PC 화면에서는 http://localhost:3000 으로 쓸 수 있다.
+# 값은 같은 폴더의 .env(minipc/install.sh 가 만듦). .env 의 COMPOSE_FILE=compose.minipc.yml 덕분에 docker compose 명령이 이 파일을 쓴다.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: shop
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop"]
+      interval: 5s
+      retries: 20
+
+  app:
+    image: auto-body-shop-app:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://shop:${DB_PASSWORD}@db:5432/shop
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - files:/data/files
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 클라우드플레어 터널. 토큰(TUNNEL_TOKEN)은 클라우드플레어 화면에서 받아 .env 에 넣는다(설명서 3단계).
+  # 토큰이 없으면 이 칸만 멈춰 있고 앱은 미니 PC 안에서 그대로 쓸 수 있다.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+
+  jobs:
+    image: curlimages/curl:8.10.1
+    restart: unless-stopped
+    environment:
+      JOBS_TOKEN: ${JOBS_TOKEN}
+      TZ: KST-9
+    volumes:
+      - ./jobs.sh:/jobs.sh:ro
+    entrypoint: ["sh", "/jobs.sh"]
+    depends_on:
+      - app
+
+volumes:
+  db:
+  files:

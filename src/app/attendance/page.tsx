@@ -72,7 +72,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
             {cfg && (
               <Card title="정비소 인터넷 주소" help={{ kind: "panel", id: "punch.config" }}>
                 <p className="text-sm">
-                  {cfg.ips.length ? `${cfg.ips.join(", ")} 에서만 출퇴근을 누를 수 있습니다.` : "아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다."}{" "}
+                  {cfg.ips.length || cfg.sameAsServer ? `${[cfg.sameAsServer ? "서버와 같은 정비소 인터넷" : "", ...cfg.ips].filter(Boolean).join(", ")} 에서만 출퇴근을 누를 수 있습니다.` : "아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다."}{" "}
                   <Link href="/settings/punch" className="text-[var(--accent)] hover:underline">
                     설정에서 바꾸기
                   </Link>
