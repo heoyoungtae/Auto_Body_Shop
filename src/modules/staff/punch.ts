@@ -70,6 +70,9 @@ async function sameNetAsServer(ip: string | null) {
   const { v4, v6 } = await serverPublicIps();
   const a = normalizeIp(ip);
   if (!a) return false;
+  // '국내 직접 접속'이면 정비소 와이파이 기기가 내부 주소(예: 172.30.1.23)로 들어올 수 있다. 서버가 있는 내부망이면 정비소 안
+  const lan = process.env.SERVER_LAN_CIDR?.trim();
+  if (lan && validIpRule(lan) && ipAllowed(a, [lan])) return true;
   if (v4 && a === v4) return true;
   const p = v6Prefix64(a);
   return !!(p && v6 && p === v6Prefix64(v6));

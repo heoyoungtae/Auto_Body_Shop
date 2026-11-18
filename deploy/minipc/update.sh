@@ -39,7 +39,7 @@ if ! docker compose build -q app; then
   exit 1
 fi
 docker compose up -d --remove-orphans db app jobs
-grep -q '^TUNNEL_TOKEN=.\+' .env && docker compose up -d tunnel
+if [ "${DIRECT:-}" = 1 ]; then docker compose up -d caddy; elif grep -q '^TUNNEL_TOKEN=.\+' .env; then docker compose up -d tunnel; fi
 # jobs.sh 는 시작할 때 한 번 읽히므로 다시 띄운다
 docker compose restart jobs >/dev/null
 for i in $(seq 1 60); do

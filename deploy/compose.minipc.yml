@@ -1,6 +1,6 @@
 # 사업장 미니 PC(ASUS NUC14MLK15, Ubuntu 24.04)용. 오라클 테스트 서버의 compose.yml 과 달리
 # - 앱 이미지를 미니 PC 에서 직접 빌드한다(update.sh, 밤에 자동).
-# - 밖에서 들어오는 길은 클라우드플레어 터널(tunnel) 하나뿐이다. 공유기 포트를 열지 않고, HTTPS 인증서도 클라우드플레어가 맡는다.
+# - 밖에서 들어오는 길은 클라우드플레어 터널(tunnel) 또는 '국내 직접 접속'(caddy, 공유기 443) 중 하나다(minipc/direct.sh).
 # - 앱은 이 PC 안(127.0.0.1:3000)에서만 바로 열 수 있다. 인터넷이 끊겨도 미니 PC 화면에서는 http://localhost:3000 으로 쓸 수 있다.
 # 값은 같은 폴더의 .env(minipc/install.sh 가 만듦). .env 의 COMPOSE_FILE=compose.minipc.yml 덕분에 docker compose 명령이 이 파일을 쓴다.
 services:
@@ -46,6 +46,22 @@ services:
     depends_on:
       - app
 
+  # '국내 직접 접속'(minipc/direct.sh on)일 때만 켠다(.env 의 COMPOSE_PROFILES=direct). 공유기에서 443 을 이 PC 로 열어 둔다.
+  # 클라우드플레어 무료 요금제가 한국 접속을 미국으로 돌려 느려지는 것을 피한다. 인증서는 Caddy 가 저절로 받는다.
+  caddy:
+    image: caddy:2
+    profiles: ["direct"]
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    environment:
+      SITE_HOST: ${SITE_HOST}
+    volumes:
+      - ./Caddyfile.direct:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    depends_on:
+      - app
+
   jobs:
     image: curlimages/curl:8.10.1
     restart: unless-stopped
@@ -61,3 +77,4 @@ services:
 volumes:
   db:
   files:
+  caddy:
