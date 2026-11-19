@@ -2,12 +2,14 @@
 // 오른쪽 도움말 창. 화면 제목·패널 제목·입력 칸 이름 옆의 ? 를 누르면 여기에 그 도움말이 열린다.
 // 창은 화면을 막지 않아서, 도움말을 보면서 계속 입력할 수 있다. 용어를 누르면 창 안에서 넘어가고 '뒤로'로 돌아온다.
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { StdText } from "./_std-text";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { FIELD_HELP, type FieldHelpKey } from "@/modules/help/fields";
 import { DELEGATION_HELP, GLOSSARY, POLICY_HELP } from "@/modules/help/glossary";
 import { PAGE_HELP, type PageHelpKey } from "@/modules/help/pages";
 import { PANEL_HELP, type PanelHelpKey } from "@/modules/help/panels";
+import { helpForPath } from "@/modules/help/route-help";
 import type { DelegationTask } from "@/modules/platform/delegation";
 import type { PolicyKey } from "@/modules/platform/policy";
 
@@ -40,6 +42,16 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     setStack([]);
     opener.current?.focus();
   }, []);
+
+  // 창이 열린 채 메뉴·링크로 다른 화면에 가면 그 화면의 도움말로 바꾼다(대표 요청 2026-11-20). 도움말이 없는 화면이면 그대로 둔다
+  const pathname = usePathname();
+  const lastPath = useRef(pathname);
+  useEffect(() => {
+    if (lastPath.current === pathname) return;
+    lastPath.current = pathname;
+    const key = helpForPath(pathname);
+    if (key) setStack((s) => (s.length ? [{ kind: "page", id: key }] : s));
+  }, [pathname]);
 
   useEffect(() => {
     document.documentElement.dataset.help = current ? "open" : "";
