@@ -18,7 +18,9 @@ import {
   repairStatement,
   vehicle,
   workOrder,
+  workplace,
   workStep,
+  branch,
 } from "@/db/schema";
 import { decrypt, encrypt, randomToken, sha256 } from "@/modules/auth/crypto";
 import { can } from "@/modules/auth/permissions";
@@ -51,6 +53,8 @@ export type TvIncoming = { key: string; when: string; sort: string; today: boole
 export type TvOutgoing = { key: string; when: string; sort: string; late: number; plate: string; model: string; state: TvState };
 export type TvData = {
   shop: string;
+  /** 지점·작업장만 보는 TV면 그 이름(제목에 붙음) */
+  scope: string | null;
   today: string;
   at: string;
   kpi: { todayIn: number; inShop: number; work: number; hold: number; ready: number; late: number };
@@ -70,8 +74,25 @@ function tagsOf(insurance: string, kind: string | null, portal: string | null): 
 }
 
 /** 현황판 한 장에 들어갈 값 */
-export async function tvBoard(db: Db, now = new Date()): Promise<TvData> {
+export type TvScope = { branchId?: string | null; workplaceId?: string | null };
+
+/** 주소의 b(지점)·w(작업장) 값을 확인한다. 없는 값이면 무시(전체) */
+export async function tvScope(db: Db, q: { b?: string | null; w?: string | null }): Promise<TvScope & { label: string | null }> {
+  const uuid = /^[0-9a-f-]{36}$/i;
+  if (q.w && uuid.test(q.w)) {
+    const [x] = await db.select({ id: workplace.id, name: workplace.name, branchId: workplace.branchId }).from(workplace).where(eq(workplace.id, q.w));
+    if (x) return { branchId: x.branchId, workplaceId: x.id, label: x.name };
+  }
+  if (q.b && uuid.test(q.b)) {
+    const [x] = await db.select({ id: branch.id, name: branch.name }).from(branch).where(eq(branch.id, q.b));
+    if (x) return { branchId: x.id, workplaceId: null, label: x.name };
+  }
+  return { label: null };
+}
+
+export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label?: string | null } = {}): Promise<TvData> {
   const today = seoulDate(now);
+  const roWhere = scope.branchId ? and(notInArray(repairOrder.status, ["delivered", "cancelled"]), eq(repairOrder.branchId, scope.branchId)) : notInArray(repairOrder.status, ["delivered", "cancelled"]);
   const [shop, ros, outToday] = await Promise.all([
     loadShopInfo(db),
     db
@@ -90,13 +111,20 @@ export async function tvBoard(db: Db, now = new Date()): Promise<TvData> {
       .from(repairOrder)
       .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
       .innerJoin(customer, eq(customer.id, repairOrder.customerId))
-      .where(notInArray(repairOrder.status, ["delivered", "cancelled"])),
+      .where(roWhere),
     db
       .select({ id: repairOrder.id, at: repairStatement.deliveredAt, plate: vehicle.plateNo, model: vehicle.model })
       .from(repairStatement)
       .innerJoin(repairOrder, eq(repairOrder.id, repairStatement.repairOrderId))
       .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
-      .where(and(isNotNull(repairStatement.deliveredAt), gte(repairStatement.deliveredAt, seoulDateTime(today, "00:00")), lt(repairStatement.deliveredAt, seoulDateTime(addDays(today, 1), "00:00")))),
+      .where(
+        and(
+          isNotNull(repairStatement.deliveredAt),
+          gte(repairStatement.deliveredAt, seoulDateTime(today, "00:00")),
+          lt(repairStatement.deliveredAt, seoulDateTime(addDays(today, 1), "00:00")),
+          scope.branchId ? eq(repairOrder.branchId, scope.branchId) : undefined,
+        ),
+      ),
   ]);
   const ids = ros.map((r) => r.id);
   const none = Promise.resolve([] as never[]);
@@ -114,7 +142,7 @@ export async function tvBoard(db: Db, now = new Date()): Promise<TvData> {
   const woOf = new Map<string, { id: string; dueDate: string | null }>();
   for (const w of wos) if (!woOf.has(w.ro)) woOf.set(w.ro, w);
   const woIds = [...woOf.values()].map((w) => w.id);
-  const steps = woIds.length ? await db.select({ wo: workStep.workOrderId, seq: workStep.seq, process: workStep.process, startedAt: workStep.startedAt, endedAt: workStep.endedAt, assignee: workStep.assignee }).from(workStep).where(inArray(workStep.workOrderId, woIds)).orderBy(asc(workStep.seq)) : [];
+  const steps = woIds.length ? await db.select({ wo: workStep.workOrderId, seq: workStep.seq, process: workStep.process, startedAt: workStep.startedAt, endedAt: workStep.endedAt, assignee: workStep.assignee, wp: workStep.workplaceId }).from(workStep).where(inArray(workStep.workOrderId, woIds)).orderBy(asc(workStep.seq)) : [];
   const userIds = [...new Set(steps.map((s) => s.assignee).filter((x): x is string => !!x))];
   const users = new Map((userIds.length ? await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(inArray(appUser.id, userIds)) : []).map((u) => [u.id, u.name]));
 
@@ -138,7 +166,12 @@ export async function tvBoard(db: Db, now = new Date()): Promise<TvData> {
     if (c.rework) tags.push("재작업");
     return { id: r.id, plate: r.plate, model: r.model ?? "", state: c.state, sub: c.sub, tags, done: c.done, total: c.total, current: c.current, due, dueWord: due ? dayWord(due, today) : "미정", late: lateDays(due, today), inAt: r.inAt.toISOString() };
   });
-  const board = sortBoard(cars);
+  // 작업장 TV: 그 작업장에 아직 안 끝난 공정이 있는 차만(지금 하는 공정·앞으로 올 공정)
+  const inWp = (roId: string) => {
+    const wo = woOf.get(roId);
+    return !!wo && steps.some((st) => st.wo === wo.id && !st.endedAt && st.wp === scope.workplaceId);
+  };
+  const board = sortBoard(scope.workplaceId ? cars.filter((c) => inWp(c.id)) : cars);
 
   // 입고 예정: 오늘~모레 예약 + 아직 수리 건이 안 된 업체 주문(테크베이 등)
   const until = seoulDateTime(addDays(today, 3), "00:00");
@@ -148,13 +181,13 @@ export async function tvBoard(db: Db, now = new Date()): Promise<TvData> {
       .from(consultation)
       .innerJoin(customer, eq(customer.id, consultation.customerId))
       .leftJoin(vehicle, eq(vehicle.id, consultation.vehicleId))
-      .where(and(eq(consultation.result, "reserved"), gte(consultation.reservedAt, seoulDateTime(today, "00:00")), lt(consultation.reservedAt, until))),
+      .where(and(eq(consultation.result, "reserved"), gte(consultation.reservedAt, seoulDateTime(today, "00:00")), lt(consultation.reservedAt, until), scope.branchId ? eq(consultation.branchId, scope.branchId) : undefined)),
     db
       .select({ id: consultation.id, at: consultation.reservedAt, req: portalOrder.requestedAt, plate: vehicle.plateNo, platePo: portalOrder.plateNo, model: vehicle.model, portal: portalOrder.platform })
       .from(portalOrder)
       .innerJoin(consultation, eq(consultation.id, portalOrder.consultationId))
       .leftJoin(vehicle, eq(vehicle.id, consultation.vehicleId))
-      .where(inArray(consultation.result, ["open", "recontact"])),
+      .where(and(inArray(consultation.result, ["open", "recontact"]), scope.branchId ? eq(consultation.branchId, scope.branchId) : undefined)),
   ]);
   const partnerIds = new Set(partner.map((p) => p.id));
   const incoming: TvIncoming[] = [
@@ -179,11 +212,12 @@ export async function tvBoard(db: Db, now = new Date()): Promise<TvData> {
   const lastDue = addDays(today, 2);
   const outgoing: TvOutgoing[] = [
     ...board.filter((c) => c.due && c.due <= lastDue).map((c) => ({ key: c.id, when: c.late ? `${c.late}일 지연` : c.dueWord, sort: `${c.due}|1`, late: c.late, plate: c.plate, model: c.model, state: c.state })),
-    ...outToday.map((o) => ({ key: `out-${o.id}`, when: `오늘 ${hhmm(o.at!)}`, sort: `${today}|0`, late: 0, plate: o.plate, model: o.model ?? "", state: "out" as const })),
+    ...(scope.workplaceId ? [] : outToday).map((o) => ({ key: `out-${o.id}`, when: `오늘 ${hhmm(o.at!)}`, sort: `${today}|0`, late: 0, plate: o.plate, model: o.model ?? "", state: "out" as const })),
   ].sort((a, b) => b.late - a.late || a.sort.localeCompare(b.sort));
 
   return {
     shop: shop.name,
+    scope: scope.label ?? null,
     today,
     at: now.toISOString(),
     kpi: {

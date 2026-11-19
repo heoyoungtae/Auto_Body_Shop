@@ -10,8 +10,11 @@ import {
   repairOrder,
   repairStatement,
   stockItem,
+  workplace,
   workStep,
 } from "@/db/schema";
+import { isBusinessDay } from "@/modules/platform/business-days";
+import { loadShopCalendar } from "@/modules/platform/calendar";
 import { can } from "@/modules/auth/permissions";
 import { CHANNEL_LABEL, INSURANCE_LABEL } from "@/modules/customer/rules";
 import { rangeSummary } from "@/modules/money/close";
@@ -254,7 +257,7 @@ export const productivity: Builder = async (c) => {
   const load = async (p: { from: string; to: string }) => {
     const { start, end } = tsRange(p);
     return c.db
-      .select({ process: workStep.process, std: workStep.stdMinutes, act: workStep.actualMinutes, who: appUser.name, whoId: workStep.assignee })
+      .select({ process: workStep.process, std: workStep.stdMinutes, act: workStep.actualMinutes, who: appUser.name, whoId: workStep.assignee, wp: workStep.workplaceId })
       .from(workStep)
       .leftJoin(appUser, eq(appUser.id, workStep.assignee))
       .where(and(gte(workStep.endedAt, start), lte(workStep.endedAt, end)));
@@ -281,6 +284,21 @@ export const productivity: Builder = async (c) => {
     { label: "효율", unit: "%" as const, num: true },
     { label: "재작업", unit: "건" as const, num: true },
   ];
+  // 작업장별 가동률: 실제 작업 시간 ÷ (작업 자리 수 × 영업일 × 하루 8시간). 작업장을 등록했을 때만
+  const wps = await c.db.select({ id: workplace.id, name: workplace.name, bays: workplace.bays, sortOrder: workplace.sortOrder }).from(workplace).where(eq(workplace.active, true));
+  const cal = await loadShopCalendar(c.db);
+  let openDays = 0;
+  for (let d = c.p.from; d <= c.p.to && d <= c.today; d = addDays(d, 1)) if (isBusinessDay(cal, d)) openDays++;
+  const wpRows: Row[] = wps
+    .filter((w) => w.bays > 0)
+    .sort((x, y) => x.sortOrder - y.sortOrder)
+    .map((w) => {
+      const xs = a.filter((s) => s.wp === w.id);
+      const hours = sum(xs, (s) => s.act ?? 0) / 60;
+      const cap = w.bays * openDays * 8;
+      const rate = cap ? round1((hours / cap) * 100) : null;
+      return { cells: [w.name, w.bays, xs.length, round1(hours), rate], tone: rate != null && rate >= 90 ? ("warn" as const) : undefined };
+    });
   return {
     kpis: [
       m("steps", "끝낸 공정", "건", a.length, b.length, { better: "up", href: "/work" }),
@@ -292,6 +310,19 @@ export const productivity: Builder = async (c) => {
     tables: [
       { key: "tech", title: "기술자별", help: "rep.t.tech", cols: cols("기술자"), rows: group((s) => s.who ?? "배정 안 됨"), empty: "이 기간 끝낸 공정이 없습니다.", total: false },
       { key: "process", title: "공정별", help: "rep.t.process", cols: cols("공정"), rows: group((s) => processLabel(s.process)), empty: "이 기간 끝낸 공정이 없습니다.", total: false },
+      ...(wpRows.length
+        ? [
+            {
+              key: "workplace",
+              title: "작업장별 가동률",
+              help: "rep.t.workplace" as const,
+              cols: [{ label: "작업장" }, { label: "자리", num: true }, { label: "끝낸 공정", unit: "건" as const, num: true }, { label: "실제 시간", unit: "시간" as const, num: true }, { label: "가동률", unit: "%" as const, num: true }],
+              rows: wpRows,
+              total: false as const,
+              note: `가동률 = 실제 작업 시간 ÷ (자리 수 × 영업일 ${openDays}일 × 8시간). 90% 넘으면 노랑(자리가 모자람)`,
+            },
+          ]
+        : []),
     ],
   };
 };

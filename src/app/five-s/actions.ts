@@ -14,7 +14,7 @@ export async function zoneAction(form: FormData) {
   const user = await requireUser();
   const s = str(form);
   try {
-    await setZone(await getDb(), user, s("zone"), { ownerId: s("ownerId"), deputyId: s("deputyId") });
+    await setZone(await getDb(), user, s("zone"), { ownerId: s("ownerId"), deputyId: s("deputyId"), workplaceId: form.has("workplaceId") ? s("workplaceId") : undefined });
   } catch (e) {
     redirect(errorUrl("/five-s", userMessage(e)));
   }

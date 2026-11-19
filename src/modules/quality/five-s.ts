@@ -1,7 +1,8 @@
 // 3정5S(STD-08 11~14절, F-08-05): 구역 담당, 일일 점검(사진), 월간 100점 평가, 80점 미만은 부적합(F-Q-10)
 import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, fiveSDaily, fiveSMonthly, fiveSZone } from "@/db/schema";
+import { appUser, equipment, fiveSDaily, fiveSMonthly, fiveSZone } from "@/db/schema";
+import { checkWorkplace } from "@/modules/platform/branch";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { isBusinessDay } from "@/modules/platform/business-days";
@@ -35,12 +36,20 @@ export async function listZones(db: Db) {
   return zones.map((z) => ({ ...z, ownerName: z.ownerId ? names.get(z.ownerId) : undefined, deputyName: z.deputyId ? names.get(z.deputyId) : undefined }));
 }
 
-export async function setZone(db: Db, actor: Actor, code: string, input: { ownerId: string; deputyId: string }, now = new Date()) {
+export async function setZone(db: Db, actor: Actor, code: string, input: { ownerId: string; deputyId: string; /** 넘어오지 않으면 그대로 */ workplaceId?: string }, now = new Date()) {
   if (!boss(actor)) throw new FiveSError("구역 담당은 공장장(또는 대표)이 정합니다");
   if (!isZone(code)) throw new FiveSError("구역을 찾을 수 없습니다");
   if (input.ownerId && input.ownerId === input.deputyId) throw new FiveSError("담당과 대행자는 다른 사람이어야 합니다");
   await ensureZones(db);
-  await db.update(fiveSZone).set({ ownerId: clean(input.ownerId), deputyId: clean(input.deputyId), updatedAt: now }).where(eq(fiveSZone.code, code));
+  const set: Partial<typeof fiveSZone.$inferInsert> = { ownerId: clean(input.ownerId), deputyId: clean(input.deputyId), updatedAt: now };
+  if (input.workplaceId !== undefined) {
+    const [z] = await db.select({ branchId: fiveSZone.branchId, workplaceId: fiveSZone.workplaceId }).from(fiveSZone).where(eq(fiveSZone.code, code));
+    if (input.workplaceId) await checkWorkplace(db, z.branchId, input.workplaceId);
+    set.workplaceId = input.workplaceId || null;
+    // 설비는 구역(A~H)에 놓이므로 구역의 작업장을 따라간다
+    if ((z.workplaceId ?? null) !== set.workplaceId) await db.update(equipment).set({ workplaceId: set.workplaceId }).where(eq(equipment.zone, code));
+  }
+  await db.update(fiveSZone).set(set).where(eq(fiveSZone.code, code));
   if (input.ownerId) await notifyUser(db, input.ownerId, `3정5S ${code} ${FIVE_S_ZONES[code]} 구역 담당이 되었습니다. 매일 작업 끝에 일일 점검을 합니다`, `5s-owner-${code}-${input.ownerId}`, "/five-s");
   await writeAudit(db, { actorId: actor.id, action: "five_s.zone", entityType: "five_s_zone", entityId: code, after: input });
 }

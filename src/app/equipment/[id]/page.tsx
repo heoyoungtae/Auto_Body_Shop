@@ -95,6 +95,7 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
             {row("제조사·공급사", [e.maker, e.makerContact].filter(Boolean).join(" · "))}
             {row("구입", [e.boughtOn, e.price != null && `${e.price.toLocaleString("ko-KR")}원`].filter(Boolean).join(" · "))}
             {row("구역", e.zone ? ZONES[e.zone as keyof typeof ZONES] : "")}
+            {r.workplaceName && row("작업장", r.workplaceName)}
             {row("정격", e.rating)}
             {row("관리자(정·부)", `${nm(e.ownerId)} · ${nm(e.subManagerId)}`)}
             {row("라벨", e.labeledAt ? `부착 ${fmtTime(e.labeledAt)}` : <Link href={`/equipment/labels?ids=${id}`} className="text-[var(--warn)]">아직 안 붙임 — 인쇄</Link>)}

@@ -2,15 +2,15 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { tvBoard, tvTokenOk } from "@/modules/dashboard/tv";
+import { tvBoard, tvScope, tvTokenOk } from "@/modules/dashboard/tv";
 import { currentUser } from "../_lib/session";
 import { TvScreen } from "./tv-screen";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "TV 현황판" };
 
-export default async function TvPage({ searchParams }: { searchParams: Promise<{ k?: string }> }) {
-  const { k } = await searchParams;
+export default async function TvPage({ searchParams }: { searchParams: Promise<{ k?: string; b?: string; w?: string }> }) {
+  const { k, b, w } = await searchParams;
   const db = await getDb();
   const user = await currentUser();
   const byLink = !!k && (await tvTokenOk(db, k));
@@ -24,5 +24,10 @@ export default async function TvPage({ searchParams }: { searchParams: Promise<{
     if (!user) redirect("/login");
     if (user.mustChangePassword) redirect("/account/first");
   }
-  return <TvScreen help="tv" initial={await tvBoard(db)} k={byLink ? k! : null} signedIn={!!user} />;
+  // 지점(b)·작업장(w)만 보는 TV(설정 › TV 현황판에서 링크를 고름)
+  const scope = await tvScope(db, { b, w });
+  const extra = new URLSearchParams();
+  if (scope.workplaceId) extra.set("w", scope.workplaceId);
+  else if (scope.branchId) extra.set("b", scope.branchId);
+  return <TvScreen help="tv" initial={await tvBoard(db, new Date(), scope)} k={byLink ? k! : null} extra={extra.toString()} signedIn={!!user} />;
 }

@@ -4,6 +4,7 @@ import { getDb } from "@/db/runtime";
 import { appUser } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import { fiveSBoard } from "@/modules/quality/five-s";
+import { listWorkplaces, suggestZoneWorkplace } from "@/modules/platform/branch";
 import { requireUser } from "../_lib/session";
 import { AssistForm } from "../_assist";
 import { SelectField } from "../_input";
@@ -18,6 +19,8 @@ export default async function FiveSPage({ searchParams }: { searchParams: Promis
   const db = await getDb();
   const b = await fiveSBoard(db);
   const boss = can(user, "five_s.audit");
+  // 작업장을 등록했을 때만 구역마다 작업장 칸을 보인다(비어 있으면 이름·종류로 추천해 채워 둠)
+  const wps = boss ? await listWorkplaces(db, { activeOnly: true }) : [];
   const users = boss ? await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(appUser.name) : [];
   const opts = users.map((u) => ({ value: u.id, label: u.name }));
   return (
@@ -83,6 +86,15 @@ export default async function FiveSPage({ searchParams }: { searchParams: Promis
                   </p>
                   <SelectField help="five_s.owner" name="ownerId" defaultValue={z.ownerId ?? ""} placeholder="정하지 않음" options={opts} />
                   <SelectField help="five_s.deputy" name="deputyId" defaultValue={z.deputyId ?? ""} placeholder="없음" options={opts} />
+                  {wps.length > 0 && (
+                    <SelectField
+                      help="five_s.workplace"
+                      name="workplaceId"
+                      defaultValue={z.workplaceId ?? suggestZoneWorkplace(z.code, z.name, wps) ?? ""}
+                      placeholder="정하지 않음"
+                      options={wps.map((w) => ({ value: w.id, label: w.name }))}
+                    />
+                  )}
                   <SubmitButton variant="secondary">저장</SubmitButton>
                 </AssistForm>
               ))}
