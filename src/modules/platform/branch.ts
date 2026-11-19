@@ -1,8 +1,8 @@
 // 본점·지점·작업장(대표 결정 2026-11-19, 1단계). 지점은 아직 본점 하나뿐이라 지점을 고르는 화면은 없다.
 // 작업장은 같은 부지 안의 현장 위치(판금동·도장 부스·부품 창고 등). 설정 › 작업장에서 공장장·대표가 관리한다.
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, branch, MAIN_BRANCH_ID, WORKPLACE_KINDS, workplace, type WorkplaceKind } from "@/db/schema";
+import { appUser, branch, MAIN_BRANCH_ID, WORKPLACE_KINDS, workplace, workStep, type WorkplaceKind } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "./audit";
@@ -134,4 +134,92 @@ export async function setWorkplaceActive(db: Db, actor: Actor, id: string, activ
   await db.update(workplace).set({ active }).where(eq(workplace.id, id));
   await writeAudit(db, { actorId: actor.id, action: active ? "workplace.activate" : "workplace.deactivate", entityType: "workplace", entityId: id, before: { active: w.active }, after: { active } });
   return w.name;
+}
+
+// ── 작업장 자동 채우기(대표 지시 2026-11-19: 매번 고르지 않게) ──
+// 공정 종류로 알맞은 작업장 종류를 정하고, 그 종류가 하나면 그곳, 여럿이면 앞 공정과 같은 곳, 아니면 지금 덜 붐비는 곳.
+
+/** 공정 → 작업장 종류(앞이 먼저). 비어 있으면 작업장을 두지 않음(외주) */
+export const PROCESS_KINDS: Record<string, WorkplaceKind[]> = {
+  detach: ["panel"],
+  outsource: [],
+  dent: ["dent", "panel"],
+  sheet: ["panel"],
+  putty: ["panel", "paint"],
+  color: ["paint"],
+  mask: ["paint", "panel"],
+  paint: ["paint"],
+  dry: ["paint"],
+  polish: ["polish", "panel"],
+  calibrate: ["inspect", "panel"],
+  assemble: ["panel"],
+  rework: ["panel", "paint"],
+};
+
+export type WpPick = { id: string; kind: WorkplaceKind; bays: number; sortOrder: number; name: string };
+
+/** 이 공정에 맞는 작업장 후보(첫 번째로 맞는 종류의 작업장들) */
+export function candidatesFor(process: string, wps: WpPick[]): WpPick[] {
+  for (const k of PROCESS_KINDS[process] ?? []) {
+    const xs = wps.filter((w) => w.kind === k);
+    if (xs.length) return xs.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "ko"));
+  }
+  return [];
+}
+
+/** 순수 계산: 후보 중 하나 고르기. prev(앞 공정 작업장)가 후보면 그대로, 아니면 자리당 사용 중이 가장 적은 곳 */
+export function chooseWorkplace(process: string, wps: WpPick[], inUse: Map<string, number>, prevId?: string | null): string | null {
+  const c = candidatesFor(process, wps);
+  if (!c.length) return null;
+  if (prevId && c.some((w) => w.id === prevId)) return prevId;
+  let best = c[0];
+  const busy = (w: WpPick) => (inUse.get(w.id) ?? 0) / Math.max(1, w.bays);
+  for (const w of c) if (busy(w) < busy(best)) best = w;
+  return best.id;
+}
+
+/** 지점의 쓰는 작업장과 지금 사용 중(시작했고 안 끝난 공정) 수 */
+export async function workplaceState(db: Db, branchId: string) {
+  const wps = (await listWorkplaces(db, { branchId, activeOnly: true })).map((w) => ({ id: w.id, kind: w.kind, bays: w.bays, sortOrder: w.sortOrder, name: w.name }));
+  const inUse = new Map<string, number>();
+  if (wps.length) {
+    const rows = await db
+      .select({ wp: workStep.workplaceId })
+      .from(workStep)
+      .where(and(inArray(workStep.workplaceId, wps.map((w) => w.id)), isNotNull(workStep.startedAt), isNull(workStep.endedAt)));
+    for (const r of rows) if (r.wp) inUse.set(r.wp, (inUse.get(r.wp) ?? 0) + 1);
+  }
+  return { wps, inUse };
+}
+
+/** 공정 여러 개에 차례로 작업장을 채운다(앞 공정 작업장을 이어받음) */
+export function fillWorkplaces<T extends { process: string }>(steps: T[], st: { wps: WpPick[]; inUse: Map<string, number> }): (T & { workplaceId: string | null })[] {
+  let prev: string | null = null;
+  return steps.map((s) => {
+    const id = chooseWorkplace(s.process, st.wps, st.inUse, prev);
+    if (id) prev = id;
+    return { ...s, workplaceId: id };
+  });
+}
+
+/** 공장장이 바꿀 때: 그 지점의 쓰는 작업장인지 */
+export async function checkWorkplace(db: Db, branchId: string, id: string) {
+  const [w] = await db.select({ branchId: workplace.branchId, active: workplace.active }).from(workplace).where(eq(workplace.id, id));
+  if (!w || w.branchId !== branchId) throw new UserError("이 지점의 작업장이 아닙니다");
+  if (!w.active) throw new UserError("사용 중지한 작업장입니다. 다른 작업장을 고르세요");
+}
+
+/** 3정5S 구역(A~H) → 알맞은 작업장 종류. 구역 담당 화면에서 작업장을 먼저 채워 둔다 */
+const ZONE_KIND: Record<string, WorkplaceKind | null> = { A: "panel", B: "paint", C: "paint", D: "paint", E: "storage", F: null, G: null, H: "waiting" };
+
+/** 구역에 맞는 작업장 추천: 이름이 같은(겹치는) 작업장이 먼저, 없으면 종류가 맞는 첫 작업장 */
+export function suggestZoneWorkplace(code: string, zoneName: string, wps: WpPick[]): string | null {
+  const key = zoneName.replace(/\s/g, "");
+  const byName = wps.find((w) => {
+    const n = w.name.replace(/\s/g, "");
+    return n === key || n.includes(key) || key.includes(n);
+  });
+  if (byName) return byName.id;
+  const k = ZONE_KIND[code];
+  return (k && [...wps].sort((a, b) => a.sortOrder - b.sortOrder).find((w) => w.kind === k)?.id) || null;
 }

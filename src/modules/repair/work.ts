@@ -15,6 +15,7 @@ import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } fro
 import { seoulDate } from "@/modules/platform/time";
 import { checkAssignment, currentLevels } from "@/modules/staff/service";
 import { processEquipmentWarnings } from "@/modules/equipment/service";
+import { candidatesFor, checkWorkplace, chooseWorkplace, fillWorkplaces, listWorkplaces, workplaceState } from "@/modules/platform/branch";
 import { blockers, buildSteps, damageProgress, finishIssues, isProcess, minutesBetween, processLabel, PROCESSES } from "./work-rules";
 
 export class WorkError extends UserError {}
@@ -50,10 +51,12 @@ export async function createWorkOrder(db: Db, actor: Actor, roId: string, now = 
   const lines = await db.select().from(estimateLine).where(and(eq(estimateLine.estimateId, e.id), eq(estimateLine.approved, true)));
   const steps = buildSteps(lines);
   if (!steps.length) throw new WorkError("승인한 견적 항목이 없습니다");
+  // 작업장은 공정 종류로 자동으로 채운다(대표 지시 2026-11-19). 작업장을 등록하지 않았으면 비워 둔다
+  const filled = fillWorkplaces(steps, await workplaceState(db, r.branchId));
   return db.transaction(async (tx) => {
     const docNo = await nextDocNo(tx, "WO", now);
     const [w] = await tx.insert(workOrder).values({ docNo, repairOrderId: roId, estimateId: e.id, dueDate: e.dueDate, createdBy: actor.id }).returning({ id: workOrder.id });
-    await tx.insert(workStep).values(steps.map((s, i) => ({ ...s, workOrderId: w.id, seq: i + 1 })));
+    await tx.insert(workStep).values(filled.map((s, i) => ({ ...s, workOrderId: w.id, seq: i + 1 })));
     await writeAudit(tx, { actorId: actor.id, action: "work.create", entityType: "work_order", entityId: docNo, after: { ro: r.docNo, estimate: e.docNo, steps: steps.map((s) => s.process) } });
     return { id: w.id, created: true };
   });
@@ -83,7 +86,7 @@ export async function saveWorkHeader(db: Db, actor: Actor, id: string, input: { 
 }
 
 /** 공정 배정: 담당(기술자 또는 공장장)·예정일·표준 시간 */
-export async function assignStep(db: Db, actor: Actor, stepId: string, input: { assignee: string; planDate: string; stdMinutes: number | null; mentor?: string | null }, now = new Date()) {
+export async function assignStep(db: Db, actor: Actor, stepId: string, input: { assignee: string; planDate: string; stdMinutes: number | null; mentor?: string | null; workplaceId?: string | null }, now = new Date()) {
   mustBoss(actor);
   const { s, w } = await stepRow(db, stepId);
   mustOpen(w);
@@ -97,7 +100,14 @@ export async function assignStep(db: Db, actor: Actor, stepId: string, input: { 
   // 역량 표(F-11-02): 단독 기준 미만이면 지도자 함께(STD-11 6절)
   const issue = await checkAssignment(db, s.process, input.assignee, mentor, seoulDate(now));
   if (issue) throw new WorkError(issue);
-  await db.update(workStep).set({ assignee: input.assignee, mentor, planDate: input.planDate || null, stdMinutes: input.stdMinutes ?? s.stdMinutes }).where(eq(workStep.id, stepId));
+  // 작업장: 공장장이 바꿀 때만 넘어온다(같은 종류가 하나면 칸이 없음)
+  let workplaceId = s.workplaceId;
+  if (input.workplaceId && input.workplaceId !== s.workplaceId) {
+    const [r] = await db.select({ branchId: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, w.repairOrderId));
+    await checkWorkplace(db, r.branchId, input.workplaceId);
+    workplaceId = input.workplaceId;
+  }
+  await db.update(workStep).set({ assignee: input.assignee, mentor, planDate: input.planDate || null, stdMinutes: input.stdMinutes ?? s.stdMinutes, workplaceId }).where(eq(workStep.id, stepId));
   await db.update(workOrder).set({ updatedAt: now }).where(eq(workOrder.id, w.id));
   await writeAudit(db, { actorId: actor.id, action: "work.assign", entityType: "work_order", entityId: w.docNo, after: { step: s.process, assignee: input.assignee, mentor, planDate: input.planDate } });
   if (input.assignee !== s.assignee) await notifyUser(db, input.assignee, `작업 배정: ${w.docNo} ${processLabel(s.process)}${input.planDate ? ` (${input.planDate})` : ""}`, `work-assign-${stepId}-${input.assignee}`, `/work/${w.id}`);
@@ -115,7 +125,15 @@ export async function startStep(db: Db, actor: Actor, stepId: string, now = new 
   const all = await db.select().from(workStep).where(eq(workStep.workOrderId, w.id));
   const before = blockers(all, s);
   if (before.length) throw new WorkError(`앞 공정이 아직 끝나지 않았습니다: ${before.map((b) => processLabel(b.process)).join(", ")}`);
-  await db.update(workStep).set({ startedAt: now, startedBy: actor.id }).where(eq(workStep.id, stepId));
+  // 작업장이 비어 있으면(작업장을 나중에 등록했거나 재작업) 지금 덜 붐비는 곳으로 채운다
+  let workplaceId = s.workplaceId;
+  if (!workplaceId) {
+    const [r] = await db.select({ branchId: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, w.repairOrderId));
+    const prev = all.filter((x) => x.seq < s.seq && x.workplaceId).sort((a, b) => b.seq - a.seq)[0]?.workplaceId ?? null;
+    const st = await workplaceState(db, r.branchId);
+    workplaceId = chooseWorkplace(s.process, st.wps, st.inUse, prev);
+  }
+  await db.update(workStep).set({ startedAt: now, startedBy: actor.id, workplaceId }).where(eq(workStep.id, stepId));
   if (w.status === "planned") await db.update(workOrder).set({ status: "working", updatedAt: now }).where(eq(workOrder.id, w.id));
   await writeAudit(db, { actorId: actor.id, action: "work.start", entityType: "work_order", entityId: w.docNo, after: { step: s.process } });
   // 설비 경고(STD-08 5.4): 사용 금지 설비나 오늘 점검 안 한 A등급 설비. 막지는 않고 알린다
@@ -185,6 +203,8 @@ export async function getWorkOrder(db: Db, id: string) {
   ]);
   const ids = [...new Set([...techIds, ...bossIds, ...steps.flatMap((s) => [s.assignee, s.mentor]).filter((x): x is string => !!x)])];
   const levels = await currentLevels(db);
+  const wpState = await workplaceState(db, r.branchId);
+  const wpName = new Map((await listWorkplaces(db, { branchId: r.branchId })).map((x) => [x.id, x.name]));
   const users = ids.length ? await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(inArray(appUser.id, ids)) : [];
   const nameOf = (uid: string | null) => users.find((u) => u.id === uid)?.name ?? null;
   return {
@@ -194,7 +214,15 @@ export async function getWorkOrder(db: Db, id: string) {
     customerName: c?.name ?? "",
     estimate: e,
     lines,
-    steps: steps.map((s) => ({ ...s, assigneeName: nameOf(s.assignee), mentorName: nameOf(s.mentor), blockedBy: s.startedAt ? [] : blockers(steps, s).map((b) => processLabel(b.process)) })),
+    steps: steps.map((s) => ({
+      ...s,
+      assigneeName: nameOf(s.assignee),
+      mentorName: nameOf(s.mentor),
+      blockedBy: s.startedAt ? [] : blockers(steps, s).map((b) => processLabel(b.process)),
+      workplaceName: s.workplaceId ? (wpName.get(s.workplaceId) ?? null) : null,
+      /** 바꿀 수 있는 작업장(같은 종류). 하나 이하면 화면에 고르는 칸을 두지 않는다 */
+      wpChoices: candidatesFor(s.process, wpState.wps).map((x) => ({ id: x.id, name: x.name })),
+    })),
     workers: [...techIds.map((uid) => ({ id: uid, name: nameOf(uid) ?? "", role: "기술자", levels: levels.get(uid) ?? {} })), ...bossIds.filter((b) => !techIds.includes(b)).map((uid) => ({ id: uid, name: nameOf(uid) ?? "", role: "공장장", levels: levels.get(uid) ?? {} }))],
   };
 }

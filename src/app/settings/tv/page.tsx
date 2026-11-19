@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { tvLinkView } from "@/modules/dashboard/tv";
+import { listBranches, listWorkplaces } from "@/modules/platform/branch";
 import { TV_LATE_COLOR, TV_STATE_KEYS, TV_STATES } from "@/modules/dashboard/tv-rules";
 import { appUrl } from "@/modules/customer/service";
 import { requireUser } from "../../_lib/session";
@@ -13,8 +14,15 @@ import { tvLinkAction } from "./actions";
 export default async function TvSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   const user = await requireUser();
-  const v = await tvLinkView(await getDb(), user);
+  const db = await getDb();
+  const v = await tvLinkView(db, user);
   const url = v.token ? `${appUrl()}/tv?k=${v.token}` : null;
+  // 지점·작업장만 보는 TV 링크(같은 열쇠에 b=·w= 를 붙임). 지점은 둘 이상일 때만
+  const [branches, wps] = await Promise.all([listBranches(db), listWorkplaces(db, { activeOnly: true })]);
+  const scoped = [
+    ...(branches.length > 1 ? branches.map((b) => ({ key: `b-${b.id}`, label: `${b.name} 전체`, q: `b=${b.id}` })) : []),
+    ...wps.filter((w) => w.bays > 0).map((w) => ({ key: `w-${w.id}`, label: `${w.name}만`, q: `w=${w.id}` })),
+  ];
   return (
     <>
       <PageTitle
@@ -66,6 +74,26 @@ export default async function TvSettingsPage({ searchParams }: { searchParams: P
             <p className="text-sm text-[var(--muted)]">{v.made ? "TV 링크가 만들어져 있습니다." : "아직 TV 링크가 없습니다."} 링크는 대표가 만들고 관리합니다. 직원은 메뉴의 TV 현황판으로 봅니다.</p>
           )}
         </Card>
+        {scoped.length > 0 && (
+          <Card title="작업장·지점만 보는 링크" help={{ kind: "panel", id: "tv.scoped" }}>
+            <p className="mb-2 text-sm text-[var(--muted)]">도장 부스 앞 TV처럼 한 곳의 차만 띄울 때 씁니다. 그 작업장에 아직 안 끝난 공정이 있는 차만 나옵니다.</p>
+            <ul className="space-y-2 text-sm">
+              {scoped.map((x) => {
+                const link = url ? `${url}&${x.q}` : null;
+                return (
+                  <li key={x.key} className="flex flex-wrap items-center gap-2">
+                    <b className="min-w-32">{x.label}</b>
+                    <Link href={`/tv?${x.q}`} className="text-[var(--accent)] hover:underline">
+                      앱에서 열기
+                    </Link>
+                    {link && v.canEdit && <CopyButton text={link} label="TV 링크 복사" />}
+                  </li>
+                );
+              })}
+            </ul>
+            {!url && v.canEdit && <p className="mt-2 text-xs text-[var(--muted)]">TV 링크를 먼저 만들면 여기서 작업장별 TV 링크를 복사할 수 있습니다.</p>}
+          </Card>
+        )}
         <Card title="TV에 띄우는 방법" help={{ kind: "panel", id: "tv.howto" }}>
           <ol className="list-decimal space-y-1 pl-5 text-sm">
             <li>

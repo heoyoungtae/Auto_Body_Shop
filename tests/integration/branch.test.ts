@@ -57,3 +57,42 @@ describe("본점·지점 1단계", () => {
     await expect(db.delete(branch).where(eq(branch.id, MAIN_BRANCH_ID))).rejects.toThrow();
   });
 });
+
+describe("작업장 연결", () => {
+  it("작업 지시서를 만들면 공정에 작업장이 자동으로 들어가고, 공장장이 바꿀 수 있다", async () => {
+    const { approvedRepair } = await import("./flow");
+    const { createWorkOrder, getWorkOrder, assignStep, startStep } = await import("@/modules/repair/work");
+    const now = new Date("2026-11-10T01:00:00Z");
+    const panel = await createWorkplace(db, manager(), { name: "판금동", kind: "panel", bays: 2, managerId: null, note: "", sortOrder: 10 });
+    const b1 = await createWorkplace(db, manager(), { name: "도장 부스 1", kind: "paint", bays: 1, managerId: null, note: "", sortOrder: 20 });
+    const b2 = await createWorkplace(db, manager(), { name: "도장 부스 2", kind: "paint", bays: 1, managerId: null, note: "", sortOrder: 30 });
+    const { roId } = await approvedRepair(db, ids, now);
+    const { id } = await createWorkOrder(db, manager(), roId, now);
+    const w = await getWorkOrder(db, id);
+    const by = (p: string) => w.steps.find((s) => s.process === p);
+    expect(by("detach")?.workplaceId).toBe(panel);
+    expect(by("detach")?.wpChoices).toHaveLength(1); // 판금 작업장이 하나면 칸이 없음
+    expect(by("paint")?.workplaceId).toBe(b1);
+    expect(by("paint")?.workplaceName).toBe("도장 부스 1");
+    expect(by("paint")?.wpChoices.map((x) => x.id)).toEqual([b1, b2]);
+    // 공장장이 다른 부스로 바꿈
+    const paint = by("paint")!;
+    await assignStep(db, manager(), paint.id, { assignee: ids.tech1, planDate: "2026-11-11", stdMinutes: null, workplaceId: b2 }, now);
+    expect((await getWorkOrder(db, id)).steps.find((s) => s.id === paint.id)?.workplaceId).toBe(b2);
+    await expect(assignStep(db, manager(), paint.id, { assignee: ids.tech1, planDate: "", stdMinutes: null, workplaceId: "00000000-0000-4000-8000-0000000000ff" }, now)).rejects.toThrow(/작업장/);
+    // 작업장이 비어 있던 공정은 시작할 때 채운다
+    const first = w.steps[0];
+    await db.update((await import("@/db/schema")).workStep).set({ workplaceId: null }).where(eq((await import("@/db/schema")).workStep.id, first.id));
+    await assignStep(db, manager(), first.id, { assignee: ids.tech1, planDate: "", stdMinutes: null }, now);
+    await startStep(db, { id: ids.tech1, roles: ["technician"] }, first.id, now);
+    expect((await getWorkOrder(db, id)).steps[0].workplaceId).toBeTruthy();
+    // 작업장 TV: 그 작업장에 안 끝난 공정이 있는 차만
+    const { tvBoard, tvScope } = await import("@/modules/dashboard/tv");
+    const polish = await createWorkplace(db, manager(), { name: "광택장", kind: "polish", bays: 1, managerId: null, note: "" });
+    expect((await tvBoard(db, now, await tvScope(db, { w: b2 }))).cars).toHaveLength(1);
+    const empty = await tvBoard(db, now, await tvScope(db, { w: polish }));
+    expect(empty.cars).toHaveLength(0);
+    expect(empty.scope).toBe("광택장");
+    expect((await tvBoard(db, now, await tvScope(db, { w: "nope" }))).scope).toBeNull();
+  });
+});

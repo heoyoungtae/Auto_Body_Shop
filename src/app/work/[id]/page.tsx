@@ -123,6 +123,11 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
                       {p?.std ? ` — ${p.std}` : ""}
                     </p>
                     <p>
+                      {s.workplaceName && (
+                        <>
+                          작업장 <b>{s.workplaceName}</b> ·{" "}
+                        </>
+                      )}
                       담당 <b>{s.assigneeName ?? "미정"}</b>{s.mentorName && <> (지도 {s.mentorName})</>} · 예정 {s.planDate ?? "—"} · 표준 {s.stdMinutes ? fmtMinutes(s.stdMinutes) : "—"}
                       {s.startedAt && ` · 시작 ${fmtTime(s.startedAt)}`}
                       {s.endedAt && ` · 끝 ${fmtTime(s.endedAt)} (${fmtMinutes(s.actualMinutes ?? 0)})`}
@@ -131,13 +136,14 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
 
                     {boss && open && !s.endedAt && (
                       <details>
-                        <summary className="cursor-pointer font-semibold text-[var(--accent)]">{s.assignee ? "담당·예정 바꾸기" : "담당 정하기"}</summary>
+                        <summary className="cursor-pointer font-semibold text-[var(--accent)]">{s.assignee ? (s.wpChoices.length > 1 ? "담당·예정·작업장 바꾸기" : "담당·예정 바꾸기") : "담당 정하기"}</summary>
                         <AssistForm id={`wa-${s.id}`} action={workAction} className="mt-2 grid gap-3 md:grid-cols-4">
                           <Hidden woId={w.id} stepId={s.id} intent="assign" />
                           <SelectField help="work.assignee" name="assignee" required defaultValue={s.assignee ?? ""} placeholder="고르기" options={w.workers.map((u) => ({ value: u.id, label: `${u.name}(${u.role}) ${lvText(u.levels, s.process)}` }))} />
                           <SelectField help="work.mentor" name="mentor" defaultValue={s.mentor ?? ""} placeholder="없음(혼자 작업)" options={w.workers.map((u) => ({ value: u.id, label: `${u.name} ${lvText(u.levels, s.process)}` }))} />
                           <DateField help="work.planDate" name="planDate" defaultValue={s.planDate ?? ""} quick={["today", "tomorrow"]} />
                           <NumberField help="work.stdMinutes" name="stdMinutes" unit="분" min={0} max={6000} defaultValue={s.stdMinutes || null} />
+                          {s.wpChoices.length > 1 && <SelectField help="work.workplace" name="workplaceId" defaultValue={s.workplaceId ?? ""} placeholder="자동(덜 붐비는 곳)" options={s.wpChoices.map((x) => ({ value: x.id, label: x.name }))} />}
                           <div className="md:col-span-4">
                             <SubmitButton variant="secondary">담당 저장</SubmitButton>
                           </div>

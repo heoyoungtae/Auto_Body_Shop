@@ -1,7 +1,7 @@
 // 설비 관리(STD-08): 설비 대장·점검·윤활·운전 일지·고장·교정·예방정비
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, equipment, equipmentCalibration, equipmentCheck, equipmentFailure, equipmentRunLog, lubeLog, lubePoint, pmItem, pmPlan, pmTask, type CheckItem, type CheckResult } from "@/db/schema";
+import { appUser, equipment, fiveSZone, workplace, equipmentCalibration, equipmentCheck, equipmentFailure, equipmentRunLog, lubeLog, lubePoint, pmItem, pmPlan, pmTask, type CheckItem, type CheckResult } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
@@ -152,7 +152,10 @@ export async function saveEquipment(db: Db, actor: Actor, input: EquipmentInput,
     trialOn: clean(input.trialOn),
     note: clean(input.note),
     updatedAt: now,
+    workplaceId: null as string | null,
   };
+  // 작업장은 구역(3정5S)의 작업장을 따라간다(따로 고르지 않음)
+  if (values.zone) values.workplaceId = (await db.select({ w: fiveSZone.workplaceId }).from(fiveSZone).where(eq(fiveSZone.code, values.zone)))[0]?.w ?? null;
   if (id) {
     const before = await eqRow(db, id);
     if (before.status === "disposed") throw new EquipError("처분한 설비는 고칠 수 없습니다");
@@ -215,7 +218,10 @@ export async function getEquipment(db: Db, id: string) {
   ]);
   const pointIds = points.map((p) => p.id);
   const lubes = pointIds.length ? await db.select().from(lubeLog).where(inArray(lubeLog.pointId, pointIds)).orderBy(desc(lubeLog.doneOn), desc(lubeLog.createdAt)).limit(40) : [];
-  return { e, names, checks, points, lubes, runs, failures, calibrations, tasks: tasks.map((r) => ({ ...r.t, task: r.task, external: r.external })) };
+  // 작업장: 놓인 구역(3정5S)의 작업장
+  const wpId = e.zone ? ((await db.select({ w: fiveSZone.workplaceId }).from(fiveSZone).where(eq(fiveSZone.code, e.zone)))[0]?.w ?? null) : e.workplaceId;
+  const workplaceName = wpId ? ((await db.select({ n: workplace.name }).from(workplace).where(eq(workplace.id, wpId)))[0]?.n ?? null) : null;
+  return { e, names, workplaceName, checks, points, lubes, runs, failures, calibrations, tasks: tasks.map((r) => ({ ...r.t, task: r.task, external: r.external })) };
 }
 
 // ───────── 점검표(F-08-02) ─────────

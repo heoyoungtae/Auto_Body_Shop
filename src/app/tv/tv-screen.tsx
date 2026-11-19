@@ -42,7 +42,7 @@ function Segs({ c }: { c: TvCar }) {
   );
 }
 
-export function TvScreen({ initial, k, help, signedIn }: { initial: TvData; k: string | null; help: PageHelpKey; signedIn: boolean }) {
+export function TvScreen({ initial, k, help, signedIn, extra = "" }: { initial: TvData; k: string | null; help: PageHelpKey; signedIn: boolean; /** 지점·작업장만 볼 때 덧붙는 주소 값(b=·w=) */ extra?: string }) {
   const [data, setData] = useState(initial);
   const [err, setErr] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -53,7 +53,8 @@ export function TvScreen({ initial, k, help, signedIn }: { initial: TvData; k: s
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`/api/tv${k ? `?k=${encodeURIComponent(k)}` : ""}`, { cache: "no-store" });
+      const qs = [k ? `k=${encodeURIComponent(k)}` : "", extra].filter(Boolean).join("&");
+      const r = await fetch(`/api/tv${qs ? `?${qs}` : ""}`, { cache: "no-store" });
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error(j.message ?? "불러오지 못했습니다");
       setData(j.data);
@@ -61,7 +62,7 @@ export function TvScreen({ initial, k, help, signedIn }: { initial: TvData; k: s
     } catch (e) {
       setErr(`새 값을 받지 못했습니다(${e instanceof Error ? e.message : "연결 끊김"}). 30초 뒤 다시 시도합니다.`);
     }
-  }, [k]);
+  }, [k, extra]);
 
   useEffect(() => {
     const a = setInterval(load, REFRESH_MS);
@@ -116,7 +117,7 @@ export function TvScreen({ initial, k, help, signedIn }: { initial: TvData; k: s
       <style>{CSS}</style>
       <div className="tv-move" style={{ transform: `translate(${offsets[shift][0]}px, ${offsets[shift][1]}px)` }}>
         <header className="tv-head">
-          <div className="tv-shop">{data.shop ? `${data.shop} · 정비 현황` : "정비 현황"}</div>
+          <div className="tv-shop">{[data.shop, data.scope, "정비 현황"].filter(Boolean).join(" · ")}</div>
           <div className="tv-date">{clock.date}</div>
           <div className="tv-clock">{clock.time}</div>
           <div className="tv-tools">
