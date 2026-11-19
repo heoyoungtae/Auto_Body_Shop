@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { stdHref } from "@/modules/quality/std-ref";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { learnView } from "@/modules/staff/elearning";
@@ -65,7 +66,7 @@ export default async function LearnPage({ params, searchParams }: { params: Prom
               kind={MATERIAL_KINDS[m.kind as keyof typeof MATERIAL_KINDS]}
               minutes={m.minutes}
               done={passed || seen(m.id)}
-              href={m.url ?? (m.filePath ? fileHref(m.filePath) : m.doc ? `/qms/docs/${m.doc.id}` : null)}
+              href={m.url ?? (m.filePath ? fileHref(m.filePath) : m.doc ? (stdHref(m.doc.no) ?? `/qms/docs/${m.doc.id}`) : null)}
               inline={
                 m.manual ? (
                   <article className="space-y-3 text-sm">

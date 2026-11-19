@@ -1,5 +1,5 @@
 {
-  "id": "9a93c269-ac93-490d-a5d2-9377ad6113b4",
+  "id": "ac218255-42d3-4ab5-a33e-d3e2fa272150",
   "prevId": "ec4454cd-e5a7-414e-82dc-838bbee6129b",
   "version": "7",
   "dialect": "postgresql",
@@ -1091,13 +1091,6 @@
           "notNull": true,
           "default": "''"
         },
-        "seal_path": {
-          "name": "seal_path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
         "opened_on": {
           "name": "opened_on",
           "type": "date",
@@ -1143,139 +1136,6 @@
         }
       },
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.user_branch": {
-      "name": "user_branch",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "branch_id": {
-          "name": "branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "roles": {
-          "name": "roles",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "user_branch_user_id_app_user_id_fk": {
-          "name": "user_branch_user_id_app_user_id_fk",
-          "tableFrom": "user_branch",
-          "tableTo": "app_user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "user_branch_branch_id_branch_id_fk": {
-          "name": "user_branch_branch_id_branch_id_fk",
-          "tableFrom": "user_branch",
-          "tableTo": "branch",
-          "columnsFrom": [
-            "branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "user_branch_user_id_branch_id_pk": {
-          "name": "user_branch_user_id_branch_id_pk",
-          "columns": [
-            "user_id",
-            "branch_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.user_branch_pref": {
-      "name": "user_branch_pref",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "branch_id": {
-          "name": "branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "user_branch_pref_user_id_app_user_id_fk": {
-          "name": "user_branch_pref_user_id_app_user_id_fk",
-          "tableFrom": "user_branch_pref",
-          "tableTo": "app_user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "user_branch_pref_branch_id_branch_id_fk": {
-          "name": "user_branch_pref_branch_id_branch_id_fk",
-          "tableFrom": "user_branch_pref",
-          "tableTo": "branch",
-          "columnsFrom": [
-            "branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -12640,6 +12500,164 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.std_section": {
+      "name": "std_section",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "part": {
+          "name": "part",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ch": {
+          "name": "ch",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doc_no": {
+          "name": "doc_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "no": {
+          "name": "no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "grp": {
+          "name": "grp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chapter": {
+          "name": "chapter",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "sort": {
+          "name": "sort",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "roles": {
+          "name": "roles",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "rev": {
+          "name": "rev",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revised_on": {
+          "name": "revised_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revised_ref": {
+          "name": "revised_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "history": {
+          "name": "history",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "std_section_ch_idx": {
+          "name": "std_section_ch_idx",
+          "columns": [
+            {
+              "expression": "ch",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "std_section_updated_by_app_user_id_fk": {
+          "name": "std_section_updated_by_app_user_id_fk",
+          "tableFrom": "std_section",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.complaint": {
       "name": "complaint",
       "schema": "",
@@ -15880,162 +15898,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.stock_transfer": {
-      "name": "stock_transfer",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "doc_no": {
-          "name": "doc_no",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "from_branch_id": {
-          "name": "from_branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "to_branch_id": {
-          "name": "to_branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'sent'"
-        },
-        "lines": {
-          "name": "lines",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_won": {
-          "name": "amount_won",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sent_by": {
-          "name": "sent_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "received_by": {
-          "name": "received_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "received_at": {
-          "name": "received_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "received_note": {
-          "name": "received_note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "stock_transfer_from_branch_id_branch_id_fk": {
-          "name": "stock_transfer_from_branch_id_branch_id_fk",
-          "tableFrom": "stock_transfer",
-          "tableTo": "branch",
-          "columnsFrom": [
-            "from_branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "stock_transfer_to_branch_id_branch_id_fk": {
-          "name": "stock_transfer_to_branch_id_branch_id_fk",
-          "tableFrom": "stock_transfer",
-          "tableTo": "branch",
-          "columnsFrom": [
-            "to_branch_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "stock_transfer_sent_by_app_user_id_fk": {
-          "name": "stock_transfer_sent_by_app_user_id_fk",
-          "tableFrom": "stock_transfer",
-          "tableTo": "app_user",
-          "columnsFrom": [
-            "sent_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "stock_transfer_received_by_app_user_id_fk": {
-          "name": "stock_transfer_received_by_app_user_id_fk",
-          "tableFrom": "stock_transfer",
-          "tableTo": "app_user",
-          "columnsFrom": [
-            "received_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "stock_transfer_doc_no_unique": {
-          "name": "stock_transfer_doc_no_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "doc_no"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.supplier": {
       "name": "supplier",
       "schema": "",
@@ -18134,15 +17996,9 @@
         }
       },
       "indexes": {
-        "daily_close_branch_day_uq": {
-          "name": "daily_close_branch_day_uq",
+        "daily_close_day_uq": {
+          "name": "daily_close_day_uq",
           "columns": [
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "day",
               "isExpression": false,

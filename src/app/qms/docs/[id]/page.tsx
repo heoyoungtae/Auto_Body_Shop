@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { stdHref } from "@/modules/quality/std-ref";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { getDocEntry } from "@/modules/quality/qms";
@@ -43,13 +44,20 @@ export default async function DocPage({
         help="qms.doc"
         sub={`${DOC_KINDS[d.kind as keyof typeof DOC_KINDS]} · 현행 ${d.rev}${d.effectiveOn ? ` · ${d.effectiveOn} 시행` : ""}`}
         actions={
-          d.status === "current" && d.kind !== "external" ? (
+          <>
+            {d.kind !== "external" && stdHref(d.no) && (
+              <Link href={stdHref(d.no)!} className={buttonClass("secondary")}>
+                본문 보기
+              </Link>
+            )}
+            {d.status === "current" && d.kind !== "external" ? (
             <Link href={`/approvals/new?doc=${d.id}`} className={buttonClass()}>
               개정 요청(F-Q-05)
             </Link>
           ) : d.status === "retired" ? (
             <Badge>폐지</Badge>
-          ) : undefined
+          ) : null}
+          </>
         }
       >
         {d.no} {d.name}

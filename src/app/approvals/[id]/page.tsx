@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import Link from "next/link";
+import { lineDiff, stdKeyHref } from "@/modules/quality/std-ref";
 import { isLeaveKind, LEAVE_KINDS } from "@/modules/staff/leave-rules";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -41,6 +42,7 @@ const FIELD_LABEL: Record<string, string> = {
   proposed: "바꿀 내용",
   reason: "사유",
   targetDocNo: "취소할 문서",
+  secKey: "표준서 절",
   kind: "구분",
   body: "내용",
   leaveKind: "근태 종류",
@@ -67,6 +69,7 @@ const FIELD_LABEL: Record<string, string> = {
 };
 /** 저장된 키·숫자를 사람이 읽는 말로 */
 function show(k: string, v: unknown): string {
+  if (k === "secKey") return "사내 표준서 본문에 연결됨 — 승인되면 '바꿀 내용'이 그 절의 새 본문이 됩니다";
   if (k === "docId")
     return "문서 목록(F-Q-04)에 연결됨 — 승인되면 판이 저절로 오릅니다";
   if (k === "policyKey" && typeof v === "string" && isPolicyKey(v))
@@ -155,6 +158,7 @@ export default async function ApprovalDetail({
             .where(eq(expense.approvalDocId, doc.id))
         )[0]?.id ?? null)
       : null;
+  const secKey = typeof data.secKey === "string" ? data.secKey : null;
   const settled =
     (doc.status === "confirmed" || doc.status === "checked") &&
     !doc.cancelsId &&
@@ -230,6 +234,7 @@ export default async function ApprovalDetail({
           <Card title="내용" help={{ kind: "panel", id: "doc.content" }}>
             <dl className="space-y-3 text-sm">
               {Object.entries(data)
+                .filter(([k]) => !(secKey && (k === "current" || k === "proposed")))
                 .sort(([a], [b]) => order(a) - order(b))
                 .map(([k, v]) => (
                   <div key={k}>
@@ -257,6 +262,30 @@ export default async function ApprovalDetail({
               </p>
             )}
           </Card>
+
+          {secKey && (
+            <Card title="바뀌는 곳" help={{ kind: "panel", id: "doc.stdDiff" }}>
+              <p className="mb-2 text-sm">
+                <Link href={stdKeyHref(secKey)} className="text-[var(--accent)]">
+                  사내 표준서에서 이 절 보기
+                </Link>
+                <span className="ml-2 text-xs text-[var(--muted)]">빨간 줄은 빠지는 글, 초록 줄은 들어가는 글입니다.</span>
+              </p>
+              <div className="overflow-x-auto rounded-md border border-[var(--line)] font-mono text-xs leading-relaxed">
+                {lineDiff(String(data.current ?? ""), String(data.proposed ?? "")).map((d, i) =>
+                  d.op === "same" && !d.text.trim() ? null : (
+                    <div
+                      key={i}
+                      className={`whitespace-pre-wrap px-2 ${d.op === "del" ? "bg-[var(--danger-soft)] text-[var(--danger)] line-through" : d.op === "add" ? "bg-[var(--ok-soft)] text-[var(--ok)]" : "text-[var(--muted)]"}`}
+                    >
+                      {d.op === "del" ? "− " : d.op === "add" ? "+ " : "  "}
+                      {d.text}
+                    </div>
+                  ),
+                )}
+              </div>
+            </Card>
+          )}
 
           {mine && (
             <Card
