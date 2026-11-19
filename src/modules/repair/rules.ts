@@ -1,6 +1,6 @@
 // 입고 점검(F-02-01) 규칙 — 서버와 화면(저장 전 점검)이 같이 쓴다. 사내 표준서 STD-02 4절.
 // 화면에서도 불러오므로 DB 스키마를 가져오지 않는다(스키마가 여기 값을 쓴다).
-import { fromLegacy, isPart, isView, partLabel, shapeOf, viewsOf, type View } from "./body-map";
+import { fromLegacy, isPart, kindFit, isView, partLabel, shapeOf, viewsOf, type View } from "./body-map";
 
 /** 사진 자리: 8방향 + 계기판 + 도어 라벨(색상 코드) + 손상 근접·기타 */
 export const PHOTO_SLOTS = ["front", "front_left", "left", "rear_left", "rear", "rear_right", "right", "front_right", "dash", "label", "close", "other"] as const;
@@ -65,7 +65,8 @@ export function cleanMarks(raw: unknown): BodyMark[] {
     const note = m.note ? { note: String(m.note).slice(0, 100) } : {};
     if (typeof m.part === "string" && isPart(m.part) && typeof m.view === "string" && isView(m.view) && shapeOf(m.view, m.part)) {
       const cell = Number.isInteger(m.cell) && m.cell >= 0 && m.cell <= 8 ? m.cell : 4;
-      out.push({ part: m.part, view: m.view, cell, kind: m.kind, ...note });
+      // 맞지 않는 짝(바퀴의 '긁힘' 등)은 맞는 기호로. 못 맞추면 받은 그대로 둔다(지난 기록을 잃지 않게)
+      out.push({ part: m.part, view: m.view, cell, kind: kindFit(m.part, m.kind) ?? m.kind, ...note });
     } else if (typeof m.x === "number" && typeof m.y === "number") {
       const at = fromLegacy(m.x, m.y);
       if (at) out.push({ ...at, kind: m.kind, ...note });

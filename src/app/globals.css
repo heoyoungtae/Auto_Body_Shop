@@ -336,6 +336,7 @@ html:has(#tab-bar) main {
 .car-map .cm-part { stroke: transparent; stroke-width: 1; stroke-linejoin: round; transition: fill 0.15s, stroke 0.15s; }
 .car-map .cm-pick { cursor: pointer; outline: none; }
 .car-map .cm-pick:hover, .car-map .cm-pick:focus-visible { fill: var(--car-hover); stroke: var(--accent); stroke-width: 1.2; }
+.car-map .cm-off { cursor: not-allowed; opacity: .35; }
 .car-map .cm-sel, .car-map .cm-hi { stroke: var(--accent); stroke-width: 2.2; }
 .car-map .cm-hi { fill: var(--car-hover); }
 .car-map .cm-art { filter: var(--car-line); opacity: var(--car-line-op); pointer-events: none; }

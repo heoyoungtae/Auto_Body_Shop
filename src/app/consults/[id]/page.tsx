@@ -150,7 +150,7 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
           <Card title="상담 내용" help={{ kind: "panel", id: "consult.content" }}>
             <dl className="grid text-sm sm:grid-cols-2 sm:gap-x-6">
               <Row k="손상 유형">{c.damageTypes.join(", ")}</Row>
-              <Row k="부위">{c.damageParts}</Row>
+              <Row k="부위"><span className="whitespace-pre-line">{c.damageParts}</span></Row>
               <Row k="경위">{c.cause}</Row>
               <Row k="받은 사진">{c.photoCount ? `${c.photoCount}장${c.photoCount < 3 ? " (3장 미만 — 더 요청)" : ""}` : ""}</Row>
               <Row k="예비 판단">
@@ -173,7 +173,7 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
                 ) : null}
               </Row>
             </dl>
-            <ConsultZonesView zones={c.damageZones ?? []} car={carOf(v)} />
+            <ConsultZonesView zones={c.damageZones ?? []} car={carOf(v)} text={c.damageParts} />
           </Card>
         </div>
         <div className="space-y-4">

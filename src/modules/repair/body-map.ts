@@ -107,6 +107,29 @@ export const SUB_PARTS: Record<string, string[]> = {
   ),
 };
 
+// ── 손상 기호와 부위 ────────────────────────────────
+// 기호 D 찌그러짐·S 긁힘·C 깨짐·크랙·R 부식·W 휠 긁힘(O 수리 대상은 어디든). 대표 지적 2026-11-19: 휠 긁힘이 아무 데나 찍힘
+/** 바퀴(휠) 부위인가 */
+export const isWheel = (part: string) => part.endsWith("_wheel");
+/** 유리·램프(유리·플라스틱 렌즈): 찌그러짐·부식은 없고 깨짐·긁힘만 */
+export const isGlassy = (part: string) => /^(windshield|rear_glass|[lr]_(head|tail)lamp)$/.test(part);
+/**
+ * 이 부위에 찍을 기호. 바퀴에 '긁힘'을 고르면 '휠 긁힘'으로 바꾸고, 맞지 않는 짝(휠 긁힘을 차체에, 찌그러짐·부식을 유리·램프에)은 null.
+ */
+export function kindFit<K extends string>(part: string, kind: K): K | "W" | null {
+  if (kind === "O") return kind;
+  if (isWheel(part)) return kind === "S" ? "W" : kind;
+  if (kind === "W") return null;
+  if (isGlassy(part) && (kind === "D" || kind === "R")) return null;
+  return kind;
+}
+/** 기호를 찍을 수 없는 까닭(화면 안내) */
+export function kindWhy(kind: string): string {
+  if (kind === "W") return "휠 긁힘은 바퀴(휠)에만 찍을 수 있습니다";
+  if (kind === "D" || kind === "R") return `${kind === "D" ? "찌그러짐" : "부식"}은 유리·램프에 찍을 수 없습니다(깨짐·크랙이나 긁힘을 고르세요)`;
+  return "이 부위에는 찍을 수 없는 손상입니다";
+}
+
 /** 부위 이름 + 세부 부위: '앞범퍼(하단 스포일러)' */
 export const partName = (part: string, sub?: string | null) => (sub ? `${partLabel(part)}(${sub})` : partLabel(part));
 
