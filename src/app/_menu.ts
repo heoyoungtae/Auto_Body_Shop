@@ -426,6 +426,11 @@ export const MENU: MenuGroup[] = [
         label: "TV 현황판 연결",
         href: "/settings/tv",
       },
+      {
+        label: "서버·새 버전 올리기",
+        roles: ["owner"],
+        href: "/settings/server",
+      },
     ],
   },
   {

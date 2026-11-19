@@ -47,6 +47,16 @@ for i in $(seq 1 60); do
   [ "$code" = 200 ] && break
   sleep 5
 done
+# 앱 설정 › 서버 화면 연결(agent.sh, '지금 새 버전 올리기')이 아직 없으면 등록한다.
+# 주의: 이 파일은 도는 중에 위 git reset 으로 바뀐다. bash 는 바뀐 파일을 같은 위치부터 이어 읽으므로 reset 줄 위쪽은 글자 하나도 바꾸지 말 것.
+# 자택에 가지 않아도 밤 업데이트 뒤 저절로 켜진다
+if [ ! -f /etc/cron.d/auto-body-shop-agent ] && [ -f "$DEPLOY/minipc/agent.sh" ]; then
+  home=$(getent passwd "$OWNER" | cut -d: -f6)
+  printf 'SHELL=/bin/bash\n* * * * * root HOME=%s bash %s/minipc/agent.sh >/dev/null 2>&1\n' "$home" "$DEPLOY" > /etc/cron.d/auto-body-shop-agent
+  chmod 644 /etc/cron.d/auto-body-shop-agent
+  command -v jq >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq jq >/dev/null 2>&1 || true
+  log "앱 설정 › 서버 연결을 켰습니다"
+fi
 docker image prune -f >/dev/null
 docker builder prune -f --filter until=168h >/dev/null 2>&1 || true
 find "$dir" -name 'db-before-update-*.enc' -mtime +30 -delete

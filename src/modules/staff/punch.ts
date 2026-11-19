@@ -28,12 +28,71 @@ export const DEFAULT_SCHEDULE = { start: 9 * 60, end: 18 * 60 };
 
 // ── 정비소 인터넷 주소 ─────────────────────────────────────
 
-/** sameAsServer: 서버(사업장 미니 PC)와 같은 인터넷이면 허용. 인터넷 회사가 주소를 바꿔도 저절로 따라간다 */
-export type PunchConfig = { ips: string[]; sameAsServer: boolean };
-export async function loadPunchConfig(db: Db): Promise<PunchConfig> {
+/** sameAsServer: 서버(사업장 미니 PC)와 같은 인터넷이면 허용. 인터넷 회사가 주소를 바꿔도 저절로 따라간다
+ *  sameAsTv: 정비소 TV 현황판(TV 링크로 띄운 화면)과 같은 인터넷이면 허용. 서버가 대표 자택 등 정비소 밖에 있을 때(대표 2026-11-19).
+ *  tv: 현황판이 꾸준히 접속해 온 주소(IPv4·IPv6 따로)와 마지막으로 확인한 때 */
+export type TvSeen = { v4: string; v6: string; at: string | null };
+export type PunchConfig = { ips: string[]; sameAsServer: boolean; sameAsTv: boolean; tv: TvSeen };
+const NO_TV: TvSeen = { v4: "", v6: "", at: null };
+async function rawPunchConfig(db: Db) {
   const [c] = await db.select().from(appConfig).where(eq(appConfig.key, CONFIG_KEY));
-  const d = (c?.data ?? {}) as Partial<PunchConfig>;
-  return { ips: Array.isArray(d.ips) ? d.ips : [], sameAsServer: d.sameAsServer === true && serverOnSite() };
+  return (c?.data ?? {}) as Partial<PunchConfig>;
+}
+export async function loadPunchConfig(db: Db): Promise<PunchConfig> {
+  const d = await rawPunchConfig(db);
+  const tv = { ...NO_TV, ...(d.tv ?? {}) };
+  return { ips: Array.isArray(d.ips) ? d.ips : [], sameAsServer: d.sameAsServer === true && serverOnSite(), sameAsTv: d.sameAsTv === true, tv };
+}
+
+// TV 현황판은 30초마다 값을 부른다. 한 주소에서 30분 안에 20번(약 10분 꾸준히) 오면 그 주소를 정비소 주소로 본다.
+// 집이나 휴대폰에서 TV 링크를 잠깐 열어 본 것은 횟수가 모자라 정비소 주소로 잡히지 않는다.
+const TV_HITS = 20;
+const TV_WINDOW = 30 * 60_000;
+let tvTally = new Map<string, { n: number; from: number }>();
+/** 같은 회선인가: IPv4 는 같은 주소, IPv6 는 앞 64비트가 같으면 */
+function sameLine(a: string, b: string) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const p = v6Prefix64(a);
+  return !!(p && p === v6Prefix64(b));
+}
+/** TV 링크로 띄운 현황판이 값을 부를 때마다 부른다(api/tv). 주소가 바뀌었거나 1시간이 지났을 때만 저장한다 */
+export async function noteTvIp(db: Db, rawIp: string | null | undefined, now = Date.now()) {
+  const ip = normalizeIp(rawIp);
+  if (!ip || !validIpRule(ip) || privateIp(ip)) return;
+  const t = tvTally.get(ip);
+  const cur = t && now - t.from < TV_WINDOW ? { n: t.n + 1, from: t.from } : { n: 1, from: now };
+  if (tvTally.size > 200) tvTally = new Map();
+  tvTally.set(ip, cur);
+  if (cur.n < TV_HITS) return;
+  // 서버와 같은 인터넷(자택에 둔 서버 화면에 현황판을 띄운 경우 등)은 정비소 주소로 잡지 않는다
+  const own = await ownPublicIps();
+  if (sameLine(ip, own.v4) || sameLine(ip, own.v6)) return;
+  const d = await rawPunchConfig(db);
+  const tv = { ...NO_TV, ...(d.tv ?? {}) };
+  const fam = ip.includes(":") ? "v6" : "v4";
+  const changed = !sameLine(tv[fam], ip);
+  if (!changed && tv.at && now - Date.parse(tv.at) < 60 * 60_000) return;
+  const next = { ...tv, [fam]: ip, at: new Date(now).toISOString() };
+  const data = { ...d, tv: next };
+  await db
+    .insert(appConfig)
+    .values({ key: CONFIG_KEY, data, updatedAt: new Date(now) })
+    .onConflictDoUpdate({ target: appConfig.key, set: { data, updatedAt: new Date(now) } });
+  if (changed) await writeAudit(db, { actorId: null, action: "punch.tv_ip", entityType: "app_config", entityId: CONFIG_KEY, before: { [fam]: tv[fam] }, after: { [fam]: ip } });
+}
+/** 내부망·자기 자신 주소(공인 IP 가 아님) */
+function privateIp(ip: string) {
+  return ipAllowed(ip, ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "100.64.0.0/10", "169.254.0.0/16"]) || /^(::1$|f[cd]|fe[89ab])/i.test(ip);
+}
+/** 테스트용: 현황판 접속 횟수·서버 주소 기억 비우기 */
+export function resetPunchCaches() {
+  tvTally = new Map();
+  ipCache = null;
+}
+function sameNetAsTv(ip: string | null, tv: TvSeen) {
+  const a = normalizeIp(ip);
+  return !!a && (sameLine(a, tv.v4) || sameLine(a, tv.v6));
 }
 
 /** 서버가 정비소 안에 있는가(미니 PC .env 의 SERVER_ON_SITE=1). 클라우드 서버에서는 '서버와 같은 인터넷'을 쓰지 않는다 */
@@ -54,6 +113,10 @@ async function trace(url: string) {
 /** 서버가 밖으로 나갈 때 쓰는 공인 IP = 정비소 인터넷 주소(IPv4, 회선에 IPv6 가 있으면 그것도). 5분 동안 기억한다 */
 export async function serverPublicIps(): Promise<{ v4: string; v6: string }> {
   if (!serverOnSite()) return { v4: "", v6: "" };
+  return ownPublicIps();
+}
+/** 서버 자신의 공인 IP(위치와 상관없이). 서버가 자택에 있으면 자택 주소 */
+async function ownPublicIps(): Promise<{ v4: string; v6: string }> {
   if (ipCache && Date.now() - ipCache.at < 5 * 60_000) return ipCache;
   const [a, b, c] = await Promise.all([trace("https://1.1.1.1/cdn-cgi/trace"), trace("https://[2606:4700:4700::1111]/cdn-cgi/trace"), trace("https://api.ipify.org")]);
   const v4 = a || (c.includes(".") ? c : "");
@@ -78,8 +141,8 @@ async function sameNetAsServer(ip: string | null) {
   return !!(p && v6 && p === v6Prefix64(v6));
 }
 
-/** 대표만. 한 줄에 하나(IPv4, 1.2.3.0/24, IPv6). 비우면(서버와 같은 인터넷도 끄면) 어디서나 누를 수 있다 */
-export async function savePunchConfig(db: Db, actor: Actor, raw: string, sameAsServerRaw = false) {
+/** 대표만. 한 줄에 하나(IPv4, 1.2.3.0/24, IPv6). 비우면(서버·TV 와 같은 인터넷도 끄면) 어디서나 누를 수 있다 */
+export async function savePunchConfig(db: Db, actor: Actor, raw: string, sameAsServerRaw = false, sameAsTv = false) {
   const sameAsServer = sameAsServerRaw && serverOnSite();
   if (!actor.roles.includes("owner")) throw new PunchError("정비소 인터넷 주소는 대표가 넣습니다");
   const ips = [...new Set(raw.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))];
@@ -87,18 +150,21 @@ export async function savePunchConfig(db: Db, actor: Actor, raw: string, sameAsS
   if (bad) throw new PunchError(`'${bad}' 은(는) 인터넷 주소 형식이 아닙니다. 예: 211.234.10.5 또는 211.234.10.0/24`);
   if (ips.length > 10) throw new PunchError("주소는 10개까지 넣습니다");
   const before = await loadPunchConfig(db);
+  const data = { ips, sameAsServer, sameAsTv, tv: before.tv };
   await db
     .insert(appConfig)
-    .values({ key: CONFIG_KEY, data: { ips, sameAsServer }, updatedBy: actor.id, updatedAt: new Date() })
-    .onConflictDoUpdate({ target: appConfig.key, set: { data: { ips, sameAsServer }, updatedBy: actor.id, updatedAt: new Date() } });
-  await writeAudit(db, { actorId: actor.id, action: "punch.config", entityType: "app_config", entityId: CONFIG_KEY, before, after: { ips, sameAsServer } });
-  return { ips, sameAsServer };
+    .values({ key: CONFIG_KEY, data, updatedBy: actor.id, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: new Date() } });
+  await writeAudit(db, { actorId: actor.id, action: "punch.config", entityType: "app_config", entityId: CONFIG_KEY, before, after: { ips, sameAsServer, sameAsTv } });
+  return { ips, sameAsServer, sameAsTv };
 }
 
 async function checkPlace(db: Db, ip: string | null) {
-  const { ips, sameAsServer } = await loadPunchConfig(db);
-  if (!ips.length && !sameAsServer) return;
+  const { ips, sameAsServer, sameAsTv, tv } = await loadPunchConfig(db);
+  const tvKnown = sameAsTv && !!(tv.v4 || tv.v6);
+  if (!ips.length && !sameAsServer && !tvKnown) return;
   if (ipAllowed(ip, ips)) return;
+  if (tvKnown && sameNetAsTv(ip, tv)) return;
   if (sameAsServer && (await sameNetAsServer(ip))) return;
   throw new PunchError(`정비소 인터넷(와이파이)에 연결된 기기에서만 누를 수 있습니다. 지금 주소는 ${normalizeIp(ip) || "알 수 없음"} 입니다. 와이파이를 켜고 다시 누르거나, 못 누른 날은 '출퇴근 정정'을 올리세요`);
 }

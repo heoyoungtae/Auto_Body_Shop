@@ -24,7 +24,7 @@ export default async function PunchSettingsPage({ searchParams }: { searchParams
       </div>
       {cfg ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
-          <PlaceCard ips={cfg.ips} myIp={normalizeIp(meta.ip)} sameAsServer={cfg.sameAsServer} onSite={onSite} serverIp={serverIp} />
+          <PlaceCard ips={cfg.ips} myIp={normalizeIp(meta.ip)} sameAsServer={cfg.sameAsServer} onSite={onSite} serverIp={serverIp} sameAsTv={cfg.sameAsTv} tv={cfg.tv} />
           <Card title="확인하는 법" help={{ kind: "panel", id: "punch.today" }}>
             <ol className="list-decimal space-y-1 pl-5 text-sm text-[var(--muted)]">
               <li>정비소 와이파이에 연결한 휴대폰이나 사무실 PC로 이 화면을 엽니다.</li>
