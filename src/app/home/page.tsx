@@ -97,7 +97,7 @@ export default async function HomePage({
   ]);
   const [kpi, wb, myw, sp, mp] = await Promise.all([
     has("kpi") ? kpiPanel(db, user) : null,
-    has("work") ? workBoard(db) : null,
+    has("work") ? workBoard(db, new Date(), user.viewBranchId) : null,
     has("mywork")
       ? workTodos(db, user).then((r) => r.filter((t) => t.kind === "mine"))
       : null,

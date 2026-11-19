@@ -15,10 +15,12 @@ import { DOC_TYPES, MAX_DOC_BYTES, sniffDoc, storeFile } from "@/modules/platfor
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { issueNc } from "@/modules/quality/nc";
 import { createOrder } from "./order";
+import { branchStock } from "./transfer";
+import { actorBranch } from "@/modules/platform/docno";
 import { belowSafety, COUNT_KINDS, countDiff, docExpiry, EXPIRY_ALERT_DAYS, fifoTake, isItemDocKind, isPackUnit, isStockKind, isStopReason, isVatMode, ITEM_DOC_KINDS, KIND_EXP_CATEGORY, splitVat, STOP_REASONS, suggestOrderQty, type CountKind, type StockKind, type VatMode } from "./rules";
 
 export class StockError extends UserError {}
-type Actor = { id: string; roles: Role[] };
+type Actor = { id: string; roles: Role[]; branchId?: string };
 const clean = (s: string | null | undefined) => (s ?? "").trim() || null;
 
 async function itemRow(db: Db, id: string) {
@@ -105,7 +107,7 @@ export async function saveItem(db: Db, actor: Actor, id: string | null, input: I
     const [i] = await tx.insert(stockItem).values({ ...v, qty: opening, createdAt: now }).returning({ id: stockItem.id });
     if (opening > 0) {
       if (v.expiryTracked) await tx.insert(stockLot).values({ itemId: i.id, expiresOn: input.openingExpiresOn!, qty: opening });
-      await postMove(tx, { id: i.id, qty: 0, valueWon: 0, unitWon: v.unitWon }, { qty: opening, reason: "count", note: "처음 등록(기초 재고)", by: actor.id, at: now }, v.unitWon);
+      await postMove(tx, { id: i.id, qty: 0, valueWon: 0, unitWon: v.unitWon }, { branchId: actorBranch(actor), qty: opening, reason: "count", note: "처음 등록(기초 재고)", by: actor.id, at: now }, v.unitWon);
     }
     return i.id;
   });
@@ -185,18 +187,24 @@ export async function useStock(db: Db, actor: Actor, input: { itemId: string; qt
     lotNames = takes.map((t) => usable.find((l) => l.id === t.id)?.lot ?? "").filter(Boolean);
   } else if (input.qty > i.qty) throw new StockError(`장부 수량(${i.qty}${i.unit})보다 많습니다. 실물이 더 있으면 실사로 맞춘 뒤 적으세요`);
   let roDoc: string | null = null;
+  // 쓴 지점: 수리 건이면 그 수리 건의 지점, 아니면 쓰는 사람의 지금 지점
+  let at = actorBranch(actor);
   if (input.repairOrderId) {
-    const [ro] = await db.select({ docNo: repairOrder.docNo }).from(repairOrder).where(eq(repairOrder.id, input.repairOrderId));
+    const [ro] = await db.select({ docNo: repairOrder.docNo, branchId: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, input.repairOrderId));
     if (!ro) throw new StockError("수리 건을 찾을 수 없습니다");
     roDoc = ro.docNo;
+    at = ro.branchId;
   }
+  // 지점이 여럿이면 그 지점에 있는 만큼만 쓴다(지점이 하나면 회사 전체 수량과 같아 위 확인으로 끝)
+  const have = (await branchStock(db, [i.id])).by.get(i.id)?.get(at)?.qty ?? 0;
+  if (input.qty > have && have !== i.qty) throw new StockError(`이 지점 재고(${have}${i.unit})보다 많습니다. 다른 지점에 있으면 재고 이동으로 받아 오세요`);
   await db.transaction(async (tx) => {
     for (const t of takes) {
       const [l] = await tx.select({ qty: stockLot.qty }).from(stockLot).where(eq(stockLot.id, t.id));
       await tx.update(stockLot).set({ qty: l.qty - t.take }).where(eq(stockLot.id, t.id));
     }
     await tx.update(stockItem).set({ qty: i.qty - input.qty, updatedAt: now }).where(eq(stockItem.id, i.id));
-    await postMove(tx, i, { qty: -input.qty, reason: "use", ref: roDoc, repairOrderId: input.repairOrderId || null, lot: lotNames.join(",") || null, note: clean(input.note), by: actor.id, at: now });
+    await postMove(tx, i, { branchId: at, qty: -input.qty, reason: "use", ref: roDoc, repairOrderId: input.repairOrderId || null, lot: lotNames.join(",") || null, note: clean(input.note), by: actor.id, at: now });
   });
   const after = { ...i, qty: i.qty - input.qty };
   await finishWindDown(db, i.id, after.qty, now);
@@ -213,7 +221,7 @@ export async function discardLot(db: Db, actor: Actor, lotId: string, note: stri
   await db.transaction(async (tx) => {
     await tx.update(stockLot).set({ qty: 0 }).where(eq(stockLot.id, lotId));
     await tx.update(stockItem).set({ qty: Math.max(0, i.qty - l.qty), updatedAt: now }).where(eq(stockItem.id, i.id));
-    await postMove(tx, i, { qty: -Math.min(l.qty, Math.max(0, i.qty)), reason: "discard", lot: l.lot, note: clean(note) ?? `유효기간 ${l.expiresOn} 경과 — 지정 폐기물로 처리`, by: actor.id, at: now });
+    await postMove(tx, i, { branchId: actorBranch(actor), qty: -Math.min(l.qty, Math.max(0, i.qty)), reason: "discard", lot: l.lot, note: clean(note) ?? `유효기간 ${l.expiresOn} 경과 — 지정 폐기물로 처리`, by: actor.id, at: now });
   });
   await writeAudit(db, { actorId: actor.id, action: "stock.discard", entityType: "stock_item", entityId: i.id, after: { lot: l.lot, qty: l.qty, expiresOn: l.expiresOn } });
   await finishWindDown(db, i.id, Math.max(0, i.qty - l.qty), now);
@@ -231,13 +239,17 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
   if (!given.length) throw new StockError("실물 수량을 하나 이상 적어 주세요");
   const items = await db.select().from(stockItem).where(inArray(stockItem.id, given.map((g) => g.itemId)));
   const byId = new Map(items.map((i) => [i.id, i]));
-  const lines = given.filter((g) => byId.has(g.itemId)).map((g) => ({ itemId: g.itemId, name: byId.get(g.itemId)!.name, book: byId.get(g.itemId)!.qty, actual: g.actual, unitWon: Math.round(avgUnit(byId.get(g.itemId)!)) }));
+  // 지점이 여럿이면 지금 지점의 장부 수량과 맞춘다(지점이 하나면 회사 전체 = 본점)
+  const at = actorBranch(actor);
+  const bs = (await branchStock(db, items.map((i) => i.id))).by;
+  const bookOf = (id: string) => bs.get(id)?.get(at)?.qty ?? 0;
+  const lines = given.filter((g) => byId.has(g.itemId)).map((g) => ({ itemId: g.itemId, name: byId.get(g.itemId)!.name, book: bookOf(g.itemId), actual: g.actual, unitWon: Math.round(avgUnit(byId.get(g.itemId)!)) }));
   const d = countDiff(lines);
   const p = await loadPolicy(db, seoulDate(now));
   const over = d.pct > p["stock.count_diff_pct"];
   if (over && !input.note.trim()) throw new StockError(`차이가 ${d.pct}%로 기준(${p["stock.count_diff_pct"]}%)을 넘습니다. 짐작 가는 원인을 적어 주세요`);
   const countId = await db.transaction(async (tx) => {
-    const [c] = await tx.insert(stockCount).values({ kind: input.kind, lines, bookWon: d.bookWon, diffWon: d.diffWon, note: clean(input.note), countedBy: actor.id, countedAt: now }).returning({ id: stockCount.id });
+    const [c] = await tx.insert(stockCount).values({ branchId: at, kind: input.kind, lines, bookWon: d.bookWon, diffWon: d.diffWon, note: clean(input.note), countedBy: actor.id, countedAt: now }).returning({ id: stockCount.id });
     for (const l of lines.filter((x) => x.actual !== x.book)) {
       const it = byId.get(l.itemId)!;
       const diff = l.actual - l.book;
@@ -249,9 +261,10 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
           await tx.update(stockLot).set({ qty: last.qty + diff }).where(eq(stockLot.id, last.id));
         }
       }
-      await tx.update(stockItem).set({ qty: l.actual, updatedAt: now }).where(eq(stockItem.id, it.id));
-      if (it.windDown && l.actual <= 0) await tx.update(stockItem).set({ active: false, windDown: false }).where(eq(stockItem.id, it.id));
-      await postMove(tx, it, { qty: diff, reason: "count", note: `${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual}`, by: actor.id, at: now });
+      const total = Math.max(0, it.qty + diff);
+      await tx.update(stockItem).set({ qty: total, updatedAt: now }).where(eq(stockItem.id, it.id));
+      if (it.windDown && total <= 0) await tx.update(stockItem).set({ active: false, windDown: false }).where(eq(stockItem.id, it.id));
+      await postMove(tx, it, { branchId: at, qty: diff, reason: "count", note: `${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual}`, by: actor.id, at: now });
     }
     return c.id;
   });

@@ -44,6 +44,7 @@ import { listPayments } from "@/modules/money/receipts";
 import { PAY_IN_METHODS, RECEIPT_KINDS } from "@/modules/money/rules";
 type Pay = Awaited<ReturnType<typeof listPayments>>[number];
 export const paymentsList: ListDef<Pay> = {
+  branch: (r) => r.p.branchId,
   key: "payments",
   title: "입금 전표",
   href: "/money",

@@ -7,8 +7,8 @@ import { Badge, Card, Empty, PageTitle } from "../_ui";
 
 /** 작업 현황판(STD-04): 차량별 지금 공정, 출고 약속일 지연, 지시서가 아직 없는 승인 건 */
 export default async function WorkBoardPage() {
-  await requireUser();
-  const { board, needOrder } = await workBoard(await getDb());
+  const user = await requireUser();
+  const { board, needOrder } = await workBoard(await getDb(), new Date(), user.viewBranchId);
   return (
     <>
       <PageTitle help="work" std="F-04-01 · STD-04" sub="작업 지시서를 만들고 공정 진행을 봅니다.">

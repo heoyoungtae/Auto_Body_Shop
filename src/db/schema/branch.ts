@@ -3,7 +3,7 @@
 // 고객·차량·협력업체·품목 목록·표준서·권한표는 회사 전체가 함께 쓰므로 지점 칸이 없다.
 // 1단계(지금): 지점은 본점 하나뿐이고, 지점 칸은 모두 본점으로 자동으로 채워진다(화면에 지점 칸이 보이지 않음).
 // 작업장은 지점 안의 현장 위치(판금동·도장동 등)로, 세금·전표 번호·회계와는 상관없다.
-import { boolean, date, integer, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, integer, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
 
 /** 본점의 고정 id. 0056 마이그레이션이 이 id 로 본점 줄을 만들고, 모든 지점 칸의 기본값이 이 값이다 */
@@ -30,6 +30,8 @@ export const branch = pgTable(
     address: text("address").notNull().default(""),
     addressDetail: text("address_detail").notNull().default(""),
     phone: text("phone").notNull().default(""),
+    /** 지점 직인 그림(보관 폴더 상대 경로). 비어 있으면 본점 직인 */
+    sealPath: text("seal_path").notNull().default(""),
     openedOn: date("opened_on"),
     closedOn: date("closed_on"),
     sortOrder: integer("sort_order").notNull().default(0),
@@ -72,3 +74,32 @@ export const workplace = pgTable(
 
 /** 작업장 칸(비어 있으면 '정하지 않음'). 작업 공정·설비·5S 구역에 붙는다 */
 export const workplaceId = () => uuid("workplace_id").references(() => workplace.id);
+
+/**
+ * 지점별 접근·역할(2단계). 줄이 있으면 그 지점에 들어갈 수 있고, roles 가 비어 있지 않으면 그 지점에서는 이 역할로 일한다
+ * (예: 본점 기술자가 서구점에서는 공장장). 줄이 없으면 소속 지점에서 원래 역할(user_role)로 일한다.
+ * 대표·회계는 줄 없이도 모든 지점에 들어간다.
+ */
+export const userBranch = pgTable(
+  "user_branch",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    branchId: uuid("branch_id")
+      .notNull()
+      .references(() => branch.id),
+    roles: jsonb("roles").$type<string[]>().notNull().default([]),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.branchId] })],
+);
+
+/** 사람마다 마지막으로 고른 지점(원격으로 어디서 접속해도 같음). 대표·회계는 null = 전체 보기 */
+export const userBranchPref = pgTable("user_branch_pref", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => appUser.id),
+  branchId: uuid("branch_id").references(() => branch.id),
+  updatedAt: createdAt(),
+});

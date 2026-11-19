@@ -12,6 +12,7 @@ import { createConsultation, moveVehicle } from "@/modules/customer/service";
 import { normalizePlate } from "@/modules/customer/rules";
 import { isPortalStep, PORTAL_STEPS, PORTALS, reachedSteps, type PortalStep } from "@/modules/money/credit-rules";
 import { writeAudit } from "@/modules/platform/audit";
+import { actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { createTechbay, fmtPhone, phoneDigits, TECHBAY_DEFAULT_URL, TechbayError, type TechbayOrder, type TechbayPending, type TechbaySession } from "./techbay";
 
@@ -148,6 +149,7 @@ export async function importTechbayOrders(db: Db, actor: Actor, customerId: stri
       db,
       actor.id,
       {
+        branchId: actorBranch(actor),
         customerId,
         vehicleId: same?.id,
         newVehicle: same ? undefined : { plateNo: plate, vin: o.vin || undefined, maker: o.make || undefined, model: o.model || undefined, year: o.year, mileage: o.mileage || null, colorCode: undefined },

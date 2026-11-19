@@ -128,6 +128,7 @@ import { listClaims } from "@/modules/repair/claims";
 import { CLAIM_STATUS_LABEL, COVERAGE_LABEL } from "@/modules/repair/claim-rules";
 type Claim = Awaited<ReturnType<typeof listClaims>>[number];
 export const claimsList: ListDef<Claim> = {
+  branch: (r) => r.ro.branchId,
   key: "claims",
   title: "보험 청구",
   href: "/claims",

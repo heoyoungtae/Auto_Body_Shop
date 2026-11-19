@@ -161,7 +161,8 @@ export async function buildJournal(db: Db, to: string, now = new Date()): Promis
   const moves = await db.select({ m: stockMove, kind: stockItem.kind, expCategory: stockItem.expCategory, name: stockItem.name }).from(stockMove).innerJoin(stockItem, eq(stockItem.id, stockMove.itemId)).where(lte(stockMove.at, new Date(`${to}T23:59:59.999+09:00`)));
   for (const { m, kind, expCategory, name } of moves) {
     const w = m.amountWon ?? 0;
-    if (!w) continue;
+    // 지점 사이 재고 이동은 회사 장부에 영향이 없다
+    if (!w || m.reason === "transfer") continue;
     const cat = expCategory ? expAccount(itemExpCategory({ kind, expCategory })) : (STOCK_ACCOUNT[kind] ?? "503");
     const on = seoulDate(m.at);
     const base = { on, src: "stock" as const, no: m.ref ?? "재고", href: `/stock/${m.itemId}` };

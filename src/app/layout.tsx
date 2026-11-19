@@ -5,6 +5,8 @@ import { ROLE_LABEL } from "@/modules/auth/roles";
 import { unreadCount } from "@/modules/platform/notify";
 import { currentUser } from "./_lib/session";
 import { logoutAction } from "./login/actions";
+import { Suspense } from "react";
+import { BranchPicker } from "./_branch/picker";
 import { HelpProvider } from "./_help-drawer";
 import { TableCards } from "./_table-cards";
 import { MenuButton, NavProvider, Sidebar, TabBar } from "./_sidebar";
@@ -41,6 +43,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Link href={user ? "/home" : "/login"} className="truncate font-semibold">
                   외관수리 정비소
                 </Link>
+                {user && (user.branches?.length ?? 0) > 1 && (
+                  <Suspense>
+                    <BranchPicker branches={user.branches!} current={user.branchId!} view={user.viewBranchId ?? null} allBranches={!!user.allBranches} />
+                  </Suspense>
+                )}
                 {user && (
                   <div className="ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap text-sm">
                     <Link href="/notifications" className="relative inline-flex size-11 items-center justify-center rounded-md hover:bg-[var(--surface-2)]" aria-label={`알림 ${unread}건`} title="알림">

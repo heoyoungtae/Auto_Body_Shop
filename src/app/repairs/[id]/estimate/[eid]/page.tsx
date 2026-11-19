@@ -1,10 +1,11 @@
 import { can } from "@/modules/auth/permissions";
+import { branchShopInfo } from "@/modules/platform/branch";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { resolveApprover } from "@/modules/platform/delegation";
 import { rolesOf } from "@/modules/approval/line";
 import { ROLE_LABEL } from "@/modules/auth/roles";
-import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
+import { shopMissing } from "@/modules/platform/shop";
 import { getEstimate } from "@/modules/repair/estimate";
 import { listDamage, listDamagePhotos } from "@/modules/repair/service";
 import { EstimateMap } from "../../../estimate-map";
@@ -168,7 +169,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const user = await requireUser();
   const db = await getDb();
   const e = await getEstimate(db, eid);
-  const shop = await loadShopInfo(db);
+  const shop = await branchShopInfo(db, e.ro.branchId);
   const [damages, damagePhotos] = await Promise.all([listDamage(db, e.repairOrderId), listDamagePhotos(db, e.repairOrderId)]);
   const canWrite = can(user, "estimate.write");
   const draft = e.status === "draft" && canWrite;

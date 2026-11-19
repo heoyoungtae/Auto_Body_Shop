@@ -25,7 +25,9 @@ export default async function TvPage({ searchParams }: { searchParams: Promise<{
     if (user.mustChangePassword) redirect("/account/first");
   }
   // 지점(b)·작업장(w)만 보는 TV(설정 › TV 현황판에서 링크를 고름)
-  const scope = await tvScope(db, { b, w });
+  // 로그인한 직원이 주소 없이 열면 화면 위에서 고른 지점만(지점이 여럿일 때)
+  const mine = !byLink && (user?.branches?.length ?? 0) > 1 ? (user?.viewBranchId ?? undefined) : undefined;
+  const scope = await tvScope(db, { b: b ?? mine, w });
   const extra = new URLSearchParams();
   if (scope.workplaceId) extra.set("w", scope.workplaceId);
   else if (scope.branchId) extra.set("b", scope.branchId);

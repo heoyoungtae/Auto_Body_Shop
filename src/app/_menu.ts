@@ -413,6 +413,10 @@ export const MENU: MenuGroup[] = [
         href: "/settings/calendar",
       },
       {
+        label: "본점·지점",
+        href: "/settings/branches",
+      },
+      {
         label: "작업장",
         href: "/settings/workplaces",
       },

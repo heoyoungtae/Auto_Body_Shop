@@ -3,6 +3,7 @@ import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { COUNT_KINDS, type CountKind } from "@/modules/purchase/rules";
 import { listCounts, listStock } from "@/modules/purchase/stock";
+import { branchStock } from "@/modules/purchase/transfer";
 import { loadPolicy } from "@/modules/platform/policy";
 import { AssistForm } from "../../_assist";
 import { NumberField, TextAreaField } from "../../_input";
@@ -19,6 +20,11 @@ export default async function StockCountPage({ searchParams }: { searchParams: P
   const kind: CountKind = q.kind === "quarterly" ? "quarterly" : "monthly";
   const [all, counts, p] = await Promise.all([listStock(db, "all"), listCounts(db), loadPolicy(db)]);
   const items = kind === "monthly" ? all.filter((i) => i.kind === "paint" || i.unitWon >= 30_000) : all;
+  // 지점이 여럿이면 지금 지점의 장부 수량과 맞춘다
+  const many = (user.branches?.length ?? 0) > 1;
+  const bs = many ? (await branchStock(db, items.map((i) => i.id))).by : null;
+  const bookOf = (i: { id: string; qty: number }) => (bs && user.branchId ? (bs.get(i.id)?.get(user.branchId)?.qty ?? 0) : i.qty);
+  const brName = many ? user.branches!.find((b) => b.id === user.branchId)?.name : undefined;
   return (
     <>
       <PageTitle
@@ -30,7 +36,7 @@ export default async function StockCountPage({ searchParams }: { searchParams: P
           </Link>
         }
       >
-        재고 실사
+        {brName ? `재고 실사 · ${brName}` : "재고 실사"}
       </PageTitle>
       <ErrorBox message={q.error} />
       {!can(user, "stock.manage") ? (
@@ -52,7 +58,7 @@ export default async function StockCountPage({ searchParams }: { searchParams: P
                   {items.map((i) => (
                     <div key={i.id}>
                       <input type="hidden" name="itemId" value={i.id} />
-                      <NumberField help="st.actual" name={`actual_${i.id}`} label={`${i.name}${i.spec ? ` ${i.spec}` : ""}${i.location ? ` (${i.location})` : ""}`} min={0} unit={i.unit} current={i.qty} />
+                      <NumberField help="st.actual" name={`actual_${i.id}`} label={`${i.name}${i.spec ? ` ${i.spec}` : ""}${i.location ? ` (${i.location})` : ""}`} min={0} unit={i.unit} current={bookOf(i)} />
                     </div>
                   ))}
                 </div>

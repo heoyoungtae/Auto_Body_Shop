@@ -7,6 +7,7 @@ const ITEMS: { href: string; title: string; body: string; help: PageHelpKey }[] 
   { help: "settings.shop", href: "/settings/shop", title: "사업장 정보", body: "업체명·대표자·사업자등록번호·정비업 등록번호·주소. 법정 견적서·정비명세서에 찍힙니다." },
   { help: "settings.labor", href: "/settings/labor", title: "공임 기준표(F-03-01)", body: "시간당 공임, 작업별 표준 시간, 패널당 도장 단가와 도장 등급 계수. 견적이 이 표로 계산됩니다." },
   { help: "settings.bodyParts", href: "/settings/body-parts", title: "차 부위·세부 부위", body: "차 그림의 부위 안에서 쓰는 세부 부품 이름. 기본 목록에 없는 부품을 더하면 진단 화면 목록에 나옵니다." },
+  { help: "settings.branches", href: "/settings/branches", title: "본점·지점", body: "본점과 지점 목록, 직원의 소속 지점과 지점별 역할. 지점이 하나뿐이면 다른 화면은 그대로입니다." },
   { help: "settings.workplaces", href: "/settings/workplaces", title: "작업장", body: "같은 부지 안의 판금동·도장 부스·덴트실·광택장·창고 목록. 공정 배정·설비 위치·5S 구역이 이 목록을 씁니다." },
   { help: "settings.policies", href: "/settings/policies", title: "정책값(부록 D)", body: "기한·주기·기준 점수 같은 숫자 규칙. 대표가 바꾸고, 바꾼 이력이 남습니다." },
   { help: "settings.delegation", href: "/settings/delegation", title: "전결 규정(부록 B)", body: "업무와 금액별 최종 승인자. 대표가 구간을 바꿉니다." },

@@ -5,6 +5,7 @@ import { stockList } from "@/modules/listq/defs/purchase";
 import { can } from "@/modules/auth/permissions";
 import { STOCK_KINDS, STOP_REASONS, suggestOrderQty, type StockKind, type StopReason } from "@/modules/purchase/rules";
 import { listStock, type StockFilter } from "@/modules/purchase/stock";
+import { branchStock } from "@/modules/purchase/transfer";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../_assist";
 import { CheckGroup } from "../_input";
@@ -36,6 +37,11 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
   const low = f === "low" ? rows : await listStock(db, "low");
   const manage = can(user, "stock.manage");
   const today = seoulDate();
+  // 지점이 여럿이면 지점별 수량을 보인다(고른 지점 수량 + 전체). 지점이 하나면 그대로
+  const brs = user.branches ?? [];
+  const many = brs.length > 1;
+  const bs = many ? (await branchStock(db, rows.map((r) => r.id))).by : null;
+  const view = user.viewBranchId ?? null;
   return (
     <>
       <PageTitle
@@ -46,6 +52,11 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             {can(user, "stock.use") && (
               <Link href="/stock/use" className={buttonClass()}>
                 자재 사용 기록
+              </Link>
+            )}
+            {many && (
+              <Link href="/stock/transfers" className={buttonClass("secondary")}>
+                재고 이동
               </Link>
             )}
             {manage && (
@@ -93,7 +104,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                     <th className="py-1.5 pr-2">품목</th>
                     <th className="pr-2">구분</th>
                     <th className="pr-2">위치</th>
-                    <th className="pr-2 text-right">수량</th>
+                    <th className="pr-2 text-right">{many && view ? `수량(${brs.find((b) => b.id === view)?.name ?? ""})` : "수량"}</th>
                     <th className="pr-2 text-right">안전 재고</th>
                     <th className="pr-2">가까운 유효기간</th>
                     <th>업체</th>
@@ -119,8 +130,17 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                       <td className="pr-2 text-xs">{STOCK_KINDS[r.kind as StockKind]}</td>
                       <td className="pr-2 text-xs">{r.location ?? "-"}</td>
                       <td className={`pr-2 text-right whitespace-nowrap ${r.low ? "font-bold text-[var(--danger)]" : ""}`}>
-                        {r.qty}
+                        {bs && view ? (bs.get(r.id)?.get(view)?.qty ?? 0) : r.qty}
                         {r.unit}
+                        {bs && (
+                          <span className="block text-xs font-normal text-[var(--muted)]">
+                            {view
+                              ? `전체 ${r.qty}${r.unit}`
+                              : brs
+                                  .map((b) => `${b.name} ${bs.get(r.id)?.get(b.id)?.qty ?? 0}`)
+                                  .join(" · ")}
+                          </span>
+                        )}
                       </td>
                       <td className="pr-2 text-right text-xs whitespace-nowrap">
                         {r.safetyQty}

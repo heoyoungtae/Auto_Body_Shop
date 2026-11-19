@@ -11,7 +11,7 @@ import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { resolveApprover } from "@/modules/platform/delegation";
-import { nextDocNo } from "@/modules/platform/docno";
+import { actorBranch, branchDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
@@ -64,11 +64,14 @@ export async function createOrder(db: Db, actor: Actor, input: { kind: "repair" 
   if (input.kind === "repair" && !input.repairOrderId) throw new PurchaseError("수리 건 부품 발주는 수리 건에서 만듭니다");
   // 만들 때 품목을 같이 적었으면(한꺼번에 넣기) 먼저 확인한다. 품목 없이 만들어도 되고 나중에 넣는다
   const vals = input.lines?.some((l) => l.name.trim()) ? await prepareLines(db, input.kind, input.lines) : [];
+  // 수리 건 발주는 그 수리 건의 지점, 재고 발주는 발주하는 사람의 지금 지점
+  const [ro] = input.repairOrderId ? await db.select({ b: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, input.repairOrderId)) : [];
+  const branchId = ro?.b ?? actorBranch(actor);
   const id = await db.transaction(async (tx) => {
-    const docNo = await nextDocNo(tx, "PO", now);
+    const docNo = await branchDocNo(tx, "PO", now, branchId);
     const [o] = await tx
       .insert(purchaseOrder)
-      .values({ docNo, kind: input.kind, repairOrderId: input.repairOrderId ?? null, supplierId: input.supplierId || null, dueOn: input.dueOn || null, note: clean(input.note), createdBy: actor.id, createdAt: now, updatedAt: now })
+      .values({ docNo, branchId, kind: input.kind, repairOrderId: input.repairOrderId ?? null, supplierId: input.supplierId || null, dueOn: input.dueOn || null, note: clean(input.note), createdBy: actor.id, createdAt: now, updatedAt: now })
       .returning({ id: purchaseOrder.id });
     let seq = 0;
     for (const v of vals) await tx.insert(purchaseLine).values({ orderId: o.id, seq: ++seq, ...v });
@@ -98,14 +101,14 @@ export async function draftFromEstimate(db: Db, estimateId: string, actorId: str
   );
   const left = parts.filter((p) => !used.has(p.id));
   if (!left.length) return null;
-  const [ro] = await db.select({ docNo: repairOrder.docNo }).from(repairOrder).where(eq(repairOrder.id, e.repairOrderId));
+  const [ro] = await db.select({ docNo: repairOrder.docNo, branchId: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, e.repairOrderId));
   const due = await roDueDate(db, e.repairOrderId);
   const today = seoulDate(now);
   const id = await db.transaction(async (tx) => {
-    const docNo = await nextDocNo(tx, "PO", now);
+    const docNo = await branchDocNo(tx, "PO", now, ro?.branchId);
     const [o] = await tx
       .insert(purchaseOrder)
-      .values({ docNo, kind: "repair", repairOrderId: e.repairOrderId, estimateId, dueOn: due && due > today ? addDays(due, -1) : null, note: `견적 ${e.docNo} 승인 부품`, createdBy: actorId, createdAt: now, updatedAt: now })
+      .values({ docNo, branchId: ro?.branchId, kind: "repair", repairOrderId: e.repairOrderId, estimateId, dueOn: due && due > today ? addDays(due, -1) : null, note: `견적 ${e.docNo} 승인 부품`, createdBy: actorId, createdAt: now, updatedAt: now })
       .returning({ id: purchaseOrder.id, docNo: purchaseOrder.docNo });
     let seq = 0;
     for (const p of left)
@@ -350,7 +353,7 @@ export async function receiveOrder(db: Db, actor: Actor, id: string, input: Rece
       const it = l.stockItemId ? items.get(l.stockItemId) : null;
       if (it && g.ok > 0) {
         // 입고 금액 = 발주 단가(공급가) × 합격 수량. 평균 단가는 장부 금액 ÷ 수량으로 다시 나온다(이동평균)
-        const c = await postMove(tx, it, { qty: g.ok, reason: "receive", ref: o.docNo, lot: clean(g.lot), by: actor.id, at: now }, l.unitWon || it.unitWon);
+        const c = await postMove(tx, it, { branchId: o.branchId, qty: g.ok, reason: "receive", ref: o.docNo, lot: clean(g.lot), by: actor.id, at: now }, l.unitWon || it.unitWon);
         await tx.update(stockItem).set({ qty: it.qty + g.ok, unitWon: l.unitWon || it.unitWon, location: clean(g.location) ?? it.location, updatedAt: now }).where(eq(stockItem.id, it.id));
         it.qty += g.ok;
         it.valueWon = c.balWon;

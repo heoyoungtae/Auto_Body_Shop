@@ -146,7 +146,7 @@ export const STOCK_KINDS = { paint: "도료(퍼티·경화제 포함)", consumab
 export type StockKind = keyof typeof STOCK_KINDS;
 export const isStockKind = (s: string): s is StockKind => s in STOCK_KINDS;
 export const STOCK_UNITS = ["개", "통", "캔", "L", "kg", "롤", "장", "박스", "세트"] as const;
-export const MOVE_REASON = { receive: "입고", use: "사용", count: "실사 조정", discard: "폐기(유효기간)" } as const;
+export const MOVE_REASON = { receive: "입고", use: "사용", count: "실사 조정", discard: "폐기(유효기간)", transfer: "지점 이동" } as const;
 /** 유효기간 알림(7절: 30일 전) */
 export const EXPIRY_ALERT_DAYS = 30;
 export const COUNT_KINDS = { monthly: "월말 실사(도료·고가 소모품)", quarterly: "분기 말 전체 실사" } as const;

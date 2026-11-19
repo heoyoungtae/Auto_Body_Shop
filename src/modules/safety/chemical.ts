@@ -5,6 +5,7 @@ import type { Db } from "@/db/client";
 import { chemical } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
+import { actorBranch } from "@/modules/platform/docno";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
@@ -113,7 +114,7 @@ export async function createChemical(
   }
   const [r] = await db
     .insert(chemical)
-    .values({ ...v, createdBy: actor.id, createdAt: now, updatedAt: now })
+    .values({ ...v, branchId: actorBranch(actor), createdBy: actor.id, createdAt: now, updatedAt: now })
     .returning({ id: chemical.id });
   if (msds?.bytes.length) await putMsds(db, r.id, msds, now);
   await writeAudit(db, {

@@ -246,6 +246,8 @@ export function OrderCard({ users, today, defaultFrom }: { users: { id: string; 
 
 /** onSite: 서버가 정비소 미니 PC 일 때 '서버와 같은 인터넷' 칸을 보인다. serverIp 는 서버가 지금 쓰는 정비소 공인 IP */
 export function PlaceCard({
+  branchId,
+  branchName,
   ips,
   myIp,
   sameAsServer = false,
@@ -254,6 +256,9 @@ export function PlaceCard({
   sameAsTv = false,
   tv = { v4: "", v6: "", at: null },
 }: {
+  /** 지점이 여럿일 때 어느 지점의 주소인지 */
+  branchId?: string;
+  branchName?: string;
   ips: string[];
   myIp: string;
   sameAsServer?: boolean;
@@ -266,8 +271,9 @@ export function PlaceCard({
   const none = !ips.length && !sameAsServer && !(sameAsTv && tvIp);
   const prefill = ips.length ? ips.join("\n") : onSite || sameAsTv ? "" : myIp;
   return (
-    <Card title="정비소 인터넷 주소" help={{ kind: "panel", id: "punch.config" }}>
-      <AssistForm id="punch-config" action={savePunchConfigAction} className="space-y-3">
+    <Card title={branchName ? `${branchName} 인터넷 주소` : "정비소 인터넷 주소"} help={{ kind: "panel", id: "punch.config" }}>
+      <AssistForm id={`punch-config${branchId ? `-${branchId}` : ""}`} action={savePunchConfigAction} className="space-y-3">
+        {branchId && <input type="hidden" name="branchId" value={branchId} />}
         <CheckGroup help="punch.sameAsTv" name="sameAsTv" options={[{ value: "1", label: "정비소 TV 현황판과 같은 인터넷이면 허용" }]} defaultChecked={sameAsTv || (none && !onSite) ? ["1"] : []} />
         <p className="text-xs text-[var(--muted)]">
           현황판이 접속해 온 정비소 주소: <b>{tvIp || "아직 없음(TV 링크로 띄운 현황판이 10분쯤 켜져 있으면 잡힙니다)"}</b>

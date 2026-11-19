@@ -8,7 +8,7 @@ import { decrypt, encrypt } from "@/modules/auth/crypto";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { nextDocNo, actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { openNc } from "@/modules/quality/nc";
@@ -74,6 +74,7 @@ export async function reportIncident(
     .insert(incident)
     .values({
       docNo,
+      branchId: actorBranch(actor),
       kind,
       occurredAt: at,
       place: input.place.trim(),
@@ -283,6 +284,7 @@ export async function listIncidents(db: Db, filter: IncidentFilter = "open") {
   const rows = await db
     .select({
       id: incident.id,
+      branchId: incident.branchId,
       docNo: incident.docNo,
       kind: incident.kind,
       occurredAt: incident.occurredAt,

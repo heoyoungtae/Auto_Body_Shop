@@ -5,6 +5,7 @@ import type { Db } from "@/db/client";
 import { appUser, fixture, fixtureEvent, supplier } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
+import { actorBranch } from "@/modules/platform/docno";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
@@ -65,7 +66,7 @@ export async function registerFixture(db: Db, actor: Actor, input: FixtureInput,
   const dep = { expenseId: input.expenseId || null, depMethod: v.priceWon <= p["asset.immediate_max"] ? "expense" : p["asset.dep_declining"] ? "db" : "sl", usefulYears: p["asset.fixture_years"], depStartOn: v.purchasedOn };
   const [row] = await db
     .insert(fixture)
-    .values({ ...v, ...dep, no, managerId: input.managerId || null, subManagerId: input.subManagerId || null, asset: v.priceWon >= p["asset.register_min"], createdBy: actor.id, createdAt: now, updatedAt: now })
+    .values({ ...v, ...dep, no, branchId: actorBranch(actor), managerId: input.managerId || null, subManagerId: input.subManagerId || null, asset: v.priceWon >= p["asset.register_min"], createdBy: actor.id, createdAt: now, updatedAt: now })
     .returning({ id: fixture.id });
   await event(db, row.id, "register", `${FX_CATEGORIES[v.category as keyof typeof FX_CATEGORIES]} ${v.priceWon.toLocaleString("ko-KR")}원${v.location ? ` · ${v.location}` : ""}`, actor.id, now);
   await writeAudit(db, { actorId: actor.id, action: "fixture.create", entityType: "fixture", entityId: no, after: { name: v.name, price: v.priceWon } });

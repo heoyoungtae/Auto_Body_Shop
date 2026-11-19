@@ -6,7 +6,8 @@ import type { Role } from "@/modules/auth/roles";
 import { periodOf, isIsoDate } from "@/modules/report/period";
 import { addDays, seoulDate } from "@/modules/platform/time";
 
-export type Who = { id: string; name?: string; roles: Role[] };
+/** viewBranchId: 지금 보는 지점(지점이 여럿일 때). null·없음 = 전체 */
+export type Who = { id: string; name?: string; roles: Role[]; viewBranchId?: string | null };
 export type Q = Record<string, string | undefined>;
 
 export const PRESETS = {
@@ -54,6 +55,8 @@ export type ListDef<R> = {
   preset?: Preset;
   /** 상태 탭(주소 이름 param, 첫째가 기본). 화면 단추·엑셀 조건 줄에 쓴다 */
   tabs?: { param: string; options: readonly { v: string; label: string }[] };
+  /** 줄의 지점(지점이 여럿일 때 지금 보는 지점 줄만 남긴다). 없으면 줄의 branchId. 지점이 없는 줄(회사 공용)은 늘 남는다 */
+  branch?: (r: R) => string | null | undefined;
 };
 
 /** 지금 고른 상태 탭 값(잘못된 값이면 첫째) */
@@ -171,7 +174,11 @@ export class ListAccessError extends Error {}
 export async function runList<R>(db: Db, def: ListDef<R>, u: Who, q: Q, today = seoulDate()): Promise<ListResult<R>> {
   if (!def.allowed(u)) throw new ListAccessError("이 목록을 볼 권한이 없습니다");
   const lq = parseLQ(q, def, today);
-  const rows = await def.load(db, u, q, lq);
+  const all = await def.load(db, u, q, lq);
+  // 지점이 여럿이면 화면 위에서 고른 지점 줄만(대표·회계가 '전체'를 고르면 다). 지점이 하나면 viewBranchId 는 본점이라 그대로
+  const view = u.viewBranchId;
+  const branchOf = def.branch ?? ((r: R) => (r as { branchId?: string | null }).branchId);
+  const rows = view ? all.filter((r) => { const b = branchOf(r); return !b || b === view; }) : all;
   return applyLQ(def, rows, lq, q);
 }
 

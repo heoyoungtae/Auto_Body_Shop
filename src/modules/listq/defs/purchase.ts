@@ -21,6 +21,7 @@ export const PO_TABS = [
   { v: "all", label: "전체" },
 ] as const;
 export const ordersList: ListDef<Po> = {
+  branch: (r) => r.o.branchId,
   key: "purchases",
   title: "발주서",
   href: "/purchases",
@@ -167,6 +168,7 @@ export const FX_TABS = [
   { v: "all", label: "전체" },
 ] as const;
 export const fixturesList: ListDef<Fx> = {
+  branch: (r) => r.f.branchId,
   key: "fixtures",
   title: "비품 대장",
   href: "/fixtures",

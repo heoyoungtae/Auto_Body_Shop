@@ -8,7 +8,7 @@ import { appUser, customer, estimate, estimateLine, repairOrder, vehicle, workOr
 import { rolesOf, usersWithRole } from "@/modules/approval/line";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
@@ -54,7 +54,7 @@ export async function createWorkOrder(db: Db, actor: Actor, roId: string, now = 
   // 작업장은 공정 종류로 자동으로 채운다(대표 지시 2026-11-19). 작업장을 등록하지 않았으면 비워 둔다
   const filled = fillWorkplaces(steps, await workplaceState(db, r.branchId));
   return db.transaction(async (tx) => {
-    const docNo = await nextDocNo(tx, "WO", now);
+    const docNo = await branchDocNo(tx, "WO", now, r.branchId);
     const [w] = await tx.insert(workOrder).values({ docNo, repairOrderId: roId, estimateId: e.id, dueDate: e.dueDate, createdBy: actor.id }).returning({ id: workOrder.id });
     await tx.insert(workStep).values(filled.map((s, i) => ({ ...s, workOrderId: w.id, seq: i + 1 })));
     await writeAudit(tx, { actorId: actor.id, action: "work.create", entityType: "work_order", entityId: docNo, after: { ro: r.docNo, estimate: e.docNo, steps: steps.map((s) => s.process) } });
@@ -232,15 +232,17 @@ export async function workOrdersOfRo(db: Db, roId: string) {
 }
 
 /** 작업 현황판: 진행 중인 작업 지시서와 지금 공정, 그리고 지시서가 아직 없는 승인 건 */
-export async function workBoard(db: Db, now = new Date()) {
+/** branchId: 지금 보는 지점만(없으면 전체) */
+export async function workBoard(db: Db, now = new Date(), branchId?: string | null) {
   const today = seoulDate(now);
+  const inBranch = branchId ? eq(repairOrder.branchId, branchId) : undefined;
   const wos = await db
     .select({ id: workOrder.id, docNo: workOrder.docNo, status: workOrder.status, dueDate: workOrder.dueDate, roId: repairOrder.id, roNo: repairOrder.docNo, customerName: customer.name, plateNo: vehicle.plateNo, model: vehicle.model })
     .from(workOrder)
     .innerJoin(repairOrder, eq(repairOrder.id, workOrder.repairOrderId))
     .innerJoin(customer, eq(customer.id, repairOrder.customerId))
     .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
-    .where(inArray(workOrder.status, ["planned", "working"]))
+    .where(and(inArray(workOrder.status, ["planned", "working"]), inBranch))
     .orderBy(asc(workOrder.dueDate));
   const steps = wos.length ? await db.select().from(workStep).where(inArray(workStep.workOrderId, wos.map((w) => w.id))).orderBy(asc(workStep.seq)) : [];
   const userIds = [...new Set(steps.map((s) => s.assignee).filter((x): x is string => !!x))];
@@ -262,7 +264,7 @@ export async function workBoard(db: Db, now = new Date()) {
     .from(repairOrder)
     .innerJoin(customer, eq(customer.id, repairOrder.customerId))
     .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
-    .where(eq(repairOrder.status, "working"));
+    .where(and(eq(repairOrder.status, "working"), inBranch));
   const withWo = new Set((await db.select({ roId: workOrder.repairOrderId }).from(workOrder)).map((x) => x.roId));
   return { board, needOrder: waiting.filter((x) => !withWo.has(x.roId)) };
 }
@@ -270,7 +272,7 @@ export async function workBoard(db: Db, now = new Date()) {
 /** 내 할 일: 기술자는 내 공정(시작 가능·작업 중), 공장장은 지시서 만들기·배정 안 된 공정 */
 export async function workTodos(db: Db, user: Actor, now = new Date()) {
   const out: { key: string; kind: "order" | "assign" | "mine"; label: string; href: string; detail: string; started?: boolean }[] = [];
-  const { board, needOrder } = await workBoard(db, now);
+  const { board, needOrder } = await workBoard(db, now, (user as { viewBranchId?: string | null }).viewBranchId);
   if (isBoss(user)) {
     for (const n of needOrder) out.push({ key: `wo-${n.roId}`, kind: "order", label: `${n.roNo} ${n.customerName} ${n.plateNo}`, href: `/repairs/${n.roId}#work`, detail: "고객 승인 끝 — 작업 지시서를 만들고 공정을 배정합니다" });
     for (const b of board) if (b.unassigned) out.push({ key: `wa-${b.id}`, kind: "assign", label: `${b.docNo}(${b.roNo})`, href: `/work/${b.id}`, detail: `담당 안 정한 공정 ${b.unassigned}개` });

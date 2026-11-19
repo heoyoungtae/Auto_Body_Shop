@@ -1,6 +1,7 @@
 // 최종 검사(F-05-01)와 출고(점검·정비명세서 별지 제89호의2, 인수 확인 F-05-02) — STD-05.
 // 검사자는 주 작업자가 아니어야 하고(공장장만 예외, 사유 기록), 불합격이면 재작업 공정이 생겨 다시 검사한다.
 // 합격하면 출고 대기. 정비명세서는 승인한 견적 줄로 만들고, 고객 인수 서명을 받으면 출고된다.
+import { branchShopInfo } from "@/modules/platform/branch";
 import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -10,11 +11,11 @@ import { phoneForNotice } from "@/modules/customer/service";
 import { sendNotice } from "@/modules/messaging/service";
 import { issueNc } from "@/modules/quality/nc";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
-import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
+import { shopMissing } from "@/modules/platform/shop";
 import { userSignature } from "@/modules/auth/signature";
 import { inspectorIssue } from "@/modules/staff/service";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
@@ -173,7 +174,7 @@ export async function issueStatement(db: Db, actor: Actor, roId: string, input: 
   if (old) return { id: old.id, created: false };
   if (input.mileageOut == null) throw new InspectError("출고 때 주행거리를 계기판에서 다시 읽어 적어 주세요(STD-04 4.4)");
   if (r.mileage != null && input.mileageOut < r.mileage) throw new InspectError(`출고 주행거리가 입고 때(${r.mileage.toLocaleString("ko-KR")}km)보다 작습니다`);
-  const shop = await loadShopInfo(db);
+  const shop = await branchShopInfo(db, r.branchId);
   const missing = shopMissing(shop);
   if (missing.length) throw new InspectError(`설정 › 사업장 정보에 ${missing.join("·")}이(가) 비어 있어 발급할 수 없습니다`);
   const e = await approvedEstimateOf(db, roId);
@@ -210,7 +211,7 @@ export async function issueStatement(db: Db, actor: Actor, roId: string, input: 
     noWashDays: p["delivery.no_wash_days"],
   };
   return db.transaction(async (tx) => {
-    const docNo = await nextDocNo(tx, "IV", now);
+    const docNo = await branchDocNo(tx, "IV", now, r.branchId);
     const [s] = await tx.insert(repairStatement).values({ docNo, repairOrderId: roId, estimateId: e.id, snapshot, partsWon: t.parts, laborWon: t.labor, vatWon: t.vat, totalWon: t.total, mileageOut: input.mileageOut, issuedOn: today, issuedBy: actor.id }).returning({ id: repairStatement.id });
     await tx.update(vehicle).set({ mileage: input.mileageOut, updatedAt: now }).where(eq(vehicle.id, r.vehicleId));
     await writeAudit(tx, { actorId: actor.id, action: "statement.issue", entityType: "repair_order", entityId: r.docNo, after: { docNo, total: t.total } });

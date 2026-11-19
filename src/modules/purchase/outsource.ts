@@ -9,7 +9,7 @@ import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { resolveApprover } from "@/modules/platform/delegation";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
@@ -78,12 +78,12 @@ export async function createOutsource(db: Db, actor: Actor, roId: string, input:
   const v = check(input);
   const s = await usableSupplier(db, v.supplierId, emergency, seoulDate(now));
   if (!s.kinds.includes("outsource")) throw new OutsourceError(`${s.name}은(는) 외주 가공 업체로 등록되지 않았습니다`);
-  const [ro] = await db.select({ status: repairOrder.status, docNo: repairOrder.docNo }).from(repairOrder).where(eq(repairOrder.id, roId));
+  const [ro] = await db.select({ status: repairOrder.status, docNo: repairOrder.docNo, branchId: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, roId));
   if (!ro) throw new OutsourceError("수리 건을 찾을 수 없습니다");
   if (ro.status === "delivered" || ro.status === "cancelled") throw new OutsourceError("출고했거나 취소한 수리 건입니다");
   const role = await resolveApprover(db, "purchase", v.amountWon, actor.roles, seoulDate(now));
   const j = await db.transaction(async (tx) => {
-    const docNo = await nextDocNo(tx, "OS", now);
+    const docNo = await branchDocNo(tx, "OS", now, ro.branchId);
     const [r] = await tx.insert(outsourceJob).values({ docNo, repairOrderId: roId, ...v, status: "review", approverRole: role, createdBy: actor.id, createdAt: now, updatedAt: now }).returning({ id: outsourceJob.id, docNo: outsourceJob.docNo });
     return r;
   });
@@ -220,7 +220,7 @@ export type OsFilter = "open" | "done" | "all";
 
 export async function listOutsource(db: Db, filter: OsFilter = "open", max = 300) {
   const rows = await db
-    .select({ j: outsourceJob, supplierName: supplier.name, roDocNo: repairOrder.docNo, plateNo: vehicle.plateNo })
+    .select({ j: outsourceJob, branchId: repairOrder.branchId, supplierName: supplier.name, roDocNo: repairOrder.docNo, plateNo: vehicle.plateNo })
     .from(outsourceJob)
     .innerJoin(supplier, eq(supplier.id, outsourceJob.supplierId))
     .innerJoin(repairOrder, eq(repairOrder.id, outsourceJob.repairOrderId))

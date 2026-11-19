@@ -4,11 +4,11 @@ import { closedReason, type ShopCalendar } from "@/modules/platform/business-day
 import { loadShopCalendar } from "@/modules/platform/calendar";
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, consent, consentRequest, consultation, customer, vehicle } from "@/db/schema";
+import { appUser, consent, MAIN_BRANCH_ID, consentRequest, consultation, customer, vehicle } from "@/db/schema";
 import { decrypt, encrypt, maskPhone, normalizePhone, phoneHash, randomToken, sha256 } from "@/modules/auth/crypto";
 import { sendNotice } from "@/modules/messaging/service";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
@@ -319,6 +319,8 @@ export async function updateBusiness(db: Db, actorId: string, id: string, kind: 
 
 // ── 상담 일지(F-01-01) ──
 export type ConsultInput = {
+  /** 상담을 받은 지점(상담자의 지금 지점). 없으면 본점 */
+  branchId?: string;
   /** 기존 고객이면 id. 없으면 newCustomer 로 만든다(같은 번호가 있으면 그 고객을 다시 쓴다) */
   customerId?: string;
   newCustomer?: { name: string; phone: string };
@@ -451,13 +453,15 @@ async function createConsultationTx(db: Db, actorId: string, input: ConsultInput
 
     // 3) 결과(예약·재연락·거절)
     const res = await resultFields(tx, input, input.insurance, claimNo, now);
-    const docNo = await nextDocNo(tx, "CS", now);
+    const branchId = input.branchId ?? MAIN_BRANCH_ID;
+    const docNo = await branchDocNo(tx, "CS", now, branchId);
     // 전화·방문은 그 자리에서 답한 것. 문자·화면·소개로 들어온 것은 회신 기한을 둔다
     const answered = input.channel === "phone" || input.channel === "visit";
     const [row] = await tx
       .insert(consultation)
       .values({
         docNo,
+        branchId,
         at: now,
         channel: input.channel,
         customerId,
@@ -584,6 +588,7 @@ export async function listConsultations(db: Db, filter: ConsultFilter, now = new
   const rows = await db
     .select({
       id: consultation.id,
+      branchId: consultation.branchId,
       docNo: consultation.docNo,
       at: consultation.at,
       channel: consultation.channel,

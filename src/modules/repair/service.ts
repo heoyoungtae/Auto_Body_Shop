@@ -9,7 +9,7 @@ import type { Role } from "@/modules/auth/roles";
 import { notifyRole } from "@/modules/platform/notify";
 import { changeConsent, consentState, saveVehicle } from "@/modules/customer/service";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { loadPolicy } from "@/modules/platform/policy";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
@@ -51,11 +51,11 @@ export async function startRepair(db: Db, actorId: string, consultationId: strin
   if (!c.vehicleId) throw new RepairError("상담에 차량이 없습니다. 상담의 '고치기'에서 차량번호를 넣고 다시 눌러 주세요");
   if (c.result === "declined") throw new RepairError("거절·보류된 상담입니다. 다시 온 것이면 '이 값으로 새 상담'으로 상담을 새로 쓰고 입고하세요");
   return db.transaction(async (tx) => {
-    const docNo = await nextDocNo(tx, "RO", now);
+    const docNo = await branchDocNo(tx, "RO", now, c.branchId);
     const [ro] = await tx
       .insert(repairOrder)
       // 상담에서 차 그림에 찍은 부위는 입고 도면의 수리 대상(O)으로 미리 찍어 둔다(다시 찍지 않게)
-      .values({ docNo, consultationId, customerId: c.customerId, vehicleId: c.vehicleId!, insurance: c.insurance, insurer: c.insurer, claimNo: c.claimNo, inAt: now, keyTag: docNo, advisorId: actorId, marks: consultMarks(c.damageZones) })
+      .values({ docNo, branchId: c.branchId, consultationId, customerId: c.customerId, vehicleId: c.vehicleId!, insurance: c.insurance, insurer: c.insurer, claimNo: c.claimNo, inAt: now, keyTag: docNo, advisorId: actorId, marks: consultMarks(c.damageZones) })
       .returning({ id: repairOrder.id });
     await tx.update(consultation).set({ result: "converted", updatedAt: now }).where(eq(consultation.id, consultationId));
     await writeAudit(tx, { actorId, action: "repair.create", entityType: "repair_order", entityId: docNo, after: { consult: c.docNo } });
@@ -294,6 +294,7 @@ export async function listRepairs(db: Db, filter: "open" | "intake" | "checked" 
   const rows = await db
     .select({
       id: repairOrder.id,
+      branchId: repairOrder.branchId,
       docNo: repairOrder.docNo,
       status: repairOrder.status,
       inAt: repairOrder.inAt,

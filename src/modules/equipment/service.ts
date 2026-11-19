@@ -5,7 +5,7 @@ import { appUser, equipment, fiveSZone, workplace, equipmentCalibration, equipme
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { nextDocNo, actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
@@ -173,7 +173,7 @@ export async function saveEquipment(db: Db, actor: Actor, input: EquipmentInput,
   const dep = { expenseId: clean(input.expenseId), depMethod: price <= p["asset.immediate_max"] ? "expense" : p["asset.dep_declining"] ? "db" : "sl", usefulYears: p["asset.equipment_years"], depStartOn: values.trialOn ?? values.boughtOn };
   const [row] = await db
     .insert(equipment)
-    .values({ ...values, ...dep, no, createdBy: actor.id, createdAt: now })
+    .values({ ...values, ...dep, no, branchId: actorBranch(actor), createdBy: actor.id, createdAt: now })
     .returning({ id: equipment.id });
   await writeAudit(db, { actorId: actor.id, action: "equipment.create", entityType: "equipment", entityId: no, after: { name, grade: input.grade } });
   return { id: row.id, no, warnings: equipmentWarnings(input) };

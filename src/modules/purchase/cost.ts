@@ -27,7 +27,8 @@ export function moveCost(before: { qty: number; valueWon: number; unitWon: numbe
   return { unitWon: qty ? Math.round(Math.abs(amount / qty)) : Math.round(avgUnit({ qty: bq, valueWon: bv, unitWon: before.unitWon })), amountWon: amount, balQty, balWon };
 }
 
-export type MoveInput = { qty: number; reason: "receive" | "use" | "count" | "discard"; ref?: string | null; repairOrderId?: string | null; lot?: string | null; note?: string | null; by: string; at: Date };
+/** branchId: 움직인 지점(없으면 본점). transfer = 지점 사이 이동(회사 전체 재고·장부 금액은 그대로) */
+export type MoveInput = { branchId?: string | null; qty: number; reason: "receive" | "use" | "count" | "discard"; ref?: string | null; repairOrderId?: string | null; lot?: string | null; note?: string | null; by: string; at: Date };
 
 /**
  * 움직임 기록 + 장부 금액 맞추기. item 은 움직이기 전 장부(수량·금액·최근 매입 단가).
@@ -36,6 +37,6 @@ export type MoveInput = { qty: number; reason: "receive" | "use" | "count" | "di
 export async function postMove(tx: Tx | Db, item: { id: string; qty: number; valueWon: number; unitWon: number }, mv: MoveInput, inUnit?: number | null) {
   const c = moveCost(item, mv.qty, inUnit);
   await tx.update(stockItem).set({ valueWon: c.balWon }).where(eq(stockItem.id, item.id));
-  await tx.insert(stockMove).values({ itemId: item.id, qty: mv.qty, reason: mv.reason, ref: mv.ref ?? null, repairOrderId: mv.repairOrderId ?? null, lot: mv.lot ?? null, note: mv.note ?? null, unitWon: c.unitWon, amountWon: c.amountWon, by: mv.by, at: mv.at });
+  await tx.insert(stockMove).values({ ...(mv.branchId ? { branchId: mv.branchId } : {}), itemId: item.id, qty: mv.qty, reason: mv.reason, ref: mv.ref ?? null, repairOrderId: mv.repairOrderId ?? null, lot: mv.lot ?? null, note: mv.note ?? null, unitWon: c.unitWon, amountWon: c.amountWon, by: mv.by, at: mv.at });
   return c;
 }

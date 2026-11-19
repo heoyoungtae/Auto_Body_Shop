@@ -146,7 +146,7 @@ export const dailyClose = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [uniqueIndex("daily_close_day_uq").on(t.day)],
+  (t) => [uniqueIndex("daily_close_branch_day_uq").on(t.branchId, t.day)],
 );
 
 /** 월 마감(12.4): 회계가 매출·매입·미수·미지급을 모아 올리고 대표가 승인한다. status: submitted · approved · returned */
