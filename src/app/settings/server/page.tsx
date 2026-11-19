@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { serverOpsView, SILENT_MIN } from "@/modules/platform/server-ops";
 import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
-import { Badge, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
+import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
 import { requestUpdateAction } from "./actions";
 
 const PLACE: Record<string, string> = { home: "대표 자택", shop: "정비소", cloud: "클라우드" };
@@ -32,7 +33,17 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
     : [];
   return (
     <>
-      <PageTitle help="settings.server" sub="서버(미니 PC)의 상태를 보고, 새 버전을 기다리지 않고 바로 올립니다. 서버가 멀리 있어도 여기서 합니다.">
+      <PageTitle
+        help="settings.server"
+        sub="서버(미니 PC)의 상태를 보고, 새 버전을 기다리지 않고 바로 올립니다. 서버가 멀리 있어도 여기서 합니다."
+        actions={
+          owner ? (
+            <Link href="/help/server-guide" className={buttonClass("secondary")}>
+              서버 설명서
+            </Link>
+          ) : undefined
+        }
+      >
         서버
       </PageTitle>
       <div className="mb-4 space-y-2">

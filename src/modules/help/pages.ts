@@ -2375,6 +2375,18 @@ export const PAGE_HELP = {
     terms: ["통장 맞추기"],
     refs: ["사내 표준서 STD-12"],
   },
+  "help.serverGuide": {
+    title: "서버 설명서",
+    purpose: "미니 PC 서버 설치·도메인 연결·출퇴근·데이터 옮기기·백업과 정전 대비·국내 직접 접속·원격 관리(서버가 자택에 있을 때)를 단계별로 설명합니다. 저장소의 설명서(deploy/minipc/README.md)를 그대로 보여 주므로 새 버전이 올라가면 이 화면도 함께 바뀝니다.",
+    who: "대표",
+    steps: [
+      "위쪽 차례에서 할 단계를 누릅니다.",
+      "명령 묶음 오른쪽 위 '복사'를 누르고, 미니 PC 터미널에 Ctrl+Shift+V 로 붙여 넣은 뒤 Enter 를 누릅니다.",
+      "결과가 이상하면 화면 사진을 Claude에게 보여 주세요.",
+    ],
+    tips: ["서버 상태와 '지금 새 버전 올리기'는 설정 › 서버에 있습니다.", "도움말 센터 찾기 칸에 '포트 포워딩', 'UPS', '백업 디스크' 같은 말을 넣으면 설명서의 그 단계가 나옵니다."],
+    refs: ["대표 요청 2026-11-20"],
+  },
   "bank.guide": {
     title: "통장·카드 연동 설명서",
     purpose: "문자 연동(안드로이드 문자 전달 앱·아이폰 단축어)과 엑셀 올리기(은행·카드사·홈택스 메뉴 길), 맞추기, 안 될 때, 나중에 붙일 유료 자동 연동 비교를 단계별로 설명합니다.",
@@ -2770,6 +2782,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/account": "account",
   "/account/first": "account.first",
   "/help": "help",
+  "/help/server-guide": "help.serverGuide",
   "/settings/messaging": "settings.messaging",
   "/settings/kakao": "settings.kakao",
   "/settings/gift": "settings.gift",
