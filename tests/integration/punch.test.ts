@@ -7,7 +7,7 @@ import { notification } from "@/db/schema";
 import { act, getDoc } from "@/modules/approval/service";
 import { DEFAULT_CALENDAR } from "@/modules/platform/business-days";
 import { answerOrder, orderOvertime, pendingOrders, requestLeave } from "@/modules/staff/attendance";
-import { actualDays, dayStatus, missingDays, punchIn, punchOut, punchTodos, savePunchConfig } from "@/modules/staff/punch";
+import { actualDays, dayStatus, loadPunchConfig, missingDays, noteTvIp, punchIn, punchOut, punchTodos, resetPunchCaches, savePunchConfig } from "@/modules/staff/punch";
 import { ipAllowed, recognizedMinutes, unapprovedMinutes, v6Prefix64, validIpRule } from "@/modules/staff/punch-rules";
 import { summarizeAttendance } from "@/modules/staff/payroll-rules";
 import { seedShop, testDb } from "./db";
@@ -125,6 +125,35 @@ describe("서버(미니 PC)와 같은 정비소 인터넷", () => {
     await expect(punchIn(db, pm(), "172.30.1.23", at("09:00"))).rejects.toThrow(/정비소 인터넷/);
     vi.stubEnv("SERVER_LAN_CIDR", "172.30.1.0/24");
     await punchIn(db, pm(), "172.30.1.23", at("09:00"));
+  });
+});
+
+describe("정비소 TV 현황판과 같은 인터넷(서버가 대표 자택에 있을 때)", () => {
+  beforeEach(() => resetPunchCaches());
+  afterEach(() => vi.unstubAllGlobals());
+  it("TV 링크 현황판이 10분쯤 꾸준히 접속한 주소를 정비소 주소로 따라가고, 잠깐 연 주소·서버 자신·내부망은 잡지 않는다", async () => {
+    const HOME = "61.70.1.2";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(`fl=1\nip=${HOME}\nts=1\n`)));
+    await savePunchConfig(db, owner(), "", false, true);
+    // 아직 현황판 주소가 없으면 어디서나(설정 화면이 경고)
+    await punchIn(db, tech(), "9.9.9.9", at("09:00"));
+    const t0 = Date.parse("2026-11-12T00:00:00Z");
+    for (let i = 0; i < 5; i++) await noteTvIp(db, "8.8.4.4", t0 + i * 30_000); // 휴대폰으로 잠깐
+    for (let i = 0; i < 30; i++) await noteTvIp(db, HOME, t0 + i * 30_000); // 자택 서버 화면
+    for (let i = 0; i < 30; i++) await noteTvIp(db, "172.30.1.5", t0 + i * 30_000);
+    expect((await loadPunchConfig(db)).tv.v4).toBe("");
+    for (let i = 0; i < 20; i++) await noteTvIp(db, SHOP, t0 + i * 30_000);
+    const c = await loadPunchConfig(db);
+    expect(c).toMatchObject({ sameAsTv: true, tv: { v4: SHOP } });
+    await punchIn(db, pm(), SHOP, at("09:00"));
+    await expect(punchIn(db, { id: ids.tech2, roles: ["technician"] }, "8.8.4.4", at("09:00"))).rejects.toThrow(/정비소 인터넷/);
+    // 인터넷 회사가 정비소 주소를 바꾸면 현황판을 따라 바뀐다
+    for (let i = 0; i < 20; i++) await noteTvIp(db, "121.1.2.3", t0 + 3_600_000 + i * 30_000);
+    expect((await loadPunchConfig(db)).tv.v4).toBe("121.1.2.3");
+    await punchIn(db, { id: ids.tech2, roles: ["technician"] }, "121.1.2.3", at("09:00"));
+    // 대표가 다시 저장해도 배운 주소는 남는다
+    await savePunchConfig(db, owner(), "", false, true);
+    expect((await loadPunchConfig(db)).tv.v4).toBe("121.1.2.3");
   });
 });
 

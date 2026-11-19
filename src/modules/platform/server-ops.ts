@@ -1,0 +1,117 @@
+// 설정 › 서버(대표 요청 2026-11-19): 서버가 대표 자택 등 멀리 있어도 앱에서 서버 상태를 보고 '지금 새 버전 올리기'를 누른다.
+// 미니 PC 의 minipc/agent.sh 가 1분마다 /api/server-agent 로 상태를 알리고, 올리기 요청이 있으면 받아 간다.
+// 앱(도커 안)은 서버를 직접 건드리지 않는다. 요청을 기록해 두면 미니 PC 가 가져가 update.sh 를 돌린다.
+import { eq } from "drizzle-orm";
+import type { Db } from "@/db/client";
+import { appConfig } from "@/db/schema";
+import type { Role } from "@/modules/auth/roles";
+import { writeAudit } from "./audit";
+import { UserError } from "./errors";
+import { notifyRole } from "./notify";
+
+const KEY = "server_ops";
+type Actor = { id: string; roles: readonly Role[] };
+
+/** 미니 PC 가 알려 오는 값. 모두 글자로 받아 짧게 자른다 */
+export type ServerStatus = {
+  host: string; // 컴퓨터 이름
+  place: string; // home | shop | cloud
+  mode: string; // direct | tunnel
+  version: string; // 지금 돌고 있는 커밋(7자)
+  latest: string; // GitHub 최신 커밋(7자), 모르면 ""
+  behind: number; // 새 커밋 수
+  lastUpdate: string; // update.log 마지막 줄
+  lastBackup: string; // backups.log 마지막 줄
+  disk: string; // 예: "1.6T 남음 / 1.8T (12%)"
+  backupDisk: string; // 백업 디스크, 없으면 ""
+  memory: string;
+  uptime: string;
+  lanIp: string;
+  publicIp: string;
+  services: string; // "app running, db running(healthy), ..."
+  ups: string; // UPS 상태, 없으면 ""
+};
+export type UpdateRequest = { at: string; by: string | null; taken: string | null };
+export type UpdateResult = { at: string; ok: boolean; message: string };
+type Data = { status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null };
+
+async function load(db: Db): Promise<Data> {
+  const [c] = await db.select().from(appConfig).where(eq(appConfig.key, KEY));
+  return (c?.data ?? {}) as Data;
+}
+async function save(db: Db, data: Data, by: string | null = null) {
+  await db
+    .insert(appConfig)
+    .values({ key: KEY, data, updatedBy: by, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: by, updatedAt: new Date() } });
+}
+
+/** 30분 넘게 소식이 없으면 끊긴 것으로 본다(미니 PC 꺼짐·자택 인터넷 끊김·agent 미설치) */
+export const SILENT_MIN = 30;
+export async function serverOpsView(db: Db, now = Date.now()) {
+  const d = await load(db);
+  const at = d.status?.at ? Date.parse(d.status.at) : 0;
+  const silentMin = at ? Math.floor((now - at) / 60_000) : null;
+  const req = d.request ?? null;
+  // 요청했는데 15분이 지나도 안 가져갔으면 막지 않고 다시 누를 수 있게
+  const pending = !!req && !req.taken && now - Date.parse(req.at) < 15 * 60_000;
+  const running = !!req?.taken && (!d.result || Date.parse(d.result.at) < Date.parse(req.taken)) && now - Date.parse(req.taken) < 30 * 60_000;
+  return { status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+}
+
+/** 대표만. '지금 새 버전 올리기' */
+export async function requestUpdate(db: Db, actor: Actor, now = new Date()) {
+  if (!actor.roles.includes("owner")) throw new UserError("새 버전 올리기는 대표만 합니다");
+  const v = await serverOpsView(db, now.getTime());
+  if (v.pending) throw new UserError("이미 요청했습니다. 서버가 1분 안에 가져갑니다");
+  if (v.running) throw new UserError("지금 새 버전을 올리는 중입니다. 몇 분 뒤 이 화면을 다시 여세요");
+  const d = await load(db);
+  const request: UpdateRequest = { at: now.toISOString(), by: actor.id, taken: null };
+  await save(db, { ...d, request }, actor.id);
+  await writeAudit(db, { actorId: actor.id, action: "server.update_request", entityType: "app_config", entityId: KEY, after: request });
+  return request;
+}
+
+const s = (x: unknown, n = 200) => String(x ?? "").replace(/[\u0000-\u001f]/g, " ").slice(0, n);
+function cleanStatus(b: Record<string, unknown>): ServerStatus {
+  return {
+    host: s(b.host, 60),
+    place: s(b.place, 10),
+    mode: s(b.mode, 10),
+    version: s(b.version, 12),
+    latest: s(b.latest, 12),
+    behind: Math.max(0, Math.min(9999, Number(b.behind) || 0)),
+    lastUpdate: s(b.lastUpdate),
+    lastBackup: s(b.lastBackup),
+    disk: s(b.disk, 80),
+    backupDisk: s(b.backupDisk, 80),
+    memory: s(b.memory, 80),
+    uptime: s(b.uptime, 80),
+    lanIp: s(b.lanIp, 60),
+    publicIp: s(b.publicIp, 60),
+    services: s(b.services, 300),
+    ups: s(b.ups, 80),
+  };
+}
+
+/** 미니 PC agent 가 1분마다 부른다. status 가 있으면 저장, result 가 있으면 올리기 결과 저장.
+ *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
+export async function agentReport(db: Db, body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown } }, now = new Date()) {
+  const d = await load(db);
+  const next: Data = { ...d };
+  if (body.status) next.status = { ...cleanStatus(body.status), at: now.toISOString() };
+  if (body.result) {
+    const result: UpdateResult = { at: now.toISOString(), ok: body.result.ok === true, message: s(body.result.message, 300) };
+    next.result = result;
+    await writeAudit(db, { actorId: null, action: result.ok ? "server.update_ok" : "server.update_failed", entityType: "app_config", entityId: KEY, after: result });
+    if (!result.ok) await notifyRole(db, "owner", `새 버전 올리기 실패: ${result.message}`, `server-update:${result.at.slice(0, 16)}`, "/settings/server");
+  }
+  let update = false;
+  const req = d.request;
+  if (req && !req.taken && now.getTime() - Date.parse(req.at) < 60 * 60_000) {
+    next.request = { ...req, taken: now.toISOString() };
+    update = true;
+  }
+  await save(db, next);
+  return { update };
+}

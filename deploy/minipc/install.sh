@@ -110,6 +110,12 @@ SHELL=/bin/bash
 30 21 * * * root HOME=$HOME bash $DIR/deploy/minipc/update.sh >> $HOME/update.log 2>&1
 CRON
 sudo chmod 644 /etc/cron.d/auto-body-shop
+# 앱 설정 › 서버 화면 연결(1분마다 상태 알림·'지금 새 버전 올리기' 요청 받기)
+sudo tee /etc/cron.d/auto-body-shop-agent >/dev/null <<CRON
+SHELL=/bin/bash
+* * * * * root HOME=$HOME bash $DIR/deploy/minipc/agent.sh >/dev/null 2>&1
+CRON
+sudo chmod 644 /etc/cron.d/auto-body-shop-agent
 ok "등록함(기록: ~/backups.log, ~/update.log)"
 
 say "8/8 바탕화면에 '앱 열기' 아이콘"
