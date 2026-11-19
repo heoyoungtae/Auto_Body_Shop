@@ -13,6 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { appUser } from "./platform";
+import { branch, branchId, MAIN_BRANCH_ID } from "./branch";
 
 export type License = { name: string; no: string; on: string };
 
@@ -21,6 +22,11 @@ export const staffProfile = pgTable("staff_profile", {
   userId: uuid("user_id")
     .primaryKey()
     .references(() => appUser.id),
+  /** 소속 지점(1단계는 모두 본점). 지원 근무 지점은 2단계에 더한다 */
+  homeBranchId: uuid("home_branch_id")
+    .notNull()
+    .default(MAIN_BRANCH_ID)
+    .references(() => branch.id),
   /** 종사 업무(직무) */
   job: text("job"),
   gender: text("gender"),
@@ -390,6 +396,7 @@ export const workDay = pgTable(
   "work_day",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    branchId: branchId(),
     userId: uuid("user_id")
       .notNull()
       .references(() => appUser.id),

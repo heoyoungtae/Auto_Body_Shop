@@ -15,12 +15,14 @@ import { appUser, createdAt, id } from "./platform";
 import { customer } from "./customer";
 import { supplier } from "./purchase";
 import { repairOrder } from "./repair";
+import { branchId } from "./branch";
 
 /** 입금 전표(PM). 고객 수납(카드·현금·계좌 이체)과 보험사 입금(보험 청구 입금 확인 때 자동, payer=insurer) */
 export const payment = pgTable(
   "payment",
   {
     id: id(),
+    branchId: branchId(),
     docNo: text("doc_no").notNull(),
     repairOrderId: uuid("repair_order_id")
       .notNull()
@@ -75,6 +77,7 @@ export const expense = pgTable(
   "expense",
   {
     id: id(),
+    branchId: branchId(),
     docNo: text("doc_no").notNull(),
     approvalDocId: uuid("approval_doc_id")
       .notNull()
@@ -129,6 +132,7 @@ export const dailyClose = pgTable(
   "daily_close",
   {
     id: id(),
+    branchId: branchId(),
     day: text("day").notNull(),
     cardWon: integer("card_won").notNull(),
     cashWon: integer("cash_won").notNull(),

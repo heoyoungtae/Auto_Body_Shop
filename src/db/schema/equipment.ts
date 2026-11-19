@@ -3,6 +3,7 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
 import { assetColumns } from "./asset";
+import { branchId, workplaceId } from "./branch";
 
 export type CheckItem = { item: string; std: string };
 export type CheckResult = CheckItem & { mark: "o" | "tri" | "x" | "na"; note?: string };
@@ -12,6 +13,8 @@ export const equipment = pgTable(
   "equipment",
   {
     id: id(),
+    branchId: branchId(),
+    workplaceId: workplaceId(),
     /** EQ-001 */
     no: text("no").notNull(),
     name: text("name").notNull(),
@@ -275,6 +278,7 @@ export const tool = pgTable(
   "tool",
   {
     id: id(),
+    branchId: branchId(),
     no: text("no").notNull(),
     name: text("name").notNull(),
     spec: text("spec"),

@@ -2,6 +2,7 @@
 // 한 사람 하루 한 줄. 자동 기록(앱에서 한 일)은 저장하지 않고 그때그때 감사 로그 등에서 만든다. 마감할 때 요약 숫자만 남긴다.
 import { boolean, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
+import { branchId } from "./branch";
 
 export type OffAppRow = { from: string; to: string; kind: string; detail: string };
 export type JournalAddendum = { at: string; by: string; text: string };
@@ -12,6 +13,7 @@ export const dailyJournal = pgTable(
   "daily_journal",
   {
     id: id(),
+    branchId: branchId(),
     userId: uuid("user_id")
       .notNull()
       .references(() => appUser.id),

@@ -7,12 +7,14 @@ import { consultation, customer, vehicle } from "./customer";
 export const RO_STATUSES = ["intake", "checked", "estimating", "working", "inspecting", "ready", "delivered", "cancelled"] as const;
 
 import { PHOTO_SLOTS, type BodyMark } from "@/modules/repair/rules";
+import { branchId, workplaceId } from "./branch";
 export { PHOTO_SLOTS, type BodyMark };
 
 export const repairOrder = pgTable(
   "repair_order",
   {
     id: id(),
+    branchId: branchId(),
     docNo: text("doc_no").notNull(),
     formRev: text("form_rev").notNull().default("v0.2"),
     status: text("status", { enum: RO_STATUSES }).notNull().default("intake"),
@@ -240,6 +242,7 @@ export const workStep = pgTable(
   "work_step",
   {
     id: id(),
+    workplaceId: workplaceId(),
     workOrderId: uuid("work_order_id")
       .notNull()
       .references(() => workOrder.id),

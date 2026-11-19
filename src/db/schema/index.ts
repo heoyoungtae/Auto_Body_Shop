@@ -1,4 +1,5 @@
 export * from "./platform";
+export * from "./branch";
 export * from "./approval";
 export * from "./messaging";
 export * from "./customer";

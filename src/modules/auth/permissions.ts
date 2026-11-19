@@ -561,6 +561,13 @@ export const PERMS = {
     std: "부록 B·D",
     roles: ["owner"],
   },
+  "workplace.edit": {
+    area: "설정",
+    label: "작업장 목록 등록·수정·사용 중지",
+    std: "STD-08",
+    roles: ["owner", "plant_manager"],
+    note: "같은 부지 안의 판금동·도장 부스 같은 현장 위치입니다(대표 결정 2026-11-19)",
+  },
 } satisfies Record<string, Perm>;
 
 export type PermKey = keyof typeof PERMS;

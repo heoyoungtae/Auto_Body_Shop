@@ -393,6 +393,13 @@
       "when": 1794956266299,
       "tag": "0055_partner_credit",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795061969055,
+      "tag": "0056_branches",
+      "breakpoints": true
     }
   ]
 }

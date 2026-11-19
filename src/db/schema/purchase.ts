@@ -4,6 +4,7 @@ import { appUser, createdAt, id } from "./platform";
 import { assetColumns } from "./asset";
 import { estimate, estimateLine, repairOrder } from "./repair";
 import { chemical } from "./safety";
+import { branchId } from "./branch";
 
 export type SupplierDocFile = { doc: string; path: string; name: string; at: string; by: string };
 
@@ -98,6 +99,7 @@ export const purchaseOrder = pgTable(
   "purchase_order",
   {
     id: id(),
+    branchId: branchId(),
     docNo: text("doc_no").notNull(),
     kind: text("kind").notNull(),
     supplierId: uuid("supplier_id").references(() => supplier.id),
@@ -281,6 +283,7 @@ export const stockMove = pgTable(
   "stock_move",
   {
     id: id(),
+    branchId: branchId(),
     itemId: uuid("item_id")
       .notNull()
       .references(() => stockItem.id),
@@ -302,6 +305,7 @@ export const stockMove = pgTable(
 /** 재고 실사(월말 도료·고가 소모품, 분기 말 전체). lines: 품목별 장부·실물 수량 */
 export const stockCount = pgTable("stock_count", {
   id: id(),
+  branchId: branchId(),
   /** monthly 월말 / quarterly 분기 말 */
   kind: text("kind").notNull(),
   lines: jsonb("lines").$type<{ itemId: string; name: string; book: number; actual: number; unitWon: number }[]>().notNull(),
@@ -377,6 +381,7 @@ export const fixture = pgTable(
   "fixture",
   {
     id: id(),
+    branchId: branchId(),
     no: text("no").notNull(),
     name: text("name").notNull(),
     /** tool 공구 · ppe 보호구 · it 전산(저장장치) · furniture 집기 · vehicle 차량·운반 · other */
