@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { DELEGATION_HELP, GLOSSARY, POLICY_HELP } from "@/modules/help/glossary";
 import { PAGE_HELP, ROLE_START, ROUTE_HELP } from "@/modules/help/pages";
 import { guideSearchItems } from "@/modules/help/bank-guide";
+import { serverGuideSearchItems } from "@/modules/help/server-guide";
 import { DEFAULT_DELEGATION, type DelegationTask } from "@/modules/platform/delegation";
 import { DEFAULT_POLICY, type PolicyKey } from "@/modules/platform/policy";
 import { requireUser } from "../_lib/session";
@@ -31,6 +33,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
     })),
     ...(Object.keys(DELEGATION_HELP) as DelegationTask[]).map((t) => ({ kind: "전결", title: DEFAULT_DELEGATION[t].label, body: DELEGATION_HELP[t], href: "/settings/delegation" })),
     ...guideSearchItems(),
+    ...(user.roles.includes("owner") ? await serverGuideSearchItems() : []),
   ];
   const mine = user.roles.length ? user.roles : (["advisor"] as Role[]);
   return (
@@ -39,6 +42,24 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
         도움말 센터
       </PageTitle>
       <div className="space-y-4">
+        <Card title="설명서" help={{ kind: "panel", id: "help.guides" }}>
+          <ul className="grid gap-2 text-sm md:grid-cols-2">
+            <li>
+              <Link href="/money/bank/guide" className="font-medium text-[var(--accent)] hover:underline">
+                통장·카드 연동 설명서
+              </Link>
+              <p className="text-xs text-[var(--muted)]">은행·카드 문자 전달 앱 설정, 엑셀 올리기, 맞추기, 유료 연동 비교</p>
+            </li>
+            {user.roles.includes("owner") && (
+              <li>
+                <Link href="/help/server-guide" className="font-medium text-[var(--accent)] hover:underline">
+                  서버 설명서(미니 PC)
+                </Link>
+                <p className="text-xs text-[var(--muted)]">설치·도메인·출퇴근·백업과 정전·국내 직접 접속·원격 관리(대표만)</p>
+              </li>
+            )}
+          </ul>
+        </Card>
         <Card title="처음 할 일(내 역할)" help={{ kind: "panel", id: "help.start" }}>
           <div className="grid gap-3 md:grid-cols-2">
             {mine.map((r) => (
