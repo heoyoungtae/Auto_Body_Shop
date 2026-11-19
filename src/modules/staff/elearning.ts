@@ -3,6 +3,7 @@
 // → 자료 보기(실제 본 시간 기록) → 확인 문제(합격 점수) 또는 외부 수료증 → 교육훈련기록부(F-11-03) 이수란 자동·본인 서명 겸함
 // → 대상자 모두 이수하면 교육 '실시', 직무 교육은 한 달 뒤 효과 확인.
 // 사내 교재(TM-)는 우리만의 내용만 만들고(대표 승인·개정 이력), 공공 자료는 링크만 건다. 링크는 매달 1일 살아 있는지 본다.
+import { revisionsNeedingTraining } from "@/modules/quality/std";
 import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, docRegister, staffProfile, training, trainingAttendee, trainingManual, trainingMaterial, trainingQuestion } from "@/db/schema";
@@ -325,6 +326,7 @@ export async function learnTodos(db: Db, actor: Actor, today: string): Promise<T
     const byTr = new Map<string, { title: string; names: string[] }>();
     for (const p of late) byTr.set(p.trainingId, { title: p.title, names: [...(byTr.get(p.trainingId)?.names ?? []), p.name] });
     for (const [tid, v] of byTr) out.push({ key: `tr-late-${tid}`, when: "late", what: `교육 시한 지남: ${v.title} ${v.names.length}명`, detail: v.names.slice(0, 5).join(", "), href: `/training/${tid}`, action: "독려하기" });
+    for (const r of await revisionsNeedingTraining(db)) out.push({ key: `std-rev-tr-${r.docNo}-${r.rev ?? r.on}`, when: "soon", what: `표준서 개정 교육 계획: ${r.docNo} ${r.rev ?? ""}`, detail: `${r.on} 고친 곳: ${r.labels.slice(0, 3).join(", ")}${r.labels.length > 3 ? ` 외 ${r.labels.length - 3}곳` : ""}`, href: "/training/new?kind=std_rev", action: "계획하기" });
     for (const m of await manualsNeedingRevision(db)) out.push({ key: `tm-rev-${m.id}-${m.changed.map((c) => c.rev).join("")}`, when: "soon", what: `사내 교재 개정 필요: ${m.no} ${m.title}`, detail: `근거 표준서 개정: ${m.changed.map((c) => `${c.no} ${c.was}→${c.rev}`).join(", ")}`, href: `/training/manuals/${m.id}`, action: "고치기" });
     const broken = await db.select({ id: trainingMaterial.id, title: trainingMaterial.title, trainingId: trainingMaterial.trainingId }).from(trainingMaterial).where(eq(trainingMaterial.linkOk, false));
     for (const b of broken) out.push({ key: `tr-link-${b.id}`, when: "soon", what: `교육 자료 링크 끊김: ${b.title}`, detail: "주소를 새로 찾아 바꿔 주세요", href: `/training/${b.trainingId}`, action: "바꾸기" });

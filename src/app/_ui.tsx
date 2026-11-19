@@ -1,4 +1,5 @@
 // 공통 화면 조각. 작업장 태블릿에서 장갑 낀 손으로도 누를 수 있게 버튼·입력 높이를 44px 이상으로 둔다(설계서 4.1).
+import { StdText } from "./_std-text";
 import type { ComponentProps, ReactNode } from "react";
 import { STATUS_HELP } from "@/modules/help/glossary";
 import { HelpButton, type HelpTopic } from "./_help-drawer";
@@ -44,7 +45,7 @@ export function PageTitle({ children, sub, actions, help, std }: { children: Rea
         {(sub || std) && (
           <p className="mt-1 text-sm text-[var(--muted)]">
             {sub}
-            {std && <span className="ml-2 inline-block rounded border border-[var(--line)] px-1.5 align-middle text-xs whitespace-nowrap">{std}</span>}
+            {std && <span className="ml-2 inline-block rounded border border-[var(--line)] px-1.5 align-middle text-xs whitespace-nowrap"><StdText text={std} /></span>}
           </p>
         )}
       </div>

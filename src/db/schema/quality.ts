@@ -467,3 +467,46 @@ export const mgmtReview = pgTable("mgmt_review", {
   confirmedBy: uuid("confirmed_by").references(() => appUser.id),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
 });
+
+/**
+ * 사내 표준서 본문(2026-11-19, 원본을 앱으로 옮김). 절 하나가 한 줄.
+ * part: overview 총람 · procedure 상세 절차서 · form 표준 양식집 · appendix 부록. ch: 장(00·Q·01~13, 부록은 A~D).
+ * docNo 는 문서 목록(doc_register)의 번호 — 개정 요청서(F-Q-05)가 승인되면 그 판으로 본문을 바꾸고 이전 본문은 history 에 남긴다.
+ * roles 가 비어 있으면 전 직원이 보고, 있으면 그 역할(과 대표)만 본다.
+ */
+export const stdSection = pgTable(
+  "std_section",
+  {
+    key: text("key").primaryKey(),
+    part: text("part").notNull(),
+    ch: text("ch").notNull(),
+    docNo: text("doc_no").notNull(),
+    no: text("no").notNull().default(""),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    grp: text("grp"),
+    chapter: boolean("chapter").notNull().default(false),
+    sort: integer("sort").notNull().default(0),
+    roles: jsonb("roles").$type<string[]>().notNull().default([]),
+    rev: text("rev"),
+    revisedOn: text("revised_on"),
+    revisedRef: text("revised_ref"),
+    history: jsonb("history")
+      .$type<
+        {
+          rev: string | null;
+          title: string;
+          body: string;
+          until: string;
+          ref: string | null;
+        }[]
+      >()
+      .notNull()
+      .default([]),
+    updatedBy: uuid("updated_by").references(() => appUser.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("std_section_ch_idx").on(t.ch, t.sort)],
+);

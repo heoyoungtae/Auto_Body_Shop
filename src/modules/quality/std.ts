@@ -1,0 +1,254 @@
+// 사내 표준서 본문(2026-11-19 대표 결정 '제안대로 전부'): 앱이 원본이다.
+// 보기는 전 직원(제한 걸린 절은 그 역할·대표만), 본문 변경은 문서 개정 요청서(F-Q-05) 결재로만, 열람 제한은 품질 담당·대표가 정한다.
+import { and, asc, count, eq, gte } from "drizzle-orm";
+import type { Db } from "@/db/client";
+import { docRegister, stdSection, training } from "@/db/schema";
+import type { DocRow } from "@/modules/approval/service";
+import { can } from "@/modules/auth/permissions";
+import { isRole, type Role } from "@/modules/auth/roles";
+import { writeAudit } from "@/modules/platform/audit";
+import { UserError } from "@/modules/platform/errors";
+import { notifyRole } from "@/modules/platform/notify";
+import { seoulDate } from "@/modules/platform/time";
+import { chOf, STD_APPENDICES, STD_CHAPTERS, stdKeyHref } from "./std-ref";
+import SEED from "./std-seed.json";
+
+export class StdError extends UserError {}
+type Actor = { id: string; roles: readonly Role[] };
+export type StdRow = typeof stdSection.$inferSelect;
+
+type SeedRow = {
+  key: string;
+  part: string;
+  ch: string;
+  docNo: string;
+  no: string;
+  title: string;
+  body: string;
+  grp?: string;
+  chapter?: boolean;
+  sort: number;
+};
+
+/** 처음 열 때 한 번: 표준서 본문을 넣는다. 처음부터 열람을 좁혀 둘 절(회계 상세 절차)은 여기서 정한다 */
+export const SEED_LIMITS: { match: (s: SeedRow) => boolean; roles: Role[] }[] = [
+  {
+    match: (s) => s.part === "procedure" && s.docNo === "STD-12" && !s.chapter,
+    roles: ["accounting", "plant_manager"],
+  },
+];
+
+export async function seedStd(db: Db) {
+  const [{ n }] = await db.select({ n: count() }).from(stdSection);
+  if (n > 0) return 0;
+  const rows = (SEED as SeedRow[]).map((s) => ({
+    key: s.key,
+    part: s.part,
+    ch: s.ch,
+    docNo: s.docNo,
+    no: s.no,
+    title: s.title,
+    body: s.body,
+    grp: s.grp ?? null,
+    chapter: !!s.chapter,
+    sort: s.sort,
+    roles: SEED_LIMITS.find((l) => l.match(s))?.roles ?? [],
+  }));
+  for (let i = 0; i < rows.length; i += 100)
+    await db.insert(stdSection).values(rows.slice(i, i + 100)).onConflictDoNothing();
+  return rows.length;
+}
+
+/** 이 사람이 이 절을 볼 수 있나(대표는 늘 봄) */
+export const canSee = (a: { roles: readonly Role[] }, s: { roles: string[] }) =>
+  !s.roles.length || a.roles.includes("owner") || s.roles.some((r) => a.roles.includes(r as Role));
+
+/** 장 이름표(차례): 총람 장 제목 + 절차서 제목 */
+export async function stdToc(db: Db) {
+  const rows = await db
+    .select({
+      key: stdSection.key,
+      part: stdSection.part,
+      ch: stdSection.ch,
+      no: stdSection.no,
+      title: stdSection.title,
+      chapter: stdSection.chapter,
+      revisedOn: stdSection.revisedOn,
+      rev: stdSection.rev,
+      docNo: stdSection.docNo,
+      grp: stdSection.grp,
+      roles: stdSection.roles,
+    })
+    .from(stdSection)
+    .orderBy(asc(stdSection.sort));
+  const chapters = STD_CHAPTERS.map((ch) => {
+    const o = rows.find((r) => r.part === "overview" && r.chapter && r.ch === ch);
+    const p = rows.find((r) => r.part === "procedure" && r.chapter && r.ch === ch);
+    const secs = rows.filter((r) => r.ch === ch && !r.chapter && r.part !== "form" && r.key !== "o:info" && r.key !== "p:intro");
+    return {
+      ch,
+      title: o?.title ?? (ch === "00" ? "총칙" : ch),
+      no: o?.no ?? (ch === "Q" ? "Q장" : `${Number(ch)}장`),
+      procTitle: p?.title ?? null,
+      docNo: p?.docNo ?? `STD-${ch}`,
+      overview: secs.filter((s) => s.part === "overview"),
+      procedure: secs.filter((s) => s.part === "procedure"),
+      forms: rows.filter((r) => r.part === "form" && r.ch === ch && r.key !== "f:intro"),
+      revised: secs.filter((s) => s.revisedOn).length,
+    };
+  });
+  const appendices = STD_APPENDICES.map((a) => rows.find((r) => r.key === `a:${a}`)).filter((x) => !!x);
+  const forms = rows.filter((r) => r.part === "form" && r.key !== "f:intro");
+  return { chapters, appendices, forms };
+}
+
+/** 장 한 개(총람 절 + 절차서 절 + 관련 양식 목록). 볼 수 없는 절은 제목만 남기고 본문을 비운다 */
+export async function getStdChapter(db: Db, actor: Actor, ch: string) {
+  const rows = await db.select().from(stdSection).where(eq(stdSection.ch, ch)).orderBy(asc(stdSection.sort));
+  if (!rows.length) throw new StdError("없는 장입니다");
+  const mask = (r: StdRow) => (canSee(actor, r) ? { ...r, hidden: false } : { ...r, body: "", history: [], hidden: true });
+  return {
+    overview: rows.filter((r) => r.part === "overview" || r.part === "appendix").map(mask),
+    procedure: rows.filter((r) => r.part === "procedure").map(mask),
+    forms: rows.filter((r) => r.part === "form" && r.key !== "f:intro").map(mask),
+  };
+}
+
+export async function getStdSection(db: Db, actor: Actor, key: string) {
+  const [r] = await db.select().from(stdSection).where(eq(stdSection.key, key));
+  if (!r) throw new StdError("없는 조항입니다");
+  if (!canSee(actor, r)) throw new StdError(`이 조항은 ${roleText(r.roles)}만 볼 수 있습니다`);
+  return r;
+}
+
+const ROLE_KO: Record<string, string> = {
+  owner: "대표",
+  plant_manager: "공장장",
+  advisor: "상담원",
+  technician: "기술자",
+  quality: "품질 담당",
+  safety: "안전환경 담당",
+  accounting: "회계 담당",
+};
+export const roleText = (roles: string[]) => ["대표", ...roles.filter((r) => r !== "owner").map((r) => ROLE_KO[r] ?? r)].join("·");
+
+/** 절 이름(화면·개정 요청서에 쓰는 한 줄) */
+export function sectionLabel(s: Pick<StdRow, "part" | "docNo" | "no" | "title">) {
+  if (s.part === "procedure") return `${s.docNo}${s.no && s.no !== s.docNo ? ` ${s.no}` : ""} ${s.title}`;
+  if (s.part === "form") return `${s.no} ${s.title}`;
+  if (s.part === "appendix") return `총람 ${s.no} ${s.title}`;
+  return `총람 ${s.no ? `${s.no} ` : ""}${s.title}`;
+}
+
+// ── 찾기: 제목·번호는 초성으로도, 본문은 글자 그대로 찾는다
+
+const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+export function chosung(s: string) {
+  let o = "";
+  for (const c of s) {
+    const code = c.charCodeAt(0) - 0xac00;
+    o += code >= 0 && code < 11172 ? CHO[Math.floor(code / 588)] : c;
+  }
+  return o;
+}
+const isCho = (q: string) => /^[ㄱ-ㅎ\s]+$/.test(q);
+const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+
+export type StdHit = { key: string; label: string; href: string; snippet: string; where: "title" | "body"; hidden: boolean };
+
+export async function searchStd(db: Db, actor: Actor, q: string, limit = 60): Promise<StdHit[]> {
+  const query = q.trim();
+  if (!query) return [];
+  const rows = await db.select().from(stdSection).orderBy(asc(stdSection.sort));
+  const nq = norm(query);
+  const cho = isCho(query);
+  const hits: StdHit[] = [];
+  for (const r of rows) {
+    const label = sectionLabel(r);
+    const see = canSee(actor, r);
+    const inTitle = cho ? norm(chosung(label)).includes(nq) : norm(label).includes(nq);
+    let snippet = "";
+    let inBody = false;
+    if (!cho && see) {
+      const i = r.body.toLowerCase().indexOf(query.toLowerCase());
+      if (i >= 0) {
+        inBody = true;
+        const s = Math.max(0, i - 40);
+        snippet = `${s > 0 ? "…" : ""}${r.body.slice(s, i + query.length + 60).replace(/[|*#]/g, " ").replace(/\s+/g, " ")}…`;
+      }
+    }
+    if (inTitle || inBody)
+      hits.push({ key: r.key, label, href: stdKeyHref(r.key), snippet, where: inTitle ? "title" : "body", hidden: !see });
+  }
+  hits.sort((a, b) => (a.where === b.where ? 0 : a.where === "title" ? -1 : 1));
+  return hits.slice(0, limit);
+}
+
+// ── 열람 제한(내용이 아니라 보는 사람을 정하는 것이라 결재 없이 품질 담당·대표가 바꾼다. 기록은 남김)
+
+export async function setSectionRoles(db: Db, actor: Actor, key: string, roles: string[], now = new Date()) {
+  if (!can(actor, "qms.docs")) throw new StdError("열람 제한은 품질 담당·대표가 정합니다");
+  const clean = [...new Set(roles.filter((r) => isRole(r) && r !== "owner"))];
+  const [old] = await db.select().from(stdSection).where(eq(stdSection.key, key));
+  if (!old) throw new StdError("없는 조항입니다");
+  await db.update(stdSection).set({ roles: clean, updatedBy: actor.id, updatedAt: now }).where(eq(stdSection.key, key));
+  await writeAudit(db, { actorId: actor.id, action: "std.roles", entityType: "std_section", entityId: key, before: { roles: old.roles }, after: { roles: clean } });
+}
+
+// ── 개정: 개정 요청서(F-Q-05)에 절 키(secKey)와 바꿀 본문(proposed)이 있으면, 승인 때 본문을 바꾼다
+
+/** 개정 요청서를 열 때 채울 값(현재 본문을 그대로 불러와 고칠 곳만 고치게) */
+export async function revisionPrefill(db: Db, actor: Actor, key: string) {
+  const s = await getStdSection(db, actor, key);
+  const [d] = await db.select({ id: docRegister.id, rev: docRegister.rev, effectiveOn: docRegister.effectiveOn }).from(docRegister).where(and(eq(docRegister.no, s.docNo), eq(docRegister.status, "current")));
+  return { s, label: sectionLabel(s), docId: d?.id ?? null, rev: d?.rev ?? null, effectiveOn: d?.effectiveOn ?? null };
+}
+
+export async function applyStdRevisionOnConfirm(tx: Db, doc: DocRow) {
+  const data = doc.data as { secKey?: string; proposed?: string; docId?: string };
+  if (!data.secKey || doc.cancelsId || !data.proposed) return;
+  const [s] = await tx.select().from(stdSection).where(eq(stdSection.key, data.secKey));
+  if (!s) return;
+  const today = seoulDate(doc.confirmedAt ?? new Date());
+  // 판은 문서 목록 쪽 훅(bumpRevisionOnConfirm)이 먼저 올린다. 그 판을 읽어 절에 적는다
+  const [d] = data.docId ? await tx.select({ rev: docRegister.rev }).from(docRegister).where(eq(docRegister.id, data.docId)) : [];
+  await tx
+    .update(stdSection)
+    .set({
+      body: data.proposed.trim(),
+      rev: d?.rev ?? s.rev,
+      revisedOn: today,
+      revisedRef: doc.docNo,
+      history: [...s.history, { rev: s.rev, title: s.title, body: s.body, until: today, ref: doc.docNo }],
+      updatedAt: new Date(),
+    })
+    .where(eq(stdSection.key, s.key));
+  await notifyRole(tx, "plant_manager", `표준서 개정 시행: ${sectionLabel(s)} — 개정 교육을 계획하세요`, `std-rev-${s.key}-${doc.docNo}`, stdKeyHref(s.key));
+}
+
+/** 최근 고친 절(차례 화면 '최근 개정', 교육 화면 기본값) */
+export async function recentRevisions(db: Db, since?: string) {
+  const rows = await db
+    .select({ key: stdSection.key, part: stdSection.part, docNo: stdSection.docNo, no: stdSection.no, title: stdSection.title, rev: stdSection.rev, revisedOn: stdSection.revisedOn, revisedRef: stdSection.revisedRef })
+    .from(stdSection)
+    .where(since ? gte(stdSection.revisedOn, since) : gte(stdSection.revisedOn, "0000"));
+  return rows.sort((a, b) => (b.revisedOn ?? "").localeCompare(a.revisedOn ?? ""));
+}
+
+/** 개정됐는데 그 뒤로 '표준서 개정 교육'을 아직 계획하지 않은 표준서(할 일) */
+export async function revisionsNeedingTraining(db: Db) {
+  const recent = await recentRevisions(db);
+  if (!recent.length) return [];
+  const trs = await db.select({ createdAt: training.createdAt }).from(training).where(eq(training.kind, "std_rev"));
+  const lastTr = trs.map((t) => seoulDate(t.createdAt)).sort().at(-1) ?? "";
+  const byDoc = new Map<string, { docNo: string; rev: string | null; on: string; labels: string[]; key: string }>();
+  for (const r of recent) {
+    if (!r.revisedOn || r.revisedOn <= lastTr) continue;
+    const cur = byDoc.get(r.docNo);
+    if (cur) cur.labels.push(sectionLabel(r));
+    else byDoc.set(r.docNo, { docNo: r.docNo, rev: r.rev, on: r.revisedOn, labels: [sectionLabel(r)], key: r.key });
+  }
+  return [...byDoc.values()];
+}
+
+export { chOf };

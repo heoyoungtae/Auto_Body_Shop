@@ -5,6 +5,7 @@ import { appUser, competency } from "./schema";
 import type { Db } from "./client";
 import { createUser } from "@/modules/auth/service";
 import type { Role } from "@/modules/auth/roles";
+import { seedStd } from "@/modules/quality/std";
 
 export const DEMO_PASSWORD = "demo1234";
 
@@ -20,6 +21,8 @@ export const DEMO_USERS = [
 ] as const satisfies readonly { loginId: string; name: string; roles: readonly Role[] }[];
 
 export async function seed(db: Db, env: Record<string, string | undefined> = process.env) {
+  // 사내 표준서 본문은 계정과 상관없이 비어 있으면 넣는다(이미 운영 중인 서버에도 들어가게)
+  await seedStd(db);
   const [{ n }] = await db.select({ n: count() }).from(appUser);
   if (n > 0) return;
   if (env.DEMO_SEED === "1" || !env.DATABASE_URL) {

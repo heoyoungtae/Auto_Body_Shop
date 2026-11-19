@@ -2,6 +2,7 @@
 // 오른쪽 도움말 창. 화면 제목·패널 제목·입력 칸 이름 옆의 ? 를 누르면 여기에 그 도움말이 열린다.
 // 창은 화면을 막지 않아서, 도움말을 보면서 계속 입력할 수 있다. 용어를 누르면 창 안에서 넘어가고 '뒤로'로 돌아온다.
 import Link from "next/link";
+import { StdText } from "./_std-text";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { FIELD_HELP, type FieldHelpKey } from "@/modules/help/fields";
 import { DELEGATION_HELP, GLOSSARY, POLICY_HELP } from "@/modules/help/glossary";
@@ -134,12 +135,12 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
         <>
           <p className="text-xs text-[var(--muted)]">화면</p>
           <h2 className="mb-2 text-base font-bold">{h.title}</h2>
-          <p>{h.purpose}</p>
+          <p><StdText text={h.purpose} /></p>
           <p className="mt-1 text-xs text-[var(--muted)]">쓰는 사람: {h.who}</p>
           <H>순서</H>
           <ol className="list-decimal space-y-1 pl-5">
             {h.steps.map((s) => (
-              <li key={s}>{s}</li>
+              <li key={s}><StdText text={s} /></li>
             ))}
           </ol>
           {h.tips && (
@@ -147,7 +148,7 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
               <H>요령</H>
               <ul className="list-disc space-y-1 pl-5">
                 {h.tips.map((s) => (
-                  <li key={s}>{s}</li>
+                  <li key={s}><StdText text={s} /></li>
                 ))}
               </ul>
             </>
@@ -166,7 +167,17 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
             </>
           )}
           <Terms ids={h.terms} onTerm={onTerm} />
-          {h.refs && <p className="mt-4 text-xs text-[var(--muted)]">관련: {h.refs.join(" · ")}</p>}
+          {h.refs && (
+            <p className="mt-4 text-xs text-[var(--muted)]">
+              관련:{" "}
+              {h.refs.map((r, i) => (
+                <span key={r}>
+                  {i > 0 && " · "}
+                  <StdText text={r} />
+                </span>
+              ))}
+            </p>
+          )}
         </>
       );
     }
@@ -176,13 +187,13 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
         <>
           <p className="text-xs text-[var(--muted)]">패널</p>
           <h2 className="mb-2 text-base font-bold">{h.title}</h2>
-          <p>{h.body}</p>
+          <p><StdText text={h.body} /></p>
           {h.tips && (
             <>
               <H>요령</H>
               <ul className="list-disc space-y-1 pl-5">
                 {h.tips.map((s) => (
-                  <li key={s}>{s}</li>
+                  <li key={s}><StdText text={s} /></li>
                 ))}
               </ul>
             </>
@@ -197,8 +208,8 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
         <>
           <p className="text-xs text-[var(--muted)]">입력 칸</p>
           <h2 className="mb-2 text-base font-bold">{topic.label ?? h.label}</h2>
-          {h.hint && <p>{h.hint}</p>}
-          {h.detail && <p className="mt-2">{h.detail}</p>}
+          {h.hint && <p><StdText text={h.hint} /></p>}
+          {h.detail && <p className="mt-2"><StdText text={h.detail} /></p>}
           {h.example && (
             <>
               <H>예시</H>
@@ -230,7 +241,7 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
         <>
           <p className="text-xs text-[var(--muted)]">정책값</p>
           <h2 className="mb-2 text-base font-bold">{topic.title}</h2>
-          <p>{POLICY_HELP[topic.id]}</p>
+          <p><StdText text={POLICY_HELP[topic.id]} /></p>
           {topic.note && <p className="mt-2 text-xs text-[var(--muted)]">{topic.note}</p>}
           <Terms ids={["정책값", "시행일", "개정요청 번호"]} onTerm={onTerm} />
         </>
@@ -240,7 +251,7 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
         <>
           <p className="text-xs text-[var(--muted)]">전결 업무</p>
           <h2 className="mb-2 text-base font-bold">{topic.title}</h2>
-          <p>{DELEGATION_HELP[topic.id]}</p>
+          <p><StdText text={DELEGATION_HELP[topic.id]} /></p>
           <Terms ids={["전결", "결재선"]} onTerm={onTerm} />
         </>
       );

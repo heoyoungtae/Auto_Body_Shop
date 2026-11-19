@@ -31,6 +31,7 @@ import { notifyRole } from "@/modules/platform/notify";
 import { seoulDate } from "@/modules/platform/time";
 import { issueInstruction } from "@/modules/task/service";
 import { SEED_DOCS } from "./doc-seed";
+import { applyStdRevisionOnConfirm } from "./std";
 import { goalText } from "./qms-rules";
 import {
   CONTEXT_AREAS,
@@ -297,7 +298,7 @@ export async function seedDocs(db: Db, actor: Actor, now = new Date()) {
         rev: "v0.2",
         owner: d.owner,
         location:
-          d.kind === "std" ? "도움말 › 사내 표준서" : `앱 화면(${d.clause})`,
+          d.kind === "std" ? "메뉴 › 사내 표준서" : `앱 화면(${d.clause})`,
         updatedBy: actor.id,
         createdAt: now,
         updatedAt: now,
@@ -515,7 +516,11 @@ export async function bumpRevisionOnConfirm(tx: Db, doc: DocRow) {
     `/qms/docs/${d.id}`,
   );
 }
-onConfirmed("F-Q-05", bumpRevisionOnConfirm);
+// 판을 먼저 올리고, 절 본문 개정이면 그 판으로 본문을 바꾼다(순서 보장을 위해 한 훅으로)
+onConfirmed("F-Q-05", async (tx, doc) => {
+  await bumpRevisionOnConfirm(tx, doc);
+  await applyStdRevisionOnConfirm(tx, doc);
+});
 
 // ───────────────────────── F-Q-09 경영검토
 
