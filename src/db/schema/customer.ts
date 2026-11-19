@@ -1,6 +1,7 @@
 // 고객·차량·개인정보 동의·상담 일지 — 사내 표준서 STD-01(상담·예약), STD-13(개인정보), 양식 F-01-01·F-13-01, 설계서 7.2
 import { boolean, date, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
+import { branchId } from "./branch";
 
 /** 고객. 연락처는 암호화하고, 찾기는 HMAC(phoneHash)로 한다. 같은 번호는 한 고객으로 다시 쓴다 */
 export const customer = pgTable(
@@ -111,6 +112,7 @@ export const consultation = pgTable(
   "consultation",
   {
     id: id(),
+    branchId: branchId(),
     docNo: text("doc_no").notNull(),
     formRev: text("form_rev").notNull().default("v0.2"),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),

@@ -11,6 +11,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
+import { branchId } from "./branch";
 
 /**
  * 위험성평가 F-09-01(STD-09 4절). kind: initial 최초(개업 전) · regular 정기(매년 1월) · adhoc 수시(설비·도료·공법 변경, 사고).
@@ -20,6 +21,7 @@ export const hazardAssessment = pgTable(
   "hazard_assessment",
   {
     id: id(),
+    branchId: branchId(),
     docNo: text("doc_no").notNull(),
     kind: text("kind").notNull(),
     year: integer("year").notNull(),
@@ -72,6 +74,7 @@ export const hazardRow = pgTable(
 /** 화학물질 목록 F-09-02(STD-09 5절). MSDS 파일은 누구나 볼 수 있다(작업장 게시와 같음) */
 export const chemical = pgTable("chemical", {
   id: id(),
+  branchId: branchId(),
   name: text("name").notNull(),
   maker: text("maker"),
   category: text("category").notNull(),
@@ -104,6 +107,7 @@ export const incident = pgTable(
   "incident",
   {
     id: id(),
+    branchId: branchId(),
     docNo: text("doc_no").notNull(),
     kind: text("kind").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),

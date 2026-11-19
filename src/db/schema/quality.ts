@@ -12,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { appUser, createdAt, id } from "./platform";
+import { branchId, workplaceId } from "./branch";
 
 /** 부적합·시정 조치 보고서 F-Q-10 */
 export const nonconformance = pgTable(
@@ -76,6 +77,8 @@ export const nonconformance = pgTable(
 
 /** 현장 구역과 담당(8.8) */
 export const fiveSZone = pgTable("five_s_zone", {
+  branchId: branchId(),
+  workplaceId: workplaceId(),
   /** A~H */
   code: text("code").primaryKey(),
   name: text("name").notNull(),

@@ -344,6 +344,23 @@ export const PAGE_HELP = {
     refs: ["부록 D 정책값의 '영업일' 기한"],
     terms: ["영업일"],
   },
+  "settings.workplaces": {
+    title: "작업장",
+    purpose:
+      "같은 부지(같은 주소) 안의 작업 공간과 보관 장소(판금동·도장 부스·덴트실·광택장·부품 창고 등)를 목록으로 둡니다(대표 결정 2026-11-19, 본점·지점 구분 1단계). 앞으로 작업 공정 배정, TV 현황판, 설비·치공구·재고 보관 위치, 5S 구역이 이 목록에서 작업장을 고르게 됩니다.",
+    who: "모든 직원이 보고, 공장장·대표가 등록·수정·사용 중지합니다.",
+    steps: [
+      "오른쪽 '새 작업장'에서 종류를 먼저 고릅니다. 이름 칸에 그 종류에 맞는 이름이 추천됩니다.",
+      "이름, 작업 자리(베이·리프트) 수, 담당자를 넣고 '등록'을 누릅니다. 보관·대기 장소는 자리 수가 0으로 저장됩니다.",
+      "고칠 때는 목록 줄의 '고치기'를 누릅니다. 더 쓰지 않는 곳은 '사용 중지'를 누릅니다(지우지 않으므로 지난 기록은 그대로 남습니다).",
+    ],
+    tips: [
+      "떨어진 다른 주소에서 판금·도장 작업을 하면 법적으로 지점(별도 사업장·정비업 등록)이 필요합니다. 여기에 넣지 말고 대표에게 알려 주세요.",
+      "떨어진 곳이 부품·도료를 보관만 하는 창고라면 세무서에 하치장 설치 신고를 한 뒤 종류 '보관(창고)'로 넣고 메모에 신고일을 적어 둡니다.",
+      "지점이 생기면 지점마다 작업장 목록을 따로 갖습니다. 지금은 본점 목록만 있습니다.",
+    ],
+    refs: ["STD-08 설비·현장 관리", "본점·지점 구분 방식 제안(2026-11-19)"],
+  },
   "settings.bodyParts": {
     title: "차 부위·세부 부위",
     purpose: "차 그림의 큰 부위 안에서 진단·견적에 쓰는 세부 부품 이름을 정비소에 맞게 더합니다(STD-02 5절 손상 진단). 차종마다 부품이 더 잘게 나뉜 경우를 받기 위한 곳입니다.",
@@ -2664,6 +2681,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/server": "settings.server",
   "/tv": "tv",
   "/settings/body-parts": "settings.bodyParts",
+  "/settings/workplaces": "settings.workplaces",
   "/settings/calendar": "settings.calendar",
   "/messages/send": "messages.send",
   "/messages/templates": "messages.templates",
