@@ -20,7 +20,29 @@ import {
   type ViewDef,
 } from "@/modules/repair/body-map";
 
-export type MapPin = { key: string; part: string; view: View; cell: number; color: string; text: string; title: string; onClick?: () => void };
+/** 표시 모양: 색을 못 구분해도 손상 종류를 알 수 있게(상담 그림, 대표 결정 2026-11-19) */
+export type PinShape = "circle" | "square" | "diamond" | "hexagon" | "rounded";
+export type MapPin = { key: string; part: string; view: View; cell: number; color: string; text: string; title: string; shape?: PinShape; onClick?: () => void };
+
+/** 표시 바탕(가운데가 0,0, 반지름 r) */
+export function PinBack({ shape = "circle", r = 9, color, className }: { shape?: PinShape; r?: number; color: string; className?: string }) {
+  if (shape === "square") return <rect x={-r * 0.9} y={-r * 0.9} width={r * 1.8} height={r * 1.8} fill={color} className={className} />;
+  if (shape === "rounded") return <rect x={-r * 0.92} y={-r * 0.92} width={r * 1.84} height={r * 1.84} rx={r * 0.5} fill={color} className={className} />;
+  if (shape === "diamond") return <polygon points={`0,${-r * 1.18} ${r * 1.18},0 0,${r * 1.18} ${-r * 1.18},0`} fill={color} className={className} />;
+  if (shape === "hexagon") {
+    const pts = [0, 1, 2, 3, 4, 5].map((i) => `${(r * 1.05 * Math.cos((Math.PI / 3) * i)).toFixed(2)},${(r * 1.05 * Math.sin((Math.PI / 3) * i)).toFixed(2)}`).join(" ");
+    return <polygon points={pts} fill={color} className={className} />;
+  }
+  return <circle r={r} fill={color} className={className} />;
+}
+/** 범례·단추용 작은 모양 */
+export function PinIcon({ shape, color, size = 14 }: { shape?: PinShape; color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="-11 -11 22 22" aria-hidden className="shrink-0">
+      <PinBack shape={shape} color={color} />
+    </svg>
+  );
+}
 /** view 를 주면 그 면의 칸만, 안 주면 부위가 나오는 모든 면을 옅게 칠한다. cells 가 비면 부위 전체 */
 export type MapFill = { part: string; view?: View | null; cells: number[]; color: string; strength?: number };
 
@@ -36,6 +58,7 @@ export function CarMap({
   selected,
   highlight = [],
   onPick,
+  canPick,
   label = "차량 전개도",
   className = "",
   car,
@@ -48,6 +71,8 @@ export function CarMap({
   /** 밖(견적 줄 등)에서 가리킨 부위 */
   highlight?: string[];
   onPick?: (part: string, view: View, cell: number) => void;
+  /** 지금 고른 기호로 찍을 수 있는 부위인가(아니면 흐리게·못 누름. 예: 휠 긁힘은 바퀴만) */
+  canPick?: (part: string) => boolean;
   label?: string;
   className?: string;
   /** 차형·부착물(vehicle → carOf). 없으면 세단 */
@@ -62,7 +87,7 @@ export function CarMap({
   const [face, setFace] = useState<"all" | View>("all");
   const vb = face === "all" ? `0 0 ${MAP_W} ${MAP_H}` : (() => { const v = VIEW_DEFS.find((d) => d.view === face)!; return `${v.x - 14} ${v.y - 30} ${v.w + 28} ${v.h + 40}`; })();
   const pick = (e: React.MouseEvent<SVGPathElement> | React.KeyboardEvent<SVGPathElement>, v: ViewDef, s: Shape) => {
-    if (!onPick) return;
+    if (!onPick || (canPick && !canPick(s.part))) return;
     let cell = 4;
     if ("clientX" in e && e.clientX) {
       const ctm = e.currentTarget.getScreenCTM();
@@ -123,16 +148,18 @@ export function CarMap({
             const isSel = selected?.part === s.part && (!selected.view || selected.view === v.view);
             const isHi = highlight.includes(s.part);
             const wheel = s.part.endsWith("wheel");
+            const off = !!onPick && !!canPick && !canPick(s.part);
             return (
               <path
                 key={s.part}
                 d={s.d}
                 data-part={s.part}
-                className={`cm-part ${wheel ? "cm-wheel" : ""} ${s.look ? `cm-${s.look}` : ""} ${onPick ? "cm-pick" : ""} ${isSel ? "cm-sel" : ""} ${isHi ? "cm-hi" : ""}`}
+                className={`cm-part ${wheel ? "cm-wheel" : ""} ${s.look ? `cm-${s.look}` : ""} ${onPick && !off ? "cm-pick" : ""} ${off ? "cm-off" : ""} ${isSel ? "cm-sel" : ""} ${isHi ? "cm-hi" : ""}`}
                 fill={wheel ? "var(--car-tire)" : s.clip === false ? "transparent" : s.look ? `var(--car-${s.look})` : "var(--car-body)"}
-                tabIndex={onPick ? 0 : undefined}
+                tabIndex={onPick && !off ? 0 : undefined}
                 role={onPick ? "button" : undefined}
-                aria-label={onPick ? `${partLabel(s.part)} (${VIEW_LABEL[v.view]})` : undefined}
+                aria-disabled={off || undefined}
+                aria-label={onPick ? `${partLabel(s.part)} (${VIEW_LABEL[v.view]})${off ? " — 지금 고른 손상은 찍을 수 없음" : ""}` : undefined}
                 onClick={(e) => pick(e, v, s)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -221,7 +248,7 @@ export function CarMap({
                   p.onClick?.();
                 }}
               >
-                <circle r={9} fill={p.color} className="cm-pin" />
+                <PinBack shape={p.shape} color={p.color} className="cm-pin" />
                 <text y={3.6} textAnchor="middle" fontSize={10} fontWeight={700} fill="#fff" pointerEvents="none">
                   {p.text}
                 </text>

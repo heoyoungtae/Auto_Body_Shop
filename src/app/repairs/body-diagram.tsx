@@ -2,7 +2,7 @@
 // 차체 도면(F-02-01): 펼친 차 그림(앞·뒤·위·왼쪽·오른쪽)에 기존 손상을 기호로 찍는다(STD-02 4절 4단계).
 // 기호를 고르고 부위를 누르면 누른 자리(부위 안 3×3 칸)에 표시가 생기고, 표시를 다시 누르면 지워진다. 값은 숨은 칸 marks(JSON)로 보낸다.
 import { useEffect, useRef, useState } from "react";
-import { type CarLook, cellLabel, VIEW_LABEL } from "@/modules/repair/body-map";
+import { type CarLook, cellLabel, kindFit, VIEW_LABEL } from "@/modules/repair/body-map";
 import { MARK_KINDS, partLabel, type BodyMark, type MarkKind } from "@/modules/repair/rules";
 import { CarMap } from "./car-map";
 
@@ -72,11 +72,15 @@ export function BodyDiagram({ initial, readOnly = false, name = "marks", car }: 
             title: `${MARK_KINDS[m.kind].label} · ${where(m)}${readOnly ? "" : " (누르면 지움)"}`,
             onClick: readOnly ? undefined : () => remove(i),
           }))}
+          // 기호마다 찍을 수 있는 부위(휠 긁힘=바퀴만, 유리·램프엔 찌그러짐·부식 없음). 바퀴에 '긁힘'은 '휠 긁힘'으로
+          canPick={(part) => kindFit(part, kind) !== null}
           onPick={
             readOnly
               ? undefined
               : (part, view, cell) => {
-                  setMarks([...marks, { part, view, cell, kind }]);
+                  const k = kindFit(part, kind);
+                  if (!k) return;
+                  setMarks([...marks, { part, view, cell, kind: k }]);
                   changed();
                 }
           }
@@ -85,7 +89,7 @@ export function BodyDiagram({ initial, readOnly = false, name = "marks", car }: 
       <div className="text-sm">
         {!readOnly && (
           <p className="mb-2 text-xs text-[var(--muted)]">
-            기호를 고르고 그림에서 그 자리를 누르세요. 부위 안에서 누른 자리(위·아래, 앞·뒤)까지 기록됩니다. 잘못 찍은 표시는 다시 누르면 지워집니다. 수리할 곳은 O, 수리 범위 밖의 기존 손상은 D·S·C·R·W로 찍습니다. 위의 면 단추(앞·왼쪽·위·오른쪽·뒤)를 누르면 한 면을 크게 봅니다.
+            기호를 고르고 그림에서 그 자리를 누르세요. 부위 안에서 누른 자리(위·아래, 앞·뒤)까지 기록됩니다. 잘못 찍은 표시는 다시 누르면 지워집니다. 수리할 곳은 O, 수리 범위 밖의 기존 손상은 D·S·C·R·W로 찍습니다. W(휠 긁힘)는 바퀴에만, D·R은 유리·램프 말고 차체에만 찍히며 못 찍는 부위는 흐리게 보입니다. 위의 면 단추(앞·왼쪽·위·오른쪽·뒤)를 누르면 한 면을 크게 봅니다.
           </p>
         )}
         {marks.length ? (
