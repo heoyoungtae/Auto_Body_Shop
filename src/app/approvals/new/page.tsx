@@ -20,10 +20,15 @@ import { requireUser } from "../../_lib/session";
 import { ErrorBox, Notice, PageTitle } from "../../_ui";
 import { createRevisionRequestAction } from "../actions";
 import { getDocEntry } from "@/modules/quality/qms";
+import { revisionPrefill } from "@/modules/quality/std";
+import { stdKeyHref } from "@/modules/quality/std-ref";
+import type { Role } from "@/modules/auth/roles";
 
 type Prefill = {
   title?: string;
   docId?: string;
+  /** 사내 표준서 절(본문 개정) */
+  secKey?: string;
   target?: string;
   current?: string;
   proposed?: string;
@@ -53,13 +58,30 @@ const bandText = (
  * ?from=문서  반려·지난 요청서를 그대로 복사 / ?policy=키  정책값 화면에서 / ?task=업무  전결 화면에서 / ?suggest=제안  채택한 개선 제안에서
  */
 async function prefill(q: {
+  sec?: string;
   from?: string;
   policy?: string;
   task?: string;
   suggest?: string;
   doc?: string;
-}): Promise<Prefill> {
+}, user: { id: string; roles: Role[] }): Promise<Prefill> {
   const db = await getDb();
+  if (q.sec) {
+    try {
+      const p = await revisionPrefill(db, user, q.sec);
+      return {
+        title: `${p.label} 개정`,
+        target: `${p.label}${p.rev ? ` (현행 ${p.rev}${p.effectiveOn ? `, ${p.effectiveOn} 시행` : ""})` : ""}`,
+        current: p.s.body,
+        proposed: p.s.body,
+        docId: p.docId ?? undefined,
+        secKey: p.s.key,
+        source: "사내 표준서",
+      };
+    } catch {
+      /* 없는 절이면 빈 양식 */
+    }
+  }
   if (q.doc) {
     try {
       const { d } = await getDocEntry(db, q.doc);
@@ -106,6 +128,7 @@ async function prefill(q: {
         return {
           title: d.title,
           docId: s("docId"),
+          secKey: s("secKey"),
           target: s("target"),
           current: s("current"),
           proposed: s("proposed"),
@@ -155,11 +178,12 @@ export default async function NewRevisionRequest({
     task?: string;
     suggest?: string;
     doc?: string;
+    sec?: string;
   }>;
 }) {
   const q = await searchParams;
-  await requireUser();
-  const p = await prefill(q);
+  const user = await requireUser();
+  const p = await prefill(q, user);
   const policy =
     p.policyKey && isPolicyKey(p.policyKey)
       ? {
@@ -175,7 +199,7 @@ export default async function NewRevisionRequest({
         }
       : null;
   // 불러온 값이 있으면 임시 저장본 대신 그 값으로 시작한다
-  const formId = `revision-new${q.from ? `-${q.from}` : q.policy ? `-p-${q.policy}` : q.task ? `-t-${q.task}` : q.suggest ? `-s-${q.suggest}` : q.doc ? `-d-${q.doc}` : ""}`;
+  const formId = `revision-new${q.from ? `-${q.from}` : q.policy ? `-p-${q.policy}` : q.task ? `-t-${q.task}` : q.suggest ? `-s-${q.suggest}` : q.doc ? `-d-${q.doc}` : q.sec ? `-sec-${q.sec}` : ""}`;
   return (
     <div>
       <PageTitle
@@ -220,6 +244,15 @@ export default async function NewRevisionRequest({
           <input type="hidden" name="delegationTask" value={p.delegationTask} />
         )}
         {p.docId && <input type="hidden" name="docId" value={p.docId} />}
+        {p.secKey && <input type="hidden" name="secKey" value={p.secKey} />}
+        {p.secKey && (
+          <Notice>
+            지금 본문을 &lsquo;현재 내용&rsquo;과 &lsquo;바꿀 내용&rsquo;에 똑같이 넣었습니다. &lsquo;바꿀 내용&rsquo;에서 고칠 곳만 고치면, 승인 때 그 글이 이 절의 새 본문이 됩니다. 검토·승인하는 사람에게는 바뀌는 줄만 색으로 보입니다.{" "}
+            <Link className="text-[var(--accent)]" href={stdKeyHref(p.secKey)}>
+              표준서에서 이 절 보기
+            </Link>
+          </Notice>
+        )}
         <div className="grid gap-4 lg:grid-cols-2">
           <TextField
             help="revision.title"
@@ -243,6 +276,7 @@ export default async function NewRevisionRequest({
             name="current"
             defaultValue={p.current}
             from={p.source}
+            rows={p.secKey ? 16 : undefined}
           />
           <div className="space-y-4">
             {policy && (
@@ -259,10 +293,11 @@ export default async function NewRevisionRequest({
               />
             )}
             <TextAreaField
-              help="revision.proposed"
+              help={p.secKey ? "revision.proposedBody" : "revision.proposed"}
               name="proposed"
               required={!policy}
-              label={policy ? "바꿀 내용(덧붙일 말)" : undefined}
+              rows={p.secKey ? 16 : undefined}
+              label={policy ? "바꿀 내용(덧붙일 말)" : p.secKey ? "바꿀 본문" : undefined}
               defaultValue={p.proposed}
               from={p.proposed ? p.source : undefined}
             />

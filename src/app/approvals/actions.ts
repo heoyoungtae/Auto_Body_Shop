@@ -18,7 +18,7 @@ import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 export async function createRevisionRequestAction(form: FormData) {
   const user = await requireUser();
   const str = (k: string) => String(form.get(k) ?? "").trim();
-  const back = `/approvals/new${str("docId") ? `?doc=${encodeURIComponent(str("docId"))}` : str("policyKey") ? `?policy=${encodeURIComponent(str("policyKey"))}` : str("delegationTask") ? `?task=${encodeURIComponent(str("delegationTask"))}` : ""}`;
+  const back = `/approvals/new${str("secKey") ? `?sec=${encodeURIComponent(str("secKey"))}` : str("docId") ? `?doc=${encodeURIComponent(str("docId"))}` : str("policyKey") ? `?policy=${encodeURIComponent(str("policyKey"))}` : str("delegationTask") ? `?task=${encodeURIComponent(str("delegationTask"))}` : ""}`;
   let id: string;
   try {
     const data: Record<string, unknown> = {
@@ -55,6 +55,11 @@ export async function createRevisionRequestAction(form: FormData) {
         .join("\n");
     }
     if (str("docId")) data.docId = str("docId");
+    if (str("secKey")) {
+      data.secKey = str("secKey");
+      if (data.proposed === data.current)
+        throw new ApprovalError("바꿀 본문이 지금 본문과 같습니다. 고칠 곳을 고친 뒤 상신해 주세요");
+    }
     const task = str("delegationTask");
     if (task) {
       if (!isDelegationTask(task))
