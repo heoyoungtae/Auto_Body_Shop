@@ -1,7 +1,7 @@
 // 마감한 날·달에는 전표를 새로 넣지 않는다(STD-12 12.4). 고칠 것은 오늘 날짜의 취소 전표로.
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { dailyClose, monthClose } from "@/db/schema";
+import { dailyClose, MAIN_BRANCH_ID, monthClose } from "@/db/schema";
 import { UserError } from "@/modules/platform/errors";
 
 export class LockedError extends UserError {}
@@ -15,11 +15,12 @@ export async function monthLocked(db: Db, ym: string) {
 }
 
 /** 입금 전표: 그날 일일 마감을 했거나 그 달 월 마감을 올렸으면 막는다 */
-export async function assertOpenDay(db: Db, day: string) {
+export async function assertOpenDay(db: Db, day: string, branchId: string = MAIN_BRANCH_ID) {
+  // 일일 마감은 지점마다 따로 한다(지점마다 카드 단말기·현금 시재가 따로)
   const [d] = await db
     .select({ id: dailyClose.id })
     .from(dailyClose)
-    .where(eq(dailyClose.day, day));
+    .where(and(eq(dailyClose.day, day), eq(dailyClose.branchId, branchId)));
   if (d)
     throw new LockedError(
       `${day}은(는) 일일 마감을 했습니다. 그날 것을 고치려면 오늘 날짜로 취소 전표를 적으세요`,

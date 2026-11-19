@@ -131,7 +131,7 @@ export function checkPlans(plans: AssetPlan[], supplyWon: number) {
 }
 
 /** 결의서를 올릴 때 함께: 비품·설비를 '입고 대기'로 대장에 올린다(번호 자동). 결의 번호·업체·날짜는 결의서 값을 쓴다 */
-export async function registerFromExpense(db: Db, actor: Actor, e: { id: string; docNo: string; supplierId: string | null; payeeName: string; evidenceOn: string | null }, plans: AssetPlan[], now = new Date()) {
+export async function registerFromExpense(db: Db, actor: Actor, e: { id: string; docNo: string; supplierId: string | null; payeeName: string; evidenceOn: string | null; branchId?: string }, plans: AssetPlan[], now = new Date()) {
   const p = await loadPolicy(db, seoulDate(now));
   const method = p["asset.dep_declining"] ? "db" : "sl";
   const on = e.evidenceOn || seoulDate(now);
@@ -145,7 +145,7 @@ export async function registerFromExpense(db: Db, actor: Actor, e: { id: string;
         const no = nextFxNo(nos.map((r) => r.no));
         const [row] = await db
           .insert(fixture)
-          .values({ no, name: plan.name.trim(), category: plan.cat, spec: clean(plan.spec), purchasedOn: on, priceWon: plan.unitWon, asset: plan.unitWon >= p["asset.register_min"], location: clean(plan.location), holderId: plan.holderId || null, managerId: plan.managerId || null, subManagerId: plan.subManagerId || null, supplierId: e.supplierId, expenseRef: e.docNo, expenseId: e.id, status: "pending", depMethod: depFor(plan.unitWon), usefulYears: p["asset.fixture_years"], createdBy: actor.id, createdAt: now, updatedAt: now })
+          .values({ no, branchId: e.branchId, name: plan.name.trim(), category: plan.cat, spec: clean(plan.spec), purchasedOn: on, priceWon: plan.unitWon, asset: plan.unitWon >= p["asset.register_min"], location: clean(plan.location), holderId: plan.holderId || null, managerId: plan.managerId || null, subManagerId: plan.subManagerId || null, supplierId: e.supplierId, expenseRef: e.docNo, expenseId: e.id, status: "pending", depMethod: depFor(plan.unitWon), usefulYears: p["asset.fixture_years"], createdBy: actor.id, createdAt: now, updatedAt: now })
           .returning({ id: fixture.id });
         await db.insert(fixtureEvent).values({ fixtureId: row.id, kind: "register", detail: `지출 결의 ${e.docNo}에서 등록(입고 대기) ${won(plan.unitWon)}`, by: actor.id, at: now });
         made.push({ kind: "fixture", id: row.id, no });
@@ -156,7 +156,7 @@ export async function registerFromExpense(db: Db, actor: Actor, e: { id: string;
         const no = nextToolNo((await db.select({ no: tool.no }).from(tool)).map((r) => r.no));
         const [row] = await db
           .insert(tool)
-          .values({ no, name: plan.name.trim(), spec: clean(plan.spec), purchasedOn: on, location: clean(plan.location), keep: plan.cat, holderId: plan.cat === "personal" ? plan.holderId || null : null, managerId: plan.managerId || null, status: "pending", expenseId: e.id, priceWon: plan.unitWon, note: `지출 결의 ${e.docNo}(${e.payeeName})에서 등록`, createdBy: actor.id, createdAt: now, updatedAt: now })
+          .values({ no, branchId: e.branchId, name: plan.name.trim(), spec: clean(plan.spec), purchasedOn: on, location: clean(plan.location), keep: plan.cat, holderId: plan.cat === "personal" ? plan.holderId || null : null, managerId: plan.managerId || null, status: "pending", expenseId: e.id, priceWon: plan.unitWon, note: `지출 결의 ${e.docNo}(${e.payeeName})에서 등록`, createdBy: actor.id, createdAt: now, updatedAt: now })
           .returning({ id: tool.id });
         await db.insert(toolEvent).values({ toolId: row.id, kind: "register", detail: `지출 결의 ${e.docNo}에서 등록(입고 대기) ${won(plan.unitWon)}`, by: actor.id, at: now });
         made.push({ kind: "tool", id: row.id, no });
@@ -167,7 +167,7 @@ export async function registerFromExpense(db: Db, actor: Actor, e: { id: string;
       const no = nextEqNo(nos.map((r) => r.no));
       const [row] = await db
         .insert(equipment)
-        .values({ no, name: plan.name.trim(), kind: plan.cat, grade: k.grade, model: clean(plan.spec), boughtOn: on, price: plan.unitWon, zone: clean(plan.location), ownerId: plan.managerId || null, subManagerId: plan.subManagerId || null, dailyItems: [...k.daily], monthlyItems: [], checkMonthly: false, processes: [...k.processes], legalKind: k.legal || null, status: "pending", expenseId: e.id, depMethod: depFor(plan.unitWon), usefulYears: p["asset.equipment_years"], note: `지출 결의 ${e.docNo}(${e.payeeName})에서 등록`, createdBy: actor.id, createdAt: now, updatedAt: now })
+        .values({ no, branchId: e.branchId, name: plan.name.trim(), kind: plan.cat, grade: k.grade, model: clean(plan.spec), boughtOn: on, price: plan.unitWon, zone: clean(plan.location), ownerId: plan.managerId || null, subManagerId: plan.subManagerId || null, dailyItems: [...k.daily], monthlyItems: [], checkMonthly: false, processes: [...k.processes], legalKind: k.legal || null, status: "pending", expenseId: e.id, depMethod: depFor(plan.unitWon), usefulYears: p["asset.equipment_years"], note: `지출 결의 ${e.docNo}(${e.payeeName})에서 등록`, createdBy: actor.id, createdAt: now, updatedAt: now })
         .returning({ id: equipment.id });
       made.push({ kind: "equipment", id: row.id, no });
     }

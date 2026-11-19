@@ -48,12 +48,15 @@ export default async function ClosePage({
     q.day && /^\d{4}-\d{2}-\d{2}$/.test(q.day) && q.day <= today
       ? q.day
       : today;
+  // 일일 마감은 지금 지점 것(지점마다 단말기·현금이 따로). 지점이 하나면 늘 본점
+  const br = user.branchId;
+  const brName = (user.branches?.length ?? 0) > 1 ? user.branches!.find((b) => b.id === br)?.name : undefined;
   const [t, done, recent, months, open] = await Promise.all([
-    dayTotals(db, day),
-    dayClose(db, day),
-    recentDayCloses(db),
+    dayTotals(db, day, br),
+    dayClose(db, day, br),
+    recentDayCloses(db, 14, br),
     listMonthCloses(db),
-    unclosedDays(db, "2000-01-01", today),
+    unclosedDays(db, "2000-01-01", today, br),
   ]);
   const last = prevYm(today.slice(0, 7));
   return (
@@ -62,7 +65,7 @@ export default async function ClosePage({
         help="close"
         sub="하루가 끝나면 카드 단말기 합계와 세어 본 현금을 입금 전표와 맞춥니다. 달이 끝나면 회계 담당이 월 마감 자료를 대표에게 올립니다."
       >
-        마감
+        {brName ? `마감 · ${brName}` : "마감"}
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}

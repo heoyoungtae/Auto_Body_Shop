@@ -90,12 +90,14 @@ export async function answerOrderAction(form: FormData) {
 
 export async function savePunchConfigAction(form: FormData) {
   const user = await requireUser();
+  const bid = String(form.get("branchId") ?? "");
+  const back = /^[0-9a-f-]{36}$/i.test(bid) ? `/settings/punch?b=${bid}` : "/settings/punch";
   let saved = { ips: [] as string[], sameAsServer: false, sameAsTv: false };
   try {
-    saved = await savePunchConfig(await getDb(), user, String(form.get("ips") ?? ""), form.getAll("sameAsServer").includes("1"), form.getAll("sameAsTv").includes("1"));
+    saved = await savePunchConfig(await getDb(), user, String(form.get("ips") ?? ""), form.getAll("sameAsServer").includes("1"), form.getAll("sameAsTv").includes("1"), String(form.get("branchId") ?? "") || null);
   } catch (e) {
-    redirect(errorUrl("/settings/punch", userMessage(e)));
+    redirect(errorUrl(back, userMessage(e)));
   }
   const where = [saved.sameAsTv ? "정비소 TV 현황판과 같은 인터넷" : "", saved.sameAsServer ? "서버와 같은 정비소 인터넷" : "", saved.ips.join(", ")].filter(Boolean).join(", ");
-  redirect(noticeUrl("/settings/punch", where ? `저장했습니다. 이제 ${where} 에서만 출퇴근을 누를 수 있습니다` : "저장했습니다. 주소가 비어 있어 어디서나 누를 수 있습니다"));
+  redirect(noticeUrl(back, where ? `저장했습니다. 이제 ${where} 에서만 출퇴근을 누를 수 있습니다` : "저장했습니다. 주소가 비어 있어 어디서나 누를 수 있습니다"));
 }

@@ -7,7 +7,7 @@ import { appUser, hazardAssessment, hazardRow } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { nextDocNo, actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyUser } from "@/modules/platform/notify";
 import { addDays, seoulDate } from "@/modules/platform/time";
@@ -66,6 +66,7 @@ export async function startAssessment(
     .insert(hazardAssessment)
     .values({
       docNo,
+      branchId: actorBranch(actor),
       kind: input.kind,
       year: Number(seoulDate(now).slice(0, 4)),
       reason: clean(input.reason),

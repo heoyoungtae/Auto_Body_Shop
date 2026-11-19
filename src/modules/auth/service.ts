@@ -9,12 +9,28 @@ import { loadPolicy } from "../platform/policy";
 import { randomInt } from "node:crypto";
 import { decrypt, encrypt, hashSecret, randomToken, sha256, verifySecret } from "./crypto";
 import { isRole, type Role } from "./roles";
+import { branchContext } from "@/modules/platform/branch";
 
 const SESSION_MS = 12 * 3600_000;
 export const MIN_PASSWORD = 8;
 
 export type Meta = { ip?: string | null; userAgent?: string | null };
-export type CurrentUser = { id: string; name: string; loginId: string; roles: Role[]; mustChangePassword?: boolean; sessionHash?: string };
+export type CurrentUser = {
+  id: string;
+  name: string;
+  loginId: string;
+  /** 지금 지점에서의 역할(지점이 하나면 원래 역할) */
+  roles: Role[];
+  mustChangePassword?: boolean;
+  sessionHash?: string;
+  /** 새 기록이 들어갈 지점 */
+  branchId?: string;
+  /** 목록을 거를 지점(null = 전체) */
+  viewBranchId?: string | null;
+  /** 고를 수 있는 지점(둘 이상일 때만 화면 위에 지점 표시) */
+  branches?: { id: string; name: string; code: string }[];
+  allBranches?: boolean;
+};
 
 export class AuthError extends UserError {}
 
@@ -67,7 +83,9 @@ export async function getCurrentUser(db: Db, token: string | undefined | null, n
   // 접속 현황용: 마지막으로 연 때(5분에 한 번만 적는다)
   if (!row.seen || now.getTime() - row.seen.getTime() > 5 * 60_000) await db.update(session).set({ lastSeenAt: now }).where(eq(session.tokenHash, hash));
   const roles = await db.select({ role: userRole.role }).from(userRole).where(eq(userRole.userId, row.id));
-  return { id: row.id, name: row.name, loginId: row.loginId, roles: roles.map((r) => r.role), mustChangePassword: row.must, sessionHash: hash };
+  // 지점(대표 결정 2026-11-19): 접속 장소가 아니라 사람 기준. 지점이 하나면 그대로
+  const b = await branchContext(db, row.id, roles.map((r) => r.role));
+  return { id: row.id, name: row.name, loginId: row.loginId, roles: b.roles, mustChangePassword: row.must, sessionHash: hash, branchId: b.branchId, viewBranchId: b.viewBranchId, branches: b.branches, allBranches: b.allBranches };
 }
 
 export async function logout(db: Db, token: string | undefined | null) {

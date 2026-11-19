@@ -5,6 +5,7 @@ import { and, count, eq, gte, inArray, isNull, lt, lte, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, auditLog, dailyJournal, instruction, instructionTask, repairOrder, vehicle, workOrder, workStep, type OffAppRow } from "@/db/schema";
 import type { Role } from "@/modules/auth/roles";
+import { actorBranch } from "@/modules/platform/docno";
 import { writeAudit } from "@/modules/platform/audit";
 import { addBusinessDays } from "@/modules/platform/business-days";
 import { loadShopCalendar } from "@/modules/platform/calendar";
@@ -90,7 +91,7 @@ export async function saveEntry(db: Db, actor: Actor, day: string, input: EntryI
     await db.update(dailyJournal).set({ ...v, updatedAt: now }).where(eq(dailyJournal.id, cur.id));
     return cur.id;
   }
-  const [r] = await db.insert(dailyJournal).values({ userId: actor.id, day, ...v, createdAt: now, updatedAt: now }).returning({ id: dailyJournal.id });
+  const [r] = await db.insert(dailyJournal).values({ userId: actor.id, branchId: actorBranch(actor), day, ...v, createdAt: now, updatedAt: now }).returning({ id: dailyJournal.id });
   return r.id;
 }
 

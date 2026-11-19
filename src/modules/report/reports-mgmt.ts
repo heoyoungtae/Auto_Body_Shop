@@ -25,6 +25,7 @@ import { GOAL_KEYS, GOALS, goalOk } from "@/modules/quality/qms-rules";
 import { LINE_CATEGORIES } from "@/modules/repair/estimate-rules";
 import { processLabel } from "@/modules/repair/work-rules";
 import { addDays } from "@/modules/platform/time";
+import { listBranches } from "@/modules/platform/branch";
 import { type Builder, type Ctx, type Row, avg, both, groupBy, m, pct, round1, sum, tsRange } from "./kit";
 import { opsValues } from "./service";
 
@@ -192,7 +193,7 @@ export const sales: Builder = async (c) => {
 export const revenue: Builder = async (c) => {
   const load = async (p: { from: string; to: string }) =>
     c.db
-      .select({ s: repairStatement, insurance: repairOrder.insurance, insurer: repairOrder.insurer })
+      .select({ s: repairStatement, insurance: repairOrder.insurance, insurer: repairOrder.insurer, b: repairOrder.branchId })
       .from(repairStatement)
       .innerJoin(repairOrder, eq(repairOrder.id, repairStatement.repairOrderId))
       .where(and(gte(repairStatement.issuedOn, p.from), lte(repairStatement.issuedOn, p.to), ne(repairOrder.status, "cancelled")));
@@ -224,6 +225,16 @@ export const revenue: Builder = async (c) => {
   const byCat = groupBy(lines, (l) => l.category, (l) => l.unitWon * l.qty + l.laborWon);
   const catTotal = sum([...byCat.values()], (x) => x);
   const byMonth = groupBy(a, (r) => r.s.issuedOn.slice(0, 7), (r) => r.s.totalWon);
+  // 지점이 둘 이상이면 지점별(수리 건의 지점)
+  const branches = await listBranches(c.db);
+  const brRows =
+    branches.length > 1
+      ? branches.map((br) => {
+          const x = a.filter((r) => r.b === br.id);
+          const y = b.filter((r) => r.b === br.id);
+          return { cells: [br.name, x.length, tot(x), supply(x), tot(y), pct(tot(x), tot(a))] as (string | number)[] };
+        })
+      : [];
   return {
     kpis,
     tables: [
@@ -244,6 +255,17 @@ export const revenue: Builder = async (c) => {
         empty: "견적 줄이 없습니다.",
         note: "명세서에 연결된 견적서에서 고객이 승인한 줄을 종류별로 더했습니다.",
       },
+      ...(brRows.length
+        ? [
+            {
+              key: "branch",
+              title: "지점별",
+              help: "rep.t.branchSales" as const,
+              cols: [{ label: "지점" }, { label: "건수", unit: "건" as const, num: true }, { label: "매출", unit: "원" as const, num: true }, { label: "공급가", unit: "원" as const, num: true }, { label: "비교 기간 매출", unit: "원" as const, num: true }, { label: "비중", unit: "%" as const, num: true }],
+              rows: brRows,
+            },
+          ]
+        : []),
       ...(byMonth.size > 1
         ? [{ key: "month", title: "달별", help: "rep.t.month" as const, cols: [{ label: "달" }, { label: "매출", unit: "원" as const, num: true }], rows: [...byMonth.entries()].sort().map(([k, w]) => ({ cells: [k, w] as (string | number)[] })) }]
         : []),

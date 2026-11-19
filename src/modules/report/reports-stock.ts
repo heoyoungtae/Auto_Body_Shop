@@ -1,7 +1,7 @@
 // 재고 보고서(보고서 센터 3단계): 18 재고현황, 19 재고 수불부, 20 재고회전율·장기 재고.
 // 금액은 재고 움직임에 남긴 단가·금액(이동평균법, purchase/cost.ts)으로 계산한다.
 // 기준일 재고 = 지금 장부 − 기준일 다음부터 지금까지의 움직임(수량·금액). 그래서 지난 달 말 재고 금액도 다시 나온다.
-import { and, gt, gte, inArray, lte } from "drizzle-orm";
+import { and, gt, gte, inArray, lte, ne } from "drizzle-orm";
 import { repairOrder, stockCount, stockItem, stockLot, stockMove } from "@/db/schema";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { belowSafety, COUNT_KINDS, EXPIRY_ALERT_DAYS, STOCK_KINDS } from "@/modules/purchase/rules";
@@ -26,7 +26,8 @@ export function moveClass(x: Pick<Move, "reason" | "note">): "in" | "use" | "adj
 /** 품목·움직임(가장 이른 날부터) 불러오기 */
 async function load(c: Ctx, from: string) {
   const items = await c.db.select().from(stockItem).orderBy(stockItem.kind, stockItem.name);
-  const moves = await c.db.select().from(stockMove).where(gte(stockMove.at, startOf(from)));
+  // 지점 사이 이동은 회사 전체 재고에 영향이 없으므로 뺀다
+  const moves = await c.db.select().from(stockMove).where(and(gte(stockMove.at, startOf(from)), ne(stockMove.reason, "transfer")));
   return { items, moves };
 }
 

@@ -18,6 +18,7 @@ import {
   formFromBizNo,
   isBizForm,
   isRegion,
+  isVatUnit,
   recommendRelief,
   regionOf,
   RELIEF_KINDS,
@@ -26,6 +27,7 @@ import {
   type BizForm,
   type Region,
   type ReliefKind,
+  type VatUnit,
 } from "./tax-rules";
 
 const KEY = "tax";
@@ -53,6 +55,8 @@ export type TaxProfile = {
   bankHolder: string;
   agentName: string;
   agentPhone: string;
+  /** 지점이 있을 때 부가세 신고 방식. 비면 아직 안 정함(지점이 하나면 상관없음) */
+  vatUnit: VatUnit | "";
 };
 
 export const EMPTY_TAX: TaxProfile = {
@@ -72,6 +76,7 @@ export const EMPTY_TAX: TaxProfile = {
   bankHolder: "",
   agentName: "",
   agentPhone: "",
+  vatUnit: "",
 };
 
 export async function loadTaxProfile(db: Db): Promise<TaxProfile> {
@@ -107,6 +112,8 @@ export type TaxInput = {
   bankHolder: string;
   agentName: string;
   agentPhone: string;
+  /** 넘어오지 않으면 그대로 */
+  vatUnit?: string;
 };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -146,6 +153,7 @@ export async function saveTaxProfile(db: Db, actor: Actor, i: TaxInput, now = ne
     bankHolder: i.bankHolder.trim(),
     agentName: i.agentName.trim(),
     agentPhone: i.agentPhone.trim(),
+    vatUnit: i.vatUnit === undefined ? before.vatUnit : isVatUnit(i.vatUnit) ? i.vatUnit : "",
   };
   await db
     .insert(appConfig)

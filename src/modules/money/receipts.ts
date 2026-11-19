@@ -17,7 +17,7 @@ import {
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { seoulDate } from "@/modules/platform/time";
@@ -228,12 +228,14 @@ export async function recordPayment(
     throw new MoneyError(
       "현금영수증을 발행하지 않았으면 이유를 메모에 적어 주세요(예: 이미 발행된 선수금의 잔액)",
     );
-  await assertOpenDay(db, input.receivedOn);
-  const docNo = await nextDocNo(db, "PM", now);
+  await assertOpenDay(db, input.receivedOn, v.ro.branchId);
+  // 입금 전표는 수리 건의 지점을 따른다
+  const docNo = await branchDocNo(db, "PM", now, v.ro.branchId);
   const [p] = await db
     .insert(payment)
     .values({
       docNo,
+      branchId: v.ro.branchId,
       repairOrderId: roId,
       method: input.method,
       amountWon: amount,
@@ -285,12 +287,13 @@ export async function reversePayment(
       "취소 사유를 적어 주세요(예: 금액 잘못 적음, 카드 승인 취소)",
     );
   const today = seoulDate(now);
-  await assertOpenDay(db, today);
-  const docNo = await nextDocNo(db, "PM", now);
+  await assertOpenDay(db, today, p.branchId);
+  const docNo = await branchDocNo(db, "PM", now, p.branchId);
   await db
     .insert(payment)
     .values({
       docNo,
+      branchId: p.branchId,
       repairOrderId: p.repairOrderId,
       method: p.method,
       amountWon: -p.amountWon,

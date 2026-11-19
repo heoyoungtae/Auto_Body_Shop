@@ -12,6 +12,7 @@ import {
   purchaseLine,
   payable,
   purchaseOrder,
+  repairOrder,
   stockItem,
   supplier,
 } from "@/db/schema";
@@ -26,6 +27,7 @@ import {
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
+import { actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyUser } from "@/modules/platform/notify";
 import {
@@ -245,6 +247,22 @@ export async function expenseSources(db: Db, now = new Date()): Promise<Source[]
   return out.sort((a, b) => (a.on ?? "").localeCompare(b.on ?? ""));
 }
 
+async function expenseBranch(db: Db, actor: Actor, fromId: string | undefined | null, src: { kind: string; id: string } | null): Promise<string> {
+  if (fromId) {
+    const [o] = await db.select({ b: expense.branchId }).from(expense).where(eq(expense.id, fromId));
+    if (o) return o.b;
+  }
+  if (src?.kind === "po") {
+    const [o] = await db.select({ b: purchaseOrder.branchId }).from(purchaseOrder).where(eq(purchaseOrder.id, src.id));
+    if (o) return o.b;
+  }
+  if (src?.kind === "outsource") {
+    const [o] = await db.select({ b: repairOrder.branchId }).from(outsourceJob).innerJoin(repairOrder, eq(repairOrder.id, outsourceJob.repairOrderId)).where(eq(outsourceJob.id, src.id));
+    if (o) return o.b;
+  }
+  return actorBranch(actor);
+}
+
 export async function sourceOf(db: Db, kind: string, id: string, payableIds: string[] = []) {
   if (kind === "settle") {
     await syncPayables(db);
@@ -410,6 +428,8 @@ export async function createExpense(
   if (input.repairTarget && (category !== "repair" || (repairKind !== "fixture" && repairKind !== "equipment") || !repairId))
     throw new ExpenseError("수리 대상은 계정이 '설비 수리·유지'일 때 고릅니다");
 
+  // 지점: 고쳐 올리면 원래 결의서, 발주서·외주 근거면 그 전표의 지점, 아니면 쓰는 사람의 지금 지점
+  const branchId = await expenseBranch(db, actor, input.fromId, src ? { kind: src.kind, id: src.id } : null);
   if (input.fromId)
     await cancelExpense(db, actor, input.fromId, "고쳐서 다시 올림", now, true);
 
@@ -441,6 +461,7 @@ export async function createExpense(
     .insert(expense)
     .values({
       docNo: doc.docNo,
+      branchId,
       approvalDocId: doc.id,
       category,
       split,
@@ -505,7 +526,7 @@ export async function createExpense(
   }
   // 같은 거래를 다른 장부에도 바로 적는다(다시 입력하지 않게)
   if (plans.length)
-    await registerFromExpense(db, actor, { id: row.id, docNo: doc.docNo, supplierId, payeeName, evidenceOn: input.evidenceOn || null }, plans, now);
+    await registerFromExpense(db, actor, { id: row.id, docNo: doc.docNo, supplierId, payeeName, evidenceOn: input.evidenceOn || null, branchId }, plans, now);
   if (input.repairTarget) {
     const [saved] = await db.select({ files: expense.files }).from(expense).where(eq(expense.id, row.id));
     await addRepair(db, actor, repairKind as AssetKind, repairId, { on: input.evidenceOn || seoulDate(now), what: usePurpose, vendor: payeeName, costWon: supply, capital: !!input.repairCapital, files: [], filesSaved: saved?.files ?? [], expenseId: row.id }, now);

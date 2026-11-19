@@ -4,7 +4,7 @@ import { appUser, createdAt, id } from "./platform";
 import { assetColumns } from "./asset";
 import { estimate, estimateLine, repairOrder } from "./repair";
 import { chemical } from "./safety";
-import { branchId } from "./branch";
+import { branch, branchId } from "./branch";
 
 export type SupplierDocFile = { doc: string; path: string; name: string; at: string; by: string };
 
@@ -317,6 +317,34 @@ export const stockCount = pgTable("stock_count", {
     .notNull()
     .references(() => appUser.id),
   countedAt: timestamp("counted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * 재고 이동 전표(본점·지점 3단계, 대표 결정 2026-11-19). 보낸 지점이 '보내기'를 하면 보낸 곳 재고에서 빠지고(이동 중),
+ * 받는 지점이 '받음 확인'을 하면 받는 곳 재고에 들어간다. 금액은 보낼 때의 평균 단가. 회사 전체 재고(stock_item)는 바뀌지 않는다.
+ * status: sent 이동 중 / received 받음 / cancelled 취소(보낸 곳으로 되돌림)
+ */
+export const stockTransfer = pgTable("stock_transfer", {
+  id: id(),
+  docNo: text("doc_no").notNull().unique(),
+  fromBranchId: uuid("from_branch_id")
+    .notNull()
+    .references(() => branch.id),
+  toBranchId: uuid("to_branch_id")
+    .notNull()
+    .references(() => branch.id),
+  status: text("status").notNull().default("sent"),
+  /** 받은 수량(got)은 받음 확인 때 적는다. 모자라면 차이를 받는 곳 실사 조정으로 남긴다 */
+  lines: jsonb("lines").$type<{ itemId: string; name: string; unit: string; qty: number; unitWon: number; got?: number }[]>().notNull(),
+  amountWon: integer("amount_won").notNull().default(0),
+  note: text("note"),
+  sentBy: uuid("sent_by")
+    .notNull()
+    .references(() => appUser.id),
+  sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  receivedBy: uuid("received_by").references(() => appUser.id),
+  receivedAt: timestamp("received_at", { withTimezone: true }),
+  receivedNote: text("received_note"),
 });
 
 /**

@@ -12,7 +12,7 @@
 // 월 마감(money/close)과 같은 날짜 기준을 쓴다.
 import { and, eq, lte } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { acctOpening, fundSlip, insuranceClaim, payment, payrollRun, repairOrder, repairStatement, stockItem, stockMove } from "@/db/schema";
+import { acctOpening, fundSlip, insuranceClaim, outsourceJob, payment, payrollRun, purchaseOrder, repairOrder, repairStatement, stockItem, stockMove } from "@/db/schema";
 import { depreciationByMonth } from "@/modules/asset/service";
 import { listExpenses } from "@/modules/money/expense";
 import { listPayables, prepayReceipts, syncPayables } from "@/modules/money/payable";
@@ -42,7 +42,7 @@ export const SRC = {
 export type Src = keyof typeof SRC;
 
 export type JLine = { code: string; dr: number; cr: number };
-export type JEntry = { on: string; src: Src; no: string; memo: string; href?: string; lines: JLine[]; /** 현금흐름표 항목 이름(없으면 전표 종류) */ tag?: string; /** 현금흐름표 활동(없으면 상대 계정으로) */ cf?: CfKind };
+export type JEntry = { on: string; src: Src; no: string; memo: string; href?: string; lines: JLine[]; /** 현금흐름표 항목 이름(없으면 전표 종류) */ tag?: string; /** 현금흐름표 활동(없으면 상대 계정으로) */ cf?: CfKind; /** 지점(지점별 손익). 없으면 회사 공통(급여·감가상각·자금 전표 등) */ b?: string };
 
 /** 금액이 음수면 반대쪽에 적는다(취소 전표) */
 const dr = (code: string, won: number): JLine => (won >= 0 ? { code, dr: won, cr: 0 } : { code, dr: 0, cr: -won });
@@ -86,9 +86,10 @@ export async function buildJournal(db: Db, to: string, now = new Date()): Promis
   }
 
   // 매출: 정비명세서
-  const sts = await db.select({ s: repairStatement, roNo: repairOrder.docNo }).from(repairStatement).innerJoin(repairOrder, eq(repairOrder.id, repairStatement.repairOrderId)).where(lte(repairStatement.issuedOn, to));
-  for (const { s, roNo } of sts)
+  const sts = await db.select({ s: repairStatement, roNo: repairOrder.docNo, b: repairOrder.branchId }).from(repairStatement).innerJoin(repairOrder, eq(repairOrder.id, repairStatement.repairOrderId)).where(lte(repairStatement.issuedOn, to));
+  for (const { s, roNo, b } of sts)
     push({
+      b,
       on: s.issuedOn,
       src: "statement",
       no: s.docNo,
@@ -101,6 +102,7 @@ export async function buildJournal(db: Db, to: string, now = new Date()): Promis
   const pays = await db.select().from(payment).where(lte(payment.receivedOn, to));
   for (const p of pays)
     push({
+      b: p.branchId,
       on: p.receivedOn,
       src: "payment",
       no: p.docNo,
@@ -109,26 +111,31 @@ export async function buildJournal(db: Db, to: string, now = new Date()): Promis
       lines: [dr(p.method === "cash" ? "101" : "103", p.amountWon), cr("108", p.amountWon)],
     });
   // 보험 삭감
-  const cuts = await db.select().from(insuranceClaim).where(and(eq(insuranceClaim.status, "paid"), lte(insuranceClaim.paidOn, to)));
-  for (const c of cuts) if (c.cutWon && c.paidOn) push({ on: c.paidOn, src: "cut", no: c.docNo, memo: `보험 삭감${c.cutReason ? ` · ${c.cutReason}` : ""}`, href: `/repairs/${c.repairOrderId}`, lines: [dr("403", c.cutWon), cr("108", c.cutWon)] });
+  const cuts = await db.select({ c: insuranceClaim, b: repairOrder.branchId }).from(insuranceClaim).innerJoin(repairOrder, eq(repairOrder.id, insuranceClaim.repairOrderId)).where(and(eq(insuranceClaim.status, "paid"), lte(insuranceClaim.paidOn, to)));
+  for (const { c, b } of cuts) if (c.cutWon && c.paidOn) push({ b, on: c.paidOn, src: "cut", no: c.docNo, memo: `보험 삭감${c.cutReason ? ` · ${c.cutReason}` : ""}`, href: `/repairs/${c.repairOrderId}`, lines: [dr("403", c.cutWon), cr("108", c.cutWon)] });
 
   // 외상매입금·미지급금·선급금
   await syncPayables(db, now);
   const pays2 = await listPayables(db);
+  // 외상 매입의 지점: 발주서의 지점, 외주는 그 수리 건의 지점
+  const poB = new Map((await db.select({ id: purchaseOrder.id, b: purchaseOrder.branchId }).from(purchaseOrder)).map((r) => [r.id, r.b]));
+  const osB = new Map((await db.select({ id: outsourceJob.id, b: repairOrder.branchId }).from(outsourceJob).innerJoin(repairOrder, eq(repairOrder.id, outsourceJob.repairOrderId))).map((r) => [r.id, r.b]));
+  const srcB = (kind: string, id: string | null) => (id ? (kind === "po" ? poB.get(id) : osB.get(id)) : undefined);
   for (const x of pays2) {
+    const b = srcB(x.sourceKind, x.sourceId);
     const href = x.sourceKind === "po" ? `/purchases/${x.sourceId}` : `/outsource/${x.sourceId}`;
     const liab = x.kind === "trade" ? "251" : "253";
     if (x.kind === "prepay") {
-      if (x.status === "paid" && x.paidOn) push({ on: x.paidOn, src: "prepay", no: x.settleNo ?? x.sourceNo, memo: `${x.payeeName} 선입금(${x.sourceNo})`, href, lines: [dr("131", x.amountWon), cr("103", x.amountWon)] });
+      if (x.status === "paid" && x.paidOn) push({ b, on: x.paidOn, src: "prepay", no: x.settleNo ?? x.sourceNo, memo: `${x.payeeName} 선입금(${x.sourceNo})`, href, lines: [dr("131", x.amountWon), cr("103", x.amountWon)] });
       continue;
     }
-    push({ on: x.accruedOn, src: "payable", no: x.sourceNo, memo: `${x.payeeName} 입고${x.invoiceNo ? ` · 계산서 ${x.invoiceNo}` : ""}`, href, lines: [...costLines(x.split, x.category, x.supplyWon), dr("135", x.vatWon), cr(liab, x.amountWon)] });
-    if (x.status === "paid" && x.paidOn) push({ on: x.paidOn, src: "settle", no: x.settleNo ?? x.sourceNo, memo: `${x.payeeName} 외상 지급(${x.sourceNo})`, href: "/money/payables", lines: [dr(liab, x.amountWon), cr("103", x.amountWon)], ...(isInvest(x.split, x.category) ? { cf: "investing" as const, tag: "설비·공구 산 돈" } : {}) });
+    push({ b, on: x.accruedOn, src: "payable", no: x.sourceNo, memo: `${x.payeeName} 입고${x.invoiceNo ? ` · 계산서 ${x.invoiceNo}` : ""}`, href, lines: [...costLines(x.split, x.category, x.supplyWon), dr("135", x.vatWon), cr(liab, x.amountWon)] });
+    if (x.status === "paid" && x.paidOn) push({ b, on: x.paidOn, src: "settle", no: x.settleNo ?? x.sourceNo, memo: `${x.payeeName} 외상 지급(${x.sourceNo})`, href: "/money/payables", lines: [dr(liab, x.amountWon), cr("103", x.amountWon)], ...(isInvest(x.split, x.category) ? { cf: "investing" as const, tag: "설비·공구 산 돈" } : {}) });
   }
   for (const r of await prepayReceipts(db)) {
     if (r.on > to || r.won <= 0) continue;
     const supply = Math.round(r.won / (1 + VAT));
-    push({ on: r.on, src: "prepay", no: r.payable.sourceNo, memo: `${r.payable.payeeName} 선입금 물건 들어옴`, href: `/purchases/${r.poId}`, lines: [...costLines(r.parts, r.payable.category, supply), dr("135", r.won - supply), cr("131", r.won)] });
+    push({ b: srcB(r.payable.sourceKind, r.payable.sourceId), on: r.on, src: "prepay", no: r.payable.sourceNo, memo: `${r.payable.payeeName} 선입금 물건 들어옴`, href: `/purchases/${r.poId}`, lines: [...costLines(r.parts, r.payable.category, supply), dr("135", r.won - supply), cr("131", r.won)] });
   }
 
   // 지출 결의(근거 없음 = 결의서 자체가 근거. 예전 방식 발주·외주 결의는 지급한 날)
@@ -140,13 +147,13 @@ export async function buildJournal(db: Db, to: string, now = new Date()): Promis
     const cost = [...costLines(e.split ?? [], e.category, e.supplyWon), dr("135", e.vatWon)];
     const href = `/money/expenses/${e.id}`;
     if (e.sourceKind === "none") {
-      push({ on: e.evidenceOn ?? seoulDate(e.createdAt), src: "expense", no: e.docNo, memo: `${e.payeeName} · ${e.purpose}`, href, lines: [...cost, cr("253", e.amountWon)] });
+      push({ b: e.branchId, on: e.evidenceOn ?? seoulDate(e.createdAt), src: "expense", no: e.docNo, memo: `${e.payeeName} · ${e.purpose}`, href, lines: [...cost, cr("253", e.amountWon)] });
       if (e.paidOn) {
         const on = e.payMethod === "card" ? cardDueOn(e.paidOn, cardDay) : e.paidOn;
-        push({ on, src: "expensePay", no: e.docNo, memo: `${e.payeeName} 지급${e.payMethod === "card" ? "(카드 결제일)" : ""}`, href, lines: [dr("253", e.amountWon), cr(cash, e.amountWon)], ...(isInvest(e.split ?? [], e.category) ? { cf: "investing" as const, tag: "설비·공구 산 돈" } : {}) });
+        push({ b: e.branchId, on, src: "expensePay", no: e.docNo, memo: `${e.payeeName} 지급${e.payMethod === "card" ? "(카드 결제일)" : ""}`, href, lines: [dr("253", e.amountWon), cr(cash, e.amountWon)], ...(isInvest(e.split ?? [], e.category) ? { cf: "investing" as const, tag: "설비·공구 산 돈" } : {}) });
       }
     } else if ((e.sourceKind === "po" || e.sourceKind === "outsource") && e.paidOn) {
-      push({ on: e.paidOn, src: "expense", no: e.docNo, memo: `${e.payeeName} · ${e.purpose}`, href, lines: [...cost, cr(cash, e.amountWon)], ...(isInvest(e.split ?? [], e.category) ? { cf: "investing" as const, tag: "설비·공구 산 돈" } : {}) });
+      push({ b: e.branchId, on: e.paidOn, src: "expense", no: e.docNo, memo: `${e.payeeName} · ${e.purpose}`, href, lines: [...cost, cr(cash, e.amountWon)], ...(isInvest(e.split ?? [], e.category) ? { cf: "investing" as const, tag: "설비·공구 산 돈" } : {}) });
     }
   }
 
@@ -161,10 +168,11 @@ export async function buildJournal(db: Db, to: string, now = new Date()): Promis
   const moves = await db.select({ m: stockMove, kind: stockItem.kind, expCategory: stockItem.expCategory, name: stockItem.name }).from(stockMove).innerJoin(stockItem, eq(stockItem.id, stockMove.itemId)).where(lte(stockMove.at, new Date(`${to}T23:59:59.999+09:00`)));
   for (const { m, kind, expCategory, name } of moves) {
     const w = m.amountWon ?? 0;
-    if (!w) continue;
+    // 지점 사이 재고 이동은 회사 장부에 영향이 없다
+    if (!w || m.reason === "transfer") continue;
     const cat = expCategory ? expAccount(itemExpCategory({ kind, expCategory })) : (STOCK_ACCOUNT[kind] ?? "503");
     const on = seoulDate(m.at);
-    const base = { on, src: "stock" as const, no: m.ref ?? "재고", href: `/stock/${m.itemId}` };
+    const base = { b: m.branchId, on, src: "stock" as const, no: m.ref ?? "재고", href: `/stock/${m.itemId}` };
     if (m.reason === "receive") push({ ...base, memo: `${name} 입고 → 재고`, lines: [dr("153", w), cr(cat, w)] });
     else if (m.reason === "use") push({ ...base, memo: `${name} 사용`, lines: [dr(cat, -w), cr("153", -w)] });
     else if (m.reason === "count" && (m.note ?? "").startsWith("처음 등록")) push({ ...base, memo: `${name} 처음 등록(개업 전 재고)`, lines: [dr("153", w), cr("331", w)] });

@@ -186,6 +186,7 @@ export async function listAllEstimates(db: Db, filter: EstimateFilter = "open", 
   return db
     .select({
       id: estimate.id,
+      branchId: repairOrder.branchId,
       docNo: estimate.docNo,
       rev: estimate.rev,
       status: estimate.status,

@@ -6,6 +6,7 @@ import type { Db } from "@/db/client";
 import { appUser, tool, toolEvent, toolMin } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
+import { actorBranch } from "@/modules/platform/docno";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
@@ -55,7 +56,7 @@ export async function registerTool(db: Db, actor: Actor, input: ToolInput, now =
   must(actor);
   const v = check(input);
   const no = nextToolNo((await db.select({ no: tool.no }).from(tool)).map((r) => r.no));
-  const [r] = await db.insert(tool).values({ ...v, no, createdBy: actor.id, createdAt: now, updatedAt: now }).returning({ id: tool.id });
+  const [r] = await db.insert(tool).values({ ...v, no, branchId: actorBranch(actor), createdBy: actor.id, createdAt: now, updatedAt: now }).returning({ id: tool.id });
   await event(db, r.id, { kind: "register", detail: `${TOOL_KEEP[v.keep as keyof typeof TOOL_KEEP]}${v.location ? ` · ${v.location}` : ""}${v.special ? " · 반출 기록 대상" : ""}` }, actor.id, now);
   await writeAudit(db, { actorId: actor.id, action: "tool.create", entityType: "tool", entityId: no, after: { name: v.name } });
   if (v.holderId && v.holderId !== actor.id) await notifyUser(db, v.holderId, `개인 공구 지급: ${no} ${v.name}`, `tool-give-${r.id}-${v.holderId}`, `/tools/${r.id}`);

@@ -11,7 +11,7 @@ import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { isBusinessDay } from "@/modules/platform/business-days";
 import { writeAudit } from "@/modules/platform/audit";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { seoulDate } from "@/modules/platform/time";
@@ -271,7 +271,6 @@ export async function recordBillPayment(db: Db, actor: Actor, billId: string, in
   if (amount > v.remain) throw new CreditError(`청구서에 남은 금액(${won(Math.max(0, v.remain))})보다 많습니다. 다른 청구서 몫이 섞였으면 나눠 적어 주세요`);
   if (!isPayInMethod(input.method)) throw new CreditError("받은 방법을 골라 주세요");
   if (!ISO.test(input.receivedOn) || input.receivedOn > seoulDate(now)) throw new CreditError("받은 날을 확인해 주세요(오늘이나 그 전)");
-  await assertOpenDay(db, input.receivedOn);
   let left = amount;
   const made: { id: string; docNo: string }[] = [];
   await db.transaction(async (tx) => {
@@ -279,11 +278,15 @@ export async function recordBillPayment(db: Db, actor: Actor, billId: string, in
       if (left <= 0) break;
       if (l.remain <= 0) continue;
       const amt = Math.min(left, l.remain);
-      const docNo = await nextDocNo(tx, "PM", now);
+      // 입금 전표는 그 수리 건의 지점을 따른다
+      const [ro] = await tx.select({ b: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, l.roId));
+      await assertOpenDay(tx, input.receivedOn, ro?.b);
+      const docNo = await branchDocNo(tx, "PM", now, ro?.b);
       const [p] = await tx
         .insert(payment)
         .values({
           docNo,
+          branchId: ro?.b,
           repairOrderId: l.roId,
           method: input.method,
           amountWon: amt,

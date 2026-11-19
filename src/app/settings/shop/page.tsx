@@ -1,6 +1,7 @@
 import { can } from "@/modules/auth/permissions";
 import { getDb } from "@/db/runtime";
 import { loadShopInfo, shopAddressLine, shopMissing } from "@/modules/platform/shop";
+import { hasManyBranches } from "@/modules/platform/branch";
 import { AssistForm } from "../../_assist";
 import { AddressField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
@@ -61,7 +62,7 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
           </dl>
         )}
       </Card>
-      <TaxCard o={tax} owner={owner} />
+      <TaxCard o={tax} owner={owner} many={await hasManyBranches(db)} />
       <div className="mt-4">
         <Card title="직인" help={{ kind: "panel", id: "shop.seal" }}>
           <div className="grid gap-6 lg:grid-cols-[14rem_1fr]">

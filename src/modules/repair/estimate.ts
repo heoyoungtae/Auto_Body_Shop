@@ -1,6 +1,7 @@
 // 견적서(F-03-02, 법정 서식 별지 제89호의3) — STD-03 4·5절.
 // 견적은 진단 확인이 끝난 수리 건에서만 만들고, 항목은 진단 줄과 공임 기준표로 채운다(다시 적지 않음).
 // 작성(상담원) → 검토 요청 → 검토(전결: 200만 원 이하 공장장, 초과 대표) → 발급(법정 서식) → 고객 승인(다음 단계).
+import { branchShopInfo } from "@/modules/platform/branch";
 import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -10,11 +11,11 @@ import { rolesOf } from "@/modules/approval/line";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { resolveApprover } from "@/modules/platform/delegation";
-import { nextDocNo } from "@/modules/platform/docno";
+import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
-import { loadShopInfo, shopMissing } from "@/modules/platform/shop";
+import { shopMissing } from "@/modules/platform/shop";
 import { userSignature } from "@/modules/auth/signature";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { buildLines, estimateIssues, isLineCategory, isPartCode, totals, type EstimateKind } from "./estimate-rules";
@@ -65,7 +66,7 @@ export async function createEstimate(db: Db, actor: Actor, roId: string, now = n
   const table = await loadLabor(db, seoulDate(now));
   const lines = buildLines(damages, table, grade, kind, c?.partsPref);
   return db.transaction(async (tx) => {
-    const docNo = await nextDocNo(tx, "ES", now);
+    const docNo = await branchDocNo(tx, "ES", now, r.branchId);
     const [e] = await tx.insert(estimate).values({ docNo, repairOrderId: roId, rev: (prev[0]?.rev ?? 0) + 1, kind, paintGrade: grade, createdBy: actor.id }).returning({ id: estimate.id });
     if (lines.length) await tx.insert(estimateLine).values(lines.map((l, i) => ({ ...l, estimateId: e.id, seq: i + 1 })));
     await recalc(tx, e.id);
@@ -184,7 +185,9 @@ export async function issueEstimate(db: Db, actor: Actor, id: string, now = new 
   mustWrite(actor);
   const e = await estRow(db, id);
   if (e.status !== "approved") throw new EstimateError("검토가 끝난 견적만 발급합니다");
-  const shop = await loadShopInfo(db);
+  // 지점 수리 건이면 그 지점의 상호·등록번호·주소가 찍힌다(빈 칸은 본점 값)
+  const [ro] = await db.select({ b: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, e.repairOrderId));
+  const shop = await branchShopInfo(db, ro?.b);
   const missing = shopMissing(shop);
   if (missing.length) throw new EstimateError(`설정 › 사업장 정보에 ${missing.join("·")}이(가) 비어 있어 법정 견적서를 발급할 수 없습니다`);
   const g = await getEstimate(db, id);

@@ -1,12 +1,13 @@
 // 본점·지점·작업장(대표 결정 2026-11-19, 1단계). 지점은 아직 본점 하나뿐이라 지점을 고르는 화면은 없다.
 // 작업장은 같은 부지 안의 현장 위치(판금동·도장 부스·부품 창고 등). 설정 › 작업장에서 공장장·대표가 관리한다.
-import { and, asc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, branch, MAIN_BRANCH_ID, WORKPLACE_KINDS, workplace, workStep, type WorkplaceKind } from "@/db/schema";
+import { appUser, branch, MAIN_BRANCH_ID, repairOrder, ROLE_VALUES, staffProfile, userBranch, userBranchPref, WORKPLACE_KINDS, workplace, workStep, type WorkplaceKind } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "./audit";
 import { UserError } from "./errors";
+import { formatBizNo, loadShopInfo, validBizNo, type ShopInfo } from "./shop";
 
 type Actor = { id: string; roles: readonly Role[] };
 
@@ -222,4 +223,210 @@ export function suggestZoneWorkplace(code: string, zoneName: string, wps: WpPick
   if (byName) return byName.id;
   const k = ZONE_KIND[code];
   return (k && [...wps].sort((a, b) => a.sortOrder - b.sortOrder).find((w) => w.kind === k)?.id) || null;
+}
+
+// ── 지금 지점(2단계, 대표 지시 2026-11-19: 원격 어디서든 같게 — 접속 장소가 아니라 사람 기준) ──
+
+/** 대표·회계는 줄 없이 모든 지점을 본다 */
+const ALL_BRANCH_ROLES: Role[] = ["owner", "accounting"];
+
+export type BranchCtx = {
+  /** 새 기록이 들어갈 지점(늘 하나) */
+  branchId: string;
+  /** 목록을 거를 지점. null = 전체(대표·회계가 '전체'를 고른 때) */
+  viewBranchId: string | null;
+  /** 이 사람이 고를 수 있는 지점(문 닫은 지점 제외) */
+  branches: { id: string; name: string; code: string }[];
+  allBranches: boolean;
+  /** 지금 지점에서의 역할 */
+  roles: Role[];
+};
+
+/** 지점이 하나뿐이면 아무것도 바뀌지 않는다(본점, 원래 역할) */
+export async function branchContext(db: Db, userId: string, globalRoles: Role[]): Promise<BranchCtx> {
+  const all = (await listBranches(db)).filter((b) => !b.closedOn);
+  if (all.length <= 1) return { branchId: all[0]?.id ?? MAIN_BRANCH_ID, viewBranchId: all[0]?.id ?? MAIN_BRANCH_ID, branches: all.map((b) => ({ id: b.id, name: b.name, code: b.code })), allBranches: true, roles: globalRoles };
+  const [[home], rows, [pref]] = await Promise.all([
+    db.select({ b: staffProfile.homeBranchId }).from(staffProfile).where(eq(staffProfile.userId, userId)),
+    db.select().from(userBranch).where(eq(userBranch.userId, userId)),
+    db.select({ b: userBranchPref.branchId }).from(userBranchPref).where(eq(userBranchPref.userId, userId)),
+  ]);
+  const homeId = home?.b ?? MAIN_BRANCH_ID;
+  const allBranches = globalRoles.some((r) => ALL_BRANCH_ROLES.includes(r));
+  const ok = new Set(allBranches ? all.map((b) => b.id) : [homeId, ...rows.map((r) => r.branchId)]);
+  const branches = all.filter((b) => ok.has(b.id)).map((b) => ({ id: b.id, name: b.name, code: b.code }));
+  // 마지막으로 고른 지점. 대표·회계가 null 이면 전체 보기
+  let view: string | null = pref ? (pref.b && ok.has(pref.b) ? pref.b : allBranches && pref.b === null ? null : homeId) : allBranches ? null : homeId;
+  if (view && !ok.has(view)) view = branches[0]?.id ?? homeId;
+  const branchId = view ?? (ok.has(homeId) ? homeId : (branches[0]?.id ?? MAIN_BRANCH_ID));
+  const row = rows.find((r) => r.branchId === branchId);
+  const local = (row?.roles ?? []).filter((r): r is Role => (ROLE_VALUES as readonly string[]).includes(r));
+  // 그 지점 역할이 따로 있으면 그것(대표·회계 역할은 어디서나 유지), 없으면 원래 역할
+  const roles = local.length ? [...new Set([...local, ...globalRoles.filter((r) => ALL_BRANCH_ROLES.includes(r))])] : globalRoles;
+  return { branchId, viewBranchId: view, branches, allBranches, roles };
+}
+
+/** 화면 위 '지금 지점' 바꾸기. id 가 '' 이면 전체(대표·회계만) */
+export async function setViewBranch(db: Db, actor: { id: string; roles: readonly Role[] }, id: string, now = new Date()) {
+  const all = (await listBranches(db)).filter((b) => !b.closedOn);
+  const allBranches = actor.roles.some((r) => ALL_BRANCH_ROLES.includes(r));
+  if (!id) {
+    if (!allBranches) throw new UserError("전체 보기는 대표·회계 담당만 합니다");
+  } else {
+    const b = all.find((x) => x.id === id);
+    if (!b) throw new UserError("없는 지점이거나 문을 닫은 지점입니다");
+    if (!allBranches) {
+      const [[home], rows] = await Promise.all([
+        db.select({ b: staffProfile.homeBranchId }).from(staffProfile).where(eq(staffProfile.userId, actor.id)),
+        db.select({ b: userBranch.branchId }).from(userBranch).where(eq(userBranch.userId, actor.id)),
+      ]);
+      if ((home?.b ?? MAIN_BRANCH_ID) !== id && !rows.some((r) => r.b === id)) throw new UserError(`${b.name}에서 일할 권한이 없습니다. 대표에게 지점 권한을 부탁하세요`);
+    }
+  }
+  await db
+    .insert(userBranchPref)
+    .values({ userId: actor.id, branchId: id || null, updatedAt: now })
+    .onConflictDoUpdate({ target: userBranchPref.userId, set: { branchId: id || null, updatedAt: now } });
+}
+
+/** 목록 거르기: 보는 지점이 있으면 그 지점 줄만 */
+export function inView<T extends { branchId?: string | null }>(rows: T[], viewBranchId: string | null | undefined): T[] {
+  if (!viewBranchId) return rows;
+  return rows.filter((r) => !r.branchId || r.branchId === viewBranchId);
+}
+
+// ── 설정 › 본점·지점(2단계): 지점 등록·수정·문 닫기, 직원 소속·지점별 역할 ──
+
+export type BranchInput = {
+  name: string;
+  code: string;
+  bizNo: string;
+  subBizNo: string;
+  repairRegNo: string;
+  zip: string;
+  address: string;
+  addressDetail: string;
+  phone: string;
+  openedOn: string;
+  closedOn: string;
+};
+
+function cleanBranch(i: BranchInput) {
+  const name = i.name.trim().replace(/\s+/g, " ");
+  if (!name) throw new UserError("지점 이름을 적어 주세요(예: 서구점)");
+  if (name.length > 20) throw new UserError("지점 이름은 20자까지입니다");
+  const code = i.code.trim().toUpperCase();
+  if (code && !/^[A-Z]{1,2}$/.test(code)) throw new UserError("지점 코드는 영문 1~2자입니다(예: S)");
+  const subBizNo = i.subBizNo.replace(/\D/g, "");
+  if (subBizNo && subBizNo.length !== 4) throw new UserError("종사업장 번호는 4자리 숫자입니다(예: 0001)");
+  const bizNo = i.bizNo.trim() ? formatBizNo(i.bizNo.trim()) : "";
+  if (bizNo && !validBizNo(bizNo)) throw new UserError("사업자등록번호 10자리를 다시 확인해 주세요");
+  const d = (v: string) => (v.trim() && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) ? v.trim() : null);
+  return {
+    name,
+    code,
+    bizNo,
+    subBizNo,
+    repairRegNo: i.repairRegNo.trim(),
+    zip: i.zip.trim(),
+    address: i.address.trim(),
+    addressDetail: i.addressDetail.trim(),
+    phone: i.phone.trim(),
+    openedOn: d(i.openedOn),
+    closedOn: d(i.closedOn),
+  };
+}
+
+async function checkBranchUnique(db: Db, v: { name: string; code: string }, exceptId?: string) {
+  const rows = await db.select({ id: branch.id, name: branch.name, code: branch.code }).from(branch);
+  for (const r of rows) {
+    if (r.id === exceptId) continue;
+    if (r.name === v.name) throw new UserError(`'${v.name}' 지점이 이미 있습니다`);
+    if (v.code && r.code === v.code) throw new UserError(`지점 코드 '${v.code}'는 ${r.name}이(가) 씁니다. 다른 글자를 고르세요`);
+  }
+}
+
+export async function createBranch(db: Db, actor: Actor, input: BranchInput) {
+  if (!can(actor, "settings.edit")) throw new UserError("지점은 대표가 등록합니다");
+  const v = cleanBranch(input);
+  if (!v.code) throw new UserError("지점 코드(영문 1~2자)를 정해 주세요. 이 지점 서류 번호에 붙습니다(예: RO-S2611-0001)");
+  if (v.closedOn) throw new UserError("새 지점에는 문 닫은 날을 넣지 않습니다");
+  await checkBranchUnique(db, v);
+  const n = (await db.select({ id: branch.id }).from(branch)).length;
+  const [row] = await db.insert(branch).values({ ...v, sortOrder: n * 10 }).returning({ id: branch.id });
+  await writeAudit(db, { actorId: actor.id, action: "branch.create", entityType: "branch", entityId: row.id, after: v });
+  return row.id;
+}
+
+export async function updateBranch(db: Db, actor: Actor, id: string, input: BranchInput) {
+  if (!can(actor, "settings.edit")) throw new UserError("지점은 대표가 고칩니다");
+  const [before] = await db.select().from(branch).where(eq(branch.id, id));
+  if (!before) throw new UserError("지점을 찾을 수 없습니다");
+  const v = cleanBranch(input);
+  if (before.isMain) {
+    // 본점의 사업장 정보는 설정 › 사업장 정보가 원본이다(법정 서식). 여기서는 이름만
+    if (v.closedOn) throw new UserError("본점은 문을 닫을 수 없습니다");
+    await checkBranchUnique(db, { name: v.name, code: "" }, id);
+    await db.update(branch).set({ name: v.name }).where(eq(branch.id, id));
+  } else {
+    if (!v.code) throw new UserError("지점 코드는 비울 수 없습니다");
+    await checkBranchUnique(db, v, id);
+    if (v.closedOn && !before.closedOn) {
+      const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(repairOrder).where(and(eq(repairOrder.branchId, id), notInArray(repairOrder.status, ["delivered", "cancelled"])));
+      if (n > 0) throw new UserError(`이 지점에 아직 출고하지 않은 수리 건이 ${n}건 있습니다. 출고하거나 다른 지점으로 옮긴 뒤 문을 닫습니다`);
+    }
+    await db.update(branch).set(v).where(eq(branch.id, id));
+  }
+  await writeAudit(db, { actorId: actor.id, action: "branch.update", entityType: "branch", entityId: id, before: { name: before.name, code: before.code, closedOn: before.closedOn }, after: v });
+}
+
+/** 지점 서류에 찍는 사업장 정보: 본점은 설정 › 사업장 정보, 지점은 지점 값(빈 칸은 본점 값) */
+export async function branchShopInfo(db: Db, branchId: string | null | undefined): Promise<ShopInfo & { branchName: string | null }> {
+  const shop = await loadShopInfo(db);
+  if (!branchId || branchId === MAIN_BRANCH_ID) return { ...shop, branchName: null };
+  const [b] = await db.select().from(branch).where(eq(branch.id, branchId));
+  if (!b || b.isMain) return { ...shop, branchName: null };
+  return {
+    ...shop,
+    name: `${shop.name} ${b.name}`,
+    bizNo: b.bizNo || shop.bizNo,
+    repairRegNo: b.repairRegNo || shop.repairRegNo,
+    zip: b.address ? b.zip : shop.zip,
+    address: b.address || shop.address,
+    addressDetail: b.address ? b.addressDetail : shop.addressDetail,
+    phone: b.phone || shop.phone,
+    sealPath: b.sealPath || shop.sealPath,
+    branchName: b.name,
+  };
+}
+
+/** 직원 소속 지점과 다른 지점에서의 역할. access 값: 'same' = 원래 역할 그대로, 역할 목록 = 그 지점에서는 이 역할, 없음 = 못 들어감 */
+export async function setUserBranches(db: Db, actor: Actor, userId: string, input: { homeBranchId: string; access: Record<string, "same" | string[]> }) {
+  if (!can(actor, "settings.edit")) throw new UserError("직원 지점은 대표가 정합니다");
+  const all = await listBranches(db);
+  if (!all.some((b) => b.id === input.homeBranchId && !b.closedOn)) throw new UserError("소속 지점을 골라 주세요");
+  const rows: { userId: string; branchId: string; roles: string[] }[] = [];
+  for (const [bid, v] of Object.entries(input.access)) {
+    if (bid === input.homeBranchId || !all.some((b) => b.id === bid)) continue;
+    const roles = v === "same" ? [] : v.filter((r) => (ROLE_VALUES as readonly string[]).includes(r) && r !== "owner");
+    if (v !== "same" && !roles.length) continue;
+    rows.push({ userId, branchId: bid, roles });
+  }
+  await db.transaction(async (tx) => {
+    await tx.insert(staffProfile).values({ userId, homeBranchId: input.homeBranchId }).onConflictDoUpdate({ target: staffProfile.userId, set: { homeBranchId: input.homeBranchId } });
+    await tx.delete(userBranch).where(eq(userBranch.userId, userId));
+    if (rows.length) await tx.insert(userBranch).values(rows);
+    await writeAudit(tx, { actorId: actor.id, action: "branch.staff", entityType: "branch", entityId: userId, after: { home: input.homeBranchId, access: rows.map((r) => ({ b: r.branchId, roles: r.roles })) } });
+  });
+}
+
+/** 설정 화면용: 직원마다 소속·다른 지점 역할 */
+export async function staffBranches(db: Db) {
+  const users = await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(asc(appUser.name));
+  const [profiles, rows] = await Promise.all([db.select({ userId: staffProfile.userId, home: staffProfile.homeBranchId }).from(staffProfile), db.select().from(userBranch)]);
+  return users.map((u) => ({
+    ...u,
+    home: profiles.find((p) => p.userId === u.id)?.home ?? MAIN_BRANCH_ID,
+    access: rows.filter((r) => r.userId === u.id).map((r) => ({ branchId: r.branchId, roles: r.roles })),
+  }));
 }

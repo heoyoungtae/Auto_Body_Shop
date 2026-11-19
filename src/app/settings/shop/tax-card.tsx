@@ -1,5 +1,5 @@
 // 세금·사업 형태(개인/법인, 지역·감면, 원천세, 사업용 계좌, 세무 대리인) — 대표만 고친다
-import { BIZ_FORMS, REGIONS, RELIEF_KINDS } from "@/modules/money/tax-rules";
+import { BIZ_FORMS, REGIONS, RELIEF_KINDS, VAT_UNITS } from "@/modules/money/tax-rules";
 import type { taxOverview } from "@/modules/money/tax-profile";
 import { BANKS } from "@/modules/purchase/rules";
 import { AssistForm } from "../../_assist";
@@ -10,7 +10,8 @@ import { saveTaxAction } from "./actions";
 
 type O = Awaited<ReturnType<typeof taxOverview>>;
 
-export function TaxCard({ o, owner }: { o: O; owner: boolean }) {
+/** many: 지점이 둘 이상이면 부가세 신고 방식을 고른다 */
+export function TaxCard({ o, owner, many = false }: { o: O; owner: boolean; many?: boolean }) {
   const { p } = o;
   const form = p.form || o.form || "";
   const rec = o.rec;
@@ -50,6 +51,7 @@ export function TaxCard({ o, owner }: { o: O; owner: boolean }) {
               <SelectField help="tax.relief" name="relief" defaultValue={p.relief || rec?.kind || ""} placeholder="고르기" options={Object.entries(RELIEF_KINDS).map(([value, label]) => ({ value, label }))} from={!p.relief && rec ? "추천" : undefined} />
               <CheckGroup help="tax.halfYear" name="halfYearWithholding" options={[{ value: "1", label: "반기납부 승인받음" }]} defaultChecked={p.halfYearWithholding ? ["1"] : []} />
             </div>
+            {many && <RadioRow help="tax.vatUnit" name="vatUnit" defaultValue={p.vatUnit || "unit"} options={Object.entries(VAT_UNITS).map(([value, label]) => ({ value, label }))} from={p.vatUnit ? undefined : "추천"} />}
             <p className="text-sm font-medium">사업용 계좌</p>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <TextField help="tax.bankName" name="bankName" defaultValue={p.bankName} suggestions={BANKS.map((b) => ({ value: b }))} />
@@ -73,6 +75,7 @@ export function TaxCard({ o, owner }: { o: O; owner: boolean }) {
               ["받는 감면", p.relief ? RELIEF_KINDS[p.relief] : ""],
               ["사업용 계좌", p.bankName ? `${p.bankName} ${o.bankFull ?? p.bankAccountMasked} ${p.bankHolder}` : ""],
               ["세무 대리인", [p.agentName, p.agentPhone].filter(Boolean).join(" ")],
+              ...(many ? [["부가세 신고 방식", p.vatUnit ? VAT_UNITS[p.vatUnit] : ""]] : []),
             ].map(([k, v]) => (
               <div key={k} className="grid grid-cols-[8rem_1fr]">
                 <dt className="text-[var(--muted)]">{k}</dt>

@@ -66,6 +66,7 @@ export async function createConsultAction(form: FormData) {
   try {
     const vehicleId = str("vehicleId");
     const row = await createConsultation(await getDb(), user.id, {
+      branchId: user.branchId,
       customerId: str("customerId") || undefined,
       newCustomer: str("customerId") ? undefined : { name: str("newName"), phone: str("newPhone") },
       consent: await readConsent(form),

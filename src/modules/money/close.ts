@@ -6,6 +6,7 @@ import {
   appUser,
   approvalDoc,
   dailyClose,
+  MAIN_BRANCH_ID,
   expense,
   insuranceClaim,
   monthClose,
@@ -21,6 +22,7 @@ import type { ResolvedStep } from "@/modules/approval/types";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
+import { actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { seoulDate } from "@/modules/platform/time";
@@ -30,7 +32,7 @@ import { customerReceivables, insurerReceivables } from "./receipts";
 import { AR_DUN_DAYS, EXP_CATEGORIES, isYm, prevYm, ymRange } from "./rules";
 
 export class CloseError extends UserError {}
-type Actor = { id: string; roles: Role[] };
+type Actor = { id: string; roles: Role[]; branchId?: string };
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const sum = <T>(xs: T[], f: (x: T) => number) =>
@@ -41,11 +43,11 @@ const tsRange = (from: string, to: string) => ({
 });
 
 /** 그날 입금 전표 합계(취소 전표 포함). 카드·현금·이체는 고객 수납, 보험사 입금은 따로 */
-export async function dayTotals(db: Db, day: string) {
+export async function dayTotals(db: Db, day: string, branchId: string = MAIN_BRANCH_ID) {
   const rows = await db
     .select()
     .from(payment)
-    .where(eq(payment.receivedOn, day));
+    .where(and(eq(payment.receivedOn, day), eq(payment.branchId, branchId)));
   const cust = rows.filter((r) => r.payer !== "insurer");
   const by = (m: string) =>
     sum(
@@ -65,8 +67,8 @@ export async function dayTotals(db: Db, day: string) {
   };
 }
 
-export async function dayClose(db: Db, day: string) {
-  const [d] = await db.select().from(dailyClose).where(eq(dailyClose.day, day));
+export async function dayClose(db: Db, day: string, branchId: string = MAIN_BRANCH_ID) {
+  const [d] = await db.select().from(dailyClose).where(and(eq(dailyClose.day, day), eq(dailyClose.branchId, branchId)));
   return d ?? null;
 }
 
@@ -87,7 +89,9 @@ export async function closeDay(
   const today = seoulDate(now);
   if (!ISO.test(day) || day > today)
     throw new CloseError("마감할 날을 확인해 주세요(오늘이나 그 전)");
-  if (await dayClose(db, day)) throw new CloseError("이미 마감한 날입니다");
+  // 마감은 마감하는 사람의 지금 지점 것(지점마다 단말기·현금이 따로)
+  const branchId = actorBranch(actor);
+  if (await dayClose(db, day, branchId)) throw new CloseError("이미 마감한 날입니다");
   if (input.cardTerminalWon == null || input.cardTerminalWon < 0)
     throw new CloseError(
       "카드 단말기의 그날 승인 합계를 적어 주세요(없으면 0)",
@@ -96,7 +100,7 @@ export async function closeDay(
     throw new CloseError(
       "그날 받은 현금을 세어 적어 주세요(없으면 0, 거스름돈 시재는 빼고)",
     );
-  const t = await dayTotals(db, day);
+  const t = await dayTotals(db, day, branchId);
   const diff = input.cardTerminalWon - t.card + (input.cashCountedWon - t.cash);
   const cardDiff = input.cardTerminalWon - t.card;
   const cashDiff = input.cashCountedWon - t.cash;
@@ -105,6 +109,7 @@ export async function closeDay(
       `전표와 ${cardDiff ? `카드 ${won(cardDiff)}` : ""}${cardDiff && cashDiff ? " · " : ""}${cashDiff ? `현금 ${won(cashDiff)}` : ""} 차이가 납니다. 빠진 전표가 있으면 먼저 적고, 그래도 다르면 이유를 적어 주세요`,
     );
   await db.insert(dailyClose).values({
+    branchId,
     day,
     cardWon: t.card,
     cashWon: t.cash,
@@ -140,39 +145,33 @@ export async function closeDay(
 }
 
 /** 최근 일일 마감 기록 */
-export async function recentDayCloses(db: Db, limit = 14) {
+export async function recentDayCloses(db: Db, limit = 14, branchId: string = MAIN_BRANCH_ID) {
   return db
     .select({ d: dailyClose, by: appUser.name })
     .from(dailyClose)
     .leftJoin(appUser, eq(appUser.id, dailyClose.closedBy))
+    .where(eq(dailyClose.branchId, branchId))
     .orderBy(desc(dailyClose.day))
     .limit(limit);
 }
 
-/** 입금 전표가 있는데 마감 안 한 날(오늘 제외) */
-export async function unclosedDays(db: Db, from: string, to: string) {
-  const days = [
-    ...new Set(
-      (
-        await db
-          .select({ d: payment.receivedOn })
-          .from(payment)
-          .where(
-            and(gte(payment.receivedOn, from), lte(payment.receivedOn, to)),
-          )
-      ).map((r) => r.d),
-    ),
-  ];
-  if (!days.length) return [];
+/** 입금 전표가 있는데 마감 안 한 날(오늘 제외). 지점을 주면 그 지점만, 안 주면 어느 지점이든 마감 안 한 날 */
+export async function unclosedDays(db: Db, from: string, to: string, branchId?: string) {
+  const range = and(gte(payment.receivedOn, from), lte(payment.receivedOn, to));
+  const pairs = await db
+    .selectDistinct({ d: payment.receivedOn, b: payment.branchId })
+    .from(payment)
+    .where(branchId ? and(range, eq(payment.branchId, branchId)) : range);
+  if (!pairs.length) return [];
   const closed = new Set(
     (
       await db
-        .select({ d: dailyClose.day })
+        .select({ d: dailyClose.day, b: dailyClose.branchId })
         .from(dailyClose)
-        .where(inArray(dailyClose.day, days))
-    ).map((r) => r.d),
+        .where(inArray(dailyClose.day, [...new Set(pairs.map((p) => p.d))]))
+    ).map((r) => `${r.b}|${r.d}`),
   );
-  return days.filter((d) => !closed.has(d)).sort();
+  return [...new Set(pairs.filter((p) => !closed.has(`${p.b}|${p.d}`)).map((p) => p.d))].sort();
 }
 
 export type MonthSummary = {
