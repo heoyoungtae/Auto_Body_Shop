@@ -274,6 +274,15 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
 }
 
 /** 급여대장 한 달의 회사 몫(4대보험 사업주 부담 등) 합계 — 회계 자동 분개용 */
+/** 지점별 손익: 급여 대장 한 번의 사람별 인건비(지급액 + 회사 몫 4대보험) */
+export async function laborCostByUser(db: Db, runId: string) {
+  const rows = await db.select({ u: payslip.userId, d: payslip.dataEnc }).from(payslip).where(eq(payslip.runId, runId));
+  return rows.map((r) => {
+    const d = readSlip(r.d);
+    return { userId: r.u, won: d.gross + (d.employerTotal ?? 0) };
+  });
+}
+
 export async function employerTotalOfRun(db: Db, runId: string) {
   const rows = await db.select({ d: payslip.dataEnc }).from(payslip).where(eq(payslip.runId, runId));
   return rows.reduce((s, r) => s + (readSlip(r.d).employerTotal ?? 0), 0);

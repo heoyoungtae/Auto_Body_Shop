@@ -84,6 +84,15 @@ export function smeReliefRate(region: Region) {
 }
 
 export type ReliefKind = "startup" | "sme" | "none";
+/** 지점이 있을 때 부가세 신고 방식(본점·지점 3단계, 추천: 사업자단위과세) */
+export const VAT_UNITS = {
+  unit: "사업자단위과세(본점에서 한 번에 신고·납부)",
+  consolidated: "주사업장 총괄납부(신고는 지점마다, 납부만 합쳐서)",
+  each: "사업장마다 신고·납부",
+} as const;
+export type VatUnit = keyof typeof VAT_UNITS;
+export const isVatUnit = (v: string): v is VatUnit => v in VAT_UNITS;
+
 export const RELIEF_KINDS: Record<ReliefKind, string> = {
   startup: "창업중소기업 세액감면",
   sme: "중소기업 특별세액감면",

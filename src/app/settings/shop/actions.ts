@@ -46,6 +46,7 @@ export async function saveTaxAction(form: FormData) {
       ceoYouth: s(form, "ceoYouth"),
       relief: s(form, "relief"),
       halfYearWithholding: form.get("halfYearWithholding") === "1",
+      vatUnit: form.has("vatUnit") ? String(form.get("vatUnit") ?? "") : undefined,
       bankReported: form.get("bankReported") === "1",
       bankName: s(form, "bankName"),
       accountNo: s(form, "accountNo"),

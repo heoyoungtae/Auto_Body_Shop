@@ -1,7 +1,10 @@
 // 회계 장부 보고서(보고서 센터 4단계): 6 손익계산서, 7 재무상태표, 8 현금흐름표, 9 자금일보·자금수지 예정, 13 계정별 원장.
 // 모두 자동 분개(modules/acct/journal.ts)에서 나온다. 관리용(내부 의사결정용)이며 세무 신고용 장부는 세무사가 따로 만든다.
-import { and, eq } from "drizzle-orm";
-import { insuranceClaim } from "@/db/schema";
+import { and, eq, gte, lte } from "drizzle-orm";
+import { insuranceClaim, MAIN_BRANCH_ID, payrollRun, staffProfile } from "@/db/schema";
+import { listBranches } from "@/modules/platform/branch";
+import { laborCostByUser } from "@/modules/staff/payroll";
+import type { RTable } from "./kit";
 import { ACCOUNTS, ACCT, acctName, type AcctGroup, CASH_CODES, debitNormal, GROUP_LABEL } from "@/modules/acct/accounts";
 import { buildJournal, type JEntry, SRC, sumBy, unbalanced } from "@/modules/acct/journal";
 import { bankFlows } from "@/modules/bank/service";
@@ -62,6 +65,85 @@ const plTrend = (key: "sales" | "op", label: string): TrendDef => ({
   },
 });
 
+/**
+ * 지점별 손익(본점·지점 3단계). 지점 꼬리표가 있는 전표는 그 지점, 급여는 직원 소속 지점의 인건비 비율로 나누고,
+ * 어느 지점 것도 아닌 공통비(감가상각·자금 전표 등)는 매출 비율로 배분한다. 배분 전·후를 둘 다 보인다.
+ * 지점이 하나면 표를 만들지 않는다.
+ */
+async function branchPl(c: Ctx, js: JEntry[]): Promise<RTable | null> {
+  const branches = (await listBranches(c.db)).filter((b) => !b.closedOn || b.closedOn >= c.p.from);
+  if (branches.length <= 1) return null;
+  type Acc = { sales: number; cogs: number; sga: number; other: number };
+  const z = (): Acc => ({ sales: 0, cogs: 0, sga: 0, other: 0 });
+  const by = new Map<string, Acc>(branches.map((b) => [b.id, z()]));
+  const common = z();
+  let payroll = 0;
+  for (const e of js) {
+    if (e.on < c.p.from || e.on > c.p.to) continue;
+    for (const l of e.lines) {
+      const a = ACCT.get(l.code);
+      if (!a) continue;
+      const won = debitNormal(l.code) ? l.dr - l.cr : l.cr - l.dr;
+      if (e.src === "payroll" && (a.group === "sga" || a.group === "cogs")) {
+        payroll += won;
+        continue;
+      }
+      const t = (e.b && by.get(e.b)) || common;
+      if (a.group === "sales") t.sales += won;
+      else if (a.group === "cogs") t.cogs += won;
+      else if (a.group === "sga") t.sga += won;
+      else if (a.group === "other_inc") t.other += won;
+      else if (a.group === "other_exp") t.other -= won;
+    }
+  }
+  // 급여: 그 기간 급여 대장의 사람별 인건비를 소속 지점으로 모아 비율로 나눈다
+  const runs = await c.db.select({ id: payrollRun.id }).from(payrollRun).where(and(eq(payrollRun.status, "paid"), gte(payrollRun.payDate, c.p.from), lte(payrollRun.payDate, c.p.to)));
+  const home = new Map((await c.db.select({ u: staffProfile.userId, b: staffProfile.homeBranchId }).from(staffProfile)).map((r) => [r.u, r.b]));
+  const labor = new Map<string, number>();
+  for (const r of runs) for (const x of await laborCostByUser(c.db, r.id)) labor.set(home.get(x.userId) ?? MAIN_BRANCH_ID, (labor.get(home.get(x.userId) ?? MAIN_BRANCH_ID) ?? 0) + x.won);
+  const laborTot = sum([...labor.values()], (x) => x);
+  let given = 0;
+  branches.forEach((b, i) => {
+    const share = i === branches.length - 1 ? payroll - given : laborTot ? Math.round((payroll * (labor.get(b.id) ?? 0)) / laborTot) : 0;
+    given += share;
+    by.get(b.id)!.sga += share;
+  });
+  if (!laborTot) {
+    by.get(branches[branches.length - 1].id)!.sga -= payroll;
+    common.sga += payroll;
+  }
+  // 공통비 배분: 매출 비율(매출이 없으면 똑같이)
+  const commonCost = common.cogs + common.sga - common.sales - common.other;
+  const salesTot = sum(branches, (b) => Math.max(0, by.get(b.id)!.sales));
+  let spread = 0;
+  const rows = branches.map((b, i) => {
+    const a = by.get(b.id)!;
+    const op = a.sales - a.cogs - a.sga;
+    const alloc = i === branches.length - 1 ? commonCost - spread : Math.round(salesTot ? (commonCost * Math.max(0, a.sales)) / salesTot : commonCost / branches.length);
+    spread += alloc;
+    const after = op + a.other - alloc;
+    return { cells: [b.name, a.sales, a.cogs, a.sales - a.cogs, a.sga, op, alloc, after, round1(pct(after, a.sales))], tone: after < 0 ? ("danger" as const) : undefined };
+  });
+  return {
+    key: "branchPl",
+    title: "지점별 손익",
+    help: "rep.t.branchPl",
+    cols: [
+      { label: "지점" },
+      { label: "매출액", unit: "원", num: true },
+      { label: "매출원가", unit: "원", num: true },
+      { label: "매출총이익", unit: "원", num: true },
+      { label: "지점 판관비(인건비 포함)", unit: "원", num: true },
+      { label: "배분 전 영업이익", unit: "원", num: true },
+      { label: "공통비 배분", unit: "원", num: true },
+      { label: "배분 후 이익(세전)", unit: "원", num: true },
+      { label: "매출 대비", unit: "%", num: true },
+    ],
+    rows,
+    note: `급여는 직원 소속 지점의 인건비로 나눴고, 어느 지점 것도 아닌 공통비 ${commonCost.toLocaleString("ko-KR")}원(감가상각·자금 전표 등)은 매출 비율로 배분했습니다. 영업외 손익은 배분 후 이익에 들어 있습니다.`,
+  };
+}
+
 /** 6. 손익계산서 */
 export const plReport: Builder = async (c) => {
   const js = await journalFor(c);
@@ -96,6 +178,7 @@ export const plReport: Builder = async (c) => {
   head("Ⅶ. 영업외비용", a.oe, b.oe, y.oe);
   acctRows("other_exp");
   head("Ⅷ. 소득세(법인세) 차감 전 이익", a.net, b.net, y.net, a.net < 0 ? "danger" : "ok");
+  const byBranch = await branchPl(c, js);
   return {
     kpis: [
       m("sales", "매출액", "원", a.sales, b.sales, { better: "up", note: "부가세 뺀 금액, 정비명세서 발급일 기준" }),
@@ -115,6 +198,7 @@ export const plReport: Builder = async (c) => {
         total: false,
         note: "관리용 손익입니다. 계정 줄을 누르면 그 계정의 전표(계정별 원장)가 열립니다.",
       },
+      ...(byBranch ? [byBranch] : []),
     ],
     trends: [plTrend("sales", "매출액"), plTrend("op", "영업이익")],
     notes: ["재고로 산 부품·도료·소모품은 산 때가 아니라 쓴 때 매출원가가 됩니다(재고 움직임의 이동평균 금액). 소득세·법인세는 세무사 신고 때 정해지므로 넣지 않았습니다."],

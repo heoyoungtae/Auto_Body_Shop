@@ -248,3 +248,38 @@ describe("본점·지점 3단계: 지점별 재고·이동", () => {
     expect(await at(MAIN_BRANCH_ID)).toBe(6);
   });
 });
+
+describe("본점·지점 3단계: 지점별 손익·부가세", () => {
+  it("지점별 손익은 지점 전표를 나누고 공통비를 매출 비율로 배분하며, 합계는 회사 손익과 같다", async () => {
+    const { createBranch } = await import("@/modules/platform/branch");
+    const { repairOrder, repairStatement } = await import("@/db/schema");
+    const { runReport } = await import("@/modules/report/run");
+    const { customPeriod } = await import("@/modules/report/period");
+    const { approvedRepair } = await import("./flow");
+    const { createFundSlip } = await import("@/modules/acct/service");
+    const west = await createBranch(db, owner(), { name: "서구점", code: "S", bizNo: "", subBizNo: "0001", repairRegNo: "", zip: "", address: "", addressDetail: "", phone: "", openedOn: "", closedOn: "" });
+    const at = (d: string) => new Date(`${d}T03:00:00Z`);
+    const r1 = await approvedRepair(db, ids, at("2026-11-05"));
+    await db.insert(repairStatement).values({ docNo: "IV-T-1", repairOrderId: r1.roId, estimateId: r1.estimateId, partsWon: 100_000, laborWon: 200_000, vatWon: 30_000, totalWon: 330_000, issuedOn: "2026-11-10", payMethod: "card" });
+    const r2 = await approvedRepair(db, ids, at("2026-11-05"));
+    await db.update(repairOrder).set({ branchId: west }).where(eq(repairOrder.id, r2.roId));
+    await db.insert(repairStatement).values({ docNo: "IV-T-2", repairOrderId: r2.roId, estimateId: r2.estimateId, partsWon: 0, laborWon: 100_000, vatWon: 10_000, totalWon: 110_000, issuedOn: "2026-11-11", payMethod: "card" });
+    await createFundSlip(db, { id: ids.account, roles: ["accounting"] }, { on: "2026-11-12", kind: "other", drCode: "831", crCode: "103", amountWon: 40_000, memo: "공통 수수료" } as never, at("2026-11-12")).catch(() => undefined);
+    const nov = customPeriod("2026-11-01", "2026-11-30");
+    const pl = await runReport(db, owner(), "pl", nov, "prev", at("2026-11-30"));
+    const t = pl.body.tables.find((x) => x.key === "branchPl")!;
+    expect(t).toBeTruthy();
+    const main = t.rows.find((r) => r.cells[0] === "본점")!.cells;
+    const w = t.rows.find((r) => r.cells[0] === "서구점")!.cells;
+    expect(main[1]).toBe(300_000);
+    expect(w[1]).toBe(100_000);
+    // 배분한 공통비 합계 = 표의 공통비, 배분 후 이익 합계 = 회사 세전 이익
+    const net = pl.body.kpis.find((k) => k.key === "net")!.value as number;
+    expect((main[7] as number) + (w[7] as number)).toBe(net);
+
+    const vat = await runReport(db, owner(), "vat", nov, "prev", at("2026-11-30"));
+    const vb = vat.body.tables.find((x) => x.key === "vatBranch")!;
+    expect(vb.rows.map((r) => r.cells[1])).toEqual([30_000, 10_000]);
+    expect(vb.note).toMatch(/신고 방식을 아직/);
+  });
+});

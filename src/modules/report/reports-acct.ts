@@ -1,7 +1,10 @@
 // 회계보고서(지금 자료로 되는 것): 매출채권 연령·매입채무·지급 예정·부가세 집계.
 // 손익계산서·재무상태표·현금흐름표·자금일보·계정별 원장은 계정과목·자동 분개가 생기는 4단계에서 만든다.
 import { and, eq, gte, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm";
-import { expense, insuranceClaim, payable, payment, repairOrder, repairStatement } from "@/db/schema";
+import { expense, insuranceClaim, outsourceJob, payable, payment, purchaseOrder, repairOrder, repairStatement } from "@/db/schema";
+import { listBranches } from "@/modules/platform/branch";
+import { loadTaxProfile } from "@/modules/money/tax-profile";
+import { VAT_UNITS } from "@/modules/money/tax-rules";
 import { accruedIn, balancesAt, listPayables } from "@/modules/money/payable";
 import { customerReceivables, insurerReceivables } from "@/modules/money/receipts";
 import { EVIDENCE_KINDS, EXP_CATEGORIES, PAYABLE_KINDS, RECEIPT_KINDS } from "@/modules/money/rules";
@@ -145,7 +148,7 @@ export const ap: Builder = async (c) => {
 export const vat: Builder = async (c) => {
   const load = async (p: { from: string; to: string }) => {
     const st = await c.db
-      .select({ s: repairStatement, insurance: repairOrder.insurance })
+      .select({ s: repairStatement, insurance: repairOrder.insurance, b: repairOrder.branchId })
       .from(repairStatement)
       .innerJoin(repairOrder, eq(repairOrder.id, repairStatement.repairOrderId))
       .where(and(gte(repairStatement.issuedOn, p.from), lte(repairStatement.issuedOn, p.to), ne(repairOrder.status, "cancelled")));
@@ -161,6 +164,32 @@ export const vat: Builder = async (c) => {
     return { st, pays, pay, ex, outVat, inVat };
   };
   const [a, b] = await both(c, load);
+  // 지점이 둘 이상이면 사업장별(매출 = 수리 건의 지점, 매입 = 발주서·외주 수리 건·지출 결의의 지점)
+  const branches = await listBranches(c.db);
+  let branchTable: { key: string; title: string; help: "rep.t.vatBranch"; cols: { label: string; unit?: "원"; num?: boolean }[]; rows: Row[]; note: string }[] = [];
+  if (branches.length > 1) {
+    const poB = new Map((await c.db.select({ id: purchaseOrder.id, b: purchaseOrder.branchId }).from(purchaseOrder)).map((r) => [r.id, r.b]));
+    const osB = new Map((await c.db.select({ id: outsourceJob.id, b: repairOrder.branchId }).from(outsourceJob).innerJoin(repairOrder, eq(repairOrder.id, outsourceJob.repairOrderId))).map((r) => [r.id, r.b]));
+    const main = branches.find((x) => x.isMain)!.id;
+    const payB = (x: (typeof a.pay)[number]) => (x.sourceId ? (x.sourceKind === "po" ? poB.get(x.sourceId) : osB.get(x.sourceId)) : undefined) ?? main;
+    const mode = (await loadTaxProfile(c.db)).vatUnit;
+    branchTable = [
+      {
+        key: "vatBranch",
+        title: "사업장별",
+        help: "rep.t.vatBranch",
+        cols: [{ label: "사업장" }, { label: "매출세액", unit: "원", num: true }, { label: "매입세액(어림)", unit: "원", num: true }, { label: "낼 세액(어림)", unit: "원", num: true }],
+        rows: branches.map((br) => {
+          const out = sum(a.st.filter((r) => r.b === br.id), (r) => r.s.vatWon);
+          const inn = sum(a.pay.filter((x) => payB(x) === br.id), (x) => x.vatWon) + sum(a.ex.filter((x) => x.branchId === br.id), (x) => x.vatWon);
+          return { cells: [`${br.name}${br.subBizNo ? `(종 ${br.subBizNo})` : ""}`, out, inn, out - inn] };
+        }),
+        note: mode
+          ? `신고 방식: ${VAT_UNITS[mode]}. ${mode === "each" ? "사업장마다 이 줄의 세액으로 따로 신고·납부합니다." : mode === "consolidated" ? "신고는 사업장마다, 납부는 합계로 주사업장에서 합니다." : "본점에서 합계로 한 번에 신고·납부하고, 사업장별 명세를 붙입니다."}`
+          : "부가세 신고 방식을 아직 정하지 않았습니다. 설정 › 사업장 정보 › 세금·사업 형태에서 고르세요(추천: 사업자단위과세).",
+      },
+    ];
+  }
   const byMethod = groupBy(a.st, (r) => r.s.payMethod ?? "", (r) => r.s.totalWon);
   const byReceipt = groupBy(a.pays, (r) => r.receiptKind, (r) => r.amountWon);
   const inRows: Row[] = [
@@ -197,6 +226,7 @@ export const vat: Builder = async (c) => {
         note: "신용카드매출전표 등 발행 금액 집계표와 현금영수증 발행분을 맞춰 볼 때 씁니다.",
       },
       { key: "in", title: "매입세액", help: "rep.t.vatIn", cols: [{ label: "구분" }, { label: "공급가", unit: "원", num: true }, { label: "세액", unit: "원", num: true }], rows: inRows },
+      ...branchTable,
     ],
     notes: ["부가세 신고는 세무사가 홈택스 자료와 맞춰 확정합니다. 이 보고서는 신고 전 어림 값입니다(간이영수증·증빙 못 받은 지출은 매입세액에서 뺐습니다)."],
   };
