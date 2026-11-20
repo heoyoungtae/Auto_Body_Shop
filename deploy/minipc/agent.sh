@@ -20,12 +20,17 @@ URL="${APP_INTERNAL_URL:-http://127.0.0.1:3000}/api/server-agent"
 STATE="$HOME/.server-agent"
 mkdir -p "$STATE"
 
-# a..b 사이에 병합된 변경: [{pr, title}] (병합 커밋 본문 첫 줄 = PR 제목). 40개까지
+# a..b 사이에 병합된 변경: [{pr, title, label}] (병합 커밋 본문 첫 줄 = PR 제목, label = 날짜 버전). 40개까지
 changes() {
-  g log --merges --format='%s%x1f%b%x1e' "$1..$2" 2>/dev/null | jq -Rsc '
+  local labels
+  labels=$(sudo -u "$OWNER" env TZ=Asia/Seoul git -C "$REPO" log --first-parent --format='%H %cd' --date=format-local:%y.%m.%d -300 "$2" 2>/dev/null |
+    tac | awk '{c[$2]++; print $1" "$2"-"c[$2]}' | jq -Rsc 'split("\n") | map(select(length > 0) | split(" ") | {(.[0]): .[1]}) | add // {}' 2>/dev/null)
+  [ -n "$labels" ] || labels='{}'
+  g log --merges --format='%H%x1f%s%x1f%b%x1e' "$1..$2" 2>/dev/null | jq -Rsc --argjson lb "$labels" '
     split("\u001e") | map(sub("^\\s+"; "")) | map(select(length > 0) | split("\u001f")) |
-    map({pr: ((.[0] | capture("#(?<n>[0-9]+)") | .n | tonumber)? // null),
-         title: (((.[1] // "") | split("\n") | map(select(length > 0)) | .[0]) // .[0])}) | .[:40]' 2>/dev/null || echo '[]'
+    map({pr: ((.[1] | capture("#(?<n>[0-9]+)") | .n | tonumber)? // null),
+         title: (((.[2] // "") | split("\n") | map(select(length > 0)) | .[0]) // .[1]),
+         label: ($lb[.[0]] // "")}) | .[:40]' 2>/dev/null || echo '[]'
 }
 
 # 날짜 버전(대표 2026-11-20): 26.11.20-7 = 2026-11-20(서울)에 병합된 7번째 변경. 기본 브랜치의 병합 순서로 매긴다

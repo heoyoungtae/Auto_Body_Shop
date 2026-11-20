@@ -52,7 +52,7 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await agentReport(db, { events: [ok, bad] }, t(1));
     const v = await serverOpsView(db, t(1).getTime());
     expect(v.history.map((e) => e.at)).toEqual(["2026-11-19 10:07", "2026-11-18 21:35"]);
-    expect(v.history[1].changes).toEqual([{ pr: 44, title: "협력업체 옮기기" }]);
+    expect(v.history[1].changes).toEqual([{ pr: 44, title: "협력업체 옮기기", label: "" }]);
     expect(v.history[0]).toMatchObject({ how: "button", ok: false, message: "새 버전 만들기 실패" });
   });
 

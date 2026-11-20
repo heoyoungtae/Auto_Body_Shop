@@ -78,7 +78,7 @@ export function serverHealth(st: (ServerStatus & { at?: string }) | null, silent
   return { level: "ok", reasons: [] };
 }
 /** 병합된 변경 하나(PR 번호·제목) */
-export type Change = { pr: number | null; title: string };
+export type Change = { pr: number | null; title: string; label?: string };
 /** 업데이트 이력 한 줄. how: nightly 예약 자동 · button 앱의 '지금 올리기' · terminal 미니 PC 터미널 */
 export type UpdateEvent = { at: string; how: string; ok: boolean; from: string; to: string; fromLabel?: string; toLabel?: string; message: string; changes: Change[] };
 /** 날짜 버전(대표 2026-11-20): 26.11.20-7 = 그날 7번째 병합. 미니 PC 가 git 병합 순서로 매긴다 */
@@ -202,7 +202,7 @@ function cleanChanges(x: unknown): Change[] {
   return (Array.isArray(x) ? x : []).slice(0, 40).map((c) => {
     const o = (c ?? {}) as Record<string, unknown>;
     const pr = Number(o.pr);
-    return { pr: Number.isInteger(pr) && pr > 0 ? pr : null, title: s(o.title, 200) };
+    return { pr: Number.isInteger(pr) && pr > 0 ? pr : null, title: s(o.title, 200), label: cleanLabel(o.label) };
   }).filter((c) => c.title);
 }
 function cleanEvent(x: unknown): UpdateEvent | null {
