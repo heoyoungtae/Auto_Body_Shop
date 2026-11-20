@@ -104,7 +104,7 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
             <p className="text-[var(--muted)]">
               {v.auto.on ? `새 버전은 매일 ${v.auto.time}에 저절로 올라갑니다.` : "자동 올리기가 꺼져 있어 새 버전은 저절로 올라가지 않습니다."} 지금 바로 올리려면 아래 단추를 누르세요.
             </p>
-            {v.pending && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">요청함 {fmtTime(v.request?.at)}. 서버가 1분 안에 받아 갑니다.</p>}
+            {v.pending && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">요청함 {fmtTime(v.request?.at)}. 서버가 1분 안에 받아 새 버전을 만들기 시작합니다(5~10분). 바꿔 끼우는 몇 초 동안 앱이 끊깁니다.</p>}
             {v.running && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">올리는 중(시작 {fmtTime(v.request?.taken)}). 보통 5~10분 걸리고, 바꿔 끼우는 몇 초 동안 앱이 끊깁니다.</p>}
             <UpdateWatch active={v.pending || v.running} resultAt={v.result?.at ?? null} ok={!!v.result?.ok} message={v.result?.message ?? ""} />
             {v.result && (

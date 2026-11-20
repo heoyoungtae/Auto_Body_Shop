@@ -12,7 +12,8 @@ export async function requestUpdateAction() {
   } catch (e) {
     redirect(errorUrl("/settings/server", userMessage(e)));
   }
-  redirect(noticeUrl("/settings/server", "요청했습니다. 서버가 1분 안에 받아 새 버전을 만들기 시작합니다(5~10분). 바꿔 끼우는 몇 초 동안 앱이 끊깁니다"));
+  // 안내는 화면의 진행 칸('요청함'·'올리는 중'·완료)이 맡는다. 주소에 안내를 붙이면 끝난 뒤에도 남아서 붙이지 않는다(대표 2026-11-20)
+  redirect("/settings/server");
 }
 
 /** 자동 올리기 켜기·끄기와 시각(대표) */

@@ -32,6 +32,8 @@ export function UpdateWatch({ active, resultAt, ok, message }: { active: boolean
     }
     if (since && resultAt && Date.parse(resultAt) >= Date.parse(since) - 60_000) {
       setDone({ ok, message });
+      // 주소에 남은 예전 안내(?notice=)는 지운다
+      if (window.location.search) router.replace(window.location.pathname, { scroll: false });
       try {
         sessionStorage.removeItem(KEY);
       } catch {}
