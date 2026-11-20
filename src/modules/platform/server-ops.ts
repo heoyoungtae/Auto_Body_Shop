@@ -31,7 +31,50 @@ export type ServerStatus = {
   services: string; // "app running, db running(healthy), ..."
   ups: string; // UPS 상태, 없으면 ""
   pending: Change[]; // 아직 안 올라간 변경(병합 제목)
+  // 상태 숫자(대표 2026-11-20). -1 = 모름
+  cpuPct: number;
+  cpuTemp: number; // ℃
+  memPct: number;
+  diskPct: number;
+  ssdLife: number; // 남은 수명 %
+  ssdTemp: number;
+  ssdOk: boolean; // SSD 자체 진단
+  rebootNeeded: boolean; // 보안 업데이트 뒤 다시 켜야 함
+  bootAt: string; // 마지막으로 켠 때
 };
+
+export type Health = { level: "ok" | "warn" | "danger"; reasons: string[] };
+/** 한눈 상태: 위험(빨강)·주의(노랑)·정상(초록)과 이유. 팬 없는 미니 PC 라 온도를 특히 본다 */
+export function serverHealth(st: (ServerStatus & { at?: string }) | null, silentMin: number | null): Health {
+  const danger: string[] = [];
+  const warn: string[] = [];
+  if (!st) return { level: "danger", reasons: ["서버가 아직 상태를 알려 오지 않았습니다"] };
+  if (silentMin != null && silentMin > SILENT_MIN) danger.push(`서버 소식이 ${silentMin}분째 없습니다`);
+  const svc = st.services || "";
+  for (const name of ["app", "db"]) if (svc && !new RegExp(`\\b${name} running(?!\\(unhealthy)`).test(svc)) danger.push(name === "app" ? "앱 프로그램이 멈췄습니다" : "DB 프로그램이 멈췄습니다");
+  if (/ONBATT/i.test(st.ups)) danger.push("정전: UPS 배터리로 돌고 있습니다");
+  const n = (x: unknown) => (typeof x === "number" && x >= 0 ? x : null);
+  const t = n(st.cpuTemp);
+  if (t != null && t >= 90) danger.push(`CPU 온도 ${t}℃(너무 뜨거움)`);
+  else if (t != null && t >= 80) warn.push(`CPU 온도 ${t}℃(높음)`);
+  if (st.ssdOk === false) danger.push("SSD 자체 진단 실패: 곧 고장 날 수 있습니다");
+  const life = n(st.ssdLife);
+  if (life != null && life <= 10) danger.push(`SSD 수명 ${life}% 남음`);
+  else if (life != null && life <= 30) warn.push(`SSD 수명 ${life}% 남음`);
+  const st2 = n(st.ssdTemp);
+  if (st2 != null && st2 >= 70) warn.push(`SSD 온도 ${st2}℃(높음)`);
+  const dp = n(st.diskPct);
+  if (dp != null && dp >= 95) danger.push(`SSD 공간 ${dp}% 사용(거의 꽉 참)`);
+  else if (dp != null && dp >= 85) warn.push(`SSD 공간 ${dp}% 사용`);
+  const mp = n(st.memPct);
+  if (mp != null && mp >= 95) warn.push(`메모리 ${mp}% 사용`);
+  const cp = n(st.cpuPct);
+  if (cp != null && cp >= 90) warn.push(`CPU ${cp}% 사용(바쁨)`);
+  if (st.rebootNeeded) warn.push("보안 업데이트 뒤 다시 켜야 합니다(새벽 4시에 저절로)");
+  if (danger.length) return { level: "danger", reasons: [...danger, ...warn] };
+  if (warn.length) return { level: "warn", reasons: warn };
+  return { level: "ok", reasons: [] };
+}
 /** 병합된 변경 하나(PR 번호·제목) */
 export type Change = { pr: number | null; title: string };
 /** 업데이트 이력 한 줄. how: nightly 예약 자동 · button 앱의 '지금 올리기' · terminal 미니 PC 터미널 */
@@ -68,7 +111,7 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   // 요청했는데 15분이 지나도 안 가져갔으면 막지 않고 다시 누를 수 있게
   const pending = !!req && !req.taken && now - Date.parse(req.at) < 15 * 60_000;
   const running = !!req?.taken && (!d.result || Date.parse(d.result.at) < Date.parse(req.taken)) && now - Date.parse(req.taken) < 30 * 60_000;
-  return { auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  return { health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -116,7 +159,20 @@ function cleanStatus(b: Record<string, unknown>): ServerStatus {
     services: s(b.services, 300),
     ups: s(b.ups, 80),
     pending: cleanChanges(b.pending),
+    cpuPct: num(b.cpuPct, 100),
+    cpuTemp: num(b.cpuTemp, 150),
+    memPct: num(b.memPct, 100),
+    diskPct: num(b.diskPct, 100),
+    ssdLife: num(b.ssdLife, 100),
+    ssdTemp: num(b.ssdTemp, 150),
+    ssdOk: b.ssdOk !== false,
+    rebootNeeded: b.rebootNeeded === true,
+    bootAt: s(b.bootAt, 20),
   };
+}
+function num(x: unknown, max: number) {
+  const v = Number(x);
+  return Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : -1;
 }
 function cleanChanges(x: unknown): Change[] {
   return (Array.isArray(x) ? x : []).slice(0, 40).map((c) => {
@@ -152,6 +208,10 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
   }
   if (body.status) {
     next.status = { ...cleanStatus(body.status), at: now.toISOString() };
+    // 위험이 되면 대표에게 알린다(같은 이유는 하루 한 번)
+    const h = serverHealth(next.status, 0);
+    if (h.level === "danger" && d.status && serverHealth(d.status, 0).level !== "danger")
+      await notifyRole(db, "owner", `서버 위험: ${h.reasons.join(", ")}`, `server-danger:${now.toISOString().slice(0, 10)}:${h.reasons[0]}`, "/settings/server");
     // 새 버전이 생기면 대표에게 바로 알린다(같은 버전은 한 번만). 미니 PC 가 1분마다 GitHub 끝 번호를 본다
     const st = next.status;
     if (st.behind > 0 && st.latest && st.latest !== d.status?.latest) {

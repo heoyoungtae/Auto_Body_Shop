@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { notification } from "@/db/schema";
-import { agentReport, requestUpdate, serverOpsView, setAutoUpdate } from "@/modules/platform/server-ops";
+import { agentReport, requestUpdate, serverHealth, serverOpsView, setAutoUpdate } from "@/modules/platform/server-ops";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -92,5 +92,24 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await agentReport(db, { events: [{ at: "2026-11-19 09:40", how: "nightly", ok: false, message: "새 버전 만들기 실패: 이전 버전(aaa1111)을 그대로 씀" }] }, t(0));
     const notes = await db.select().from(notification).where(eq(notification.userId, ids.owner));
     expect(notes.some((n) => n.title.startsWith("예약 자동 새 버전 올리기 실패"))).toBe(true);
+  });
+
+  it("한눈 상태: 온도·SSD·프로그램으로 정상·주의·위험을 가리고, 위험이 되면 대표에게 알린다", async () => {
+    const good = { host: "abs-server", version: "aaa1111", services: "app running(healthy), db running(healthy), caddy running", cpuPct: 12, cpuTemp: 55, memPct: 40, diskPct: 20, ssdLife: 98, ssdTemp: 40, ssdOk: true, rebootNeeded: false, bootAt: "2026-11-19 09:00:00" };
+    await agentReport(db, { status: good }, t(0));
+    let v = await serverOpsView(db, t(0).getTime());
+    expect(v.health).toEqual({ level: "ok", reasons: [] });
+    expect(v.status).toMatchObject({ cpuTemp: 55, ssdLife: 98 });
+    expect(serverHealth({ ...v.status!, cpuTemp: 82, rebootNeeded: true }, 0)).toMatchObject({ level: "warn", reasons: [expect.stringContaining("82℃"), expect.stringContaining("다시 켜야")] });
+    await agentReport(db, { status: { ...good, cpuTemp: 93, services: "app exited, db running(healthy)" } }, t(1));
+    await agentReport(db, { status: { ...good, cpuTemp: 94, services: "app exited, db running(healthy)" } }, t(2));
+    v = await serverOpsView(db, t(2).getTime());
+    expect(v.health.level).toBe("danger");
+    expect(v.health.reasons).toEqual(expect.arrayContaining(["앱 프로그램이 멈췄습니다", "CPU 온도 94℃(너무 뜨거움)"]));
+    const notes = (await db.select().from(notification).where(eq(notification.userId, ids.owner))).filter((n) => n.title.startsWith("서버 위험"));
+    expect(notes).toHaveLength(1);
+    // 모르는 값(-1·이상한 값)은 판단에 쓰지 않는다
+    await agentReport(db, { status: { ...good, cpuTemp: -1, ssdLife: "x" } }, t(3));
+    expect((await serverOpsView(db, t(3).getTime())).health.level).toBe("ok");
   });
 });
