@@ -8,6 +8,7 @@ import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "./audit";
 import { UserError } from "./errors";
 import { notifyRole } from "./notify";
+import { recordErrorSafe } from "./error-log";
 
 const KEY = "server_ops";
 type Actor = { id: string; roles: readonly Role[] };
@@ -180,7 +181,9 @@ export async function serverOpsView(db: Db, now = Date.now()) {
     ? { stage: pg.stage, label: STAGES[pg.stage] ?? "", pct: progressPct(pg.stage, (now - Date.parse(pg.stageAt)) / 1000, d.lastBuildSec), sinceMin: Math.floor((now - Date.parse(req!.taken!)) / 60_000) }
     : null;
   const series = d.series ?? [];
-  return { series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  // 새 버전이 없으면 올릴 것이 없다(대표 2026-11-20). 미니 PC 가 1분마다 GitHub 끝 번호를 보므로 최신인지 바로 안다
+  const upToDate = !!d.status?.latest && d.status.behind === 0;
+  return { upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -201,6 +204,7 @@ export async function requestUpdate(db: Db, actor: Actor, now = new Date()) {
   const v = await serverOpsView(db, now.getTime());
   if (v.pending) throw new UserError("이미 요청했습니다. 서버가 몇 초 안에 가져갑니다");
   if (v.running) throw new UserError("지금 새 버전을 올리는 중입니다. 끝나면 이 화면에 저절로 뜹니다");
+  if (v.upToDate) throw new UserError("이미 최신 버전이라 올릴 것이 없습니다");
   const d = await load(db);
   const request: UpdateRequest = { at: now.toISOString(), by: actor.id, taken: null };
   await save(db, { ...d, request }, actor.id);
@@ -271,7 +275,7 @@ function cleanEvent(x: unknown): UpdateEvent | null {
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
 export async function agentReport(
   db: Db,
-  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown },
+  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[] },
   now = new Date(),
 ) {
   // 짧은 확인(대표 2026-11-20 "1분 기다림이 왜 필요한가"): 미니 PC 가 1분 사이사이 5초마다 올리기 요청만 묻는다.
@@ -282,6 +286,13 @@ export async function agentReport(
     if (!r || r.taken || now.getTime() - Date.parse(r.at) >= 60 * 60_000) return { update: false, auto: p.auto ?? AUTO_DEFAULT };
     body = {};
   }
+  // 서버 오류(대표 2026-11-20 '오류 기록'): 미니 PC 가 앱·DB·관문·시스템 출력에서 고른 오류 줄. 한 번에 50줄까지
+  if (Array.isArray(body.serverErrors))
+    for (const x of body.serverErrors.slice(0, 50)) {
+      const o = (x ?? {}) as Record<string, unknown>;
+      const at = Date.parse(String(o.at ?? ""));
+      await recordErrorSafe(db, { kind: ["server", "db", "caddy", "system"].includes(String(o.kind)) ? String(o.kind) : "system", message: String(o.message ?? ""), detail: String(o.detail ?? "") }, Number.isFinite(at) && Math.abs(at - now.getTime()) < 86400_000 ? new Date(at) : now);
+    }
   const d = await load(db);
   const next: Data = { ...d };
   if (Array.isArray(body.events) && body.events.length) {

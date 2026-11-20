@@ -421,6 +421,13 @@
       "when": 1795141304230,
       "tag": "0059_quote_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795150149707,
+      "tag": "0060_error_log",
+      "breakpoints": true
     }
   ]
 }

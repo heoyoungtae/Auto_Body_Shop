@@ -1,8 +1,16 @@
 # 서버 한 대에 앱·PostgreSQL·HTTPS(Caddy)·주기 작업을 함께 띄운다(앱 설계서 3.3). 값은 같은 폴더의 .env(server-setup.sh 가 만듦).
+# 프로그램 출력(docker logs)은 10MB 씩 3개만 남긴다. 그대로 두면 끝없이 쌓여 SSD 를 채운다(대표 2026-11-20 '오류 기록')
+x-logging: &log
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:17
     restart: unless-stopped
+    logging: *log
     environment:
       POSTGRES_USER: shop
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -21,6 +29,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
+    logging: *log
     env_file: .env
     environment:
       DATABASE_URL: postgres://shop:${DB_PASSWORD}@db:5432/shop
@@ -33,6 +42,7 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *log
     ports:
       - "80:80"
       - "443:443"
@@ -47,6 +57,7 @@ services:
   jobs:
     image: curlimages/curl:8.10.1
     restart: unless-stopped
+    logging: *log
     environment:
       JOBS_TOKEN: ${JOBS_TOKEN}
       TZ: KST-9

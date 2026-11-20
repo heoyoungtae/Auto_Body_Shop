@@ -195,3 +195,24 @@ export const shopDay = pgTable("shop_day", {
   createdBy: uuid("created_by").references(() => appUser.id),
   createdAt: createdAt(),
 });
+
+/**
+ * 오류 기록(대표 2026-11-20): 앱에서 난 오류(화면·저장)와 미니 PC 가 모아 보낸 서버 오류(앱·DB·관문·시스템).
+ * 같은 오류는 fingerprint(숫자 등을 지운 내용)로 묶어 본다. code = 직원 화면의 '오류 번호'. 90일 보관
+ */
+export const errorLog = pgTable(
+  "error_log",
+  {
+    id: serial("id").primaryKey(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** app(화면·저장 중) · browser(화면 그리기 중 브라우저) · server(앱 프로그램 출력) · db · caddy(관문) · system(미니 PC) */
+    kind: text("kind").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    message: text("message").notNull(),
+    detail: text("detail").notNull().default(""),
+    path: text("path").notNull().default(""),
+    userId: uuid("user_id"),
+    code: text("code").notNull().default(""),
+  },
+  (t) => [index("error_log_at_idx").on(t.at), index("error_log_fp_idx").on(t.fingerprint, t.at), index("error_log_code_idx").on(t.code)],
+);

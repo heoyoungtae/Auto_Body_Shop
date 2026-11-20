@@ -10,6 +10,7 @@ import { UpdateWatch } from "./_watch";
 import { Spark, type SparkPoint } from "./_spark";
 import { fmtBps, fmtBytes, fmtValue } from "./_fmt";
 import type { Sample } from "@/modules/platform/server-ops";
+import { errorCountToday } from "@/modules/platform/error-log";
 
 const PLACE: Record<string, string> = { home: "대표 자택", shop: "정비소", cloud: "클라우드" };
 const MODE: Record<string, string> = { direct: "국내 직접 접속", tunnel: "클라우드플레어 터널" };
@@ -47,7 +48,9 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
   const { error, notice } = await searchParams;
   const user = await requireUser();
   const owner = user.roles.includes("owner");
-  const v = await serverOpsView(await getDb());
+  const db = await getDb();
+  const v = await serverOpsView(db);
+  const errToday = owner ? await errorCountToday(db) : 0;
   const st = v.status;
   const tr = v.traffic;
   const now = Date.now();
@@ -115,9 +118,14 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
         sub="서버(미니 PC)의 상태를 보고, 새 버전을 기다리지 않고 바로 올립니다. 서버가 멀리 있어도 여기서 합니다."
         actions={
           owner ? (
-            <Link href="/help/server-guide" className={buttonClass("secondary")}>
-              서버 설명서
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/settings/server/errors" className={buttonClass("secondary")}>
+                오류 기록{errToday > 0 ? ` (오늘 ${errToday.toLocaleString("ko-KR")})` : ""}
+              </Link>
+              <Link href="/help/server-guide" className={buttonClass("secondary")}>
+                서버 설명서
+              </Link>
+            </div>
           ) : undefined
         }
       >
@@ -209,11 +217,12 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
             {st?.lastUpdate && <p className="text-xs text-[var(--muted)]">업데이트 기록 마지막 줄: {st.lastUpdate}</p>}
             {owner ? (
               <form action={requestUpdateAction}>
-                <SubmitButton disabled={v.pending || v.running || v.silent}>지금 새 버전 올리기</SubmitButton>
+                <SubmitButton disabled={v.pending || v.running || v.silent || v.upToDate}>지금 새 버전 올리기</SubmitButton>
               </form>
             ) : (
               <p className="text-xs text-[var(--muted)]">새 버전 올리기는 대표가 합니다.</p>
             )}
+            {owner && v.upToDate && !v.silent && !v.running && <p className="text-xs text-[var(--muted)]">이미 최신 버전이라 올릴 것이 없습니다. 새 버전이 생기면 단추가 켜지고 대표에게 알림이 갑니다.</p>}
             {owner && v.silent && <p className="text-xs text-[var(--danger)]">서버 소식이 끊겨 지금은 누를 수 없습니다(아래 &lsquo;서버 정보&rsquo; 참고).</p>}
             {owner && (
               <details className="border-t border-[var(--line)] pt-3">
