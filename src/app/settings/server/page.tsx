@@ -10,7 +10,6 @@ import { UpdateWatch } from "./_watch";
 
 const PLACE: Record<string, string> = { home: "대표 자택", shop: "정비소", cloud: "클라우드" };
 const MODE: Record<string, string> = { direct: "국내 직접 접속", tunnel: "클라우드플레어 터널" };
-const REPO = "https://github.com/heoyoungtae/Auto_Body_Shop/pull/";
 
 function Changes({ list }: { list: Change[] }) {
   if (!list.length) return <p className="text-xs text-[var(--muted)]">바뀐 내용 기록이 없습니다.</p>;
@@ -20,11 +19,6 @@ function Changes({ list }: { list: Change[] }) {
         <li key={i}>
           {c.label && <span className="mr-1.5 font-mono text-xs text-[var(--muted)]">{c.label}</span>}
           {c.title}
-          {c.pr && (
-            <a href={`${REPO}${c.pr}`} target="_blank" rel="noreferrer" className="ml-1 text-xs text-[var(--muted)] hover:underline">
-              #{c.pr}
-            </a>
-          )}
         </li>
       ))}
     </ul>
