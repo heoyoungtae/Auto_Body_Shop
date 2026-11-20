@@ -7,8 +7,12 @@ export type XSheet = {
   name: string;
   rows: XCell[][];
   widths?: number[];
-  /** 첫 줄을 머리줄(굵게·틀 고정)로 */
+  /** 머리줄(굵게·틀 고정)로 쓸 줄 */
   header?: boolean;
+  /** 머리줄 번호(0부터, 기본 0). 위에 업체 정보 칸을 둘 때 */
+  headerRow?: number;
+  /** 굵게 쓸 칸(머리줄 말고): [줄, 열] */
+  bold?: [number, number][];
   /** 열 목록 고르기: 열 번호(0부터) → 고를 값 */
   lists?: { col: number; values: string[]; fromRow?: number; toRow?: number }[];
 };
@@ -22,14 +26,16 @@ const colName = (i: number) => {
 
 function sheetXml(s: XSheet): string {
   const cols = s.widths?.length ? `<cols>${s.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` : "";
-  const pane = s.header ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : "";
+  const hr = s.headerRow ?? 0;
+  const bold = new Set((s.bold ?? []).map(([r, c]) => `${r},${c}`));
+  const pane = s.header ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${hr + 1}" topLeftCell="A${hr + 2}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` : "";
   const rows = s.rows
     .map((r, ri) => {
       const cells = r
         .map((c, ci) => {
           if (c == null || c === "") return "";
           const ref = `${colName(ci)}${ri + 1}`;
-          const st = s.header && ri === 0 ? ` s="1"` : "";
+          const st = (s.header && ri === hr) || bold.has(`${ri},${ci}`) ? ` s="1"` : "";
           if (typeof c === "number") return `<c r="${ref}"${st}><v>${c}</v></c>`;
           return `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${esc(c)}</t></is></c>`;
         })
@@ -41,7 +47,7 @@ function sheetXml(s: XSheet): string {
     ? `<dataValidations count="${s.lists.length}">${s.lists
         .map((l) => {
           const c = colName(l.col);
-          return `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${c}${l.fromRow ?? 2}:${c}${l.toRow ?? 1000}"><formula1>"${esc(l.values.join(","))}"</formula1></dataValidation>`;
+          return `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${c}${l.fromRow ?? hr + 2}:${c}${l.toRow ?? 1000}"><formula1>"${esc(l.values.join(","))}"</formula1></dataValidation>`;
         })
         .join("")}</dataValidations>`
     : "";

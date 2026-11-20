@@ -51,7 +51,8 @@ export default async function QuoteImportPage({ searchParams }: { searchParams: 
             </div>
             <DateField help="qt.quotedOn" name="quotedOn" quick={["today"]} />
             <NumberField help="qt.validDays" name="validDays" min={1} max={365} unit="일" defaultValue={null} />
-            <RadioRow help="qt.vatMode" name="vatMode" required defaultValue={vm} options={Object.entries(VAT_MODES).map(([value, label]) => ({ value, label }))} />
+            <RadioRow help="qt.vatMode" name="vatMode" options={Object.entries(VAT_MODES).map(([value, label]) => ({ value, label }))} />
+            <p className="text-xs text-[var(--muted)] md:col-span-2">업체·견적일·유효기간·부가세를 비워 두면 견적서(앱 양식이면 위쪽 업체 정보 칸)에 적힌 대로 읽습니다. 부가세가 어디에도 없으면 최근 품목과 같게({VAT_MODES[vm]}) 봅니다.</p>
             <div className="md:col-span-2">
               <QuoteFile />
             </div>

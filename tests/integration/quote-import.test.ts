@@ -7,6 +7,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { writeXlsx } from "@/modules/platform/xlsx-write";
+import { quoteTemplate } from "@/modules/purchase/quote-template";
 import { approveOrder, createOrder, getOrder, receiveOrder, saveOrderHeader, sendOrder, submitOrder } from "@/modules/purchase/order";
 import { itemPriceHistory, itemPrices, priceBook } from "@/modules/purchase/price";
 import { commitQuote, discardQuote, getQuote, readQuote, setQuoteSupplier, type CommitRow } from "@/modules/purchase/quote-import";
@@ -129,7 +130,9 @@ describe("견적서로 품목 일괄 등록", () => {
   it("업체를 못 찾으면 비워 두고, 업체를 고르면 다시 판정한다. 다른 업체 단가는 업체 단가표에만 들어가고 가장 싼 곳을 알려 준다", async () => {
     const main = await sup("한빛도료");
     const tape = await saveItem(db, manager(), null, { name: "마스킹테이프 24MM", kind: "consumable", spec: "", unit: "박스", location: "", safetyQty: 0, unitWon: 52_000, expiryTracked: false, supplierId: main }, at("2026-11-02"));
-    const qid = await readQuote(db, manager(), { file: { name: "q.xlsx", bytes: quoteXlsx(PK_LINES.slice(20, 22)) } }, at("2026-11-20"));
+    // 사업자번호가 없는 표(붙여넣기)는 후보 등록도 하지 않고 업체를 비워 둔다
+    const paste = "품명\t단위\t수량\t단가\n" + PK_LINES.slice(20, 22).map(([n, u, q, p]) => `${n}\t${u}\t${q}\t${p}`).join("\n");
+    const qid = await readQuote(db, manager(), { text: paste }, at("2026-11-20"));
     expect((await getQuote(db, qid)).q.supplierId).toBeNull();
     await expect(commitQuote(db, manager(), qid, { supplierId: "", quotedOn: "2026-11-17", validUntil: "", vatMode: "excluded", rows: await defaults(qid) })).rejects.toThrow(/견적 업체를 골라/);
     const pk = await sup("㈜페인트코리아", "131-86-58023");
@@ -282,5 +285,29 @@ describe("관리 방식·묶음 입수", () => {
     expect(by.get("작은1")).toBe("none");
     expect(by.has("작은2")).toBe(false);
     expect(r.find((x) => x.id === paint)?.reason).toContain("수량 관리");
+  });
+
+  it("앱 양식 위쪽 업체 정보: 대장에 없는 사업자번호면 후보 업체로 등록하고, 다음엔 그 업체로 찾는다. 부가세·견적일·유효기간도 읽음", async () => {
+    const info = { name: "진성", bizNo: "130-24-56494", ceo: "배인수외 1명", contactName: "배진성", phone: "010-3680-9687", address: "인천시 계양구 박촌로 54", quotedOn: "2026-11-18", validDays: 30, vat: "포함" as const };
+    const xlsx = new Uint8Array(quoteTemplate([["3M 수세미", "적색", "BOX", 1, 33_000, 33_000, "소모품", "", "", "", "", "", ""]], info));
+    // 기술자 권한 없는 사람은 업체 등록도 못 하므로 읽기부터 막힘(기존 규칙). 공장장이 올림
+    const qid = await readQuote(db, manager(), { file: { name: "진성.xlsx", bytes: xlsx } }, at("2026-11-20"));
+    const { q, supplier: s } = await getQuote(db, qid);
+    expect(s).toMatchObject({ name: "진성", bizNo: "130-24-56494", status: "candidate" });
+    expect(q).toMatchObject({ quotedOn: "2026-11-18", validUntil: "2026-12-18", vatMode: "included", readBizNo: "130-24-56494", readName: "진성" });
+    const [row] = await db.select().from(schema.supplier).where(eq(schema.supplier.id, s!.id));
+    expect(row).toMatchObject({ contactName: "배진성", phone: "010-3680-9687", kinds: ["consumable"] });
+    expect(row.note).toContain("배인수외 1명");
+    expect(row.note).toContain(q.docNo);
+    // 두 번째 견적서: 새로 만들지 않고 같은 업체로 찾는다
+    const q2 = await readQuote(db, manager(), { file: { name: "진성2.xlsx", bytes: xlsx } }, at("2026-11-21"));
+    expect((await getQuote(db, q2)).q.supplierId).toBe(s!.id);
+    expect(await db.select().from(schema.supplier).where(eq(schema.supplier.bizNo, "130-24-56494"))).toHaveLength(1);
+    // 후보 업체로도 등록할 수 있다(평가·서류는 협력업체 화면에서)
+    const r = await commitQuote(db, manager(), qid, { supplierId: s!.id, quotedOn: q.quotedOn, validUntil: q.validUntil ?? "", vatMode: q.vatMode, rows: await defaults(qid) }, at("2026-11-20"));
+    expect(r.added).toBe(1);
+    // 올릴 때 고른 부가세가 견적서 값보다 앞선다
+    const q3 = await readQuote(db, manager(), { vatMode: "excluded", file: { name: "진성3.xlsx", bytes: xlsx } }, at("2026-11-21"));
+    expect((await getQuote(db, q3)).q.vatMode).toBe("excluded");
   });
 });
