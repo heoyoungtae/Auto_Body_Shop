@@ -18,6 +18,7 @@ function Changes({ list }: { list: Change[] }) {
     <ul className="list-disc space-y-0.5 pl-5 text-sm">
       {list.map((c, i) => (
         <li key={i}>
+          {c.label && <span className="mr-1.5 font-mono text-xs text-[var(--muted)]">{c.label}</span>}
           {c.title}
           {c.pr && (
             <a href={`${REPO}${c.pr}`} target="_blank" rel="noreferrer" className="ml-1 text-xs text-[var(--muted)] hover:underline">
