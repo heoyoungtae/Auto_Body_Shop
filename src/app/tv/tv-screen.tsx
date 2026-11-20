@@ -284,7 +284,9 @@ export const CSS = `
 .tv-pg{margin-left:auto;display:flex;gap:.35em}.tv-pg i{width:.55em;height:.55em;border-radius:50%;background:#2a3e5c}.tv-pg i.on{background:#cfe0ff}
 .tv-rows{flex:1;min-height:0;display:flex;flex-direction:column;gap:.3em;overflow:hidden}
 .tv-row{display:grid;grid-template-columns:10.5em 7.5em 9.5em minmax(0,1fr) 6.5em;align-items:center;gap:.6em;background:#142235;border:1px solid #24364f;border-left:.5em solid var(--c);border-radius:.45em;padding:0 .7em;height:5.6vh;min-height:2.6em;flex:none}
-.tv-row.th{background:none;border-color:transparent;height:auto;min-height:0;color:#9fb0c6;font-size:.8em;padding-bottom:.2em}
+/* 칸 폭이 em 이라 제목 줄 글자 크기는 줄 전체가 아니라 칸 글자에만 준다(줄 전체를 줄이면 칸 폭도 줄어 어긋남). 왼쪽 띠도 차 줄과 같은 폭으로 둔다 */
+.tv-row.th{background:none;border:1px solid transparent;border-left:.5em solid transparent;height:auto;min-height:0;color:#9fb0c6;padding-bottom:.2em}
+.tv-row.th>span{font-size:.8em}
 .tv-row.late{box-shadow:inset 0 0 0 3px var(--late)}
 .tv-row.hold{border-left-style:dashed}
 .tv-row>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
