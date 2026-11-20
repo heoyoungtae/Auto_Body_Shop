@@ -262,6 +262,12 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
   if (body.result) {
     const result: UpdateResult = { at: now.toISOString(), ok: body.result.ok === true, message: s(body.result.message, 300) };
     next.result = result;
+    // 올린 버전을 서버 정보에도 바로 반영한다(다음 상태 알림을 기다리지 않게, 대표 2026-11-20)
+    const to = result.ok ? /→\s*([0-9a-f]{7,40})/.exec(result.message)?.[1]?.slice(0, 7) : undefined;
+    if (to && next.status) {
+      const done = !!next.status.latest && next.status.latest.startsWith(to);
+      next.status = { ...next.status, version: to, ...(done ? { behind: 0, pending: [] } : {}) };
+    }
     await writeAudit(db, { actorId: null, action: result.ok ? "server.update_ok" : "server.update_failed", entityType: "app_config", entityId: KEY, after: result });
     if (!result.ok) await notifyRole(db, "owner", `새 버전 올리기 실패: ${result.message}`, `server-update:${result.at.slice(0, 16)}`, "/settings/server");
   }

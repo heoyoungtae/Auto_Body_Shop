@@ -74,6 +74,7 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await agentReport(db, { status: { ...st, version: "bbb2222", behind: 0 } }, t(9));
     let v = await serverOpsView(db, t(9).getTime());
     expect(v).toMatchObject({ running: false, result: { ok: true, message: "새 버전 올림 aaa1111 → bbb2222" } });
+    expect(v.status).toMatchObject({ version: "bbb2222", behind: 0 });
 
     // 두 번째: 단추로 올린 실패 줄이 이력으로 오면 실패로 끝낸다
     await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(20));
@@ -135,5 +136,15 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(20));
     await agentReport(db, {}, t(21));
     expect((await serverOpsView(db, t(21).getTime())).progress?.stage).toBe(0);
+  });
+
+  it("올리기 결과가 오면 서버 정보의 버전도 바로 바뀐다", async () => {
+    const st = { host: "abs-server", version: "aaa1111", latest: "bbb2222", behind: 4, pending: [{ pr: 58, title: "변경" }] };
+    await agentReport(db, { status: st }, t(0));
+    await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(0));
+    await agentReport(db, {}, t(1));
+    await agentReport(db, { result: { ok: true, message: "2026-11-19 10:08 새 버전 올림 aaa1111 → bbb2222" } }, t(8));
+    const v = await serverOpsView(db, t(8).getTime());
+    expect(v.status).toMatchObject({ version: "bbb2222", latest: "bbb2222", behind: 0, pending: [] });
   });
 });
