@@ -102,21 +102,48 @@ status=$(jq -nc \
 status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" '. + {pending: $p}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }
 events=$(history_events)
-res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end)')") || return 0
-mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null
-[ "$(jq -r '.update // false' <<<"$res" 2>/dev/null)" = true ] || return 0
+res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end)')") || res=""
+if [ -n "$res" ]; then mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null; fi
 
-# 대표가 '지금 새 버전 올리기'를 눌렀다
-echo "$(TZ=Asia/Seoul date '+%F %R') 앱 설정에서 새 버전 올리기 요청" >> "$HOME/update.log"
-# 밤 21:30 자동 올리기가 돌고 있으면 끝날 때까지 기다린 뒤 한 번 더 확인한다(새 버전이 없으면 '이미 최신')
-for i in $(seq 1 180); do pgrep -f 'minipc/update\.sh' >/dev/null || break; sleep 10; done
-if bash "$DEPLOY/minipc/update.sh" >> "$HOME/update.log" 2>&1; then ok=true; else ok=false; fi
-msg=$(tail -n 1 "$HOME/update.log")
+# 자동 올리기 설정(앱 설정 › 서버의 켜기·시각, 대표 2026-11-20). 받은 값을 저장해 두고 앱이 안 열릴 때도 마지막 값으로 돈다.
+auto=$(jq -c '.auto // empty' <<<"${res:-null}" 2>/dev/null)
+if [ -n "$auto" ]; then
+  echo "$auto" > "$STATE/auto.json"
+  # 이제 앱 설정이 시각을 정하므로, 설치 때 넣은 고정 21:30 예약은 뺀다
+  grep -q 'minipc/update\.sh' /etc/cron.d/auto-body-shop 2>/dev/null && sed -i '/minipc\/update\.sh/d' /etc/cron.d/auto-body-shop
+fi
+want=""
+today=$(TZ=Asia/Seoul date +%F)
+if [ -f "$STATE/auto.json" ] && [ "$(jq -r '.on' "$STATE/auto.json" 2>/dev/null)" = true ]; then
+  t=$(jq -r '.time' "$STATE/auto.json"); n=$(TZ=Asia/Seoul date +%H:%M)
+  if [[ "$t" =~ ^[0-2][0-9]:[0-5][0-9]$ ]]; then
+    nm=$((10#${n%:*} * 60 + 10#${n#*:})); tm=$((10#${t%:*} * 60 + 10#${t#*:}))
+    # 정한 시각부터 1시간 안에, 오늘 아직 안 했으면 한 번(앞 차례가 길어 그 분을 놓쳐도 이어서 한다)
+    [ "$nm" -ge "$tm" ] && [ $((nm - tm)) -lt 60 ] && [ "$(cat "$STATE/auto_day" 2>/dev/null)" != "$today" ] && want=1
+  fi
+fi
+
+if [ "$(jq -r '.update // false' <<<"${res:-null}" 2>/dev/null)" = true ]; then
+  # 대표가 '지금 새 버전 올리기'를 눌렀다
+  echo "$(TZ=Asia/Seoul date '+%F %R') 앱 설정에서 새 버전 올리기 요청" >> "$HOME/update.log"
+  # 예약 자동 올리기(예전 고정 21:30 포함)가 돌고 있으면 끝날 때까지 기다린 뒤 한 번 더 확인한다(새 버전이 없으면 '이미 최신')
+  for i in $(seq 1 180); do pgrep -f 'minipc/update\.sh' >/dev/null || break; sleep 10; done
+  if bash "$DEPLOY/minipc/update.sh" >> "$HOME/update.log" 2>&1; then ok=true; else ok=false; fi
+  msg=$(tail -n 1 "$HOME/update.log")
+  result=$(jq -nc --argjson ok $ok --arg m "$msg" '{result:{ok:$ok,message:$m}}')
+elif [ -n "$want" ]; then
+  # 예약 자동 올리기(새 버전이 없으면 update.sh 가 '이미 최신'만 남긴다)
+  echo "$today" > "$STATE/auto_day"
+  bash "$DEPLOY/minipc/update.sh" >> "$HOME/update.log" 2>&1
+  result='{}'
+else
+  return 0
+fi
 rm -f "$STATE/slow"   # 버전 정보를 바로 새로
 # 결과와 이력을 한 번에 보낸다(화면이 결과를 받는 그때 이력도 바로 보이게)
 events=$(history_events)
 for i in 1 2 3 4 5 6; do
-  if post "$(jq -nc --argjson ok $ok --arg m "$msg" --argjson e "${events:-[]}" '{result:{ok:$ok,message:$m}} + (if ($e | length) > 0 then {events:$e} else {} end)')" >/dev/null; then
+  if post "$(jq -nc --argjson r "$result" --argjson e "${events:-[]}" '$r + (if ($e | length) > 0 then {events:$e} else {} end)')" >/dev/null; then
     mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null
     break
   fi
