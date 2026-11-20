@@ -34,13 +34,18 @@ export type ServerStatus = {
 };
 /** 병합된 변경 하나(PR 번호·제목) */
 export type Change = { pr: number | null; title: string };
-/** 업데이트 이력 한 줄. how: nightly 밤 21:30 자동 · button 앱의 '지금 올리기' · terminal 미니 PC 터미널 */
+/** 업데이트 이력 한 줄. how: nightly 예약 자동 · button 앱의 '지금 올리기' · terminal 미니 PC 터미널 */
 export type UpdateEvent = { at: string; how: string; ok: boolean; from: string; to: string; message: string; changes: Change[] };
-export const HOW_LABEL: Record<string, string> = { nightly: "밤 21:30 자동", button: "앱에서 지금 올리기", terminal: "미니 PC 터미널" };
+export const HOW_LABEL: Record<string, string> = { nightly: "예약 자동", button: "앱에서 지금 올리기", terminal: "미니 PC 터미널" };
 const HISTORY_MAX = 200;
 export type UpdateRequest = { at: string; by: string | null; taken: string | null; fromVersion?: string };
 export type UpdateResult = { at: string; ok: boolean; message: string };
-type Data = { status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
+/** 자동 올리기(대표 2026-11-20): 켜면 매일 정한 시각에 새 버전을 올린다. 기본 켬·21:30 */
+export type AutoUpdate = { on: boolean; time: string };
+export const AUTO_DEFAULT: AutoUpdate = { on: true, time: "21:30" };
+const autoText = (a: AutoUpdate) => (a.on ? `매일 ${a.time}에 저절로 올라갑니다` : "자동 올리기는 꺼져 있습니다");
+type Data = {
+  auto?: AutoUpdate; status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
 
 async function load(db: Db): Promise<Data> {
   const [c] = await db.select().from(appConfig).where(eq(appConfig.key, KEY));
@@ -63,7 +68,19 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   // 요청했는데 15분이 지나도 안 가져갔으면 막지 않고 다시 누를 수 있게
   const pending = !!req && !req.taken && now - Date.parse(req.at) < 15 * 60_000;
   const running = !!req?.taken && (!d.result || Date.parse(d.result.at) < Date.parse(req.taken)) && now - Date.parse(req.taken) < 30 * 60_000;
-  return { history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  return { auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+}
+
+/** 대표만. 자동 올리기 켜기·끄기와 시각 */
+export async function setAutoUpdate(db: Db, actor: Actor, input: { on: boolean; time: string }) {
+  if (!actor.roles.includes("owner")) throw new UserError("자동 올리기 설정은 대표만 합니다");
+  const time = input.time.trim();
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new UserError("시각을 00:00~23:59 사이로 넣어 주세요");
+  const d = await load(db);
+  const auto: AutoUpdate = { on: input.on, time };
+  await save(db, { ...d, auto }, actor.id);
+  await writeAudit(db, { actorId: actor.id, action: "server.auto_set", entityType: "app_config", entityId: KEY, before: d.auto ?? AUTO_DEFAULT, after: auto });
+  return auto;
 }
 
 /** 대표만. '지금 새 버전 올리기' */
@@ -125,7 +142,12 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
     const key = (e: UpdateEvent) => `${e.at}|${e.how}|${e.ok}|${e.to}|${e.message}`;
     const all = [...(d.history ?? [])];
     const seen = new Set(all.map(key));
-    for (const e of body.events.slice(0, 500).map(cleanEvent)) if (e && !seen.has(key(e))) (seen.add(key(e)), all.push(e));
+    const fresh: UpdateEvent[] = [];
+    for (const e of body.events.slice(0, 500).map(cleanEvent)) if (e && !seen.has(key(e))) (seen.add(key(e)), all.push(e), fresh.push(e));
+    // 예약 자동 올리기가 실패하면 대표에게 알린다(단추로 올린 실패는 결과에서 알림). 처음 받는 옛 기록은 하루 안 것만
+    for (const e of fresh)
+      if (e.how === "nightly" && !e.ok && Date.parse(`${e.at.replace(" ", "T")}:00+09:00`) > now.getTime() - 24 * 3600_000)
+        await notifyRole(db, "owner", `예약 자동 새 버전 올리기 실패: ${e.message}`, `server-auto:${e.at}`, "/settings/server");
     next.history = all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, HISTORY_MAX);
   }
   if (body.status) {
@@ -135,7 +157,7 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
     if (st.behind > 0 && st.latest && st.latest !== d.status?.latest) {
       const first = st.pending[0];
       const what = first ? `${first.title}${first.pr ? ` (#${first.pr})` : ""}${st.pending.length > 1 ? ` 외 ${st.pending.length - 1}개` : ""}` : `${st.behind}개 변경`;
-      await notifyRole(db, "owner", `새 버전 있음: ${what} — 지금 올리거나 밤 21:30에 저절로 올라갑니다`, `server-new:${st.latest}`, "/settings/server");
+      await notifyRole(db, "owner", `새 버전 있음: ${what} — 지금 올리거나, ${autoText(d.auto ?? AUTO_DEFAULT)}`, `server-new:${st.latest}`, "/settings/server");
     }
   }
   // 올리는 중인데 결과가 안 왔어도, 이력에 단추로 올린 줄이 오거나 돌고 있는 버전이 바뀌면 끝난 것으로 본다
@@ -163,5 +185,5 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
     update = true;
   }
   await save(db, next);
-  return { update };
+  return { update, auto: d.auto ?? AUTO_DEFAULT };
 }

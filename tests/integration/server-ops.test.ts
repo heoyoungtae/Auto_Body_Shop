@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { notification } from "@/db/schema";
-import { agentReport, requestUpdate, serverOpsView } from "@/modules/platform/server-ops";
+import { agentReport, requestUpdate, serverOpsView, setAutoUpdate } from "@/modules/platform/server-ops";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -30,8 +30,8 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await expect(requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(1))).rejects.toThrow(/이미/);
     expect((await serverOpsView(db, t(1).getTime())).pending).toBe(true);
 
-    expect(await agentReport(db, {}, t(2))).toEqual({ update: true });
-    expect(await agentReport(db, {}, t(3))).toEqual({ update: false }); // 한 번만
+    expect(await agentReport(db, {}, t(2))).toMatchObject({ update: true, auto: { on: true, time: "21:30" } });
+    expect(await agentReport(db, {}, t(3))).toMatchObject({ update: false }); // 한 번만
     v = await serverOpsView(db, t(3).getTime());
     expect(v).toMatchObject({ pending: false, running: true });
     await expect(requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(3))).rejects.toThrow(/올리는 중/);
@@ -81,5 +81,16 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await agentReport(db, { events: [{ at: "2026-11-19 10:27", how: "button", ok: false, from: "", to: "", message: "새 버전 만들기 실패", changes: [] }] }, t(28));
     v = await serverOpsView(db, t(28).getTime());
     expect(v).toMatchObject({ running: false, result: { ok: false, message: "새 버전 만들기 실패" } });
+  });
+
+  it("자동 올리기 시각·켜기는 대표만 바꾸고 미니 PC 에 알려 준다. 예약 자동이 실패하면 대표에게 알린다", async () => {
+    await expect(setAutoUpdate(db, { id: ids.manager, roles: ["plant_manager"] }, { on: false, time: "21:30" })).rejects.toThrow(/대표/);
+    await expect(setAutoUpdate(db, { id: ids.owner, roles: ["owner"] }, { on: true, time: "25:00" })).rejects.toThrow(/시각/);
+    await setAutoUpdate(db, { id: ids.owner, roles: ["owner"] }, { on: true, time: "23:10" });
+    expect(await agentReport(db, {}, t(0))).toMatchObject({ auto: { on: true, time: "23:10" } });
+    expect((await serverOpsView(db, t(0).getTime())).auto).toEqual({ on: true, time: "23:10" });
+    await agentReport(db, { events: [{ at: "2026-11-19 09:40", how: "nightly", ok: false, message: "새 버전 만들기 실패: 이전 버전(aaa1111)을 그대로 씀" }] }, t(0));
+    const notes = await db.select().from(notification).where(eq(notification.userId, ids.owner));
+    expect(notes.some((n) => n.title.startsWith("예약 자동 새 버전 올리기 실패"))).toBe(true);
   });
 });

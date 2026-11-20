@@ -2,9 +2,10 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { HOW_LABEL, serverOpsView, SILENT_MIN, type Change } from "@/modules/platform/server-ops";
 import { requireUser } from "../../_lib/session";
+import { RadioRow, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
-import { requestUpdateAction } from "./actions";
+import { requestUpdateAction, setAutoUpdateAction } from "./actions";
 import { UpdateWatch } from "./_watch";
 
 const PLACE: Record<string, string> = { home: "대표 자택", shop: "정비소", cloud: "클라우드" };
@@ -97,7 +98,9 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
                 </div>
               </details>
             )}
-            <p className="text-[var(--muted)]">새 버전은 매일 밤 21:30에 저절로 올라갑니다. 지금 바로 올리려면 아래 단추를 누르세요.</p>
+            <p className="text-[var(--muted)]">
+              {v.auto.on ? `새 버전은 매일 ${v.auto.time}에 저절로 올라갑니다.` : "자동 올리기가 꺼져 있어 새 버전은 저절로 올라가지 않습니다."} 지금 바로 올리려면 아래 단추를 누르세요.
+            </p>
             {v.pending && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">요청함 {fmtTime(v.request?.at)}. 서버가 1분 안에 받아 갑니다.</p>}
             {v.running && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">올리는 중(시작 {fmtTime(v.request?.taken)}). 보통 5~10분 걸리고, 바꿔 끼우는 몇 초 동안 앱이 끊깁니다.</p>}
             <UpdateWatch active={v.pending || v.running} resultAt={v.result?.at ?? null} ok={!!v.result?.ok} message={v.result?.message ?? ""} />
@@ -115,6 +118,14 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
               <p className="text-xs text-[var(--muted)]">새 버전 올리기는 대표가 합니다.</p>
             )}
             {owner && v.silent && <p className="text-xs text-[var(--danger)]">서버 소식이 끊겨 지금은 누를 수 없습니다(아래 &lsquo;서버 정보&rsquo; 참고).</p>}
+            {owner && (
+              <form action={setAutoUpdateAction} className="space-y-2 border-t border-[var(--line)] pt-3">
+                <p className="font-medium">자동 올리기</p>
+                <RadioRow help="server.autoOn" name="on" required defaultValue={v.auto.on ? "on" : "off"} options={[{ value: "on", label: "켜기", tone: "ok" }, { value: "off", label: "끄기" }]} />
+                <TextField help="server.autoTime" name="time" type="time" required defaultValue={v.auto.time} />
+                <SubmitButton>저장</SubmitButton>
+              </form>
+            )}
           </div>
         </Card>
         <Card title="서버 정보" help={{ kind: "panel", id: "server.info" }}>
