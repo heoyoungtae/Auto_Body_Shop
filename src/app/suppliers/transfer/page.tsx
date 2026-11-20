@@ -30,7 +30,7 @@ export default async function SupplierTransferPage({ searchParams }: { searchPar
         <ErrorBox message={q.error} />
         {(added.length > 0 || filled.length > 0 || skipped.length > 0) && (
           <Notice>
-            가져왔습니다: 새로 {added.length}곳{filled.length ? `, 계좌·통장 사본 채움 ${filled.length}곳` : ""}{skipped.length ? `, 건너뜀 ${skipped.length}곳` : ""}.
+            가져왔습니다: 새로 {added.length}곳{filled.length ? `, 계좌·통장 사본·확인 채움 ${filled.length}곳` : ""}{skipped.length ? `, 건너뜀 ${skipped.length}곳` : ""}.
             {added.length > 0 && <span className="mt-1 block text-xs">{added.join(", ")}</span>}
             {filled.length > 0 && <span className="mt-1 block text-xs">채움: {filled.join(", ")}</span>}
             {skipped.length > 0 && (
@@ -67,7 +67,7 @@ export default async function SupplierTransferPage({ searchParams }: { searchPar
             <form action="/api/suppliers/import" method="post" encType="multipart/form-data" className="space-y-3">
               <TransferFile />
               <p className="text-xs text-[var(--muted)]">
-                모두 <b>후보</b>로 들어갑니다. 등록 평가와 대표 승인은 여기서 새로 합니다. 입금 계좌는 &lsquo;확인 전&rsquo;으로 들어가, 업체에 전화로 확인하고 &lsquo;확인&rsquo;을 눌러야 지급에 씁니다(대표는 직접 가져온 계좌도 확인할 수 있습니다). 같은 사업자등록번호(번호가 없으면 같은 이름)의 업체는 새로 만들지 않고, 비어 있는 입금 계좌·통장 사본만 채웁니다.
+                모두 <b>후보</b>로 들어갑니다. 등록 평가와 대표 승인은 여기서 새로 합니다. 테스트 서버에서 이미 전화로 확인한 입금 계좌는 확인된 그대로(확인한 때·사람·메모) 들어오고, 확인 전이던 계좌는 여기서도 &lsquo;확인 전&rsquo;입니다. 같은 사업자등록번호(번호가 없으면 같은 이름)의 업체는 새로 만들지 않고, 비어 있는 입금 계좌·통장 사본과 계좌 확인만 채웁니다.
               </p>
               <SubmitButton>가져오기</SubmitButton>
             </form>
