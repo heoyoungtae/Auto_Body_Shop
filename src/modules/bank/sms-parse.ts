@@ -37,8 +37,26 @@ function detectCompany(text: string, card: boolean): BankCo | CardCo | null {
 
 type Tok = { s: string; i: number; used?: boolean };
 
+/** 은행 대표 번호 → 은행. 문자 본문에 은행 이름이 없을 때(전달 앱이 '보낸사람 : 15662566()'을 앞에 붙여 줄 때) 쓴다 */
+export const SENDER_BANK: Record<string, BankCo> = {
+  "15662566": "ibk", "15882588": "ibk",
+  "15889999": "kb", "15999999": "kb", "16449999": "kb",
+  "15998000": "shinhan", "15778000": "shinhan", "15448000": "shinhan",
+  "15885000": "woori", "15995000": "woori",
+  "15881111": "hana", "15991111": "hana",
+  "15882100": "nh", "16613000": "nh",
+  "15993333": "kakao", "16617654": "toss", "15881599": "sc", "15886200": "busan", "15665050": "im", "15885050": "im",
+};
+
+/** 전달 앱이 붙이는 '보낸사람 : 15662566()' · '발신번호: 1566-2566' 머리를 떼고 번호를 돌려준다 */
+export function splitSender(raw: string): { sender: string | null; body: string } {
+  const m = /^\s*(?:보낸\s*사람|발신\s*(?:번호|자)?|from)\s*[:：]?\s*([\d-]{3,})\s*(?:\([^)]*\))?\s*/i.exec(raw);
+  return m ? { sender: m[1].replace(/\D/g, ""), body: raw.slice(m[0].length) } : { sender: null, body: raw };
+}
+
 /** 문자 한 통 읽기. receivedOn: 받은 날(연도 붙이기용) */
-export function parseBankSms(raw: string, receivedOn: string): SmsParse {
+export function parseBankSms(raw0: string, receivedOn: string): SmsParse {
+  const { sender, body: raw } = splitSender(raw0);
   const text = raw
     .replace(/\[?(web발신|Web발신|국외발신|국제발신|국외발송)\]?/gi, " ")
     .replace(/[​ ]/g, " ")
@@ -205,7 +223,7 @@ export function parseBankSms(raw: string, receivedOn: string): SmsParse {
   const ap = /승인번호[:：\s]*(\d{6,10})/.exec(text);
   const approvalNo = ap ? ap[1] : null;
 
-  const company = detectCompany(text, kind === "card" || kind === "card_cancel");
+  const company = detectCompany(text, kind === "card" || kind === "card_cancel") ?? (kind === "in" || kind === "out" ? (sender && SENDER_BANK[sender]) || null : null);
   const companyWords = new Set(
     Object.values(kind === "card" || kind === "card_cancel" ? CARDS : BANKS)
       .flatMap((v) => v.keys as readonly string[])

@@ -15,6 +15,8 @@ import {
   importFile,
   ingestSms,
   issueToken,
+  loadFeed,
+  noteRejected,
   listTx,
   payFromTx,
   saveAccount,
@@ -63,6 +65,34 @@ describe("연동 설정", () => {
     const t2 = await issueToken(db, owner(), now);
     expect(await tokenOk(db, t)).toBe(false);
     expect(await tokenOk(db, t2)).toBe(true);
+  });
+
+  it("휴대폰이 예전 주소로 보내면 틀린 주소 요청으로 세고 할 일로 알린다, 은행 문자 아닌 것도 횟수만 남긴다", async () => {
+    await saveAccount(db, owner(), { kind: "bank", company: "kb", name: "", digits: "", payDay: null, sms: true });
+    const old = await issueToken(db, owner(), now);
+    await issueToken(db, owner(), now); // 미니 PC로 옮기며 새로 만듦
+    await noteRejected(db, old, now);
+    await noteRejected(db, "short", now); // 아무 주소나 두드린 것은 안 셈
+    expect((await loadFeed(db)).rejected.n).toBe(1);
+    const todos = await bankTodos(db, owner(), "2026-11-12");
+    expect(todos.some((t) => /예전 '문자 받는 주소'/.test(t.what))).toBe(true);
+    await ingestSms(db, "시험 문자입니다", now);
+    const cfg = await loadFeed(db);
+    expect(cfg.ignored.n).toBe(1);
+    expect(cfg.lastSmsAt).not.toBeNull();
+    expect(cfg.recent[0].status).toBe("ignored");
+  });
+
+  it("문자 받는 주소: GET 으로 msg 이름에 담아 보내도 받는다, 처리 결과는 최근 기록에 남는다", async () => {
+    await saveAccount(db, owner(), { kind: "bank", company: "ibk", name: "", digits: "", payDay: null, sms: true });
+    const t = await issueToken(db, owner(), now);
+    (globalThis as unknown as { __db?: Promise<Db> }).__db = Promise.resolve(db); // 경로가 이 시험 DB 를 쓰게
+    const { GET } = await import("@/app/api/bank-sms/[token]/route");
+    const res = await GET(new Request(`http://x/api/bank-sms/${t}?msg=${encodeURIComponent("보낸사람 : 15662566() [Web발신] 2026/11/20 13:41 출금 50,000원 잔액 1,234,567원 한빛상사")}`), { params: Promise.resolve({ token: t }) });
+    expect(((await res.json()) as { status: string }).status).toBe("added");
+    const cfg = await loadFeed(db);
+    expect(cfg.recent[0]).toMatchObject({ status: "added" });
+    (globalThis as unknown as { __db?: Promise<Db> }).__db = undefined;
   });
 });
 
@@ -193,5 +223,15 @@ describe("엑셀 올리기", () => {
     expect(rows.find((x) => x.kind === "tax_buy")).toMatchObject({ matchKind: "expense", matchId: e.id });
     expect(rows.find((x) => x.kind === "tax_sale")!.matchKind).toBeNull();
     expect((await bankTodos(db, acct(), "2026-11-12")).some((t) => t.what === "홈택스 증빙 맞추기 1건")).toBe(true);
+  });
+});
+
+describe("문자 → 통장 고르기", () => {
+  it("끝자리를 적어 둔 통장이라도, 문자에 끝자리가 없고 그 은행 통장이 하나뿐이면 그 통장에 넣는다", async () => {
+    await saveAccount(db, owner(), { kind: "bank", company: "ibk", name: "사업자 통장", digits: "061", payDay: null, sms: true });
+    const r = await ingestSms(db, "보낸사람 : 15662566() [Web발신] 2026/11/20 13:41 출금 50,000원 잔액 1,234,567원 한빛상사", now);
+    expect(r.status).toBe("added");
+    const r2 = await ingestSms(db, "[IBK] 11/20 13:50 출금 30,000원 잔액 1,204,567원 123-******-01-099 다른통장", now);
+    expect(r2.status).toBe("unknown"); // 끝자리가 보이는데 다르면 넣지 않는다
   });
 });
