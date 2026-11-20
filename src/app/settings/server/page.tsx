@@ -100,15 +100,22 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
             <p className="text-[var(--muted)]">
               {v.auto.on ? `새 버전은 매일 ${v.auto.time}에 저절로 올라갑니다.` : "자동 올리기가 꺼져 있어 새 버전은 저절로 올라가지 않습니다."} 지금 바로 올리려면 아래 단추를 누르세요.
             </p>
-            {v.pending && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">요청함 {fmtTime(v.request?.at)}. 서버가 1분 안에 받아 새 버전을 만들기 시작합니다(5~10분). 바꿔 끼우는 몇 초 동안 앱이 끊깁니다.</p>}
-            {v.running && (
+            {(v.pending || v.running) && (
               <div className="space-y-2 rounded-md bg-[var(--surface-2)] px-3 py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span>
-                    올리는 중: <b>{v.progress?.label ?? STAGES[0]}</b>
+                    {v.pending ? (
+                      <>
+                        요청함: <b>서버가 받아 가기를 기다리는 중(1분 안)</b>
+                      </>
+                    ) : (
+                      <>
+                        올리는 중: <b>{v.progress?.label ?? STAGES[0]}</b>
+                      </>
+                    )}
                   </span>
                   <span className="text-xs text-[var(--muted)]">
-                    {v.progress?.pct ?? 0}% · 시작 {fmtTime(v.request?.taken)}
+                    {v.progress?.pct ?? 0}% · {v.pending ? `요청 ${fmtTime(v.request?.at)}` : `시작 ${fmtTime(v.request?.taken)}`}
                     {v.progress && v.progress.sinceMin > 0 ? ` · ${v.progress.sinceMin}분 지남` : ""}
                   </span>
                 </div>
@@ -124,7 +131,7 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
                 </div>
                 <ol className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
                   {STAGES.map((label, i) => {
-                    const at = v.progress?.stage ?? 0;
+                    const at = v.pending ? -1 : (v.progress?.stage ?? 0);
                     return (
                       <li key={label} className={i < at ? "text-[var(--ok)]" : i === at ? "font-semibold" : "text-[var(--muted)]"}>
                         {i < at ? "✓" : i === at ? "●" : "○"} {label}
