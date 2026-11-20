@@ -225,3 +225,13 @@ describe("엑셀 올리기", () => {
     expect((await bankTodos(db, acct(), "2026-11-12")).some((t) => t.what === "홈택스 증빙 맞추기 1건")).toBe(true);
   });
 });
+
+describe("문자 → 통장 고르기", () => {
+  it("끝자리를 적어 둔 통장이라도, 문자에 끝자리가 없고 그 은행 통장이 하나뿐이면 그 통장에 넣는다", async () => {
+    await saveAccount(db, owner(), { kind: "bank", company: "ibk", name: "사업자 통장", digits: "061", payDay: null, sms: true });
+    const r = await ingestSms(db, "보낸사람 : 15662566() [Web발신] 2026/11/20 13:41 출금 50,000원 잔액 1,234,567원 한빛상사", now);
+    expect(r.status).toBe("added");
+    const r2 = await ingestSms(db, "[IBK] 11/20 13:50 출금 30,000원 잔액 1,204,567원 123-******-01-099 다른통장", now);
+    expect(r2.status).toBe("unknown"); // 끝자리가 보이는데 다르면 넣지 않는다
+  });
+});

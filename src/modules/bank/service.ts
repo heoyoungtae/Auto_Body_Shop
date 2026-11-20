@@ -173,6 +173,8 @@ function accountFor(accounts: FeedAccount[], company: string | null, digits: str
   if (d1.length === 1) return d1[0];
   const loose = byCo.filter((a) => !a.digits);
   if (loose.length === 1 && !d1.length) return loose[0];
+  // 문자에 번호 끝자리가 안 보이고 그 은행 통장이 하나뿐이면 그것(끝자리를 적어 두었어도)
+  if (!digits && byCo.length === 1) return byCo[0];
   // 회사 이름이 문자에 없지만 끝자리가 맞는 것이 하나뿐이면
   const d2 = fit(pool);
   if (!company && d2.length === 1) return d2[0];
