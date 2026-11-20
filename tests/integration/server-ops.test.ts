@@ -147,4 +147,21 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     const v = await serverOpsView(db, t(8).getTime());
     expect(v.status).toMatchObject({ version: "bbb2222", latest: "bbb2222", behind: 0, pending: [] });
   });
+
+  it("날짜 버전(26.11.20-7)을 받아 보여 주고, 틀린 모양은 버린다", async () => {
+    await agentReport(db, { status: { host: "abs-server", version: "aaa1111", versionLabel: "26.11.20-7", latest: "bbb2222", latestLabel: "x; rm", behind: 1 }, events: [{ at: "2026-11-20 13:08", how: "button", ok: true, from: "c", to: "aaa1111", fromLabel: "26.11.20-3", toLabel: "26.11.20-7" }] }, t(0));
+    const v = await serverOpsView(db, t(0).getTime());
+    expect(v.status).toMatchObject({ versionLabel: "26.11.20-7", latestLabel: "" });
+    expect(v.history[0]).toMatchObject({ fromLabel: "26.11.20-3", toLabel: "26.11.20-7" });
+  });
+
+  it("예전 이력도 미니 PC 가 계산해 보낸 날짜 버전으로 채운다", async () => {
+    await agentReport(db, { events: [{ at: "2026-11-19 21:35", how: "nightly", ok: true, from: "aaa1111", to: "bbb2222" }] }, t(0));
+    const r = await agentReport(db, {}, t(1));
+    expect(r).toMatchObject({ labelsFor: ["aaa1111", "bbb2222"] });
+    await agentReport(db, { labels: { aaa1111: "26.11.18-3", bbb2222: "" } }, t(2));
+    const v = await serverOpsView(db, t(2).getTime());
+    expect(v.history[0]).toMatchObject({ fromLabel: "26.11.18-3", toLabel: "bbb2222" });
+    expect(await agentReport(db, {}, t(3))).not.toHaveProperty("labelsFor");
+  });
 });

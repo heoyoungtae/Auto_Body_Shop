@@ -18,6 +18,8 @@ export type ServerStatus = {
   place: string; // home | shop | cloud
   mode: string; // direct | tunnel
   version: string; // 지금 돌고 있는 커밋(7자)
+  versionLabel: string; // 날짜 버전(26.11.20-7), 모르면 ""
+  latestLabel: string;
   latest: string; // GitHub 최신 커밋(7자), 모르면 ""
   behind: number; // 새 커밋 수
   lastUpdate: string; // update.log 마지막 줄
@@ -78,7 +80,9 @@ export function serverHealth(st: (ServerStatus & { at?: string }) | null, silent
 /** 병합된 변경 하나(PR 번호·제목) */
 export type Change = { pr: number | null; title: string };
 /** 업데이트 이력 한 줄. how: nightly 예약 자동 · button 앱의 '지금 올리기' · terminal 미니 PC 터미널 */
-export type UpdateEvent = { at: string; how: string; ok: boolean; from: string; to: string; message: string; changes: Change[] };
+export type UpdateEvent = { at: string; how: string; ok: boolean; from: string; to: string; fromLabel?: string; toLabel?: string; message: string; changes: Change[] };
+/** 날짜 버전(대표 2026-11-20): 26.11.20-7 = 그날 7번째 병합. 미니 PC 가 git 병합 순서로 매긴다 */
+const cleanLabel = (x: unknown) => (/^\d{2}\.\d{2}\.\d{2}-\d{1,4}$/.test(String(x ?? "")) ? String(x) : "");
 export const HOW_LABEL: Record<string, string> = { nightly: "예약 자동", button: "앱에서 지금 올리기", terminal: "미니 PC 터미널" };
 const HISTORY_MAX = 200;
 export type UpdateRequest = { at: string; by: string | null; taken: string | null; fromVersion?: string };
@@ -164,6 +168,8 @@ function cleanStatus(b: Record<string, unknown>): ServerStatus {
     place: s(b.place, 10),
     mode: s(b.mode, 10),
     version: s(b.version, 12),
+    versionLabel: cleanLabel(b.versionLabel),
+    latestLabel: cleanLabel(b.latestLabel),
     latest: s(b.latest, 12),
     behind: Math.max(0, Math.min(9999, Number(b.behind) || 0)),
     lastUpdate: s(b.lastUpdate),
@@ -203,12 +209,16 @@ function cleanEvent(x: unknown): UpdateEvent | null {
   const o = (x ?? {}) as Record<string, unknown>;
   const at = s(o.at, 20);
   if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at)) return null;
-  return { at, how: ["nightly", "button", "terminal"].includes(String(o.how)) ? String(o.how) : "nightly", ok: o.ok === true, from: s(o.from, 12), to: s(o.to, 12), message: s(o.message, 300), changes: cleanChanges(o.changes) };
+  return { at, how: ["nightly", "button", "terminal"].includes(String(o.how)) ? String(o.how) : "nightly", ok: o.ok === true, from: s(o.from, 12), to: s(o.to, 12), fromLabel: cleanLabel(o.fromLabel), toLabel: cleanLabel(o.toLabel), message: s(o.message, 300), changes: cleanChanges(o.changes) };
 }
 
 /** 미니 PC agent 가 1분마다 부른다. status 가 있으면 저장, result 가 있으면 올리기 결과 저장.
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
-export async function agentReport(db: Db, body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown } }, now = new Date()) {
+export async function agentReport(
+  db: Db,
+  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown> },
+  now = new Date(),
+) {
   const d = await load(db);
   const next: Data = { ...d };
   if (Array.isArray(body.events) && body.events.length) {
@@ -235,7 +245,7 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
     if (st.behind > 0 && st.latest && st.latest !== d.status?.latest) {
       const first = st.pending[0];
       const what = first ? `${first.title}${first.pr ? ` (#${first.pr})` : ""}${st.pending.length > 1 ? ` 외 ${st.pending.length - 1}개` : ""}` : `${st.behind}개 변경`;
-      await notifyRole(db, "owner", `새 버전 있음: ${what} — 지금 올리거나, ${autoText(d.auto ?? AUTO_DEFAULT)}`, `server-new:${st.latest}`, "/settings/server");
+      await notifyRole(db, "owner", `새 버전${st.latestLabel ? ` ${st.latestLabel}` : ""} 있음: ${what} — 지금 올리거나, ${autoText(d.auto ?? AUTO_DEFAULT)}`, `server-new:${st.latest}`, "/settings/server");
     }
   }
   // 올리는 중인데 결과가 안 왔어도, 이력에 단추로 올린 줄이 오거나 돌고 있는 버전이 바뀌면 끝난 것으로 본다
@@ -266,7 +276,7 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
     const to = result.ok ? /→\s*([0-9a-f]{7,40})/.exec(result.message)?.[1]?.slice(0, 7) : undefined;
     if (to && next.status) {
       const done = !!next.status.latest && next.status.latest.startsWith(to);
-      next.status = { ...next.status, version: to, ...(done ? { behind: 0, pending: [] } : {}) };
+      next.status = { ...next.status, version: to, versionLabel: done ? next.status.latestLabel : "", ...(done ? { behind: 0, pending: [] } : {}) };
     }
     await writeAudit(db, { actorId: null, action: result.ok ? "server.update_ok" : "server.update_failed", entityType: "app_config", entityId: KEY, after: result });
     if (!result.ok) await notifyRole(db, "owner", `새 버전 올리기 실패: ${result.message}`, `server-update:${result.at.slice(0, 16)}`, "/settings/server");
@@ -278,6 +288,15 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
     next.progress = { stage: 0, stageAt: now.toISOString() };
     update = true;
   }
+  // 예전 이력에 날짜 버전 채우기(대표 2026-11-20): 미니 PC 가 기록 번호별 날짜 버전을 보내 오면 채운다
+  if (body.labels && typeof body.labels === "object") {
+    const map = new Map(Object.entries(body.labels).map(([k, v]) => [k.slice(0, 12), cleanLabel(v)]));
+    // 계산 못 한 번호(오래되어 기록이 없는 등)는 번호 그대로 두어 다시 묻지 않는다
+    const fill = (cur: string | undefined, sha: string) => cur || (sha && map.has(sha) ? map.get(sha) || sha : "");
+    next.history = (next.history ?? []).map((e) => ({ ...e, fromLabel: fill(e.fromLabel, e.from), toLabel: fill(e.toLabel, e.to) }));
+  }
   await save(db, next);
-  return { update, auto: d.auto ?? AUTO_DEFAULT };
+  // 아직 날짜 버전이 없는 이력의 기록 번호(미니 PC 가 계산해 보낸다)
+  const labelsFor = [...new Set((next.history ?? []).flatMap((e) => [!e.fromLabel && e.from, !e.toLabel && e.to]).filter((x): x is string => !!x && /^[0-9a-f]{7,12}$/.test(x)))].slice(0, 50);
+  return { update, auto: d.auto ?? AUTO_DEFAULT, ...(labelsFor.length && !body.labels ? { labelsFor } : {}) };
 }
