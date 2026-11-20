@@ -587,6 +587,21 @@ export async function listTx(db: Db, actor: Actor, f: { filter?: TxFilter; from?
   return { list, sum, from, to };
 }
 
+/** 거래 한 줄과 짝 후보(입출금 화면의 받기·내기에서 통장 거래로 시작할 때) */
+export async function txWithCands(db: Db, actor: Actor, id: string, now = new Date()) {
+  mustView(actor);
+  const t = await getTx(db, id);
+  if (t.matchKind) return { t, cands: [] as Cand[] };
+  return { t, cands: candidatesFor(t, await pools(db, now)) };
+}
+
+/** 짝이 없는 통장 입출금(입출금 화면의 '통장 할 일') */
+export async function openBankTxs(db: Db, actor: Actor, limit = 15) {
+  mustView(actor);
+  const rows = await db.select().from(bankTx).where(and(isNull(bankTx.matchKind), inArray(bankTx.kind, ["in", "out"]))).orderBy(desc(bankTx.on), desc(bankTx.at)).limit(limit + 1);
+  return { rows: rows.slice(0, limit), more: rows.length > limit };
+}
+
 export async function getTx(db: Db, id: string) {
   const [t] = await db.select().from(bankTx).where(eq(bankTx.id, id));
   if (!t) throw new BankError("없는 거래입니다");

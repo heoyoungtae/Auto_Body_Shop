@@ -97,6 +97,7 @@ export default async function NewExpensePage({
     <>
       <PageTitle
         help="expenses.new"
+        actions={<Link href="/money/cash" className="self-center text-sm text-[var(--accent)]">← 입출금</Link>}
         sub="발주서·외주 대금은 '외상매입금·미지급금'에서 업체별로 고른 외상을 불러와 지급 결의합니다. 그 밖의 지출은 근거 전표 없이 씁니다. 승인자는 금액에 따라 전결 규정(일반 지출)이 정합니다."
       >
         지출 결의서 쓰기

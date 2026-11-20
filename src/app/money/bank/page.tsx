@@ -13,6 +13,7 @@ import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, Empty, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { txAction } from "./actions";
+import { CandButton, TxHidden } from "./cand-button";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const CLS_OPTS = Object.entries(TX_CLASSES).map(([value, c]) => ({ value, label: c.label }));
@@ -57,42 +58,8 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
       <p className={`text-lg font-semibold tabular-nums ${tone}`}>{v}</p>
     </div>
   );
-  const hidden = (txId: string, intent: string) => (
-    <>
-      <input type="hidden" name="txId" value={txId} />
-      <input type="hidden" name="intent" value={intent} />
-      <input type="hidden" name="back" value={back} />
-    </>
-  );
-  const candButton = (txId: string, c: Cand) => {
-    if (c.act === "receipt")
-      return (
-        <Link href={`/money/ro/${c.id}?tx=${txId}#pay`} className={buttonClass("secondary")}>
-          수납 적기
-        </Link>
-      );
-    if (c.act === "claim")
-      return (
-        <form action={txAction} className="flex flex-wrap items-end gap-2">
-          {hidden(txId, "claim")}
-          <input type="hidden" name="roId" value={c.id} />
-          {(c.cutWon ?? 0) > 0 && <TextField help="bank.cutReason" name="cutReason" required />}
-          <div>
-            <SubmitButton>보험 입금 확인</SubmitButton>
-          </div>
-        </form>
-      );
-    return (
-      <form action={txAction}>
-        {hidden(txId, c.act === "link" ? "link" : c.act)}
-        <input type="hidden" name="kind" value={c.kind} />
-        <input type="hidden" name="id" value={c.id} />
-        <input type="hidden" name="no" value={c.no} />
-        <input type="hidden" name="note" value={c.note ?? ""} />
-        <SubmitButton>{c.act === "pay" ? "지급 처리" : c.act === "payroll" ? "급여 지급 처리" : c.act === "bill" ? "청구서 입금 적기" : "잇기"}</SubmitButton>
-      </form>
-    );
-  };
+  const hidden = (txId: string, intent: string) => <TxHidden txId={txId} intent={intent} back={back} />;
+  const candButton = (txId: string, c: Cand) => <CandButton txId={txId} c={c} back={back} />;
   const matchHref = (kind: string | null, id: string | null) => {
     if (!kind || !id) return null;
     if (kind === "expense") return `/money/expenses/${id}`;

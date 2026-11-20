@@ -297,6 +297,12 @@ export const MENU: MenuGroup[] = [
     label: "회계",
     items: [
       {
+        label: "입출금",
+        perm: ["money.view", "expense.draft", "expense.pay", "bank.view"],
+        href: "/money/cash",
+        std: "STD-12",
+      },
+      {
         label: "청구·수납",
         perm: ["money.view"],
         href: "/money",

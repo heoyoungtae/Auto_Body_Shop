@@ -67,3 +67,39 @@ export const paymentsList: ListDef<Pay> = {
     { label: "메모", get: (r) => r.p.note },
   ],
 };
+
+// ── 입출금(입금·출금 전표 한 목록) ──
+import { cashbook, CASH_KINDS, type CashRow } from "@/modules/money/cashbook";
+export const CASH_TABS = ["all", "in", "out"] as const;
+export const cashbookList: ListDef<CashRow> = {
+  key: "cashbook",
+  title: "입출금",
+  href: "/money/cash",
+  allowed: (u) => can(u, "money.view") || can(u, "expense.pay") || can(u, "bank.view"),
+  load: async (db, u, q, lq) => {
+    const d = pick(q.d, CASH_TABS, "all");
+    const rows = await cashbook(db, lq.from ?? "2000-01-01", lq.to ?? "9999-12-31");
+    // 볼 수 있는 쪽만: 들어옴은 청구·수납 권한, 나감은 지출 지급 권한(통장 보는 사람은 둘 다)
+    const inOk = can(u, "money.view") || can(u, "bank.view");
+    const outOk = can(u, "expense.pay") || can(u, "bank.view");
+    return rows.filter((r) => (r.dir === "in" ? inOk : outOk) && (d === "all" || r.dir === d));
+  },
+  preset: "month",
+  tabs: { param: "d", options: [{ v: "all", label: "모두" }, { v: "in", label: "들어온 돈" }, { v: "out", label: "나간 돈" }] },
+  dates: [{ key: "on", label: "날짜", get: (r) => r.on }],
+  text: (r) => [r.docNo, r.party, r.what, CASH_KINDS[r.kind], r.method],
+  searchHint: "번호·상대·차량번호·목적 일부",
+  cols: [
+    { label: "날짜", get: (r) => r.on },
+    { label: "구분", get: (r) => (r.dir === "in" ? "들어옴" : "나감") },
+    { label: "종류", get: (r) => CASH_KINDS[r.kind] },
+    { label: "전표 번호", get: (r) => r.docNo },
+    { label: "상대", get: (r) => r.party },
+    { label: "내용", get: (r) => r.what },
+    { label: "들어온 돈", get: (r) => (r.dir === "in" ? r.amountWon : null), sum: true, unit: "원" },
+    { label: "나간 돈", get: (r) => (r.dir === "out" ? r.amountWon : null), sum: true, unit: "원" },
+    { label: "방법", get: (r) => r.method },
+    { label: "통장", get: (r) => (r.bank ? "맞음" : "") },
+    { label: "취소 전표", get: (r) => (r.reversal ? "예" : "") },
+  ],
+};

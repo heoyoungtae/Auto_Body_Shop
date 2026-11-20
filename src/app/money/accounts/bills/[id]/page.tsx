@@ -41,7 +41,12 @@ export default async function BillPage({ params, searchParams }: { params: Promi
               · {v.b.ym} 출고분 · 받을 날 {v.b.dueOn}
             </>
           }
-          actions={<PrintButton />}
+          actions={
+            <div className="flex flex-wrap gap-3">
+              <PrintButton />
+              <Link href="/money/cash" className="self-center text-sm text-[var(--accent)]">← 입출금</Link>
+            </div>
+          }
         >
           청구서 {v.b.docNo}
         </PageTitle>

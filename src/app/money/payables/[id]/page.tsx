@@ -35,6 +35,7 @@ export default async function SupplierPayablePage({ params }: { params: Promise<
             <Link href="/money/payables" className="self-center text-sm text-[var(--accent)]">
               ← 외상매입금·미지급금
             </Link>
+            <Link href="/money/cash" className="self-center text-sm text-[var(--accent)]">← 입출금</Link>
           </div>
         }
       >

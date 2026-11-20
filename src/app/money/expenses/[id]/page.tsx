@@ -83,7 +83,12 @@ export default async function ExpensePage({
       <PageTitle
         help="expenses.detail"
         sub={`${e.split.length ? e.split.map((p) => `${EXP_CATEGORIES[p.category as keyof typeof EXP_CATEGORIES] ?? p.category} ${p.won.toLocaleString("ko-KR")}원`).join(" + ") : EXP_CATEGORIES[e.category as keyof typeof EXP_CATEGORIES]} · ${g.createdByName} 작성 ${fmtTime(e.createdAt)}`}
-        actions={<Badge tone={TONE[status]}>{EXP_STATUS[status]}</Badge>}
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <Badge tone={TONE[status]}>{EXP_STATUS[status]}</Badge>
+            <Link href="/money/cash" className="self-center text-sm text-[var(--accent)]">← 입출금</Link>
+          </div>
+        }
       >
         {e.docNo} {e.payeeName} {won(e.amountWon)}
       </PageTitle>
