@@ -1,11 +1,11 @@
 // 협력업체 옮기기(대표 요청 2026-11-20): 테스트 서버(오라클)에서 '내보내기'로 파일 하나를 받아, 미니 PC 앱에서 '가져오기'로 넣는다.
 // 한 번만 쓰는 옮기기다(대표 2026-11-20 "일회성 작업"). 메뉴·대장 단추 없이 /suppliers/transfer 주소로만 열고, 옮긴 뒤 지운다.
 // 업체 정보와 서류 파일(사진·PDF), 입금 계좌·통장 사본까지 옮긴다(대표 2026-11-20). 계좌는 계좌 권한자(회계·대표)가 내보낼 때만 넣고,
-// 받는 쪽에서는 '확인 전'으로 들어가 전화로 확인해야 지급에 쓴다(대표는 자기가 넣은 계좌도 확인 가능, verifySupplierBank).
+// 보내는 쪽에서 이미 전화로 확인한 계좌는 확인한 그대로(언제·누가·메모) 옮긴다(대표 2026-11-20). 확인 전 계좌는 받는 쪽에서도 확인 전.
 // 가져온 업체는 모두 '후보'로 들어가고, 등록 평가·대표 승인은 받는 쪽에서 새로 한다. 같은 사업자등록번호(없으면 같은 이름)는 건너뛴다.
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { supplier } from "@/db/schema";
+import { appUser, supplier } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
@@ -33,7 +33,7 @@ export type TransferSupplier = {
   payDay: number | null;
   status: string;
   /** 입금 계좌(계좌 권한자가 내보낼 때만). 계좌번호는 서버마다 암호 열쇠가 달라 풀어서 담는다 */
-  bank?: { bankName: string; accountNo: string; holder: string } | null;
+  bank?: { bankName: string; accountNo: string; holder: string; verified?: { at: string; by: string; note: string } | null } | null;
   files: TransferFile[];
 };
 export type TransferPack = { format: typeof TRANSFER_FORMAT; version: 1; exportedAt: string; suppliers: TransferSupplier[] };
@@ -43,6 +43,7 @@ export async function exportSuppliers(db: Db, actor: Actor, statuses: string[] =
   if (!can(actor, "supplier.manage")) throw new SupplierError("협력업체 내보내기는 공장장·대표가 합니다");
   const rows = await db.select().from(supplier).where(inArray(supplier.status, statuses)).orderBy(supplier.name);
   const withBank = can(actor, "supplier.bank");
+  const names = new Map((await db.select({ id: appUser.id, name: appUser.name }).from(appUser)).map((u) => [u.id, u.name]));
   const out: TransferSupplier[] = [];
   for (const s of rows) {
     const files: TransferFile[] = [];
@@ -66,7 +67,15 @@ export async function exportSuppliers(db: Db, actor: Actor, statuses: string[] =
       payTerm: s.payTerm,
       payDay: s.payDay,
       status: s.status,
-      bank: withBank && s.bankAccountEnc && s.bankName && s.bankHolder ? { bankName: s.bankName, accountNo: decrypt(s.bankAccountEnc), holder: s.bankHolder } : null,
+      bank:
+        withBank && s.bankAccountEnc && s.bankName && s.bankHolder
+          ? {
+              bankName: s.bankName,
+              accountNo: decrypt(s.bankAccountEnc),
+              holder: s.bankHolder,
+              verified: s.bankVerifiedAt ? { at: s.bankVerifiedAt.toISOString(), by: (s.bankVerifiedBy && names.get(s.bankVerifiedBy)) || "", note: s.bankVerifyNote ?? "" } : null,
+            }
+          : null,
       files,
     });
   }
@@ -74,7 +83,19 @@ export async function exportSuppliers(db: Db, actor: Actor, statuses: string[] =
   return { format: TRANSFER_FORMAT, version: 1, exportedAt: now.toISOString(), suppliers: out };
 }
 
-export type ImportResult = { filled: { name: string; bank: boolean; files: number }[]; added: { id: string; name: string; files: number; bank: boolean }[]; skipped: { name: string; why: string }[] };
+/** 보내는 쪽에서 확인한 계좌면 확인 표시를 옮긴다. 확인한 때는 원래 때, 확인한 사람은 이 서버에 없으니 가져온 사람으로 두고 메모에 원래 사람을 남긴다 */
+async function carryVerified(db: Db, actor: Actor, id: string, name: string, v: unknown, now: Date) {
+  const o = (v ?? null) as { at?: unknown; by?: unknown; note?: unknown } | null;
+  if (!o) return false;
+  const at = new Date(String(o.at ?? ""));
+  const when = Number.isNaN(at.getTime()) || at > now ? now : at;
+  const note = `테스트 서버에서 확인됨(${String(o.by ?? "").slice(0, 40) || "확인자 모름"}): ${String(o.note ?? "").slice(0, 300)}`.trim();
+  await db.update(supplier).set({ bankVerifiedBy: actor.id, bankVerifiedAt: when, bankVerifyNote: note, updatedAt: now }).where(eq(supplier.id, id));
+  await writeAudit(db, { actorId: actor.id, action: "supplier.bank_verify", entityType: "supplier", entityId: id, after: { supplier: name, note, from: "transfer" } });
+  return true;
+}
+
+export type ImportResult = { filled: { name: string; bank: boolean; files: number; verified?: boolean }[]; added: { id: string; name: string; files: number; bank: boolean; verified?: boolean }[]; skipped: { name: string; why: string }[] };
 
 /** 가져오기: 모두 후보로 넣는다. 한 업체가 틀려도 나머지는 넣고 이유를 알려 준다 */
 export async function importSuppliers(db: Db, actor: Actor, raw: string, now = new Date()): Promise<ImportResult> {
@@ -88,7 +109,7 @@ export async function importSuppliers(db: Db, actor: Actor, raw: string, now = n
   if (pack?.format !== TRANSFER_FORMAT || !Array.isArray(pack.suppliers)) throw new SupplierError("협력업체 내보내기 파일이 아닙니다");
   if (pack.suppliers.length > 500) throw new SupplierError("한 번에 500곳까지 가져옵니다");
   const withBank = can(actor, "supplier.bank");
-  const have = await db.select({ id: supplier.id, name: supplier.name, bizNo: supplier.bizNo, bankAccountEnc: supplier.bankAccountEnc, docFiles: supplier.docFiles }).from(supplier);
+  const have = await db.select({ id: supplier.id, name: supplier.name, bizNo: supplier.bizNo, bankAccountEnc: supplier.bankAccountEnc, bankVerifiedAt: supplier.bankVerifiedAt, docFiles: supplier.docFiles }).from(supplier);
   const byBiz = new Map(have.filter((h) => h.bizNo).map((h) => [h.bizNo!.replace(/\D/g, ""), h]));
   const byName = new Map(have.map((h) => [h.name.trim(), h]));
   const bizSet = new Set(byBiz.keys());
@@ -116,9 +137,12 @@ export async function importSuppliers(db: Db, actor: Actor, raw: string, now = n
           );
           bank = ok;
         }
+        // 계좌가 같고 이 서버에서 아직 확인 전이면, 보내는 쪽 확인을 옮긴다(앞서 확인 없이 가져온 경우)
+        const sameNo = !!cur.bankAccountEnc && !!s.bank?.accountNo && decrypt(cur.bankAccountEnc) === String(s.bank.accountNo).replace(/[\s-]/g, "");
+        const verified = (bank || (sameNo && !cur.bankVerifiedAt)) && (await carryVerified(db, actor, cur.id, name, s.bank?.verified, now));
         if (!cur.docFiles.some((f) => f.doc === "bankbook")) for (const u of bankbookOf(s)) files += await addSupplierDocFiles(db, actor, cur.id, [u], now).catch(() => 0);
-        if (bank || files) {
-          res.filled.push({ name, bank, files });
+        if (bank || files || verified) {
+          res.filled.push({ name, bank, files, verified });
           continue;
         }
       }
@@ -153,7 +177,9 @@ export async function importSuppliers(db: Db, actor: Actor, raw: string, now = n
         .map((f) => ({ doc: String(f.doc), name: String(f.name ?? ""), bytes: new Uint8Array(Buffer.from(f.data, "base64")) }));
       // 파일은 하나씩 넣어서, 틀린 파일 하나 때문에 나머지가 빠지지 않게
       for (const u of ups) files += await addSupplierDocFiles(db, actor, id, [u], now).catch(() => 0);
-      res.added.push({ id, name, files, bank: withBank && !!s.bank?.accountNo });
+      const bank = withBank && !!s.bank?.accountNo;
+      const verified = bank && (await carryVerified(db, actor, id, name, s.bank?.verified, now));
+      res.added.push({ id, name, files, bank, verified });
       if (biz) bizSet.add(biz);
       nameSet.add(name);
     } catch (e) {

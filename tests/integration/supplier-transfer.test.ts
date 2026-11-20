@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { supplier } from "@/db/schema";
 import { decrypt } from "@/modules/auth/crypto";
-import { addSupplierDocFiles, createSupplier, setSupplierBank } from "@/modules/purchase/supplier";
+import { addSupplierDocFiles, createSupplier, setSupplierBank, verifySupplierBank } from "@/modules/purchase/supplier";
 import { exportSuppliers, importSuppliers } from "@/modules/purchase/supplier-transfer";
 import { seedShop, testDb } from "./db";
 
@@ -53,7 +53,7 @@ describe("협력업체 내보내기·가져오기", () => {
     expect(before.bankAccountEnc).toBeNull();
     const fill = await importSuppliers(dst2, { id: c.owner, roles: ["owner"] }, text);
     expect(fill.added).toHaveLength(0);
-    expect(fill.filled).toEqual([{ name: "한빛도료", bank: true, files: 1 }]);
+    expect(fill.filled).toEqual([{ name: "한빛도료", bank: true, files: 1, verified: false }]);
     const [after] = await dst2.select().from(supplier).where(eq(supplier.name, "한빛도료"));
     expect(decrypt(after.bankAccountEnc!)).toBe("12345678901234");
     expect(after.docFiles.map((f) => f.doc).sort()).toEqual(["bankbook", "biz"]);
@@ -61,5 +61,22 @@ describe("협력업체 내보내기·가져오기", () => {
     const again = await importSuppliers(dst, pm2, text);
     expect(again.added).toHaveLength(0);
     expect(again.skipped.map((s) => s.why)).toEqual([expect.stringMatching(/같은 이름/), expect.stringMatching(/사업자등록번호/)]);
+
+    // 보내는 쪽에서 확인한 계좌는 확인한 그대로 옮긴다(대표 2026-11-20). 이미 확인 없이 가져온 곳은 같은 번호면 확인만 채운다
+    await verifySupplierBank(src, owner, s1, "업체 대표 번호로 전화, 김부장 확인", new Date("2026-11-19T10:00:00+09:00"));
+    const vtext = JSON.stringify(await exportSuppliers(src, owner));
+    const re = await importSuppliers(dst, owner2, vtext);
+    expect(re.filled).toEqual([{ name: "한빛도료", bank: false, files: 0, verified: true }]);
+    const [v] = await dst.select().from(supplier).where(eq(supplier.name, "한빛도료"));
+    expect(v.bankVerifiedBy).toBe(b.owner);
+    expect(v.bankVerifiedAt?.toISOString()).toBe("2026-11-19T01:00:00.000Z");
+    expect(v.bankVerifyNote).toMatch(/테스트 서버에서 확인됨.*김부장 확인/);
+    // 새로 가져오는 곳도 확인된 채로
+    const dst3 = await testDb();
+    const d = await seedShop(dst3);
+    const r3 = await importSuppliers(dst3, { id: d.owner, roles: ["owner"] }, vtext);
+    expect(r3.added.find((x) => x.name === "한빛도료")).toMatchObject({ bank: true, verified: true });
+    const [v3] = await dst3.select().from(supplier).where(eq(supplier.name, "한빛도료"));
+    expect(v3.bankVerifiedAt).not.toBeNull();
   });
 });

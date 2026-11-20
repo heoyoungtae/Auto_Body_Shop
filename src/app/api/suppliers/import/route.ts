@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const r = await importSuppliers(await getDb(), user, await f.text());
     const q = new URLSearchParams({
       added: r.added.map((a) => `${a.name}(서류 ${a.files}${a.bank ? ", 계좌" : ""})`).join("|"),
-      filled: r.filled.map((f) => `${f.name}(${[f.bank ? "계좌" : "", f.files ? `통장 사본 ${f.files}` : ""].filter(Boolean).join(", ")})`).join("|"),
+      filled: r.filled.map((f) => `${f.name}(${[f.bank ? "계좌" : "", f.files ? `통장 사본 ${f.files}` : "", f.verified ? "확인 옮김" : ""].filter(Boolean).join(", ")})`).join("|"),
       skipped: r.skipped.map((s) => `${s.name}: ${s.why}`).join("|"),
     });
     return back(`/suppliers/transfer?${q}`);
