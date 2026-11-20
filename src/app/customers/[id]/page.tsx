@@ -1,6 +1,7 @@
 import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { freshFor, freshForMany } from "@/modules/platform/fresh";
 import { VEHICLE_OPTIONS, type VehicleOption } from "@/modules/customer/generations";
 import { vehicleHints, getCustomer, pendingConsent, revealPhone } from "@/modules/customer/service";
 import { formatPhone } from "@/modules/messaging/service";
@@ -26,6 +27,8 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const user = await requireUser();
   const db = await getDb();
   const c = await getCustomer(db, id);
+  // 동시 수정 확인 표
+  const [freshCust, freshBiz, freshVeh] = await Promise.all([freshFor(db, "customer", id), freshFor(db, "customer.biz", id), freshForMany(db, "vehicle", c.vehicles.map((v) => v.id))]);
   const ros = await repairsOfConsults(db, c.consults.map((x) => x.id));
   const [hints, pending] = await Promise.all([vehicleHints(db), pendingConsent(db, id)]);
   const canWrite = can(user, "customer.write");
@@ -66,7 +69,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               )}
             </div>
             {canWrite && (
-              <AssistForm id={`customer-${c.id}`} action={updateCustomerAction} className="space-y-4">
+              <AssistForm id={`customer-${c.id}`} action={updateCustomerAction} fresh={freshCust} className="space-y-4">
                 <input type="hidden" name="id" value={c.id} />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField help="cust.name" name="name" required defaultValue={c.name} />
@@ -98,7 +101,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               </div>
             )}
             {canWrite ? (
-              <AssistForm id={`biz-${c.id}`} action={businessAction} className="space-y-4">
+              <AssistForm id={`biz-${c.id}`} action={businessAction} fresh={freshBiz} className="space-y-4">
                 <input type="hidden" name="id" value={c.id} />
                 <ShowWhen field="kind" initial={c.kind} cases={{ business: <BusinessFields v={biz ?? undefined} /> }}>
                   <RadioRow help="cust.kind" name="kind" required defaultValue={c.kind} options={Object.entries(CUSTOMER_KINDS).map(([value, label]) => ({ value, label }))} />
@@ -168,7 +171,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
                   </summary>
                   {canWrite && (
                     <div className="space-y-4 border-t border-[var(--line)] p-3">
-                      <AssistForm id={`veh-${v.id}`} action={vehicleAction} className="space-y-4">
+                      <AssistForm id={`veh-${v.id}`} action={vehicleAction} fresh={freshVeh[v.id]} className="space-y-4">
                         <input type="hidden" name="id" value={c.id} />
                         <input type="hidden" name="vehicleId" value={v.id} />
                         <NewVehicleFields v={v} hints={hints} />

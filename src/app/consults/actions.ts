@@ -1,4 +1,5 @@
 "use server";
+import { guardEdit } from "@/modules/platform/fresh";
 import { rolesFor } from "@/modules/auth/permissions";
 import { readVehicle } from "./vehicle-form";
 import { redirect } from "next/navigation";
@@ -91,7 +92,7 @@ export async function updateConsultAction(form: FormData) {
   const id = String(form.get("id"));
   const vehicleId = String(form.get("vehicleId") ?? "");
   try {
-    await updateConsultation(await getDb(), user.id, id, { ...readConsultForm(form), vehicleId: vehicleId || undefined });
+    await guardEdit(await getDb(), user, form, (db) => updateConsultation(db, user.id, id, { ...readConsultForm(form), vehicleId: vehicleId || undefined }));
   } catch (e) {
     redirect(errorUrl(`/consults/${id}/edit`, userMessage(e)));
   }

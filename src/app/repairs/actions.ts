@@ -11,6 +11,8 @@ import { approveInStore, recordInsurerApproval, sendApprovalLink } from "@/modul
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 import { UserError } from "@/modules/platform/errors";
+import { guardEdit, withLock } from "@/modules/platform/fresh";
+import { estimate, repairOrder } from "@/db/schema";
 
 const STAFF = rolesFor("repair.write");
 
@@ -78,10 +80,10 @@ export async function intakeAction(form: FormData) {
     if (intent === "sign") {
       const sig = String(form.get("signature") ?? "");
       const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(sig);
-      await signIntake(db, user.id, id, { ...input, signaturePng: m ? new Uint8Array(Buffer.from(m[1], "base64")) : null, consentNow: form.getAll("consentNow").includes("1") });
+      await guardEdit(db, user, form, (tx) => signIntake(tx, user.id, id, { ...input, signaturePng: m ? new Uint8Array(Buffer.from(m[1], "base64")) : null, consentNow: form.getAll("consentNow").includes("1") }));
       msg = "서명을 받고 입고 점검을 마쳤습니다. 열쇠에 수리 건 번호 태그를 달아 보관함에 넣으세요";
     } else {
-      await saveIntake(db, user.id, id, input);
+      await guardEdit(db, user, form, (tx) => saveIntake(tx, user.id, id, input));
     }
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
@@ -93,7 +95,7 @@ export async function reopenAction(form: FormData) {
   const user = await requireUser(rolesFor("repair.write"));
   const id = String(form.get("id") ?? "");
   try {
-    await reopenIntake(await getDb(), user.id, id, String(form.get("reopenReason") ?? ""));
+    await withLock(await getDb(), repairOrder, id, (db) => reopenIntake(db, user.id, id, String(form.get("reopenReason") ?? "")));
   } catch (e) {
     redirect(errorUrl(`/repairs/${id}`, userMessage(e)));
   }
@@ -194,8 +196,9 @@ export async function damageAction(form: FormData) {
   const id = String(form.get("id") ?? "");
   const back = `/repairs/${id}`;
   try {
-    if (form.get("intent") === "remove") await removeDamage(await getDb(), user, id, String(form.get("damageId") ?? ""));
-    else await saveDamage(await getDb(), user, id, readDamage(form));
+    await withLock(await getDb(), repairOrder, id, (tx) =>
+      guardEdit(tx, user, form, (db) => (form.get("intent") === "remove" ? removeDamage(db, user, id, String(form.get("damageId") ?? "")) : saveDamage(db, user, id, readDamage(form)))),
+    );
   } catch (e) {
     redirect(errorUrl(back + "#diagnosis", userMessage(e)));
   }
@@ -206,8 +209,7 @@ export async function confirmDiagnosisAction(form: FormData) {
   const user = await requireUser(rolesFor("diag.confirm"));
   const id = String(form.get("id") ?? "");
   try {
-    if (form.get("intent") === "reopen") await reopenDiagnosis(await getDb(), user, id);
-    else await confirmDiagnosis(await getDb(), user, id, String(form.get("diagNote") ?? ""));
+    await withLock(await getDb(), repairOrder, id, (db) => (form.get("intent") === "reopen" ? reopenDiagnosis(db, user, id) : confirmDiagnosis(db, user, id, String(form.get("diagNote") ?? ""))));
   } catch (e) {
     redirect(errorUrl(`/repairs/${id}#diagnosis`, userMessage(e)));
   }
@@ -220,7 +222,7 @@ export async function createEstimateAction(form: FormData) {
   const roId = String(form.get("id") ?? "");
   let est: { id: string };
   try {
-    est = await createEstimate(await getDb(), user, roId);
+    est = await withLock(await getDb(), repairOrder, roId, (db) => createEstimate(db, user, roId));
   } catch (e) {
     redirect(errorUrl(`/repairs/${roId}`, userMessage(e)));
   }
@@ -241,9 +243,11 @@ export async function estimateAction(form: FormData) {
   const id = s("estimateId");
   const back = `/repairs/${roId}/estimate/${id}`;
   const intent = s("intent");
-  const db = await getDb();
+  const root = await getDb();
   let msg = "저장했습니다";
   try {
+    // 견적 하나는 한 번에 한 사람씩 처리한다(두 사람이 동시에 검토 요청·발급을 눌러도 한 번만). 고치기 양식은 먼저 고친 사람 확인
+    await withLock(root, estimate, id, (locked) => guardEdit(locked, user, form, async (db) => {
     if (intent === "header") await saveEstimateHeader(db, user, id, { kind: s("kind"), paintGrade: s("paintGrade"), dueDate: s("dueDate"), note: s("note"), registeredOn: s("registeredOn") });
     else if (intent === "line")
       await saveLine(db, user, id, { id: s("lineId") || undefined, payer: s("payer"), category: s("category"), name: s("name"), partCode: s("partCode"), partNo: s("partNo"), qty: n("qty") ?? 1, unitWon: n("unitWon") ?? 0, laborMinutes: n("laborMinutes"), laborWon: n("laborWon"), note: s("lineNote"), laborCode: form.has("laborCode") ? s("laborCode") : undefined });
@@ -273,6 +277,7 @@ export async function estimateAction(form: FormData) {
         msg = answerMsg(r.outcome, r.approvedTotal);
       }
     }
+    }));
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }

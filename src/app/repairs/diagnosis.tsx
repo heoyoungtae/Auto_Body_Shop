@@ -86,7 +86,7 @@ function Summary({ d, repaintUm }: { d: Damage; repaintUm: number }) {
   );
 }
 
-export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repaintUm, options, diagNote, photos = [], canPhoto = false, subExtras, car }: { roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; repaintUm: number; options: string[]; diagNote: string | null; photos?: { damageId: string; path: string }[]; canPhoto?: boolean; subExtras?: Record<string, string[]>; car?: CarLook }) {
+export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repaintUm, options, diagNote, photos = [], canPhoto = false, subExtras, car, fresh = {} }: { /** 진단 줄마다 동시 수정 확인 표(id → 표) */ fresh?: Record<string, string>; roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; repaintUm: number; options: string[]; diagNote: string | null; photos?: { damageId: string; path: string }[]; canPhoto?: boolean; subExtras?: Record<string, string[]>; car?: CarLook }) {
   const editable = status === "checked" && canDiagnose;
   // 손상 줄 사진(가까이 찍은 것): 진단부터 검사까지 붙이고 뺄 수 있다. 견적·손님 설명에 같이 쓴다
   const photoEditable = canPhoto && ["checked", "estimating", "working", "inspecting"].includes(status);
@@ -118,7 +118,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
                     <summary className="cursor-pointer">
                       <Summary d={d} repaintUm={repaintUm} />
                     </summary>
-                    <AssistForm id={`dmg-${d.id}`} action={damageAction} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
+                    <AssistForm id={`dmg-${d.id}`} action={damageAction} fresh={fresh[d.id]} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
                       <input type="hidden" name="id" value={roId} />
                       <input type="hidden" name="damageId" value={d.id} />
                       <DamageFields d={d} repaintUm={repaintUm} options={options} others={damages.filter((x) => x.id !== d.id)} extra={subExtras} car={car} />

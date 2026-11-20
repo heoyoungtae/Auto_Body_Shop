@@ -1,4 +1,6 @@
 "use server";
+import { withLock } from "@/modules/platform/fresh";
+import { stockTransfer } from "@/db/schema";
 // 재고 이동 전표(본점·지점 3단계): 보내기·받음 확인·취소
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -35,7 +37,8 @@ export async function receiveTransferAction(form: FormData) {
   const got: Record<string, number> = {};
   for (const k of form.keys()) if (k.startsWith("got_") && s(k) !== "") got[k.slice(4)] = num(s(k));
   try {
-    await receiveTransfer(await getDb(), user, id, { got, note: s("receivedNote") });
+    // 두 사람이 동시에 '받음'을 눌러도 재고는 한 번만 들어간다
+    await withLock(await getDb(), stockTransfer, id, (db) => receiveTransfer(db, user, id, { got, note: s("receivedNote") }));
   } catch (e) {
     redirect(errorUrl(`/stock/transfers/${id}`, userMessage(e)));
   }
@@ -47,7 +50,7 @@ export async function cancelTransferAction(form: FormData) {
   const s = str(form);
   const id = s("id");
   try {
-    await cancelTransfer(await getDb(), user, id, s("cancelReason"));
+    await withLock(await getDb(), stockTransfer, id, (db) => cancelTransfer(db, user, id, s("cancelReason")));
   } catch (e) {
     redirect(errorUrl(`/stock/transfers/${id}`, userMessage(e)));
   }

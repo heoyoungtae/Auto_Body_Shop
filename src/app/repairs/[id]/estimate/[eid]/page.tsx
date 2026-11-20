@@ -25,6 +25,7 @@ import { SignaturePad } from "../../../signature-pad";
 import { approvalMethodLabel } from "@/modules/repair/estimate-approval";
 import { approvalGroups } from "@/modules/repair/estimate-rules";
 import { seoulDate } from "@/modules/platform/time";
+import { freshFor, freshForMany } from "@/modules/platform/fresh";
 import { AmountChecklist } from "../../../../_input";
 import { type ApprovalZone, ApprovalMap } from "../../../approval-map";
 import { approvalZones } from "../../../damage-map";
@@ -173,6 +174,8 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const [damages, damagePhotos] = await Promise.all([listDamage(db, e.repairOrderId), listDamagePhotos(db, e.repairOrderId)]);
   const canWrite = can(user, "estimate.write");
   const draft = e.status === "draft" && canWrite;
+  // 동시 수정 확인 표(고치기 양식마다)
+  const [freshHead, freshLines] = draft ? await Promise.all([freshFor(db, "estimate.header", eid), freshForMany(db, "estimate.line", e.lines.map((l) => l.id))]) : [undefined, {} as Record<string, string>];
   const t = totals(e.lines);
   const issues = estimateIssues(e.lines, { registeredOn: e.vehicle.registeredOn, mileage: e.ro.mileage });
   const reviewer = await resolveApprover(db, "estimate", e.totalWon, e.createdBy ? await rolesOf(db, e.createdBy) : []);
@@ -218,7 +221,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
         <div className="space-y-4 xl:col-span-2">
           <Card title="견적 머리" help={{ kind: "panel", id: "est.header" }}>
             {draft ? (
-              <AssistForm id={`est-h-${eid}`} action={estimateAction} className="space-y-3">
+              <AssistForm id={`est-h-${eid}`} action={estimateAction} fresh={freshHead} className="space-y-3">
                 <Hidden roId={roId} id={eid} intent="header" />
                 <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
                   <SelectField help="est.kind" name="kind" defaultValue={e.kind} options={opts(ESTIMATE_KIND)} from={`수리 건 ${e.ro.docNo}`} />
@@ -265,7 +268,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
                             <summary className="cursor-pointer">
                               {l.name} <span className="text-xs text-[var(--muted)]">{LINE_CATEGORIES[l.category as keyof typeof LINE_CATEGORIES]}</span>
                             </summary>
-                            <AssistForm id={`est-l-${l.id}`} action={estimateAction} className="mt-2 space-y-3 rounded-md border border-[var(--line)] p-3">
+                            <AssistForm id={`est-l-${l.id}`} action={estimateAction} fresh={freshLines[l.id]} className="mt-2 space-y-3 rounded-md border border-[var(--line)] p-3">
                               <Hidden roId={roId} id={eid} intent="line" />
                               <input type="hidden" name="lineId" value={l.id} />
                               <LineFields l={l} kind={e.kind} pick={pick} />

@@ -1,6 +1,7 @@
 import { rolesFor } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { freshFor } from "@/modules/platform/fresh";
 import { getConsultation, reservationCalendar } from "@/modules/customer/service";
 import { seoulParts } from "@/modules/customer/rules";
 import { seoulDate } from "@/modules/platform/time";
@@ -28,7 +29,7 @@ export default async function EditConsult({ params, searchParams }: { params: Pr
         상담 {c.docNo} 고치기
       </PageTitle>
       <div className="grid gap-4 xl:grid-cols-3 xl:items-start">
-        <AssistForm id={`consult-edit-${c.id}`} action={updateConsultAction} className="space-y-4 xl:col-span-2">
+        <AssistForm id={`consult-edit-${c.id}`} action={updateConsultAction} fresh={await freshFor(db, "consult", c.id)} className="space-y-4 xl:col-span-2">
           <ErrorBox message={error} />
           <input type="hidden" name="id" value={c.id} />
           {c.vehicles.length > 0 && (

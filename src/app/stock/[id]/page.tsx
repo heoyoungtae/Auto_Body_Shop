@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
+import { freshFor } from "@/modules/platform/fresh";
 import { can } from "@/modules/auth/permissions";
 import { EXP_CATEGORIES } from "@/modules/money/rules";
 import { addDays } from "@/modules/platform/time";
@@ -313,7 +314,7 @@ export default async function StockItemPage({ params, searchParams }: { params: 
         </Card>
         {manage && (
           <Card title="품목 고치기" help={{ kind: "panel", id: "stock.item" }}>
-            <AssistForm id={`stock-edit-${id}`} action={saveItemAction} className="grid gap-3 md:grid-cols-2">
+            <AssistForm id={`stock-edit-${id}`} action={saveItemAction} fresh={await freshFor(db, "stock.item", id)} className="grid gap-3 md:grid-cols-2">
               <input type="hidden" name="id" value={id} />
               <ItemFields track={tp} i={i} suppliers={sups} chemicals={chems} canAddSupplier={can(user, "supplier.manage")} canAddChemical={can(user, "safety.manage")} />
               <div className="md:col-span-2">
