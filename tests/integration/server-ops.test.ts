@@ -55,4 +55,13 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     expect(v.history[1].changes).toEqual([{ pr: 44, title: "협력업체 옮기기" }]);
     expect(v.history[0]).toMatchObject({ how: "button", ok: false, message: "새 버전 만들기 실패" });
   });
+
+  it("새 버전이 생기면 대표에게 한 번만 알린다", async () => {
+    const base = { host: "abs-server", version: "aaa1111", behind: 0, latest: "aaa1111" };
+    await agentReport(db, { status: base }, t(0));
+    await agentReport(db, { status: { ...base, latest: "bbb2222", behind: 2, pending: [{ pr: 50, title: "업체 견적서로 품목 일괄 등록" }, { pr: 49, title: "계좌 확인 옮기기" }] } }, t(1));
+    await agentReport(db, { status: { ...base, latest: "bbb2222", behind: 2 } }, t(2));
+    const notes = (await db.select().from(notification).where(eq(notification.userId, ids.owner))).filter((n) => n.title.startsWith("새 버전 있음"));
+    expect(notes.map((n) => n.title)).toEqual([expect.stringContaining("업체 견적서로 품목 일괄 등록 (#50) 외 1개")]);
+  });
 });

@@ -55,6 +55,13 @@ history_events() {
   echo "$now_v" > "$STATE/last_version.next"
 }
 
+# 1분마다: GitHub 에 새 버전이 생겼는지 맨 끝 번호만 본다(내려받기 없음, 1초 안). 생겼으면 아래 느린 확인을 바로 다시 한다.
+# 서버가 몇 대든 GitHub 설정을 건드릴 필요가 없다(대표 2026-11-20 "서버가 많아지면?")
+if [ -f "$STATE/slow" ]; then
+  tip=$(timeout 20 sudo -u "$OWNER" git -C "$REPO" ls-remote origin "refs/heads/$(g rev-parse --abbrev-ref HEAD)" 2>/dev/null | cut -c1-7)
+  [ -n "$tip" ] && [ "$tip" != "$(sed -n 's/^latest=//p' "$STATE/slow")" ] && rm -f "$STATE/slow"
+fi
+
 # 10분에 한 번만: GitHub 최신 버전·공인 IP(느린 일)
 if [ ! -f "$STATE/slow" ] || [ -n "$(find "$STATE/slow" -mmin +9 2>/dev/null)" ]; then
   branch=$(g rev-parse --abbrev-ref HEAD)
