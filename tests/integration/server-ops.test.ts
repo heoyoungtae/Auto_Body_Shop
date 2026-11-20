@@ -45,6 +45,26 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(10));
   });
 
+  it("응답 속도·접속량·데이터 양을 5분 칸으로 모으고, 느리거나 오류가 잦으면 주의", async () => {
+    const base = { host: "abs-server", mode: "direct", version: "abc1234", services: "app running, db running(healthy)", cpuPct: 10, memPct: 40, appMs: 120, netSec: 60 };
+    await agentReport(db, { status: { ...base, reqs: 30, errors: 0, avgMs: 200, p95Ms: 800, rxBytes: 1_000_000, txBytes: 6_000_000 } }, t(0));
+    await agentReport(db, { status: { ...base, reqs: 10, errors: 0, avgMs: 400, p95Ms: 1200, rxBytes: 500_000, txBytes: 1_500_000 } }, t(1));
+    await agentReport(db, { status: { ...base, reqs: 20, errors: 6, avgMs: 900, p95Ms: 4000, rxBytes: -1, txBytes: -1 } }, t(6));
+    const v = await serverOpsView(db, t(6).getTime());
+    expect(v.series).toHaveLength(2);
+    expect(v.series[0]).toMatchObject({ reqs: 40, errors: 0, msSum: 30 * 200 + 10 * 400, msN: 40, p95: 1200, rx: 1_500_000, tx: 7_500_000, sec: 120 });
+    expect(v.series[1]).toMatchObject({ reqs: 20, errors: 6, p95: 4000, rx: -1 });
+    expect(v.traffic).toMatchObject({ todayReqs: 60, todayErrors: 6, todayTx: 7_500_000, rxBps: -1 });
+    expect(v.health.level).toBe("warn");
+    expect(v.health.reasons.join()).toMatch(/화면 열기 느림.*4\.0초/);
+    expect(v.health.reasons.join()).toMatch(/서버 오류 잦음/);
+    // 24시간 지난 칸은 버린다
+    await agentReport(db, { status: { ...base, reqs: 1, errors: 0, avgMs: 100, p95Ms: 100, rxBytes: 8_000, txBytes: 16_000 } }, t(60 * 24 + 10));
+    const v2 = await serverOpsView(db, t(60 * 24 + 10).getTime());
+    expect(v2.series).toHaveLength(1);
+    expect(v2.traffic.txBps).toBe(Math.round((16_000 * 8) / 60));
+  });
+
   it("짧은 확인(poll): 요청이 없으면 아무것도 바꾸지 않고, 요청이 있으면 바로 가져간다", async () => {
     await agentReport(db, { status: { host: "abs-server", version: "abc1234" } }, t(0));
     const before = await serverOpsView(db, t(0).getTime());

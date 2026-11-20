@@ -38,17 +38,18 @@ if ! docker compose build -q app; then
   g reset -q --hard "$cur"
   exit 1
 fi
-docker compose up -d --remove-orphans db app jobs
-if [ "${DIRECT:-}" = 1 ]; then docker compose up -d caddy; elif grep -q '^TUNNEL_TOKEN=.\+' .env; then docker compose up -d tunnel; fi
 # Caddy 설정이 바뀌었으면 다시 읽힌다(파일 하나만 붙여 두어 바뀐 파일을 저절로 보지 못한다)
+# 앱을 바꿔 끼우기 전에 한다(그래야 바꿔 끼우는 동안 새 설정의 안내 화면이 나온다, 대표 2026-11-20 '아직도 502').
 # 새 설정을 먼저 시험해 보고 맞을 때만 바꾼다(틀리면 이전 설정으로 계속 돈다)
 if [ "${DIRECT:-}" = 1 ] && ! g diff --quiet "$cur" "$new" -- deploy/Caddyfile.direct 2>/dev/null; then
   if docker compose run --rm --no-deps -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
-    docker compose up -d --force-recreate caddy >/dev/null
+    docker compose up -d --no-deps --force-recreate caddy >/dev/null
   else
     log "Caddy 새 설정이 맞지 않아 이전 설정을 그대로 씀(Claude 에게 알려 주세요)"
   fi
 fi
+docker compose up -d --remove-orphans db app jobs
+if [ "${DIRECT:-}" = 1 ]; then docker compose up -d caddy; elif grep -q '^TUNNEL_TOKEN=.\+' .env; then docker compose up -d tunnel; fi
 # jobs.sh 는 시작할 때 한 번 읽히므로 다시 띄운다
 docker compose restart jobs >/dev/null
 for i in $(seq 1 60); do
