@@ -1,6 +1,6 @@
 // 조회줄이 붙은 목록 전체(엑셀 내려받기 주소 /lists/<key>/csv 가 여기서 찾는다)
 import type { ListDef } from "./core";
-import { expensesList, paymentsList } from "./defs/money";
+import { cashbookList, expensesList, paymentsList } from "./defs/money";
 import { fixturesList, ordersList, outsourceList, stockList, suppliersList } from "./defs/purchase";
 import { chemicalsList, incidentsList, legalList, ncList, risksList, suggestionsList } from "./defs/quality";
 import { approvalsList, docsList, messageLogList, tasksList, toolsList } from "./defs/work";
@@ -16,6 +16,7 @@ const ALL: ListDef<any>[] = [
   complaintsList,
   paymentsList,
   expensesList,
+  cashbookList,
   ordersList,
   stockList,
   suppliersList,

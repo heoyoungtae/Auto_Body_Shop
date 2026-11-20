@@ -58,7 +58,12 @@ export default async function ClaimPage({ params, searchParams }: { params: Prom
             · {RO_STATUS_LABEL[r.status]}
           </>
         }
-        actions={<Badge tone={v.status === "paid" ? "ok" : v.status === "none" ? "warn" : "accent"}>{CLAIM_STATUS_LABEL[v.status]}</Badge>}
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <Badge tone={v.status === "paid" ? "ok" : v.status === "none" ? "warn" : "accent"}>{CLAIM_STATUS_LABEL[v.status]}</Badge>
+            <Link href="/money/cash" className="self-center text-sm text-[var(--accent)]">← 입출금</Link>
+          </div>
+        }
       >
         보험 청구
       </PageTitle>

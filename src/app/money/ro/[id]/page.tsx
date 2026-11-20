@@ -81,12 +81,12 @@ export default async function RoMoneyPage({
         help="money.ro"
         sub={`${v.customerName} · ${v.plateNo}${v.deliveredOn ? ` · ${v.deliveredOn} 출고` : ""}`}
         actions={
-          <Link
-            href={`/repairs/${id}`}
-            className="text-sm text-[var(--accent)]"
-          >
-            수리 건 보기
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link href={`/repairs/${id}`} className="self-center text-sm text-[var(--accent)]">
+              수리 건 보기
+            </Link>
+            <Link href="/money/cash" className="self-center text-sm text-[var(--accent)]">← 입출금</Link>
+          </div>
         }
       >
         {v.ro.docNo} 수납

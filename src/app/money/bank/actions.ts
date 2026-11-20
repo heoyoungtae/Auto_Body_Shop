@@ -21,7 +21,7 @@ const str = (form: FormData) => (k: string) => String(form.get(k) ?? "").trim();
 /** 돌아갈 곳: 목록 화면에서 보낸 back(같은 앱 안 주소만) */
 const backOf = (s: (k: string) => string, def: string) => {
   const b = s("back");
-  return b.startsWith("/money/bank") ? b : def;
+  return b.startsWith("/money/bank") || b.startsWith("/money/cash") ? b : def;
 };
 
 export async function txAction(form: FormData) {
