@@ -15,6 +15,7 @@ import { ShowWhen } from "../../../consults/show-when";
 import { feedAction } from "../actions";
 import { CopyButton } from "../copy-button";
 
+const RESULT_LABEL = { added: "내역에 넣음", dup: "이미 받은 거래", ignored: "은행 문자 아님", unknown: "등록 안 된 통장·카드", failed: "읽지 못함" } as const;
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const opts = (o: Record<string, { label: string }>) => Object.entries(o).map(([value, v]) => ({ value, label: v.label }));
 
@@ -189,6 +190,19 @@ export default async function BankSettingsPage({ searchParams }: { searchParams:
             <p className="mt-2 text-xs text-[var(--muted)]">
               은행·카드 문자가 아니라서 버린 문자 {cfg.ignored.n}통(마지막 {cfg.ignored.lastAt ? fmtTime(cfg.ignored.lastAt) : "-"}, 내용은 남기지 않음). 시험으로 보낸 글이면 괜찮습니다. 개인 문자까지 오고 있으면 전달 앱에서 은행·카드사 번호만 보내도록 거르세요.
             </p>
+          )}
+          {cfg.recent?.length > 0 && (
+            <div className="mt-2">
+              <p className="text-sm font-medium">최근 받은 문자와 처리 결과</p>
+              <ul className="text-xs">
+                {cfg.recent.map((r) => (
+                  <li key={r.at + r.status}>
+                    {fmtTime(r.at)} · <Badge tone={r.status === "added" || r.status === "dup" ? "ok" : r.status === "ignored" ? "neutral" : "warn"}>{RESULT_LABEL[r.status]}</Badge> <span className="text-[var(--muted)]">{r.note}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-[var(--muted)]">휴대폰 전달 앱이 &apos;성공&apos;이라도 여기서 &apos;등록 안 된 통장&apos;이나 &apos;은행 문자 아님&apos;이면 내역에 들어가지 않습니다.</p>
+            </div>
           )}
           {cfg.unknown.length > 0 && (
             <div className="mt-2">

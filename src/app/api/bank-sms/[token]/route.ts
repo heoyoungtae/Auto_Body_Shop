@@ -43,7 +43,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 /** 일부 전달 앱은 GET(주소?text=...)만 된다 */
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  if (!new URL(req.url).searchParams.get("text")) {
+  const q = new URL(req.url).searchParams;
+  // 문자 내용이 text 말고 msg·message 같은 이름으로 와도 받는다(예전엔 text 만 보고, 없으면 '연결됨'만 답해 문자를 흘렸다)
+  if (!TEXT_KEYS.some((k) => q.get(k)?.trim())) {
     const db = await getDb();
     return (await tokenOk(db, token)) ? Response.json({ ok: true, message: "연결됨. 문자 전달 앱 설정이 맞습니다" }) : Response.json({ ok: false, message: "주소가 맞지 않습니다" }, { status: 401 });
   }

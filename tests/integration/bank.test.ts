@@ -80,6 +80,19 @@ describe("연동 설정", () => {
     const cfg = await loadFeed(db);
     expect(cfg.ignored.n).toBe(1);
     expect(cfg.lastSmsAt).not.toBeNull();
+    expect(cfg.recent[0].status).toBe("ignored");
+  });
+
+  it("문자 받는 주소: GET 으로 msg 이름에 담아 보내도 받는다, 처리 결과는 최근 기록에 남는다", async () => {
+    await saveAccount(db, owner(), { kind: "bank", company: "ibk", name: "", digits: "", payDay: null, sms: true });
+    const t = await issueToken(db, owner(), now);
+    (globalThis as unknown as { __db?: Promise<Db> }).__db = Promise.resolve(db); // 경로가 이 시험 DB 를 쓰게
+    const { GET } = await import("@/app/api/bank-sms/[token]/route");
+    const res = await GET(new Request(`http://x/api/bank-sms/${t}?msg=${encodeURIComponent("보낸사람 : 15662566() [Web발신] 2026/11/20 13:41 출금 50,000원 잔액 1,234,567원 한빛상사")}`), { params: Promise.resolve({ token: t }) });
+    expect(((await res.json()) as { status: string }).status).toBe("added");
+    const cfg = await loadFeed(db);
+    expect(cfg.recent[0]).toMatchObject({ status: "added" });
+    (globalThis as unknown as { __db?: Promise<Db> }).__db = undefined;
   });
 });
 

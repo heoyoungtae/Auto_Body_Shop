@@ -40,7 +40,7 @@ import {
 } from "./rules";
 import { mapSheet, MapError, type FileKind } from "./sheet-map";
 import { readSheet, SheetError } from "./sheet-read";
-import { parseBankSms } from "./sms-parse";
+import { parseBankSms, SENDER_BANK, splitSender } from "./sms-parse";
 
 export class BankError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -63,8 +63,10 @@ export type FeedConfig = {
   ignored: { n: number; lastAt: string | null };
   /** 비밀 열쇠가 틀린 주소로 온 요청(예전에 만든 주소·복사 잘못) — 휴대폰은 보내는데 앱에 안 들어올 때 원인 찾기용 */
   rejected: { n: number; lastAt: string | null };
+  /** 최근 받은 문자 10통의 처리 결과(내용은 남기지 않음) — 휴대폰은 '성공'인데 내역에 없을 때 어디서 걸렸는지 보려고 */
+  recent: { at: string; status: SmsResult["status"]; note: string }[];
 };
-const EMPTY: FeedConfig = { accounts: [], tokenEnc: null, tokenHash: null, tokenAt: null, lastSmsAt: null, smsCount: 0, unknown: [], failed: [], ignored: { n: 0, lastAt: null }, rejected: { n: 0, lastAt: null } };
+const EMPTY: FeedConfig = { accounts: [], tokenEnc: null, tokenHash: null, tokenAt: null, lastSmsAt: null, smsCount: 0, unknown: [], failed: [], ignored: { n: 0, lastAt: null }, rejected: { n: 0, lastAt: null }, recent: [] };
 
 export async function loadFeed(db: Db): Promise<FeedConfig> {
   const [c] = await db.select().from(appConfig).where(eq(appConfig.key, KEY));
@@ -256,13 +258,22 @@ export type SmsResult = { status: "added" | "dup" | "ignored" | "unknown" | "fai
 
 /** 문자 한 통 받기(수신 주소). 등록 안 된 계좌·카드 문자는 내용을 저장하지 않는다(대표 개인 거래 보호) */
 export async function ingestSms(db: Db, text: string, now = new Date()): Promise<SmsResult> {
+  const r = await ingestSmsInner(db, text, now);
+  const cfg = await loadFeed(db);
+  cfg.recent = [{ at: now.toISOString(), status: r.status, note: r.message.slice(0, 80) }, ...(cfg.recent ?? [])].slice(0, 10);
+  await saveFeed(db, cfg, null);
+  return r;
+}
+
+async function ingestSmsInner(db: Db, text: string, now: Date): Promise<SmsResult> {
   const cfg = await loadFeed(db);
   const body = text.slice(0, 2000);
   cfg.lastSmsAt = now.toISOString();
   cfg.smsCount = (cfg.smsCount ?? 0) + 1;
   const p = parseBankSms(body, seoulDate(now));
   if (!p.ok) {
-    const bankish = /원/.test(body) && [...Object.values(BANKS), ...Object.values(CARDS)].some((v) => v.keys.some((k) => k.length >= 2 && body.includes(k)));
+    const sender = splitSender(body).sender;
+    const bankish = /원/.test(body) && ((!!sender && !!SENDER_BANK[sender]) || [...Object.values(BANKS), ...Object.values(CARDS)].some((v) => v.keys.some((k) => k.length >= 2 && body.includes(k))));
     if (bankish) cfg.failed = [{ at: now.toISOString(), reason: p.reason, text: body.replace(/\s+/g, " ").slice(0, 120) }, ...cfg.failed].slice(0, 10);
     else cfg.ignored = { n: (cfg.ignored?.n ?? 0) + 1, lastAt: now.toISOString() };
     await saveFeed(db, cfg, null);

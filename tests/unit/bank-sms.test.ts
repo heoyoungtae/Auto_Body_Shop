@@ -36,3 +36,15 @@ describe("문자 읽기", () => {
     expect(parseBankSms("신한은행 입금 안내 서비스가 시작되었습니다", R).ok).toBe(false);
   });
 });
+
+describe("전달 앱이 붙인 '보낸사람' 머리", () => {
+  it("머리를 떼고, 본문에 은행 이름이 없으면 보낸 번호로 은행을 안다", () => {
+    const r = parseBankSms("보낸사람 : 15662566() [Web발신] 2026/11/20 13:41 출금 50,000원 잔액 1,234,567원 123-******-01-012 한빛상사", "2026-11-20");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.tx.company).toBe("ibk");
+    expect(r.tx.party).toBe("한빛상사");
+    expect(r.tx.amountWon).toBe(50000);
+    expect(r.tx.at).toBe("13:41");
+  });
+});
