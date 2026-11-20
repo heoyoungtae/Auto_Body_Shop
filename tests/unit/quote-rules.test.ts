@@ -51,12 +51,28 @@ describe("견적서 읽기", () => {
   it("앱 엑셀 양식을 만들고 다시 읽으면 예시 두 줄이 그대로 나온다", () => {
     const buf = quoteTemplate();
     const g = readSheet(new Uint8Array(buf), "견적서_양식.xlsx");
-    expect(g[0].slice(0, 6)).toEqual(["품명", "규격", "단위", "수량", "단가", "금액"]);
+    expect(g[0][0]).toBe("업체 정보");
+    expect(g.find((row) => row[0] === "품명")?.slice(0, 6)).toEqual(["품명", "규격", "단위", "수량", "단가", "금액"]);
     const r = readQuoteGrid(g);
+    expect(r).toMatchObject({ bizNos: [], supplierName: null, quotedOn: null, validDays: null, vatMode: null });
     expect(r.lines.map((l) => [l.supName, l.supUnit, l.unitWon, l.kind, l.packAmount, l.packUnit, l.buyQty, l.baseUnit, l.track])).toEqual([
       ["마스킹테이프 24MM", "BOX", 50_500, "consumable", null, null, 40, "롤", "count"],
       ["우레탄신나(DR-421)", "말", 98_000, "paint", 18, "L", null, null, "qty"],
     ]);
+  });
+});
+
+describe("양식 위쪽 업체 정보·부가세", () => {
+  it("상호·사업자번호·대표자·담당자·전화·주소·견적일·유효기간·부가세를 읽는다", () => {
+    const g = readSheet(new Uint8Array(quoteTemplate([["여과지", "수성", "BOX", 1, 20_000, 20_000, "", "", "", "", "", "", ""]], { name: "진성", bizNo: "130-24-56494", ceo: "배인수", contactName: "배진성", phone: "010-3680-9687", address: "인천시 계양구 박촌로 54", quotedOn: "2026-11-18", validDays: 30, vat: "별도" })), "q.xlsx");
+    const r = readQuoteGrid(g);
+    expect(r).toMatchObject({ supplierName: "진성", bizNos: ["130-24-56494"], ceo: "배인수", contactName: "배진성", phone: "010-3680-9687", address: "인천시 계양구 박촌로 54", quotedOn: "2026-11-18", validDays: 30, vatMode: "excluded" });
+    expect(r.lines).toHaveLength(1);
+  });
+  it("업체 견적서의 'V.A.T 별도', '기타 : 부가세 포함'", () => {
+    expect(readQuoteGrid([["품명", "단가"], ["여과지", 20000], ["V.A.T 별도"]]).vatMode).toBe("excluded");
+    expect(readQuoteGrid([["품명", "단가"], ["여과지", 20000], ["기타 : 부가세 포함"]]).vatMode).toBe("included");
+    expect(readQuoteGrid([["품명", "단가"], ["여과지", 20000]]).vatMode).toBeNull();
   });
 });
 

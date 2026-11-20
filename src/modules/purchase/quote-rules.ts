@@ -15,6 +15,13 @@ export type QuoteRead = {
   quotedOn: string | null;
   validDays: number | null;
   readTotalWon: number | null;
+  /** 견적서에 적힌 부가세 별도·포함(없으면 null) */
+  vatMode: "excluded" | "included" | null;
+  /** 머리 부분(품목 표 위)의 업체 정보: 새 업체 후보 등록에 씀 */
+  ceo: string | null;
+  contactName: string | null;
+  phone: string | null;
+  address: string | null;
   /** 머리줄을 못 찾아 우리 양식 순서로 읽었는지 */
   templateOrder: boolean;
   skipped: number;
@@ -120,8 +127,10 @@ function findMeta(grid: Grid, ownBizNo: string | null) {
     if (validDays == null && /유효/.test(line)) {
       const m = /(\d+)\s*일/.exec(line.slice(line.indexOf("유효")));
       const mo = /(\d+)\s*(개월|달)/.exec(line.slice(line.indexOf("유효")));
+      const bare = /유효\S*\s+(\d+)$/.exec(line);
       if (m) validDays = Number(m[1]);
       else if (mo) validDays = Number(mo[1]) * 30;
+      else if (bare) validDays = Number(bare[1]);
     }
     if (/합\s*계|총\s*계|total/i.test(line)) {
       const nums = row.map(toNumber).filter((n): n is number => n != null && n >= 1000);
@@ -130,6 +139,37 @@ function findMeta(grid: Grid, ownBizNo: string | null) {
   }
   if (!quotedOn) for (const row of grid) if ((quotedOn = findDate(row.map(text).join(" ")))) break;
   return { bizNos, supplierName, quotedOn, validDays, readTotalWon };
+}
+
+/** 부가세: 'V.A.T 별도' · '부가세 포함' · 양식의 '부가세 | 별도' */
+function findVat(grid: Grid): "excluded" | "included" | null {
+  for (const row of grid) {
+    const line = row.map(text).join(" ").replace(/V\.?\s*A\.?\s*T\.?/gi, "VAT");
+    const m = /(부가가치세|부가세|VAT)\s*[:：]?\s*\(?\s*(별도|미포함|포함)/i.exec(line);
+    if (m) return m[2] === "포함" ? "included" : "excluded";
+  }
+  return null;
+}
+
+/** 품목 표 위 머리 부분에서 '이름표 칸 → 다음 칸' 값 */
+const INFO_LABELS: [keyof Pick<QuoteRead, "ceo" | "contactName" | "phone" | "address">, RegExp][] = [
+  ["ceo", /^(대표자?|성명|대표자명)$/],
+  ["contactName", /^(담당자?|담당자명)$/],
+  ["phone", /^(전화|전화번호|연락처|tel|휴대폰)$/i],
+  ["address", /^(주소|소재지|사업장주소|사업장소재지)$/],
+];
+function findInfo(grid: Grid, upto: number) {
+  const out: Pick<QuoteRead, "ceo" | "contactName" | "phone" | "address"> = { ceo: null, contactName: null, phone: null, address: null };
+  for (let r = 0; r < Math.min(upto, grid.length); r++) {
+    const cells = grid[r].map(text);
+    cells.forEach((c, i) => {
+      const k = INFO_LABELS.find(([, re]) => re.test(c.replace(/\s/g, "")))?.[0];
+      if (!k || out[k]) return;
+      const v = cells.slice(i + 1).find((x) => x);
+      if (v && !INFO_LABELS.some(([, re]) => re.test(v.replace(/\s/g, "")))) out[k] = v.replace(/\s*\(인\)$/, "").slice(0, 200);
+    });
+  }
+  return out;
 }
 
 /** 붙여 넣은 글(엑셀에서 복사하면 칸이 탭으로 나뉨)을 표로 */
@@ -191,7 +231,7 @@ export function readQuoteGrid(grid: Grid, ownBizNo: string | null = null): Quote
     });
   }
   const columns = h ? (Object.keys(map) as ColKey[]).map((k) => TEMPLATE_COLUMNS.find((c) => c.key === k)!.label) : TEMPLATE_COLUMNS.map((c) => c.label);
-  return { lines, columns, ...meta, templateOrder: !h, skipped };
+  return { lines, columns, ...meta, vatMode: findVat(grid), ...findInfo(grid, h ? h.row : 0), templateOrder: !h, skipped };
 }
 
 function trackFromText(s: string): TrackMode | null {

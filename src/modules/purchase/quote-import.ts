@@ -16,9 +16,10 @@ import { storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { recordPrice } from "./price";
 import { guessKind, matchLines, pasteToGrid, PRICE_RISE_ALERT_PCT, readQuoteGrid, suggestUnit, type RawQuoteLine } from "./quote-rules";
-import { isPackUnit, isStockKind, isTrackMode, isVatMode, recommendTrack, splitVat, STOCK_UNITS, type VatMode } from "./rules";
+import { isPackUnit, isStockKind, type SupplierKind, isTrackMode, isVatMode, recommendTrack, splitVat, STOCK_UNITS, type VatMode } from "./rules";
 import { loadPolicy } from "@/modules/platform/policy";
-import { saveItem } from "./stock";
+import { lastVatMode, saveItem } from "./stock";
+import { createSupplier } from "./supplier";
 
 export class QuoteError extends UserError {}
 type Actor = { id: string; roles: Role[]; branchId?: string };
@@ -47,7 +48,6 @@ export async function readQuote(db: Db, actor: Actor, input: ReadInput, now = ne
   if (!hasFile && !txt) throw new QuoteError("엑셀 파일을 고르거나 표를 붙여 넣어 주세요");
   if (hasFile && input.file!.bytes.length > MAX_QUOTE_BYTES) throw new QuoteError("파일은 15MB 까지입니다");
   if (hasFile && /\.(jpe?g|png|webp|heic|gif|bmp)$/i.test(input.file!.name)) throw new QuoteError("사진은 아직 읽지 못합니다. 엑셀 양식에 옮겨 적어 올리거나, 표를 복사해 붙여 넣어 주세요");
-  const vatMode = input.vatMode && isVatMode(input.vatMode) ? input.vatMode : "excluded";
   let grid;
   try {
     grid = hasFile ? readSheet(input.file!.bytes, input.file!.name) : pasteToGrid(txt);
@@ -59,6 +59,8 @@ export async function readQuote(db: Db, actor: Actor, input: ReadInput, now = ne
   const r = readQuoteGrid(grid, main?.bizNo || null);
   if (!r.lines.length) throw new QuoteError("품목 줄을 찾지 못했습니다. 첫 줄에 '품명·단위·수량·단가' 머리줄이 있는지 보거나, 앱의 엑셀 양식을 내려받아 옮겨 주세요");
   if (r.lines.length > MAX_QUOTE_LINES) throw new QuoteError(`한 번에 ${MAX_QUOTE_LINES}줄까지 올립니다. 나눠서 올려 주세요`);
+  // 부가세: 고른 값 > 견적서에 적힌 값 > 최근 품목
+  const vatMode: VatMode = input.vatMode && isVatMode(input.vatMode) ? input.vatMode : (r.vatMode ?? (await lastVatMode(db)));
 
   // 업체: 고른 업체 > 견적서의 사업자번호 > 견적서의 상호
   let supplierId = input.supplierId || null;
@@ -74,10 +76,25 @@ export async function readQuote(db: Db, actor: Actor, input: ReadInput, now = ne
     const [s] = await db.select({ id: supplier.id }).from(supplier).where(eq(supplier.id, supplierId));
     if (!s) throw new QuoteError("업체를 찾을 수 없습니다");
   }
+  const docNo = await nextDocNo(db, "QT", now);
+  // 대장에 없는 업체: 상호·사업자번호가 다 있으면 후보 업체로 등록(평가·서류·계좌는 협력업체 화면에서)
+  let newSupplier = false;
+  if (!supplierId && r.bizNos.length && r.supplierName && can(actor, "supplier.manage")) {
+    const kinds = [...new Set(r.lines.map((l): SupplierKind => {
+      const k = l.kind ?? guessKind(l.supName);
+      return k === "paint" ? "paint" : k === "part" ? "parts" : "consumable";
+    }))];
+    const memo = [r.ceo && `대표자 ${r.ceo}`, r.address && `주소 ${r.address}`, `견적서 ${docNo}을(를) 올릴 때 후보로 자동 등록`].filter(Boolean).join(" · ");
+    try {
+      supplierId = await createSupplier(db, actor, { name: r.supplierName, bizNo: r.bizNos[0], kinds, items: r.lines.slice(0, 5).map((l) => l.supName).join(", ") + (r.lines.length > 5 ? ` 외 ${r.lines.length - 5}개` : ""), contactName: r.contactName ?? "", phone: r.phone ?? "", email: "", leadDays: null, returnTerms: "", docs: [], note: memo }, now);
+      newSupplier = true;
+    } catch {
+      supplierId = null; // 등록 못 하면 확인 화면에서 고르거나 '+ 새 업체'
+    }
+  }
   const quotedOn = input.quotedOn && DATE.test(input.quotedOn) ? input.quotedOn : (r.quotedOn ?? seoulDate(now));
   const days = input.validDays ?? r.validDays;
   const lines = await judge(db, supplierId, r.lines, vatMode, now);
-  const docNo = await nextDocNo(db, "QT", now);
   const path = hasFile ? await storeFile(`quotes/${docNo}`, input.file!.bytes, (/\.([a-z0-9]{2,5})$/i.exec(input.file!.name)?.[1] ?? "bin").toLowerCase()) : null;
   const [q] = await db
     .insert(priceQuote)
@@ -99,7 +116,7 @@ export async function readQuote(db: Db, actor: Actor, input: ReadInput, now = ne
       createdAt: now,
     })
     .returning({ id: priceQuote.id });
-  await writeAudit(db, { actorId: actor.id, action: "stock.quote_read", entityType: "price_quote", entityId: docNo, after: { lines: lines.length, supplierId } });
+  await writeAudit(db, { actorId: actor.id, action: "stock.quote_read", entityType: "price_quote", entityId: docNo, after: { lines: lines.length, supplierId, newSupplier } });
   return q.id;
 }
 
