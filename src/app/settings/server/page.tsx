@@ -83,7 +83,7 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
                 {st.behind > 0 ? (
                   <>
                     {" "}
-                    · <Badge tone="accent">새 버전 {st.behind}개 있음</Badge> <span className="font-mono text-xs text-[var(--muted)]">{st.latest}</span>
+                    · <Badge tone="accent">새 버전 있음: 변경 {st.pending?.length || st.behind}개</Badge> <span className="font-mono text-xs text-[var(--muted)]">{st.latest}</span>
                   </>
                 ) : st.latest ? (
                   <>
