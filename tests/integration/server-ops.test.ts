@@ -44,4 +44,15 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     // 끝났으니 다시 요청할 수 있다
     await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(10));
   });
+
+  it("업데이트 이력: 기록을 받아 같은 줄은 한 번만, 최신 순으로 남기고 형식이 틀린 줄은 버린다", async () => {
+    const ok = { at: "2026-11-18 21:35", how: "nightly", ok: true, from: "aaa1111", to: "bbb2222", message: "", changes: [{ pr: 44, title: "협력업체 옮기기" }, { pr: "x", title: "" }] };
+    const bad = { at: "2026-11-19 10:07", how: "button", ok: false, from: "bbb2222", to: "", message: "새 버전 만들기 실패", changes: [] };
+    await agentReport(db, { events: [ok, { at: "어제", how: "button", ok: true }] }, t(0));
+    await agentReport(db, { events: [ok, bad] }, t(1));
+    const v = await serverOpsView(db, t(1).getTime());
+    expect(v.history.map((e) => e.at)).toEqual(["2026-11-19 10:07", "2026-11-18 21:35"]);
+    expect(v.history[1].changes).toEqual([{ pr: 44, title: "협력업체 옮기기" }]);
+    expect(v.history[0]).toMatchObject({ how: "button", ok: false, message: "새 버전 만들기 실패" });
+  });
 });

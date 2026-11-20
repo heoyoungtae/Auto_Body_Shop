@@ -30,10 +30,17 @@ export type ServerStatus = {
   publicIp: string;
   services: string; // "app running, db running(healthy), ..."
   ups: string; // UPS 상태, 없으면 ""
+  pending: Change[]; // 아직 안 올라간 변경(병합 제목)
 };
+/** 병합된 변경 하나(PR 번호·제목) */
+export type Change = { pr: number | null; title: string };
+/** 업데이트 이력 한 줄. how: nightly 밤 21:30 자동 · button 앱의 '지금 올리기' · terminal 미니 PC 터미널 */
+export type UpdateEvent = { at: string; how: string; ok: boolean; from: string; to: string; message: string; changes: Change[] };
+export const HOW_LABEL: Record<string, string> = { nightly: "밤 21:30 자동", button: "앱에서 지금 올리기", terminal: "미니 PC 터미널" };
+const HISTORY_MAX = 200;
 export type UpdateRequest = { at: string; by: string | null; taken: string | null };
 export type UpdateResult = { at: string; ok: boolean; message: string };
-type Data = { status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null };
+type Data = { status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
 
 async function load(db: Db): Promise<Data> {
   const [c] = await db.select().from(appConfig).where(eq(appConfig.key, KEY));
@@ -56,7 +63,7 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   // 요청했는데 15분이 지나도 안 가져갔으면 막지 않고 다시 누를 수 있게
   const pending = !!req && !req.taken && now - Date.parse(req.at) < 15 * 60_000;
   const running = !!req?.taken && (!d.result || Date.parse(d.result.at) < Date.parse(req.taken)) && now - Date.parse(req.taken) < 30 * 60_000;
-  return { status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  return { history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. '지금 새 버전 올리기' */
@@ -64,7 +71,7 @@ export async function requestUpdate(db: Db, actor: Actor, now = new Date()) {
   if (!actor.roles.includes("owner")) throw new UserError("새 버전 올리기는 대표만 합니다");
   const v = await serverOpsView(db, now.getTime());
   if (v.pending) throw new UserError("이미 요청했습니다. 서버가 1분 안에 가져갑니다");
-  if (v.running) throw new UserError("지금 새 버전을 올리는 중입니다. 몇 분 뒤 이 화면을 다시 여세요");
+  if (v.running) throw new UserError("지금 새 버전을 올리는 중입니다. 끝나면 이 화면에 저절로 뜹니다");
   const d = await load(db);
   const request: UpdateRequest = { at: now.toISOString(), by: actor.id, taken: null };
   await save(db, { ...d, request }, actor.id);
@@ -91,14 +98,36 @@ function cleanStatus(b: Record<string, unknown>): ServerStatus {
     publicIp: s(b.publicIp, 60),
     services: s(b.services, 300),
     ups: s(b.ups, 80),
+    pending: cleanChanges(b.pending),
   };
+}
+function cleanChanges(x: unknown): Change[] {
+  return (Array.isArray(x) ? x : []).slice(0, 40).map((c) => {
+    const o = (c ?? {}) as Record<string, unknown>;
+    const pr = Number(o.pr);
+    return { pr: Number.isInteger(pr) && pr > 0 ? pr : null, title: s(o.title, 200) };
+  }).filter((c) => c.title);
+}
+function cleanEvent(x: unknown): UpdateEvent | null {
+  const o = (x ?? {}) as Record<string, unknown>;
+  const at = s(o.at, 20);
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at)) return null;
+  return { at, how: ["nightly", "button", "terminal"].includes(String(o.how)) ? String(o.how) : "nightly", ok: o.ok === true, from: s(o.from, 12), to: s(o.to, 12), message: s(o.message, 300), changes: cleanChanges(o.changes) };
 }
 
 /** 미니 PC agent 가 1분마다 부른다. status 가 있으면 저장, result 가 있으면 올리기 결과 저장.
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
-export async function agentReport(db: Db, body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown } }, now = new Date()) {
+export async function agentReport(db: Db, body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[] }, now = new Date()) {
   const d = await load(db);
   const next: Data = { ...d };
+  if (Array.isArray(body.events) && body.events.length) {
+    // 같은 때·같은 결과는 한 번만(미니 PC 가 처음에 기록 파일 전체를 보내거나 다시 보내도 겹치지 않게). 최근 것이 앞
+    const key = (e: UpdateEvent) => `${e.at}|${e.how}|${e.ok}|${e.to}|${e.message}`;
+    const all = [...(d.history ?? [])];
+    const seen = new Set(all.map(key));
+    for (const e of body.events.slice(0, 500).map(cleanEvent)) if (e && !seen.has(key(e))) (seen.add(key(e)), all.push(e));
+    next.history = all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, HISTORY_MAX);
+  }
   if (body.status) next.status = { ...cleanStatus(body.status), at: now.toISOString() };
   if (body.result) {
     const result: UpdateResult = { at: now.toISOString(), ok: body.result.ok === true, message: s(body.result.message, 300) };
