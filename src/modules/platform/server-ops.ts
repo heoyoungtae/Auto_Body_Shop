@@ -152,7 +152,7 @@ export async function setAutoUpdate(db: Db, actor: Actor, input: { on: boolean; 
 export async function requestUpdate(db: Db, actor: Actor, now = new Date()) {
   if (!actor.roles.includes("owner")) throw new UserError("새 버전 올리기는 대표만 합니다");
   const v = await serverOpsView(db, now.getTime());
-  if (v.pending) throw new UserError("이미 요청했습니다. 서버가 1분 안에 가져갑니다");
+  if (v.pending) throw new UserError("이미 요청했습니다. 서버가 몇 초 안에 가져갑니다");
   if (v.running) throw new UserError("지금 새 버전을 올리는 중입니다. 끝나면 이 화면에 저절로 뜹니다");
   const d = await load(db);
   const request: UpdateRequest = { at: now.toISOString(), by: actor.id, taken: null };
@@ -212,13 +212,21 @@ function cleanEvent(x: unknown): UpdateEvent | null {
   return { at, how: ["nightly", "button", "terminal"].includes(String(o.how)) ? String(o.how) : "nightly", ok: o.ok === true, from: s(o.from, 12), to: s(o.to, 12), fromLabel: cleanLabel(o.fromLabel), toLabel: cleanLabel(o.toLabel), message: s(o.message, 300), changes: cleanChanges(o.changes) };
 }
 
-/** 미니 PC agent 가 1분마다 부른다. status 가 있으면 저장, result 가 있으면 올리기 결과 저장.
+/** 미니 PC agent 가 1분마다 부른다(그 사이 5초마다 poll 로 요청만 묻는다). status 가 있으면 저장, result 가 있으면 올리기 결과 저장.
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
 export async function agentReport(
   db: Db,
-  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown> },
+  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown },
   now = new Date(),
 ) {
+  // 짧은 확인(대표 2026-11-20 "1분 기다림이 왜 필요한가"): 미니 PC 가 1분 사이사이 5초마다 올리기 요청만 묻는다.
+  // 요청이 없으면 아무것도 저장하지 않고 바로 답한다
+  if (body.poll) {
+    const p = await load(db);
+    const r = p.request;
+    if (!r || r.taken || now.getTime() - Date.parse(r.at) >= 60 * 60_000) return { update: false, auto: p.auto ?? AUTO_DEFAULT };
+    body = {};
+  }
   const d = await load(db);
   const next: Data = { ...d };
   if (Array.isArray(body.events) && body.events.length) {

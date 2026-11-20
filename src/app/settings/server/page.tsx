@@ -106,7 +106,7 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
                   <span>
                     {v.pending ? (
                       <>
-                        요청함: <b>서버가 받아 가기를 기다리는 중(1분 안)</b>
+                        요청함: <b>서버가 받아 가기를 기다리는 중(보통 5초 안)</b>
                       </>
                     ) : (
                       <>

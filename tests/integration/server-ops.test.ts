@@ -45,6 +45,17 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(10));
   });
 
+  it("짧은 확인(poll): 요청이 없으면 아무것도 바꾸지 않고, 요청이 있으면 바로 가져간다", async () => {
+    await agentReport(db, { status: { host: "abs-server", version: "abc1234" } }, t(0));
+    const before = await serverOpsView(db, t(0).getTime());
+    expect(await agentReport(db, { poll: true }, t(0.5))).toMatchObject({ update: false });
+    expect((await serverOpsView(db, t(0.5).getTime())).status?.at).toBe(before.status?.at);
+    await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(1));
+    expect(await agentReport(db, { poll: true }, t(1.1))).toMatchObject({ update: true });
+    expect(await agentReport(db, { poll: true }, t(1.2))).toMatchObject({ update: false }); // 한 번만
+    expect(await serverOpsView(db, t(1.2).getTime())).toMatchObject({ pending: false, running: true, progress: { stage: 0 } });
+  });
+
   it("업데이트 이력: 기록을 받아 같은 줄은 한 번만, 최신 순으로 남기고 형식이 틀린 줄은 버린다", async () => {
     const ok = { at: "2026-11-18 21:35", how: "nightly", ok: true, from: "aaa1111", to: "bbb2222", message: "", changes: [{ pr: 44, title: "협력업체 옮기기" }, { pr: "x", title: "" }] };
     const bad = { at: "2026-11-19 10:07", how: "button", ok: false, from: "bbb2222", to: "", message: "새 버전 만들기 실패", changes: [] };
