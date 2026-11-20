@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
 import { createConsultation } from "@/modules/customer/service";
-import { issueTvToken, revokeTvToken, tvBoard, tvLinkView, tvTokenOk } from "@/modules/dashboard/tv";
+import { eq } from "drizzle-orm";
+import { customer, repairOrder } from "@/db/schema";
+import { isTechbayToken, issueTvToken, revokeTvToken, tvBoard, tvLinkView, tvTokenOk } from "@/modules/dashboard/tv";
 import { assignRest, createWorkOrder, getWorkOrder, startStep } from "@/modules/repair/work";
 import { approvedRepair } from "./flow";
 import { seedShop, testDb } from "./db";
@@ -73,5 +75,48 @@ describe("TV 현황판", () => {
     await revokeTvToken(db, owner, now);
     expect(await tvTokenOk(db, b)).toBe(false);
     expect(await tvTokenOk(db, "")).toBe(false);
+  });
+
+  it("테크베이용: 테크베이 고객 차만, 공정 단계·오늘 입고 흐름", async () => {
+    const { roId } = await approvedRepair(db, ids, now);
+    // 다른 손님 차는 테크베이 현황판에 안 나온다
+    expect((await tvBoard(db, now, { portal: "techbay" })).cars).toHaveLength(0);
+    const [ro] = await db.select({ c: repairOrder.customerId }).from(repairOrder).where(eq(repairOrder.id, roId));
+    await db.update(customer).set({ kind: "business", portal: "techbay" }).where(eq(customer.id, ro.c));
+    const before = await tvBoard(db, now, { portal: "techbay" });
+    expect(before.cars).toHaveLength(1);
+    expect(before.cars[0]).toMatchObject({ stage: "intake", doing: false });
+    expect(before.flow.inToday).toBe(1);
+    expect(before.flow.stages.intake).toEqual({ n: 1, doing: 0 });
+
+    const { id: woId } = await createWorkOrder(db, mgr(), roId, now);
+    await assignRest(db, mgr(), woId, { assignee: ids.tech1, planDate: "2026-11-10" }, now);
+    const w = await getWorkOrder(db, woId);
+    // 작업 대기: 첫 공정 단계에 '대기'로 서 있다
+    const waiting = await tvBoard(db, now, { portal: "techbay" });
+    expect(waiting.cars[0]).toMatchObject({ stage: "detach", doing: false });
+    expect(waiting.cars[0].stages).toHaveLength(w.steps.length);
+    await startStep(db, { id: ids.tech1, roles: ["technician"] }, w.steps[0].id, now);
+    const d = await tvBoard(db, now, { portal: "techbay" });
+    expect(d.cars[0]).toMatchObject({ stage: "detach", doing: true, state: "work" });
+    expect(d.flow.stages.detach).toEqual({ n: 1, doing: 1 });
+    expect(d.flow.outToday).toBe(0);
+    // 다음 날엔 오늘 입고 0
+    expect((await tvBoard(db, new Date("2026-11-11T01:00:00Z"), { portal: "techbay" })).flow.inToday).toBe(0);
+  });
+
+  it("테크베이용 링크: 열쇠가 따로. 테크베이 열쇠로는 전체 현황판을 못 본다", async () => {
+    const owner = { id: ids.owner, roles: ["owner" as const] };
+    const all = await issueTvToken(db, owner, now);
+    const tb = await issueTvToken(db, owner, now, "techbay");
+    expect(await tvTokenOk(db, tb, "techbay")).toBe(true);
+    expect(await tvTokenOk(db, tb)).toBe(false);
+    expect(await tvTokenOk(db, all, "techbay")).toBe(true);
+    expect(await isTechbayToken(db, tb)).toBe(true);
+    expect(await isTechbayToken(db, all)).toBe(false);
+    expect((await tvLinkView(db, owner, "techbay")).token).toBe(tb);
+    await revokeTvToken(db, owner, now, "techbay");
+    expect(await tvTokenOk(db, tb, "techbay")).toBe(false);
+    expect(await tvTokenOk(db, all)).toBe(true);
   });
 });

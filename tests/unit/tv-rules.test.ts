@@ -1,6 +1,6 @@
 // TV 현황판 상태 나누기·지연·순서(대표 결정 2026-11-18)
 import { describe, expect, it } from "vitest";
-import { classifyRo, dayWord, lateDays, sortBoard, TV_STATES, type TvRoInput } from "@/modules/dashboard/tv-rules";
+import { classifyRo, dayWord, lateDays, sortBoard, stageOfProcess, tbStageOf, TV_STATES, type TvRoInput } from "@/modules/dashboard/tv-rules";
 
 const base: TvRoInput = { status: "working", diagnosed: true, readyNoticed: false, estimate: "accepted", claim: null, hasWorkOrder: true, steps: [], partsPending: [], outsource: [], inspectRound: 0 };
 const step = (process: string, started: boolean, ended: boolean, assignee: string | null = "김기술") => ({ process, label: process, started, ended, assignee });
@@ -58,5 +58,23 @@ describe("날짜·순서", () => {
       { id: "d", late: 0, due: "2026-11-18", inAt: "1" },
     ];
     expect(sortBoard(rows).map((r) => r.id)).toEqual(["c", "d", "b", "a"]);
+  });
+});
+
+describe("테크베이 현황판 공정 단계", () => {
+  const st = (process: string, started = false, ended = false) => ({ process, started, ended });
+  it("공정 → 단계", () => {
+    expect(stageOfProcess("sheet")).toBe("body");
+    expect(stageOfProcess("mask")).toBe("prep");
+    expect(stageOfProcess("dry")).toBe("paint");
+    expect(stageOfProcess("rework")).toBe("assemble");
+  });
+  it("차의 지금 단계: 하는 공정, 없으면 다음 공정에서 대기", () => {
+    expect(tbStageOf("est", [])).toEqual({ stage: "intake", doing: false });
+    expect(tbStageOf("work", [st("detach", true, true), st("paint", true)])).toEqual({ stage: "paint", doing: true });
+    expect(tbStageOf("hold", [st("detach", true, true), st("putty")])).toEqual({ stage: "prep", doing: false });
+    expect(tbStageOf("wait", [st("detach", true, true)])).toEqual({ stage: "qc", doing: false });
+    expect(tbStageOf("qc", [st("detach", true, true)])).toEqual({ stage: "qc", doing: true });
+    expect(tbStageOf("ready", [])).toEqual({ stage: "ready", doing: false });
   });
 });

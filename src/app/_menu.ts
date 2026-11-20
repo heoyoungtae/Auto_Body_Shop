@@ -18,6 +18,7 @@ export type MenuGroup = { id: string; label: string; items: MenuItem[] };
 export const TOP: MenuItem[] = [
   { label: "대시보드", href: "/home" },
   { label: "TV 현황판", href: "/tv" },
+  { label: "TV 현황판(테크베이)", href: "/tv/techbay" },
   { label: "사내 표준서", href: "/std", std: "STD-00" },
   { label: "통계·보고서", href: "/reports", perm: ["report.mgmt", "report.acct", "report.quality", "report.stock", "report.people", "report.safety"] },
 ];

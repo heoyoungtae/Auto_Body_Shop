@@ -12,14 +12,14 @@ const REFRESH_MS = 30_000;
 const PAGE_MS = 10_000;
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
-function seoulNow(d: Date) {
+export function seoulNow(d: Date) {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short" }).formatToParts(d).map((x) => [x.type, x.value]));
   const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
   return { date: `${p.year}년 ${p.month}월 ${p.day}일 (${WEEK[wd]})`, time: `${p.hour === "24" ? "00" : p.hour}:${p.minute}`, hour: Number(p.hour) % 24 };
 }
 
 /** 차량번호: 한글(용도 글자) 앞뒤를 띄워 숫자와 구분(12가3456 → 12가 3456) */
-const plateText = (p: string) => p.replace(/^(\d{2,3})([가-힣])(\d{4})$/, "$1$2 $3");
+export const plateText = (p: string) => p.replace(/^(\d{2,3})([가-힣])(\d{4})$/, "$1$2 $3");
 
 function Chip({ state, small }: { state: TvState; small?: boolean }) {
   const s = TV_STATES[state];
@@ -254,12 +254,12 @@ function Tile({ n, label, color, warn }: { n: number; label: string; color: stri
   );
 }
 
-function toggleFs() {
+export function toggleFs() {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void document.documentElement.requestFullscreen?.().catch(() => {});
 }
 
-const CSS = `
+export const CSS = `
 /* 도움말 창은 TV 화면(z 80)보다 위에 연다 */
 #help-drawer{z-index:90}
 .tv-root{position:fixed;inset:0;z-index:80;background:#0c1524;color:#eef3fa;overflow:hidden;font-size:clamp(12px,1.95vh,24px);font-family:inherit}
