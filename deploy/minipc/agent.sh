@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 1분마다 돈다(remote.sh·install.sh 가 /etc/cron.d/auto-body-shop-agent 에 등록, root).
+# 1분마다 돈다(remote.sh·install.sh 가 /etc/cron.d/auto-body-shop-agent 에 등록, root). 그 사이 5초마다 올리기 요청을 묻는다.
 # 앱 설정 › 서버 화면에 이 PC 상태를 알리고, 대표가 '지금 새 버전 올리기'를 눌렀으면 받아서 update.sh 를 돌린다.
 # 앱 쪽 주소: /api/server-agent (JOBS_TOKEN). 앱이 도커 안에서 서버를 직접 건드리지 않게 하려는 구조다.
 set -uo pipefail
@@ -176,6 +176,13 @@ if [ -f "$STATE/auto.json" ] && [ "$(jq -r '.on' "$STATE/auto.json" 2>/dev/null)
     [ "$nm" -ge "$tm" ] && [ $((nm - tm)) -lt 60 ] && [ "$(cat "$STATE/auto_day" 2>/dev/null)" != "$today" ] && want=1
   fi
 fi
+
+# 올리기 요청은 1분을 기다리지 않게(대표 2026-11-20): 할 일이 없으면 이 차례가 끝나기 전(시작 50초까지) 5초마다 요청만 묻는다.
+# 같은 PC 안에서 오가는 짧은 확인이고, 요청이 없으면 앱은 아무것도 저장하지 않는다. 다음 차례와 겹치지 않게 50초에서 멈춘다
+while [ -z "$want" ] && [ "$(jq -r '.update // false' <<<"${res:-null}" 2>/dev/null)" != true ] && [ "$SECONDS" -lt 50 ]; do
+  sleep 5
+  res=$(post '{"poll":true}') || res=""
+done
 
 if [ "$(jq -r '.update // false' <<<"${res:-null}" 2>/dev/null)" = true ]; then
   # 대표가 '지금 새 버전 올리기'를 눌렀다
