@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { notification } from "@/db/schema";
-import { agentReport, requestUpdate, serverHealth, serverOpsView, setAutoUpdate } from "@/modules/platform/server-ops";
+import { agentReport, progressPct, requestUpdate, serverHealth, serverOpsView, setAutoUpdate } from "@/modules/platform/server-ops";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -111,5 +111,29 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     // 모르는 값(-1·이상한 값)은 판단에 쓰지 않는다
     await agentReport(db, { status: { ...good, cpuTemp: -1, ssdLife: "x" } }, t(3));
     expect((await serverOpsView(db, t(3).getTime())).health.level).toBe("ok");
+  });
+
+  it("진행 바: 단계는 앞으로만 가고, 만들기에 걸린 시간을 다음 어림에 쓴다", async () => {
+    const st = { host: "abs-server", version: "aaa1111", latest: "bbb2222", behind: 1 };
+    await agentReport(db, { status: st }, t(0));
+    await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(0));
+    await agentReport(db, {}, t(1));
+    let v = await serverOpsView(db, t(1).getTime());
+    expect(v.progress).toMatchObject({ stage: 0, label: "새 버전 받기", pct: 0 });
+    await agentReport(db, { progress: { stage: 1 } }, t(1.5));
+    await agentReport(db, { progress: { stage: 2 } }, t(2));
+    v = await serverOpsView(db, t(4.5).getTime()); // 만들기 2분 30초째, 보통 5분 → 15 + 70×0.5
+    expect(v.progress).toMatchObject({ stage: 2, label: "새 버전 만들기", pct: 50 });
+    await agentReport(db, { progress: { stage: 1 } }, t(5)); // 뒤로 가지 않는다
+    expect((await serverOpsView(db, t(5).getTime())).progress?.stage).toBe(2);
+    await agentReport(db, { progress: { stage: 3 } }, t(8)); // 만들기 6분
+    expect(progressPct(2, 180, 360)).toBe(50);
+    await agentReport(db, { result: { ok: true, message: "새 버전 올림" } }, t(9));
+    v = await serverOpsView(db, t(9).getTime());
+    expect(v.progress).toBeNull();
+    // 다음 요청은 0단계부터
+    await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(20));
+    await agentReport(db, {}, t(21));
+    expect((await serverOpsView(db, t(21).getTime())).progress?.stage).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { HOW_LABEL, serverOpsView, SILENT_MIN, type Change } from "@/modules/platform/server-ops";
+import { HOW_LABEL, serverOpsView, SILENT_MIN, STAGES, type Change } from "@/modules/platform/server-ops";
 import { requireUser } from "../../_lib/session";
 import { RadioRow, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
@@ -105,7 +105,40 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
               {v.auto.on ? `새 버전은 매일 ${v.auto.time}에 저절로 올라갑니다.` : "자동 올리기가 꺼져 있어 새 버전은 저절로 올라가지 않습니다."} 지금 바로 올리려면 아래 단추를 누르세요.
             </p>
             {v.pending && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">요청함 {fmtTime(v.request?.at)}. 서버가 1분 안에 받아 새 버전을 만들기 시작합니다(5~10분). 바꿔 끼우는 몇 초 동안 앱이 끊깁니다.</p>}
-            {v.running && <p className="rounded-md bg-[var(--surface-2)] px-3 py-2">올리는 중(시작 {fmtTime(v.request?.taken)}). 보통 5~10분 걸리고, 바꿔 끼우는 몇 초 동안 앱이 끊깁니다.</p>}
+            {v.running && (
+              <div className="space-y-2 rounded-md bg-[var(--surface-2)] px-3 py-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span>
+                    올리는 중: <b>{v.progress?.label ?? STAGES[0]}</b>
+                  </span>
+                  <span className="text-xs text-[var(--muted)]">
+                    {v.progress?.pct ?? 0}% · 시작 {fmtTime(v.request?.taken)}
+                    {v.progress && v.progress.sinceMin > 0 ? ` · ${v.progress.sinceMin}분 지남` : ""}
+                  </span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={v.progress?.pct ?? 0}
+                  aria-label="새 버전 올리기 진행"
+                  className="h-3 overflow-hidden rounded-full bg-[var(--line)]"
+                >
+                  <div className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-1000" style={{ width: `${Math.max(2, v.progress?.pct ?? 0)}%` }} />
+                </div>
+                <ol className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                  {STAGES.map((label, i) => {
+                    const at = v.progress?.stage ?? 0;
+                    return (
+                      <li key={label} className={i < at ? "text-[var(--ok)]" : i === at ? "font-semibold" : "text-[var(--muted)]"}>
+                        {i < at ? "✓" : i === at ? "●" : "○"} {label}
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="text-xs text-[var(--muted)]">보통 5~10분 걸립니다. &lsquo;바꿔 끼우기&rsquo; 동안 몇 초 앱이 끊기는데, 화면은 그대로 두시면 이어서 보여 줍니다.</p>
+              </div>
+            )}
             <UpdateWatch active={v.pending || v.running} resultAt={v.result?.at ?? null} ok={!!v.result?.ok} message={v.result?.message ?? ""} />
             {v.result && (
               <p>
