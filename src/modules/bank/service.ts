@@ -64,7 +64,7 @@ export type FeedConfig = {
   /** 비밀 열쇠가 틀린 주소로 온 요청(예전에 만든 주소·복사 잘못) — 휴대폰은 보내는데 앱에 안 들어올 때 원인 찾기용 */
   rejected: { n: number; lastAt: string | null };
   /** 최근 받은 문자 10통의 처리 결과(내용은 남기지 않음) — 휴대폰은 '성공'인데 내역에 없을 때 어디서 걸렸는지 보려고 */
-  recent: { at: string; status: SmsResult["status"]; note: string }[];
+  recent: { at: string; status: SmsResult["status"] | "empty"; note: string }[];
 };
 const EMPTY: FeedConfig = { accounts: [], tokenEnc: null, tokenHash: null, tokenAt: null, lastSmsAt: null, smsCount: 0, unknown: [], failed: [], ignored: { n: 0, lastAt: null }, rejected: { n: 0, lastAt: null }, recent: [] };
 
@@ -161,6 +161,13 @@ export async function noteRejected(db: Db, token: string, now = new Date()) {
   if (!token || token.length < 20) return;
   const cfg = await loadFeed(db);
   cfg.rejected = { n: (cfg.rejected?.n ?? 0) + 1, lastAt: now.toISOString() };
+  await saveFeed(db, cfg, null);
+}
+
+/** 주소는 맞는데 문자 내용을 찾지 못한 요청: 꼴(방식·형식·이름)만 최근 기록에 남긴다 */
+export async function noteEmptyRequest(db: Db, shape: string, now = new Date()) {
+  const cfg = await loadFeed(db);
+  cfg.recent = [{ at: now.toISOString(), status: "empty" as const, note: `내용을 못 찾음: ${shape}`.slice(0, 120) }, ...(cfg.recent ?? [])].slice(0, 10);
   await saveFeed(db, cfg, null);
 }
 
