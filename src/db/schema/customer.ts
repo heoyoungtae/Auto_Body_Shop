@@ -40,6 +40,9 @@ export const customer = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     /** 보관 기간이 지나 이름·연락처를 지운 날(설계서 9.2). 지운 뒤에도 업무 기록은 남는다 */
     purgedAt: timestamp("purged_at", { withTimezone: true }),
+    /** 내 차 수첩: 처음 문자 인증으로 들어온 때와 마지막으로 연 때 */
+    carbookAt: timestamp("carbook_at", { withTimezone: true }),
+    carbookSeenAt: timestamp("carbook_seen_at", { withTimezone: true }),
   },
   (t) => [uniqueIndex("customer_phone_uq").on(t.phoneHash), index("customer_name_idx").on(t.name)],
 );

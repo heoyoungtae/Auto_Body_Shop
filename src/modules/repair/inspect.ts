@@ -1,6 +1,7 @@
 // 최종 검사(F-05-01)와 출고(점검·정비명세서 별지 제89호의2, 인수 확인 F-05-02) — STD-05.
 // 검사자는 주 작업자가 아니어야 하고(공장장만 예외, 사유 기록), 불합격이면 재작업 공정이 생겨 다시 검사한다.
 // 합격하면 출고 대기. 정비명세서는 승인한 견적 줄로 만들고, 고객 인수 서명을 받으면 출고된다.
+import { makeLink } from "@/modules/carbook/link";
 import { branchShopInfo } from "@/modules/platform/branch";
 import { rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
@@ -153,7 +154,9 @@ export async function sendReadyNotice(db: Db, actor: Actor, roId: string, now = 
   const steps = await db.select({ p: workStep.process }).from(workStep).where(eq(workStep.workOrderId, w.id));
   const what = [...new Set(steps.map((s) => s.p).filter((x) => !["detach", "assemble", "mask", "dry", "color", "rework"].includes(x)))].map(processLabel).join("·") || "외관 수리";
   const p = await phoneForNotice(db, r.customerId);
-  const res = await sendNotice(db, { key: "ready_notice", to: p.to, vars: { 고객명: p.name, 차량번호: v.plateNo, 작업내용: what }, purpose: "수리 완료 안내", customerName: p.name, ref: r.docNo, sentBy: actor.id }, f);
+  // 내 차 수첩 링크(그 수리 건만 보는 로그인, 90일). 링크의 비밀 부분은 발송 기록에 남기지 않는다
+  const link = await makeLink(db, r.customerId, roId, now);
+  const res = await sendNotice(db, { key: "ready_notice", to: p.to, vars: { 고객명: p.name, 차량번호: v.plateNo, 작업내용: what, 수첩링크: link.url }, purpose: "수리 완료 안내", customerName: p.name, ref: r.docNo, sentBy: actor.id, secret: link.token }, f);
   if (res.ok) await db.update(repairOrder).set({ readyNoticeAt: now, updatedAt: now }).where(eq(repairOrder.id, roId));
   return res;
 }

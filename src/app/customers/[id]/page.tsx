@@ -19,6 +19,8 @@ import { BusinessFields } from "../business-fields";
 import { RadioRow } from "../../_input";
 import { ShowWhen } from "../../consults/show-when";
 import { creditCheck } from "@/modules/money/credit";
+import { carbookStatus } from "@/modules/carbook/service";
+import { inviteCarbookAction } from "../../settings/carbook/actions";
 import { portalOrders } from "@/modules/partner/service";
 import { CUSTOMER_KINDS, INVOICE_MODES, PORTALS, PORTAL_STEPS } from "@/modules/money/credit-rules";
 
@@ -38,6 +40,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const credit = biz ? await creditCheck(db, c.id, 0) : null;
   const orders = biz?.portal ? (await portalOrders(db, 300)).filter((o) => o.o.customerId === c.id).slice(0, 20) : [];
   const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+  const cb = await carbookStatus(db, c.id);
 
   return (
     <div>
@@ -226,6 +229,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
           </Card>
         </div>
 
+        <div className="space-y-4">
         {biz ? (
           <Card title="개인정보 동의(F-13-01)" help={{ kind: "panel", id: "customer.consent" }}>
             <p className="text-sm text-[var(--muted)]">업체 고객은 개인정보 동의 대상이 아닙니다(업체 대표번호·담당 업무 연락). 담당자 개인 휴대폰을 따로 받으면 메모에 적지 말고 개인 고객으로 동의를 받아 주세요.</p>
@@ -257,6 +261,31 @@ export default async function CustomerDetail({ params, searchParams }: { params:
           </div>
         </Card>
         )}
+        {!biz && (
+          <Card title="내 차 수첩" help={{ kind: "panel", id: "carbook.customer" }}>
+            <div className="space-y-2 text-sm">
+              {cb.since ? (
+                <p>
+                  <Badge tone="ok">사용 중</Badge> 처음 {fmtTime(cb.since)} · 마지막 {cb.seen ? fmtTime(cb.seen) : "—"} · 로그인한 휴대폰 {cb.devices}대
+                </p>
+              ) : (
+                <p className="text-[var(--muted)]">아직 문자 인증으로 들어온 적이 없습니다{cb.seen ? `(링크로 마지막 ${fmtTime(cb.seen)})` : ""}.</p>
+              )}
+              {cb.sold.map((x) => (
+                <p key={x.plateNo}>
+                  <Badge tone="warn">판 차</Badge> {x.plateNo} · {x.soldOn} 고객이 알림 — 다음 입고 때 소유자를 바꾸세요
+                </p>
+              ))}
+              {canWrite && cb.canInvite && (
+                <form action={inviteCarbookAction}>
+                  <input type="hidden" name="customerId" value={c.id} />
+                  <SubmitButton variant="secondary">초대 문자 보내기</SubmitButton>
+                </form>
+              )}
+            </div>
+          </Card>
+        )}
+        </div>
       </div>
     </div>
   );

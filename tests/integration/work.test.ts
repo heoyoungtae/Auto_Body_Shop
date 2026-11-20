@@ -5,12 +5,12 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
-import { repairOrder } from "@/db/schema";
+import { messageLog, repairOrder } from "@/db/schema";
 import { addStepPhoto, assignRest, assignStep, createWorkOrder, finishStep, getWorkOrder, startStep, workTodos } from "@/modules/repair/work";
 import { PROCESSES, type Process } from "@/modules/repair/work-rules";
 import { approvedRepair, PNG, WEBP } from "./flow";
 import { ncFor } from "@/modules/quality/nc";
-import { addInspectionPhoto, deliver, inspectionContext, inspectionsOf, issueStatement, judgeInspection, startInspection, statementOf } from "@/modules/repair/inspect";
+import { addInspectionPhoto, deliver, sendReadyNotice, inspectionContext, inspectionsOf, issueStatement, judgeInspection, startInspection, statementOf } from "@/modules/repair/inspect";
 import { itemsFor } from "@/modules/repair/inspect-rules";
 import { seedShop, testDb } from "./db";
 
@@ -127,6 +127,11 @@ describe("검사·출고(STD-05)", () => {
     expect((await inspectionsOf(db, roId)).map((i) => i.result)).toEqual(["fail", "pass"]);
 
     const advisor = { id: ids.advisor, roles: ["advisor" as const] };
+    // 출고 안내에는 내 차 수첩 링크가 들어가고, 발송 기록에는 링크의 비밀 부분이 가려진다
+    const notice = await sendReadyNotice(db, advisor, roId, now, (async () => new Response("{}")) as unknown as typeof fetch);
+    expect(notice.text).toMatch(/내 차 수첩[\s\S]*\/my\/l\/[A-Za-z0-9_-]{20,}/);
+    const [lg] = await db.select().from(messageLog).where(eq(messageLog.purpose, "수리 완료 안내"));
+    expect(lg.body).toContain("/my/l/●●●●");
     await expect(issueStatement(db, advisor, roId, { mileageOut: 40000 }, now)).rejects.toThrow(/입고 때/);
     const st = await issueStatement(db, advisor, roId, { mileageOut: 45012 }, now);
     const s = (await statementOf(db, roId))!;

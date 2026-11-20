@@ -645,6 +645,8 @@ export async function sendNotice(
     customerName?: string;
     ref?: string;
     sentBy: string | null;
+    /** 발송 기록에 남기지 않을 글자(예: 내 차 수첩 링크의 비밀 부분). 기록에는 ●●●● 로 남긴다 */
+    secret?: string;
   },
   f: typeof fetch = fetch,
 ): Promise<NoticeResult> {
@@ -702,7 +704,7 @@ export async function sendNotice(
     purpose: e.purpose,
     provider: p.id,
     to,
-    body: text,
+    body: e.secret ? text.split(e.secret).join("●●●●") : text,
     ok: r.ok,
     error: r.error,
     sentBy: e.sentBy,
@@ -750,6 +752,19 @@ export async function sendSmsBatch(
       ...new Set(res.filter((r) => !r.ok).map((r) => r.error ?? "실패")),
     ],
   };
+}
+
+/** 손님 한 명에게 비밀 글자가 든 문자 1건(내 차 수첩 인증번호). 기록에는 비밀 글자를 ●●●● 로 남긴다 */
+export async function sendSecretSms(
+  db: Db,
+  e: { to: string; text: string; secret: string; purpose: string; customerName?: string },
+  f: typeof fetch = fetch,
+) {
+  const p = await smsRuntime(db);
+  const to = mobile(e.to);
+  const [r] = await ADAPTERS[p.id].send(p.cfg, p.sender, [{ to, text: e.text, kind: smsKind(e.text) as "SMS" | "LMS", subject: SHOP_NAME }], f);
+  await log(db, { channel: smsKind(e.text), purpose: e.purpose, provider: p.id, to, body: e.text.split(e.secret).join("●●●●"), ok: !!r?.ok, error: r?.error, sentBy: null, customerName: e.customerName });
+  return { ok: !!r?.ok, error: r?.error, demo: p.id === "demo" };
 }
 
 /** 광고 문자에 붙일 수신거부 번호·발신번호·업체 전화 */

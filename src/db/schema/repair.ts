@@ -67,6 +67,8 @@ export const repairOrder = pgTable(
     diagConfirmedAt: timestamp("diag_confirmed_at", { withTimezone: true }),
     /** 공장장 판단: 외주 진단 필요 여부·메모 */
     diagNote: text("diag_note"),
+    /** 내 차 수첩에서 손님에게 보이지 않을 사진 경로(입고·검사 사진 중 직원이 뺀 것) */
+    customerHiddenPhotos: jsonb("customer_hidden_photos").$type<string[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

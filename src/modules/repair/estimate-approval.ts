@@ -61,7 +61,20 @@ async function byToken(db: Db, token: string) {
 
 /** 고객이 링크를 열었을 때 보여 줄 것. 법정 서식에 고정한 차량·사업자 값을 쓴다. 이름은 첫 글자만 */
 export async function approvalView(db: Db, token: string, now = new Date()) {
-  const e = await byToken(db, token);
+  return viewOf(db, await byToken(db, token), now);
+}
+
+/** 내 차 수첩(문자 인증으로 들어온 손님): 자기 수리 건의 견적만 연다 */
+export async function carbookApprovalView(db: Db, customerId: string, estimateId: string, now = new Date()) {
+  return viewOf(db, await ownEstimate(db, customerId, estimateId), now);
+}
+
+async function ownEstimate(db: Db, customerId: string, estimateId: string) {
+  const [e] = await db.select({ id: estimate.id }).from(estimate).innerJoin(repairOrder, eq(repairOrder.id, estimate.repairOrderId)).where(and(eq(estimate.id, estimateId), eq(repairOrder.customerId, customerId), ne(estimate.status, "void")));
+  return e ? getEstimate(db, e.id) : null;
+}
+
+async function viewOf(db: Db, e: Awaited<ReturnType<typeof getEstimate>> | null, now: Date) {
   if (!e) return { state: "invalid" as const };
   if (e.status === "accepted" || e.status === "partial" || e.status === "declined") return { state: "done" as const, status: e.status, approvedAt: e.approvedAt };
   if (e.status !== "sent") return { state: "invalid" as const };
@@ -136,6 +149,17 @@ export async function approveByLink(db: Db, token: string, input: { groups: stri
   const [c] = await db.select({ masked: customer.phoneMasked }).from(customer).where(eq(customer.id, e.customer.id));
   const sig = await storeSignature(e.docNo, input.signaturePng);
   const ref = [`문자 링크(${c?.masked ?? "등록된 휴대폰"}로 보냄)`, e.approvalSentAt ? `보낸 때 ${koDateTime(e.approvalSentAt)}` : null, meta.ip ? `IP ${meta.ip}` : null].filter(Boolean).join(" · ");
+  return apply(db, e.id, input.groups, { method: "link", approverName: input.name, ref, signature: sig, recordedBy: null }, now);
+}
+
+/** 내 차 수첩에서 승인: 문자 인증으로 들어온 손님이 자기 견적을 승인한다. 본인 확인 근거는 인증한 휴대폰·IP·서명 */
+export async function approveByCarbook(db: Db, customerId: string, estimateId: string, input: { groups: string[]; name: string; agree: boolean; signaturePng: Uint8Array | null }, meta: { ip?: string | null } = {}, now = new Date()) {
+  const e = await ownEstimate(db, customerId, estimateId);
+  if (!e) throw new EstimateError("내 수리의 견적이 아닙니다. 정비소에 문의해 주세요");
+  if (!input.agree) throw new EstimateError("내용을 확인했다는 칸에 체크해 주세요");
+  const [c] = await db.select({ masked: customer.phoneMasked }).from(customer).where(eq(customer.id, customerId));
+  const sig = await storeSignature(e.docNo, input.signaturePng);
+  const ref = [`내 차 수첩(${c?.masked ?? "등록된 휴대폰"} 문자 인증)`, meta.ip ? `IP ${meta.ip}` : null].filter(Boolean).join(" · ");
   return apply(db, e.id, input.groups, { method: "link", approverName: input.name, ref, signature: sig, recordedBy: null }, now);
 }
 
