@@ -134,6 +134,37 @@ services=$(docker compose ps --format json 2>/dev/null | jq -rs 'flatten | map(.
 place=home; [ "${SERVER_ON_SITE:-}" = 1 ] && place=shop
 mode=tunnel; [ "${DIRECT:-}" = 1 ] && mode=direct
 
+# 응답 속도·접속량·데이터 양(대표 2026-11-20)
+# 1) 앱 응답: 이 PC 안에서 로그인 화면을 열어 걸린 시간(ms)
+appms=$(curl -o /dev/null -s -m 10 -w '%{http_code} %{time_total}' "${APP_INTERNAL_URL:-http://127.0.0.1:3000}/login" 2>/dev/null | awk '$1 >= 200 && $1 < 500 { printf "%d", $2 * 1000; ok = 1 } END { if (!ok) print -1 }')
+# 2) 데이터 양: 인터넷 쪽 네트워크 장치가 지난 알림 뒤 주고받은 바이트
+rxb=-1; txb=-1; netsec=0
+iface=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p')
+if [ -n "$iface" ] && [ -r "/sys/class/net/$iface/statistics/rx_bytes" ]; then
+  rx=$(cat "/sys/class/net/$iface/statistics/rx_bytes"); tx=$(cat "/sys/class/net/$iface/statistics/tx_bytes"); nowt=$(date +%s)
+  pt=""; prx=0; ptx=0
+  [ -f "$STATE/net" ] && read -r pt prx ptx < "$STATE/net"
+  if [[ "${pt:-}" =~ ^[0-9]+$ ]] && [ "$rx" -ge "${prx:-0}" ] && [ "$tx" -ge "${ptx:-0}" ] && [ $((nowt - pt)) -gt 0 ] && [ $((nowt - pt)) -le 600 ]; then
+    rxb=$((rx - prx)); txb=$((tx - ptx)); netsec=$((nowt - pt))
+  fi
+  echo "$nowt $rx $tx" > "$STATE/net"
+fi
+# 3) 실제 접속(국내 직접 접속일 때): Caddy 접속 기록(/data/access.log)의 최근 1분. 그림·스크립트 파일은 속도 계산에서 뺀다
+web='{"reqs":-1,"errors":-1,"avgMs":-1,"p95Ms":-1}'
+if [ "$mode" = direct ]; then
+  cid=$(docker compose ps -q caddy 2>/dev/null | head -n 1)
+  src=""; [ -n "$cid" ] && src=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' "$cid" 2>/dev/null)
+  if [ -n "$src" ] && [ -f "$src/access.log" ]; then
+    w=$(tail -n 20000 "$src/access.log" | jq -nRc --argjson since $(( $(date +%s) - 60 )) '
+      [inputs | fromjson? | select(type == "object" and (.ts // 0) >= $since)] as $a |
+      ($a | map(select((.request.uri // "") | test("^/_next/|^/favicon|\\.(png|jpe?g|webp|gif|svg|ico|css|js|map|woff2?)(\\?|$)"; "i") | not) | (.duration // 0) * 1000) | sort) as $p |
+      {reqs: ($a | length), errors: ($a | map(select((.status // 0) >= 500)) | length),
+       avgMs: (if ($p | length) > 0 then (($p | add) / ($p | length) | round) else -1 end),
+       p95Ms: (if ($p | length) > 0 then ($p[([($p | length) * 0.95 | floor, ($p | length) - 1] | min)] | round) else -1 end)}' 2>/dev/null)
+    jq -e 'type == "object" and (.reqs | type) == "number"' <<<"$w" >/dev/null 2>&1 && web=$w
+  fi
+fi
+
 status=$(jq -nc \
   --arg host "$(hostname)" --arg place "$place" --arg mode "$mode" \
   --arg version "$(g rev-parse --short=7 HEAD)" --arg versionLabel "$(verlabel HEAD)" --arg latest "$latest" --arg latestLabel "$(sed -n 's/^latestlabel=//p' "$STATE/slow.label" 2>/dev/null)" --argjson behind "${behind:-0}" \
@@ -146,7 +177,9 @@ status=$(jq -nc \
   --argjson ssdLife "$ssdlife" --argjson ssdTemp "$ssdtemp" --argjson ssdOk "$ssdok" --argjson rebootNeeded "$reboot" --arg bootAt "$bootat" \
   '{cpuPct:$cpuPct,cpuTemp:$cpuTemp,memPct:$memPct,diskPct:$diskPct,ssdLife:$ssdLife,ssdTemp:$ssdTemp,ssdOk:$ssdOk,rebootNeeded:$rebootNeeded,bootAt:$bootAt,host:$host,place:$place,mode:$mode,version:$version,versionLabel:$versionLabel,latest:$latest,latestLabel:$latestLabel,behind:$behind,lastUpdate:$lastUpdate,lastBackup:$lastBackup,disk:$disk,backupDisk:$backupDisk,memory:$memory,uptime:$uptime,lanIp:$lanIp,publicIp:$publicIp,services:$services,ups:$ups}')
 
-status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" '. + {pending: $p}' <<<"$status")
+status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" --argjson w "$web" \
+  --argjson appMs "$(num "$appms")" --argjson rxBytes "$(num "$rxb")" --argjson txBytes "$(num "$txb")" --argjson netSec "$(num "$netsec")" \
+  '. + {pending: $p} + $w + {appMs: $appMs, rxBytes: $rxBytes, txBytes: $txBytes, netSec: $netSec}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }
 events=$(history_events)
 res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end)')") || res=""

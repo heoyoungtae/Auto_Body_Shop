@@ -7,6 +7,9 @@ import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
 import { requestUpdateAction, setAutoUpdateAction } from "./actions";
 import { UpdateWatch } from "./_watch";
+import { Spark, type SparkPoint } from "./_spark";
+import { fmtBps, fmtBytes, fmtValue } from "./_fmt";
+import type { Sample } from "@/modules/platform/server-ops";
 
 const PLACE: Record<string, string> = { home: "대표 자택", shop: "정비소", cloud: "클라우드" };
 const MODE: Record<string, string> = { direct: "국내 직접 접속", tunnel: "클라우드플레어 터널" };
@@ -25,6 +28,20 @@ function Changes({ list }: { list: Change[] }) {
   );
 }
 
+const hm = (ms: number) => new Date(ms + 9 * 3600_000).toISOString().slice(11, 16);
+/** 24시간을 5분 칸 288개로 펼친다(기록 없는 칸은 비움) */
+function grid(series: Sample[], now: number, pick: (x: Sample) => number | null): SparkPoint[] {
+  const slot = 5 * 60_000;
+  const end = Math.floor(now / slot) * slot;
+  const by = new Map(series.map((x) => [Date.parse(x.t), x]));
+  return Array.from({ length: 288 }, (_, i) => {
+    const t = end - (287 - i) * slot;
+    const x = by.get(t);
+    return { t: new Date(t).toISOString(), label: hm(t), v: x ? pick(x) : null };
+  });
+}
+const pos = (v: number) => (v >= 0 ? v : null);
+
 /** 설정 › 서버(대표 요청 2026-11-19): 서버 정보와 '지금 새 버전 올리기'. 서버가 멀리(대표 자택) 있어도 앱에서 한다 */
 export default async function ServerSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
@@ -32,6 +49,29 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
   const owner = user.roles.includes("owner");
   const v = await serverOpsView(await getDb());
   const st = v.status;
+  const tr = v.traffic;
+  const now = Date.now();
+  const direct = st?.mode === "direct";
+  const charts: { title: string; kind: "ms" | "count" | "bytes" | "pct"; pick: (x: Sample) => number | null }[] = [
+    ...(direct
+      ? [
+          { title: "화면 열기 시간(느린 쪽)", kind: "ms" as const, pick: (x: Sample) => pos(x.p95) },
+          { title: "접속 요청 수(5분)", kind: "count" as const, pick: (x: Sample) => pos(x.reqs) },
+        ]
+      : [{ title: "앱 응답 시간", kind: "ms" as const, pick: (x: Sample) => pos(x.app) }]),
+    { title: "보낸 데이터(5분)", kind: "bytes", pick: (x) => pos(x.tx) },
+    { title: "받은 데이터(5분)", kind: "bytes", pick: (x) => pos(x.rx) },
+    { title: "CPU 사용률(가장 높을 때)", kind: "pct", pick: (x) => pos(x.cpu) },
+    { title: "메모리 사용률", kind: "pct", pick: (x) => pos(x.mem) },
+  ];
+  // 표로 보기: 1시간 단위
+  const hours = Array.from({ length: 24 }, (_, i) => {
+    const end = Math.floor(now / 3600_000) * 3600_000 - (23 - i) * 3600_000;
+    const xs = v.series.filter((x) => Date.parse(x.t) >= end && Date.parse(x.t) < end + 3600_000);
+    const sum = (k: "reqs" | "errors" | "rx" | "tx") => (xs.some((x) => x[k] >= 0) ? xs.reduce((a, x) => a + Math.max(0, x[k]), 0) : -1);
+    const mx = (k: "p95" | "app" | "cpu") => xs.reduce((a, x) => Math.max(a, x[k]), -1);
+    return { at: hm(end), reqs: sum("reqs"), errors: sum("errors"), rx: sum("rx"), tx: sum("tx"), p95: mx("p95"), app: mx("app"), cpu: mx("cpu"), any: xs.length > 0 };
+  }).filter((h) => h.any);
   const rows: [string, string][] = st
     ? [
         ["위치", `${PLACE[st.place] ?? (st.place || "-")} · ${st.host || "-"}`],
@@ -44,6 +84,24 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
         ["디스크(SSD)", st.disk || "-"],
         ["백업 디스크", st.backupDisk || "연결 안 됨"],
         ["메모리", st.memory || "-"],
+        [
+          "응답 속도",
+          [st.appMs >= 0 ? `앱 ${fmtValue("ms", st.appMs)}` : "", st.p95Ms >= 0 ? `실제 접속(최근 1분) 평균 ${fmtValue("ms", st.avgMs)} · 느린 쪽 ${fmtValue("ms", st.p95Ms)}` : ""].filter(Boolean).join(" · ") || "-",
+        ],
+        [
+          "접속량",
+          st.reqs >= 0
+            ? `최근 1분 ${st.reqs.toLocaleString("ko-KR")}건${st.errors > 0 ? `(서버 오류 ${st.errors}건)` : ""}${tr.todayReqs >= 0 ? ` · 오늘 ${tr.todayReqs.toLocaleString("ko-KR")}건${tr.todayErrors > 0 ? `(오류 ${tr.todayErrors}건)` : ""}` : ""}`
+            : direct
+              ? "새 버전이 올라가면 셉니다"
+              : "국내 직접 접속일 때만 셉니다",
+        ],
+        [
+          "데이터 양",
+          tr.txBps >= 0 || tr.todayTx >= 0
+            ? `지금 보내기 ${fmtBps(tr.txBps)} · 받기 ${fmtBps(tr.rxBps)}${tr.todayTx >= 0 ? ` · 오늘 보낸 ${fmtBytes(tr.todayTx)} · 받은 ${fmtBytes(tr.todayRx)}` : ""}`
+            : "-",
+        ],
         ["UPS", st.ups || "연결 안 됨"],
         ["내부 주소", st.lanIp || "-"],
         ["인터넷 주소", st.publicIp || "-"],
@@ -201,6 +259,55 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
               <p className="mt-2 text-xs text-[var(--muted)]">서버가 알려 온 때 {fmtTime(st.at)} · 이 화면은 1분마다 저절로 새로 받습니다.</p>
             </>
           ) : null}
+        </Card>
+      </div>
+      <div className="mt-4">
+        <Card title="24시간 흐름" help={{ kind: "panel", id: "server.trend" }}>
+          {v.series.length ? (
+            <>
+              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+                {charts.map((c) => (
+                  <Spark key={c.title} title={c.title} kind={c.kind} points={grid(v.series, now, c.pick)} />
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-[var(--muted)]">5분마다 한 점입니다. 그래프에 마우스나 손가락을 대면 그때 값이 나옵니다. 선이 끊긴 곳은 서버 소식이 없던 때입니다.</p>
+              {hours.length > 0 && (
+                <details className="mt-3 text-sm">
+                  <summary className="cursor-pointer">표로 보기(1시간 단위)</summary>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="w-full text-right text-xs tabular-nums">
+                      <thead className="text-[var(--muted)]">
+                        <tr>
+                          <th className="py-1 text-left font-normal">시각</th>
+                          {direct && <th className="font-normal">요청</th>}
+                          {direct && <th className="font-normal">오류</th>}
+                          <th className="font-normal">{direct ? "느린 쪽" : "앱 응답"}</th>
+                          <th className="font-normal">보낸</th>
+                          <th className="font-normal">받은</th>
+                          <th className="font-normal">CPU</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hours.map((h) => (
+                          <tr key={h.at} className="border-t border-[var(--line)]">
+                            <td className="py-1 text-left">{h.at}</td>
+                            {direct && <td>{h.reqs >= 0 ? h.reqs.toLocaleString("ko-KR") : "-"}</td>}
+                            {direct && <td>{h.errors >= 0 ? h.errors : "-"}</td>}
+                            <td>{(direct ? h.p95 : h.app) >= 0 ? fmtValue("ms", direct ? h.p95 : h.app) : "-"}</td>
+                            <td>{h.tx >= 0 ? fmtBytes(h.tx) : "-"}</td>
+                            <td>{h.rx >= 0 ? fmtBytes(h.rx) : "-"}</td>
+                            <td>{h.cpu >= 0 ? `${h.cpu}%` : "-"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">아직 모인 기록이 없습니다. 서버가 1분마다 알려 오는 값을 5분 칸으로 모아 24시간까지 보여 줍니다.</p>
+          )}
         </Card>
       </div>
       <div className="mt-4">

@@ -43,7 +43,45 @@ export type ServerStatus = {
   ssdOk: boolean; // SSD 자체 진단
   rebootNeeded: boolean; // 보안 업데이트 뒤 다시 켜야 함
   bootAt: string; // 마지막으로 켠 때
+  // 응답 속도·접속량·데이터 양(대표 2026-11-20). -1 = 모름
+  appMs: number; // 미니 PC 안에서 앱 로그인 화면을 여는 데 걸린 시간
+  reqs: number; // 최근 1분 실제 접속 요청 수(국내 직접 접속일 때 Caddy 기록)
+  errors: number; // 그중 서버 오류(5xx)
+  avgMs: number; // 화면·API 요청 평균 처리 시간(그림·스크립트 파일 뺌)
+  p95Ms: number; // 느린 쪽(상위 5%)
+  rxBytes: number; // 지난 알림 뒤 받은 양
+  txBytes: number; // 보낸 양
+  netSec: number; // 그 사이 초
 };
+/** 24시간 흐름(5분 칸). 미니 PC 가 1분마다 알려 온 값을 칸마다 모은다 */
+export type Sample = { t: string; reqs: number; errors: number; msSum: number; msN: number; p95: number; rx: number; tx: number; sec: number; cpu: number; mem: number; app: number };
+const SLOT_MS = 5 * 60_000;
+const SERIES_MAX = 288;
+export function addSample(series: Sample[], st: ServerStatus, now: Date): Sample[] {
+  const t = new Date(Math.floor(now.getTime() / SLOT_MS) * SLOT_MS).toISOString();
+  const keep = series.filter((x) => Date.parse(x.t) > now.getTime() - 24 * 3600_000 && x.t !== t);
+  const cur: Sample = series.find((x) => x.t === t) ?? { t, reqs: -1, errors: 0, msSum: 0, msN: 0, p95: -1, rx: -1, tx: -1, sec: 0, cpu: -1, mem: -1, app: -1 };
+  const n = { ...cur };
+  if (st.reqs >= 0) {
+    n.reqs = Math.max(0, n.reqs) + st.reqs;
+    n.errors += Math.max(0, st.errors);
+    if (st.avgMs >= 0 && st.reqs > 0) (n.msSum += st.avgMs * st.reqs), (n.msN += st.reqs);
+  }
+  if (st.p95Ms >= 0) n.p95 = Math.max(n.p95, st.p95Ms);
+  if (st.rxBytes >= 0 && st.txBytes >= 0 && st.netSec > 0) (n.rx = Math.max(0, n.rx) + st.rxBytes), (n.tx = Math.max(0, n.tx) + st.txBytes), (n.sec += st.netSec);
+  if (st.cpuPct >= 0) n.cpu = Math.max(n.cpu, st.cpuPct);
+  if (st.memPct >= 0) n.mem = Math.max(n.mem, st.memPct);
+  if (st.appMs >= 0) n.app = Math.max(n.app, st.appMs);
+  return [...keep, n].sort((a, b) => a.t.localeCompare(b.t)).slice(-SERIES_MAX);
+}
+/** 오늘(서울) 합계와 지금 속도 */
+export function trafficSummary(st: ServerStatus | null, series: Sample[], now = Date.now()) {
+  const day = new Date(now + 9 * 3600_000).toISOString().slice(0, 10);
+  const today = series.filter((x) => new Date(Date.parse(x.t) + 9 * 3600_000).toISOString().slice(0, 10) === day);
+  const sum = (k: "reqs" | "errors" | "rx" | "tx") => (today.some((x) => x[k] >= 0) ? today.reduce((a, x) => a + Math.max(0, x[k]), 0) : -1);
+  const bps = (b: number | undefined) => (st && b != null && b >= 0 && st.netSec > 0 ? Math.round((b * 8) / st.netSec) : -1);
+  return { todayReqs: sum("reqs"), todayErrors: sum("errors"), todayRx: sum("rx"), todayTx: sum("tx"), rxBps: bps(st?.rxBytes), txBps: bps(st?.txBytes) };
+}
 
 export type Health = { level: "ok" | "warn" | "danger"; reasons: string[] };
 /** 한눈 상태: 위험(빨강)·주의(노랑)·정상(초록)과 이유. 팬 없는 미니 PC 라 온도를 특히 본다 */
@@ -72,6 +110,13 @@ export function serverHealth(st: (ServerStatus & { at?: string }) | null, silent
   if (mp != null && mp >= 95) warn.push(`메모리 ${mp}% 사용`);
   const cp = n(st.cpuPct);
   if (cp != null && cp >= 90) warn.push(`CPU ${cp}% 사용(바쁨)`);
+  // 응답 속도(대표 2026-11-20): 실제 접속의 느린 쪽이 3초 넘거나, 서버 오류가 잦으면 주의
+  const p95 = n(st.p95Ms);
+  if (p95 != null && p95 >= 3000) warn.push(`화면 열기 느림(느린 쪽 ${(p95 / 1000).toFixed(1)}초)`);
+  const app = n(st.appMs);
+  if (app != null && app >= 3000) warn.push(`앱 응답 느림(${(app / 1000).toFixed(1)}초)`);
+  const er = n(st.errors), rq = n(st.reqs);
+  if (er != null && rq != null && er >= 5 && er * 20 >= rq) warn.push(`서버 오류 잦음(최근 1분 ${er}건)`);
   if (st.rebootNeeded) warn.push("보안 업데이트 뒤 다시 켜야 합니다(새벽 4시에 저절로)");
   if (danger.length) return { level: "danger", reasons: [...danger, ...warn] };
   if (warn.length) return { level: "warn", reasons: warn };
@@ -105,6 +150,7 @@ export function progressPct(stage: number, stageSec: number, lastBuildSec?: numb
 }
 type Data = {
   progress?: Progress | null;
+  series?: Sample[];
   lastBuildSec?: number | null;
   auto?: AutoUpdate; status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
 
@@ -133,7 +179,8 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   const progress = pg
     ? { stage: pg.stage, label: STAGES[pg.stage] ?? "", pct: progressPct(pg.stage, (now - Date.parse(pg.stageAt)) / 1000, d.lastBuildSec), sinceMin: Math.floor((now - Date.parse(req!.taken!)) / 60_000) }
     : null;
-  return { progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  const series = d.series ?? [];
+  return { series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -192,6 +239,14 @@ function cleanStatus(b: Record<string, unknown>): ServerStatus {
     ssdOk: b.ssdOk !== false,
     rebootNeeded: b.rebootNeeded === true,
     bootAt: s(b.bootAt, 20),
+    appMs: num(b.appMs, 600_000),
+    reqs: num(b.reqs, 10_000_000),
+    errors: num(b.errors, 10_000_000),
+    avgMs: num(b.avgMs, 600_000),
+    p95Ms: num(b.p95Ms, 600_000),
+    rxBytes: num(b.rxBytes, 1e13),
+    txBytes: num(b.txBytes, 1e13),
+    netSec: num(b.netSec, 3600),
   };
 }
 function num(x: unknown, max: number) {
@@ -244,6 +299,7 @@ export async function agentReport(
   }
   if (body.status) {
     next.status = { ...cleanStatus(body.status), at: now.toISOString() };
+    next.series = addSample(d.series ?? [], next.status, now);
     // 위험이 되면 대표에게 알린다(같은 이유는 하루 한 번)
     const h = serverHealth(next.status, 0);
     if (h.level === "danger" && d.status && serverHealth(d.status, 0).level !== "danger")
