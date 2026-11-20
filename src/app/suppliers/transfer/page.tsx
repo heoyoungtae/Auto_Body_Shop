@@ -65,7 +65,7 @@ export default async function SupplierTransferPage({ searchParams }: { searchPar
             <form action="/api/suppliers/import" method="post" encType="multipart/form-data" className="space-y-3">
               <TransferFile />
               <p className="text-xs text-[var(--muted)]">
-                모두 <b>후보</b>로 들어갑니다. 등록 평가와 대표 승인은 여기서 새로 합니다. 입금 계좌는 &lsquo;확인 전&rsquo;으로 들어가 넣은 사람이 아닌 회계·대표가 전화로 확인해야 지급에 씁니다. 같은 사업자등록번호(번호가 없으면 같은 이름)의 업체는 건너뜁니다.
+                모두 <b>후보</b>로 들어갑니다. 등록 평가와 대표 승인은 여기서 새로 합니다. 입금 계좌는 &lsquo;확인 전&rsquo;으로 들어가, 업체에 전화로 확인하고 &lsquo;확인&rsquo;을 눌러야 지급에 씁니다(대표는 직접 가져온 계좌도 확인할 수 있습니다). 같은 사업자등록번호(번호가 없으면 같은 이름)의 업체는 건너뜁니다.
               </p>
               <SubmitButton>가져오기</SubmitButton>
             </form>
