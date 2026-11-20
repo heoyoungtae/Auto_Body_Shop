@@ -8,6 +8,7 @@ import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "./audit";
 import { UserError } from "./errors";
 import { notifyRole } from "./notify";
+import { recordErrorSafe } from "./error-log";
 
 const KEY = "server_ops";
 type Actor = { id: string; roles: readonly Role[] };
@@ -271,7 +272,7 @@ function cleanEvent(x: unknown): UpdateEvent | null {
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
 export async function agentReport(
   db: Db,
-  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown },
+  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[] },
   now = new Date(),
 ) {
   // 짧은 확인(대표 2026-11-20 "1분 기다림이 왜 필요한가"): 미니 PC 가 1분 사이사이 5초마다 올리기 요청만 묻는다.
@@ -282,6 +283,13 @@ export async function agentReport(
     if (!r || r.taken || now.getTime() - Date.parse(r.at) >= 60 * 60_000) return { update: false, auto: p.auto ?? AUTO_DEFAULT };
     body = {};
   }
+  // 서버 오류(대표 2026-11-20 '오류 기록'): 미니 PC 가 앱·DB·관문·시스템 출력에서 고른 오류 줄. 한 번에 50줄까지
+  if (Array.isArray(body.serverErrors))
+    for (const x of body.serverErrors.slice(0, 50)) {
+      const o = (x ?? {}) as Record<string, unknown>;
+      const at = Date.parse(String(o.at ?? ""));
+      await recordErrorSafe(db, { kind: ["server", "db", "caddy", "system"].includes(String(o.kind)) ? String(o.kind) : "system", message: String(o.message ?? ""), detail: String(o.detail ?? "") }, Number.isFinite(at) && Math.abs(at - now.getTime()) < 86400_000 ? new Date(at) : now);
+    }
   const d = await load(db);
   const next: Data = { ...d };
   if (Array.isArray(body.events) && body.events.length) {

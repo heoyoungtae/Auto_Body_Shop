@@ -10,6 +10,7 @@ import { UpdateWatch } from "./_watch";
 import { Spark, type SparkPoint } from "./_spark";
 import { fmtBps, fmtBytes, fmtValue } from "./_fmt";
 import type { Sample } from "@/modules/platform/server-ops";
+import { errorCountToday } from "@/modules/platform/error-log";
 
 const PLACE: Record<string, string> = { home: "대표 자택", shop: "정비소", cloud: "클라우드" };
 const MODE: Record<string, string> = { direct: "국내 직접 접속", tunnel: "클라우드플레어 터널" };
@@ -47,7 +48,9 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
   const { error, notice } = await searchParams;
   const user = await requireUser();
   const owner = user.roles.includes("owner");
-  const v = await serverOpsView(await getDb());
+  const db = await getDb();
+  const v = await serverOpsView(db);
+  const errToday = owner ? await errorCountToday(db) : 0;
   const st = v.status;
   const tr = v.traffic;
   const now = Date.now();
@@ -115,9 +118,14 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
         sub="서버(미니 PC)의 상태를 보고, 새 버전을 기다리지 않고 바로 올립니다. 서버가 멀리 있어도 여기서 합니다."
         actions={
           owner ? (
-            <Link href="/help/server-guide" className={buttonClass("secondary")}>
-              서버 설명서
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/settings/server/errors" className={buttonClass("secondary")}>
+                오류 기록{errToday > 0 ? ` (오늘 ${errToday.toLocaleString("ko-KR")})` : ""}
+              </Link>
+              <Link href="/help/server-guide" className={buttonClass("secondary")}>
+                서버 설명서
+              </Link>
+            </div>
           ) : undefined
         }
       >

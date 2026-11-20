@@ -3,10 +3,18 @@
 # - 밖에서 들어오는 길은 클라우드플레어 터널(tunnel) 또는 '국내 직접 접속'(caddy, 공유기 443) 중 하나다(minipc/direct.sh).
 # - 앱은 이 PC 안(127.0.0.1:3000)에서만 바로 열 수 있다. 인터넷이 끊겨도 미니 PC 화면에서는 http://localhost:3000 으로 쓸 수 있다.
 # 값은 같은 폴더의 .env(minipc/install.sh 가 만듦). .env 의 COMPOSE_FILE=compose.minipc.yml 덕분에 docker compose 명령이 이 파일을 쓴다.
+# 프로그램 출력(docker logs)은 10MB 씩 3개만 남긴다. 그대로 두면 끝없이 쌓여 SSD 를 채운다(대표 2026-11-20 '오류 기록')
+x-logging: &log
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:17
     restart: unless-stopped
+    logging: *log
     environment:
       POSTGRES_USER: shop
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -24,6 +32,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
+    logging: *log
     env_file: .env
     environment:
       DATABASE_URL: postgres://shop:${DB_PASSWORD}@db:5432/shop
@@ -40,6 +49,7 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
+    logging: *log
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
@@ -52,6 +62,7 @@ services:
     image: caddy:2
     profiles: ["direct"]
     restart: unless-stopped
+    logging: *log
     ports:
       - "443:443"
     environment:
@@ -65,6 +76,7 @@ services:
   jobs:
     image: curlimages/curl:8.10.1
     restart: unless-stopped
+    logging: *log
     environment:
       JOBS_TOKEN: ${JOBS_TOKEN}
       TZ: KST-9

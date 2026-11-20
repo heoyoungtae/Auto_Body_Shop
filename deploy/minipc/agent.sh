@@ -182,8 +182,29 @@ status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]'
   '. + {pending: $p} + $w + {appMs: $appMs, rxBytes: $rxBytes, txBytes: $txBytes, netSec: $netSec}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }
 events=$(history_events)
-res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end)')") || res=""
-if [ -n "$res" ]; then mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null; fi
+# 오류 줄 모으기(대표 2026-11-20 '오류 기록'): 지난번 뒤로 새로 생긴 줄 중 오류만 골라 50줄까지 보낸다.
+# 앱 화면·저장 오류는 앱이 직접 남기므로, 앱 출력에서는 프로그램 자체 문제(멈춤·메모리·연결)만 고른다
+until_s=$(date +%s)
+since=$(cat "$STATE/err_since" 2>/dev/null); [[ "$since" =~ ^[0-9]+$ ]] || since=$((until_s - 120))
+[ $((until_s - since)) -gt 3600 ] && since=$((until_s - 3600))
+raw=$({
+  for svc in app db caddy; do
+    docker compose logs --no-color --no-log-prefix --timestamps --since "$since" --until "$until_s" "$svc" 2>/dev/null |
+      awk -v svc="$svc" '{ t = $1; $1 = ""; m = substr($0, 2)
+        if (svc == "app" && m ~ /(FATAL|[Uu]ncaught|[Uu]nhandled|out of memory|heap limit|ECONNREFUSED|EADDRINUSE)/) print "server\t" t "\t" m
+        else if (svc == "db" && m ~ /(ERROR|FATAL|PANIC): /) print "db\t" t "\t" m
+        else if (svc == "caddy" && m ~ /"level":"error"/) print "caddy\t" t "\t" m }'
+  done
+  journalctl -q --no-pager --since "@$since" --until "@$until_s" -o short-iso 2>/dev/null |
+    grep -Ei 'out of memory|oom-kill|killed process|I/O error|EXT4-fs error|nvme.*(timeout|reset|error)|hardware error|critical temperature' |
+    awk '{ t = $1; $1 = ""; print "system\t" t "\t" substr($0, 2) }' | sed -E 's/^(system\t[0-9T:-]+)([+-][0-9]{2})([0-9]{2})\t/\1\2:\3\t/'
+} | head -n 50)
+errs=$(printf '%s\n' "$raw" | jq -Rsc 'split("\n") | map(select(length > 0) | split("\t") | {kind: .[0], at: .[1], message: (.[2:] | join("\t"))}
+  | if .kind == "db" then .message |= sub("^[0-9-]+ [0-9:.]+ [A-Z]+ \\[[0-9]+\\] "; "") else . end
+  | if .kind == "caddy" then ((.message | fromjson?) // null) as $j | if $j then .message = ((($j.logger // "") + " " + ($j.msg // "") + (if $j.error then ": " + ($j.error | tostring) else "" end)) | ltrimstr(" ")) else . end else . end)' 2>/dev/null)
+[ -n "$errs" ] || errs='[]'
+res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" --argjson x "$errs" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end) + (if ($x | length) > 0 then {serverErrors:$x} else {} end)')") || res=""
+if [ -n "$res" ]; then mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null; echo "$until_s" > "$STATE/err_since"; fi
 # 예전 이력에 날짜 버전을 채워 달라는 기록 번호가 있으면 계산해 보낸다
 need=$(jq -r '.labelsFor // [] | .[]' <<<"${res:-null}" 2>/dev/null | grep -E '^[0-9a-f]{7,12}$' | head -50)
 if [ -n "$need" ]; then
