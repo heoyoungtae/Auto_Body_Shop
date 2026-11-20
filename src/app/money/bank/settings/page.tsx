@@ -14,6 +14,7 @@ import { Badge, buttonClass, Card, Empty, ErrorBox, Notice, PageTitle, fmtTime }
 import { ShowWhen } from "../../../consults/show-when";
 import { feedAction } from "../actions";
 import { CopyButton } from "../copy-button";
+import { LiveRefresh } from "../live-refresh";
 
 const RESULT_LABEL = { added: "내역에 넣음", dup: "이미 받은 거래", ignored: "은행 문자 아님", unknown: "등록 안 된 통장·카드", failed: "읽지 못함", empty: "내용 없음" } as const;
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -174,7 +175,7 @@ export default async function BankSettingsPage({ searchParams }: { searchParams:
       <div id="failed" className="mt-4">
         <Card title="3. 받은 기록" help={{ kind: "panel", id: "bank.log" }}>
           <p className="text-sm">
-            마지막으로 받은 문자: <b>{cfg.lastSmsAt ? fmtTime(cfg.lastSmsAt) : "아직 없음"}</b> · 지금까지 {cfg.smsCount ?? 0}통
+            마지막으로 받은 문자: <b>{cfg.lastSmsAt ? fmtTime(cfg.lastSmsAt) : "아직 없음"}</b> · 지금까지 {cfg.smsCount ?? 0}통 <LiveRefresh />
           </p>
           {!cfg.lastSmsAt && !cfg.rejected?.n && !cfg.recent?.length && (
             <p className="mt-1 text-xs text-[var(--muted)]">
