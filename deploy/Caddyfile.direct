@@ -9,5 +9,19 @@
 	request_body {
 		max_size 20MB
 	}
-	reverse_proxy app:3000
+	# 새 버전으로 바꿔 끼우는 몇 초~30초 동안은 앱이 다시 뜰 때까지 요청을 붙잡아 기다린다(대표 2026-11-20 '업데이트 중 502')
+	reverse_proxy app:3000 {
+		lb_try_duration 40s
+		lb_try_interval 1s
+	}
+	# 그래도 못 열면 빈 502 대신 안내 화면을 보여 주고 5초마다 저절로 다시 연다
+	handle_errors {
+		@down expression `{http.error.status_code} in [502, 503, 504]`
+		handle @down {
+			header Content-Type "text/html; charset=utf-8"
+			header Cache-Control "no-store"
+			header Retry-After "5"
+			respond `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><meta name="color-scheme" content="light dark"><title>잠시만 기다려 주세요</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif"><main style="max-width:26rem;padding:1.5rem;text-align:center;line-height:1.6"><h1 style="font-size:1.25rem">앱을 새 버전으로 바꾸는 중입니다</h1><p>보통 1분 안에 끝납니다. 이 화면은 5초마다 저절로 다시 열고, 앱이 살아나면 보던 화면으로 돌아갑니다.</p><p>3분이 지나도 이 화면이면 대표에게 알려 주세요.</p></main></body></html>` 503
+		}
+	}
 }
