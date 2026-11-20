@@ -15,6 +15,8 @@ import {
   importFile,
   ingestSms,
   issueToken,
+  loadFeed,
+  noteRejected,
   listTx,
   payFromTx,
   saveAccount,
@@ -63,6 +65,21 @@ describe("연동 설정", () => {
     const t2 = await issueToken(db, owner(), now);
     expect(await tokenOk(db, t)).toBe(false);
     expect(await tokenOk(db, t2)).toBe(true);
+  });
+
+  it("휴대폰이 예전 주소로 보내면 틀린 주소 요청으로 세고 할 일로 알린다, 은행 문자 아닌 것도 횟수만 남긴다", async () => {
+    await saveAccount(db, owner(), { kind: "bank", company: "kb", name: "", digits: "", payDay: null, sms: true });
+    const old = await issueToken(db, owner(), now);
+    await issueToken(db, owner(), now); // 미니 PC로 옮기며 새로 만듦
+    await noteRejected(db, old, now);
+    await noteRejected(db, "short", now); // 아무 주소나 두드린 것은 안 셈
+    expect((await loadFeed(db)).rejected.n).toBe(1);
+    const todos = await bankTodos(db, owner(), "2026-11-12");
+    expect(todos.some((t) => /예전 '문자 받는 주소'/.test(t.what))).toBe(true);
+    await ingestSms(db, "시험 문자입니다", now);
+    const cfg = await loadFeed(db);
+    expect(cfg.ignored.n).toBe(1);
+    expect(cfg.lastSmsAt).not.toBeNull();
   });
 });
 

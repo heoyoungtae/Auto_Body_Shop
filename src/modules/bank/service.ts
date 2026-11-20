@@ -59,8 +59,12 @@ export type FeedConfig = {
   unknown: { at: string; hint: string }[];
   /** 읽지 못한 문자(앞 120자만, 최근 10통) — 문자 꼴이 바뀌었는지 보려고 */
   failed: { at: string; reason: string; text: string }[];
+  /** 은행·카드 문자가 아니라서 버린 것(내용은 남기지 않고 횟수·시각만) */
+  ignored: { n: number; lastAt: string | null };
+  /** 비밀 열쇠가 틀린 주소로 온 요청(예전에 만든 주소·복사 잘못) — 휴대폰은 보내는데 앱에 안 들어올 때 원인 찾기용 */
+  rejected: { n: number; lastAt: string | null };
 };
-const EMPTY: FeedConfig = { accounts: [], tokenEnc: null, tokenHash: null, tokenAt: null, lastSmsAt: null, smsCount: 0, unknown: [], failed: [] };
+const EMPTY: FeedConfig = { accounts: [], tokenEnc: null, tokenHash: null, tokenAt: null, lastSmsAt: null, smsCount: 0, unknown: [], failed: [], ignored: { n: 0, lastAt: null }, rejected: { n: 0, lastAt: null } };
 
 export async function loadFeed(db: Db): Promise<FeedConfig> {
   const [c] = await db.select().from(appConfig).where(eq(appConfig.key, KEY));
@@ -148,6 +152,14 @@ export async function tokenOk(db: Db, token: string) {
   if (!token || token.length < 20) return false;
   const cfg = await loadFeed(db);
   return !!cfg.tokenHash && cfg.tokenHash === sha256(token);
+}
+
+/** 틀린 주소(예전 비밀 열쇠)로 온 요청을 센다. 우리 앱이 만드는 꼴(20자 이상)만 — 아무 주소나 두드리는 것은 세지 않는다 */
+export async function noteRejected(db: Db, token: string, now = new Date()) {
+  if (!token || token.length < 20) return;
+  const cfg = await loadFeed(db);
+  cfg.rejected = { n: (cfg.rejected?.n ?? 0) + 1, lastAt: now.toISOString() };
+  await saveFeed(db, cfg, null);
 }
 
 /** 문자 → 등록한 통장·카드 */
@@ -252,6 +264,7 @@ export async function ingestSms(db: Db, text: string, now = new Date()): Promise
   if (!p.ok) {
     const bankish = /원/.test(body) && [...Object.values(BANKS), ...Object.values(CARDS)].some((v) => v.keys.some((k) => k.length >= 2 && body.includes(k)));
     if (bankish) cfg.failed = [{ at: now.toISOString(), reason: p.reason, text: body.replace(/\s+/g, " ").slice(0, 120) }, ...cfg.failed].slice(0, 10);
+    else cfg.ignored = { n: (cfg.ignored?.n ?? 0) + 1, lastAt: now.toISOString() };
     await saveFeed(db, cfg, null);
     return { status: bankish ? "failed" : "ignored", message: p.reason };
   }
@@ -671,6 +684,8 @@ export async function bankTodos(db: Db, actor: Actor, today: string): Promise<To
   if (smsOn && can(actor, "bank.setup")) {
     const last = cfg.lastSmsAt ? seoulDate(new Date(cfg.lastSmsAt)) : null;
     if (!cfg.tokenHash) out.push({ key: "bank-token", when: "soon", what: "문자 받는 주소 만들기", detail: "주소를 만들어 휴대폰 문자 전달 앱에 넣어야 문자가 들어옵니다", href: "/money/bank/settings#sms", action: "주소 만들기" });
+    else if (!last && cfg.rejected?.n)
+      out.push({ key: `bank-sms-wrong-${cfg.rejected.n}`, when: "today", what: "휴대폰이 예전 '문자 받는 주소'로 보내고 있습니다", detail: `틀린 주소로 ${cfg.rejected.n}번 왔습니다. 연동 설정의 '문자 받는 주소'를 복사해 휴대폰 전달 앱에 다시 넣어 주세요`, href: "/money/bank/settings#sms", action: "주소 다시 넣기" });
     else if (!last || dayDiff(last, today) >= 7)
       out.push({ key: `bank-sms-stale-${last ?? "none"}`, when: "today", what: last ? `통장 문자가 ${dayDiff(last, today)}일째 안 들어옵니다` : "통장 문자가 아직 한 통도 안 들어왔습니다", detail: "휴대폰의 문자 전달 앱이 꺼졌거나 배터리 절약에 막혔을 수 있습니다. 도움말의 '안 들어올 때'를 보세요", href: "/money/bank/guide#trouble", action: "확인하기" });
   }

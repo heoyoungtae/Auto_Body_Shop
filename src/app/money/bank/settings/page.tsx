@@ -175,6 +175,21 @@ export default async function BankSettingsPage({ searchParams }: { searchParams:
           <p className="text-sm">
             마지막으로 받은 문자: <b>{cfg.lastSmsAt ? fmtTime(cfg.lastSmsAt) : "아직 없음"}</b> · 지금까지 {cfg.smsCount ?? 0}통
           </p>
+          {!cfg.lastSmsAt && !cfg.rejected?.n && (
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              휴대폰에서 보냈는데도 &apos;아직 없음&apos;이면, 문자가 이 서버까지 오지 않은 것입니다. 휴대폰 전달 앱에 넣은 주소가 위 &apos;2. 문자 받는 주소&apos;와 글자 하나까지 같은지 보세요. 서버를 옮겼다면(테스트 서버 → 미니 PC) 예전 서버 주소가 남아 있기 쉽습니다.
+            </p>
+          )}
+          {cfg.rejected?.n > 0 && (
+            <p className="mt-2 text-sm text-[var(--danger)]">
+              틀린 주소로 온 요청 {cfg.rejected.n}번(마지막 {cfg.rejected.lastAt ? fmtTime(cfg.rejected.lastAt) : "-"}). 휴대폰이 예전에 만든 주소로 보내고 있습니다. 위 주소를 복사해 휴대폰 전달 앱에 다시 넣어 주세요.
+            </p>
+          )}
+          {cfg.ignored?.n > 0 && (
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              은행·카드 문자가 아니라서 버린 문자 {cfg.ignored.n}통(마지막 {cfg.ignored.lastAt ? fmtTime(cfg.ignored.lastAt) : "-"}, 내용은 남기지 않음). 시험으로 보낸 글이면 괜찮습니다. 개인 문자까지 오고 있으면 전달 앱에서 은행·카드사 번호만 보내도록 거르세요.
+            </p>
+          )}
           {cfg.unknown.length > 0 && (
             <div className="mt-2">
               <p className="text-sm font-medium">등록 안 된 통장·카드 문자(내용은 버림)</p>
