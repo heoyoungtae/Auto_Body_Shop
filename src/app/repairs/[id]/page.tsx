@@ -7,6 +7,7 @@ import {
   type VehicleOption,
 } from "@/modules/customer/generations";
 import { getRepair } from "@/modules/repair/service";
+import { freshFor, freshForMany } from "@/modules/platform/fresh";
 import {
   BODY_NOTES,
   DEVICES,
@@ -250,6 +251,7 @@ export default async function RepairDetail({
         <AssistForm
           id={`ro-${r.id}`}
           action={intakeAction}
+          fresh={await freshFor(db, "repair.intake", r.id)}
           className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start"
         >
           <input type="hidden" name="id" value={r.id} />
@@ -758,6 +760,7 @@ export default async function RepairDetail({
             )}
             {r.status !== "intake" && (
               <Diagnosis
+                fresh={await freshForMany(db, "repair.damage", r.damages.map((d) => d.id))}
                 roId={r.id}
                 status={r.status}
                 damages={r.damages}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
+import { freshFor } from "@/modules/platform/fresh";
 import { can } from "@/modules/auth/permissions";
 import {
   EVAL_ITEMS,
@@ -169,6 +170,7 @@ export default async function SupplierPage({
               <AssistForm
                 id={`sup-edit-${id}`}
                 action={supplierAction}
+                fresh={await freshFor(db, "supplier", id)}
                 className="mt-3 grid gap-3 md:grid-cols-2"
               >
                 <input type="hidden" name="id" value={id} />

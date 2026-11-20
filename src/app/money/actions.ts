@@ -1,4 +1,6 @@
 "use server";
+import { withLock } from "@/modules/platform/fresh";
+import { expense, repairOrder } from "@/db/schema";
 // 회계(STD-12) 화면의 서버 동작: 수납·취소 전표·독촉, 지출 결의·증빙·지급·취소, 일일·월 마감
 import type { AssetPlan } from "@/modules/asset/service";
 import { redirect } from "next/navigation";
@@ -56,32 +58,35 @@ export async function paymentAction(form: FormData) {
   const back = `/money/ro/${roId}`;
   let msg = "";
   try {
-    const db = await getDb();
-    const intent = s("intent");
-    if (intent === "pay") {
-      const r = await recordPayment(db, user, roId, {
-        method: s("method"),
-        amountWon: num(s("amountWon")),
-        receivedOn: s("receivedOn"),
-        receiptKind: s("receiptKind"),
-        receiptNo: s("receiptNo"),
-        payerName: s("payerName"),
-        note: s("note"),
-      });
-      msg = `${r.docNo} 수납을 적었습니다${r.remain > 0 ? `. 남은 금액 ${won(r.remain)}` : ". 다 받았습니다"}`;
-      if (s("tx")) {
-        await linkCreated(db, user, s("tx"), "payment", r.id, r.docNo);
-        msg += ". 통장 입금과 이었습니다";
+    const root = await getDb();
+    // 같은 전표는 한 번에 한 사람씩(동시에 눌러도 한 번만 처리)
+    await withLock(root, repairOrder, roId, async (db) => {
+      const intent = s("intent");
+      if (intent === "pay") {
+        const r = await recordPayment(db, user, roId, {
+          method: s("method"),
+          amountWon: num(s("amountWon")),
+          receivedOn: s("receivedOn"),
+          receiptKind: s("receiptKind"),
+          receiptNo: s("receiptNo"),
+          payerName: s("payerName"),
+          note: s("note"),
+        });
+        msg = `${r.docNo} 수납을 적었습니다${r.remain > 0 ? `. 남은 금액 ${won(r.remain)}` : ". 다 받았습니다"}`;
+        if (s("tx")) {
+          await linkCreated(db, user, s("tx"), "payment", r.id, r.docNo);
+          msg += ". 통장 입금과 이었습니다";
+        }
+      } else if (intent === "reverse") {
+        msg = `취소 전표 ${await reversePayment(db, user, s("paymentId"), s("reason"))}를 적었습니다`;
+      } else if (intent === "follow") {
+        await recordFollow(db, user, roId, {
+          note: s("note"),
+          promisedOn: s("promisedOn"),
+        });
+        msg = "독촉 기록을 남겼습니다";
       }
-    } else if (intent === "reverse") {
-      msg = `취소 전표 ${await reversePayment(db, user, s("paymentId"), s("reason"))}를 적었습니다`;
-    } else if (intent === "follow") {
-      await recordFollow(db, user, roId, {
-        note: s("note"),
-        promisedOn: s("promisedOn"),
-      });
-      msg = "독촉 기록을 남겼습니다";
-    }
+    });
   } catch (e) {
     redirect(errorUrl(s("tx") ? `${back}?tx=${encodeURIComponent(s("tx"))}` : back, userMessage(e)));
   }
@@ -143,23 +148,26 @@ export async function expenseAction(form: FormData) {
   const back = `/money/expenses/${id}`;
   let msg = "";
   try {
-    const db = await getDb();
-    const intent = s("intent");
-    if (intent === "evidence") {
-      await attachEvidence(db, user, id, {
-        evidenceKind: s("evidenceKind"),
-        evidenceNo: s("evidenceNo"),
-        evidenceOn: s("evidenceOn"),
-        files: await uploads(form),
-      });
-      msg = "증빙을 저장했습니다";
-    } else if (intent === "pay") {
-      await payExpense(db, user, id, { paidOn: s("paidOn"), note: s("note") });
-      msg = "지급을 적었습니다";
-    } else if (intent === "cancel") {
-      await cancelExpense(db, user, id, s("reason"));
-      msg = "결의를 취소했습니다";
-    }
+    const root = await getDb();
+    // 같은 전표는 한 번에 한 사람씩(동시에 눌러도 한 번만 처리)
+    await withLock(root, expense, id, async (db) => {
+      const intent = s("intent");
+      if (intent === "evidence") {
+        await attachEvidence(db, user, id, {
+          evidenceKind: s("evidenceKind"),
+          evidenceNo: s("evidenceNo"),
+          evidenceOn: s("evidenceOn"),
+          files: await uploads(form),
+        });
+        msg = "증빙을 저장했습니다";
+      } else if (intent === "pay") {
+        await payExpense(db, user, id, { paidOn: s("paidOn"), note: s("note") });
+        msg = "지급을 적었습니다";
+      } else if (intent === "cancel") {
+        await cancelExpense(db, user, id, s("reason"));
+        msg = "결의를 취소했습니다";
+      }
+    });
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }

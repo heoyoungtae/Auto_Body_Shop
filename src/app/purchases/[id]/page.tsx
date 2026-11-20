@@ -3,6 +3,7 @@ import { PAY_TERMS, payTermLabel } from "@/modules/money/rules";
 import { ShowWhen } from "../../consults/show-when";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
+import { freshFor, freshForMany } from "@/modules/platform/fresh";
 import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { getOrder, pastLines } from "@/modules/purchase/order";
@@ -47,6 +48,8 @@ export default async function PurchasePage({ params, searchParams }: { params: P
   const stock = [...stock0].sort((a, b) => Number(b.supplierId === o.supplierId) - Number(a.supplierId === o.supplierId) || Number(b.low) - Number(a.low));
   const bank = sup && can(user, "supplier.bank") && (status === "partial" || status === "received") ? await supplierBank(db, user, sup.id) : undefined;
   const lineName = new Map(lines.map((l) => [l.id, l.name]));
+  // 동시 수정 확인 표(작성 중일 때 머리·품목 줄)
+  const [freshHead, freshLines] = draft ? await Promise.all([freshFor(db, "po.header", id), freshForMany(db, "po.line", lines.map((l) => l.id))]) : [undefined, {} as Record<string, string>];
   const anyPaint = lines.some((l) => l.stockItemId && items.get(l.stockItemId)?.expiryTracked);
   const left = lines.filter((l) => l.qty > l.receivedQty);
   const late = lateForRepair(o.replyDueOn, roDue);
@@ -115,7 +118,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
             {o.cancelReason && row("취소 이유", o.cancelReason)}
           </dl>
           {draft && (
-            <AssistForm id={`po-head-${id}`} action={orderAction} className="grid gap-3 md:grid-cols-2">
+            <AssistForm id={`po-head-${id}`} action={orderAction} fresh={freshHead} className="grid gap-3 md:grid-cols-2">
               <input type="hidden" name="id" value={id} />
               <input type="hidden" name="intent" value="header" />
               <SelectField help="po.supplierId" name="supplierId" defaultValue={o.supplierId ?? ""} placeholder="업체 고르기" options={sups.map((s) => ({ value: s.id, label: `${s.name}${s.status === "registered" ? "" : ` (${SUPPLIER_STATUS[s.status as SupplierStatus]}${s.emergencyOn ? " · 긴급 사용함" : ""})`}${s.leadDays != null ? ` · 보통 ${s.leadDays}일` : ""}` }))} />
@@ -242,7 +245,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
                         {draft && (
                           <details className="mt-1">
                             <summary className="cursor-pointer text-xs text-[var(--accent)]">고치기</summary>
-                            <AssistForm id={`po-line-${l.id}`} action={orderAction} className="mt-2 grid gap-2 md:grid-cols-3">
+                            <AssistForm id={`po-line-${l.id}`} action={orderAction} fresh={freshLines[l.id]} className="mt-2 grid gap-2 md:grid-cols-3">
                               <input type="hidden" name="id" value={id} />
                               <input type="hidden" name="intent" value="line" />
                               <input type="hidden" name="lineId" value={l.id} />

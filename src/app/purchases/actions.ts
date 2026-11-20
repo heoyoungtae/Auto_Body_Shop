@@ -1,4 +1,6 @@
 "use server";
+import { guardEdit, withLock } from "@/modules/platform/fresh";
+import { purchaseOrder } from "@/db/schema";
 // 발주·입고 검수(STD-07 5·6절, F-07-02) 화면의 서버 동작
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -59,52 +61,57 @@ export async function orderAction(form: FormData) {
   const back = `/purchases/${id}`;
   let msg = "저장했습니다";
   try {
-    const db = await getDb();
-    // 같은 양식에 '줄 지우기' 같은 다른 단추가 있으면 누른 단추 값이 맨 뒤에 온다
-    const intent = form.getAll("intent").map(String).pop();
-    if (intent === "header") await saveOrderHeader(db, user, id, { supplierId: s("supplierId"), dueOn: s("dueOn"), note: s("note"), payTerm: s("payTerm"), payDay: s("payDay") ? num(s("payDay")) : null });
-    else if (intent === "line") {
-      await saveOrderLine(db, user, id, s("lineId") || null, { name: s("name"), partNo: s("partNo"), spec: s("spec"), partCode: s("partCode") || null, qty: num(s("qty")), unitWon: num(s("unitWon")), stockItemId: s("stockItemId") || null });
-      msg = s("lineId") ? "줄을 고쳤습니다" : "품목을 넣었습니다";
-    } else if (intent === "lines") {
-      // 한꺼번에 넣기: r{번호}_name 처럼 줄 번호가 붙은 칸을 줄마다 모은다
-      const n = await addOrderLines(db, user, id, formLines(form));
-      msg = `품목 ${n}줄을 넣었습니다`;
-    } else if (intent === "removeLine") {
-      await removeOrderLine(db, user, id, s("lineId"));
-      msg = "줄을 지웠습니다";
-    } else if (intent === "submit") {
-      const role = await submitOrder(db, user, id, s("emergency") === "1");
-      msg = `승인을 요청했습니다(${role === "owner" ? "대표" : "공장장"} 승인)`;
-    } else if (intent === "approve") {
-      const ok = s("ok") === "1";
-      await approveOrder(db, user, id, ok, s("decideNote"));
-      msg = ok ? "승인했습니다. 공장장이 발주서를 보냅니다" : "되돌렸습니다";
-    } else if (intent === "send") {
-      await sendOrder(db, user, id, { via: s("via"), replyDueOn: s("replyDueOn") });
-      msg = "발주서를 보냈다고 기록했습니다";
-    } else if (intent === "reply") {
-      const late = await recordReply(db, user, id, s("replyDueOn"));
-      msg = late ? "납기를 적었습니다. 출고 약속일보다 늦어 상담원에게 고객 안내를 알렸습니다" : "납기를 적었습니다";
-    } else if (intent === "receive") {
-      const lineIds = form.getAll("lineId").map(String);
-      const r = await receiveOrder(db, user, id, {
-        lines: lineIds.map((lineId) => ({ lineId, ok: num(s(`ok_${lineId}`)) || 0, bad: num(s(`bad_${lineId}`)) || 0, lot: s(`lot_${lineId}`), expiresOn: s(`exp_${lineId}`), location: s(`loc_${lineId}`) })),
-        checks: form.getAll("checks").map(String),
-        badNote: s("badNote"),
-        needNc: s("needNc") === "1",
-      });
-      msg = r.all ? "입고 검수를 마쳤습니다(전량 입고)" : "입고 검수를 기록했습니다. 남은 수량은 다음 입고 때 검수합니다";
-    } else if (intent === "returnDone") {
-      await returnDone(db, user, s("receiptId"), s("returnNote"));
-      msg = "반품·교환 처리를 기록했습니다";
-    } else if (intent === "invoice") {
-      await linkInvoice(db, user, id, { invoiceNo: s("invoiceNo"), invoiceOn: s("invoiceOn") });
-      msg = "세금계산서를 연결했습니다";
-    } else if (intent === "cancel") {
-      await cancelOrder(db, user, id, s("cancelReason"));
-      msg = "발주를 취소했습니다";
-    } else throw new UserError("알 수 없는 요청");
+    const root = await getDb();
+    // 같은 전표는 한 번에 한 사람씩(동시에 눌러도 한 번만 처리)·고치기 양식은 먼저 고친 사람 확인
+    await withLock(root, purchaseOrder, id, (locked) =>
+      guardEdit(locked, user, form, async (db) => {
+        // 같은 양식에 '줄 지우기' 같은 다른 단추가 있으면 누른 단추 값이 맨 뒤에 온다
+        const intent = form.getAll("intent").map(String).pop();
+        if (intent === "header") await saveOrderHeader(db, user, id, { supplierId: s("supplierId"), dueOn: s("dueOn"), note: s("note"), payTerm: s("payTerm"), payDay: s("payDay") ? num(s("payDay")) : null });
+        else if (intent === "line") {
+          await saveOrderLine(db, user, id, s("lineId") || null, { name: s("name"), partNo: s("partNo"), spec: s("spec"), partCode: s("partCode") || null, qty: num(s("qty")), unitWon: num(s("unitWon")), stockItemId: s("stockItemId") || null });
+          msg = s("lineId") ? "줄을 고쳤습니다" : "품목을 넣었습니다";
+        } else if (intent === "lines") {
+          // 한꺼번에 넣기: r{번호}_name 처럼 줄 번호가 붙은 칸을 줄마다 모은다
+          const n = await addOrderLines(db, user, id, formLines(form));
+          msg = `품목 ${n}줄을 넣었습니다`;
+        } else if (intent === "removeLine") {
+          await removeOrderLine(db, user, id, s("lineId"));
+          msg = "줄을 지웠습니다";
+        } else if (intent === "submit") {
+          const role = await submitOrder(db, user, id, s("emergency") === "1");
+          msg = `승인을 요청했습니다(${role === "owner" ? "대표" : "공장장"} 승인)`;
+        } else if (intent === "approve") {
+          const ok = s("ok") === "1";
+          await approveOrder(db, user, id, ok, s("decideNote"));
+          msg = ok ? "승인했습니다. 공장장이 발주서를 보냅니다" : "되돌렸습니다";
+        } else if (intent === "send") {
+          await sendOrder(db, user, id, { via: s("via"), replyDueOn: s("replyDueOn") });
+          msg = "발주서를 보냈다고 기록했습니다";
+        } else if (intent === "reply") {
+          const late = await recordReply(db, user, id, s("replyDueOn"));
+          msg = late ? "납기를 적었습니다. 출고 약속일보다 늦어 상담원에게 고객 안내를 알렸습니다" : "납기를 적었습니다";
+        } else if (intent === "receive") {
+          const lineIds = form.getAll("lineId").map(String);
+          const r = await receiveOrder(db, user, id, {
+            lines: lineIds.map((lineId) => ({ lineId, ok: num(s(`ok_${lineId}`)) || 0, bad: num(s(`bad_${lineId}`)) || 0, lot: s(`lot_${lineId}`), expiresOn: s(`exp_${lineId}`), location: s(`loc_${lineId}`) })),
+            checks: form.getAll("checks").map(String),
+            badNote: s("badNote"),
+            needNc: s("needNc") === "1",
+          });
+          msg = r.all ? "입고 검수를 마쳤습니다(전량 입고)" : "입고 검수를 기록했습니다. 남은 수량은 다음 입고 때 검수합니다";
+        } else if (intent === "returnDone") {
+          await returnDone(db, user, s("receiptId"), s("returnNote"));
+          msg = "반품·교환 처리를 기록했습니다";
+        } else if (intent === "invoice") {
+          await linkInvoice(db, user, id, { invoiceNo: s("invoiceNo"), invoiceOn: s("invoiceOn") });
+          msg = "세금계산서를 연결했습니다";
+        } else if (intent === "cancel") {
+          await cancelOrder(db, user, id, s("cancelReason"));
+          msg = "발주를 취소했습니다";
+        } else throw new UserError("알 수 없는 요청");
+      }),
+    );
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }

@@ -1,4 +1,6 @@
 "use server";
+import { withLock } from "@/modules/platform/fresh";
+import { workOrder } from "@/db/schema";
 import { rolesFor } from "@/modules/auth/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -27,27 +29,30 @@ export async function workAction(form: FormData) {
   const stepId = s("stepId");
   const back = `/work/${id}`;
   const intent = s("intent");
-  const db = await getDb();
   let msg = "저장했습니다";
   try {
-    if (intent === "header") await saveWorkHeader(db, user, id, { dueDate: s("dueDate"), note: s("note") });
-    else if (intent === "assign") {
-      const m = s("stdMinutes").replace(/[^\d]/g, "");
-      await assignStep(db, user, stepId, { assignee: s("assignee"), mentor: s("mentor") || null, planDate: s("planDate"), stdMinutes: m ? Number(m) : null, workplaceId: s("workplaceId") || null });
-      msg = "담당을 정했습니다. 담당에게 알림을 보냈습니다";
-    } else if (intent === "assignRest") {
-      const n = await assignRest(db, user, id, { assignee: s("assignee"), planDate: s("planDate") });
-      msg = `담당이 없던 공정 ${n}개를 배정했습니다. 공정마다 다른 사람이면 그 공정에서 바꾸세요`;
-    } else if (intent === "start") {
-      const r = await startStep(db, user, stepId);
-      msg = "공정을 시작했습니다. 끝나면 자주 검사를 확인하고 '공정 끝'을 누르세요";
-      if (r.warnings.length) msg += ` · 설비 확인(공장장에게 알림): ${r.warnings.join(" / ")}`;
-    } else if (intent === "finish") {
-      const detail: Record<string, string> = {};
-      for (const k of ["colorCode", "paintMaker", "mixNo", "lot", "tempC", "minutes", "weld"]) if (form.has(k)) detail[k] = s(k);
-      const r = await finishStep(db, user, stepId, { checks: form.getAll("checks").map(String), detail, note: s("stepNote") });
-      msg = r.done ? "모든 공정이 끝났습니다. 수리 건이 최종 검사 대기로 넘어갔고 품질 담당에게 알렸습니다" : "공정을 끝냈습니다. 다음 공정을 시작할 수 있습니다";
-    }
+    const root = await getDb();
+    // 같은 전표는 한 번에 한 사람씩(동시에 눌러도 한 번만 처리)
+    await withLock(root, workOrder, id, async (db) => {
+      if (intent === "header") await saveWorkHeader(db, user, id, { dueDate: s("dueDate"), note: s("note") });
+      else if (intent === "assign") {
+        const m = s("stdMinutes").replace(/[^\d]/g, "");
+        await assignStep(db, user, stepId, { assignee: s("assignee"), mentor: s("mentor") || null, planDate: s("planDate"), stdMinutes: m ? Number(m) : null, workplaceId: s("workplaceId") || null });
+        msg = "담당을 정했습니다. 담당에게 알림을 보냈습니다";
+      } else if (intent === "assignRest") {
+        const n = await assignRest(db, user, id, { assignee: s("assignee"), planDate: s("planDate") });
+        msg = `담당이 없던 공정 ${n}개를 배정했습니다. 공정마다 다른 사람이면 그 공정에서 바꾸세요`;
+      } else if (intent === "start") {
+        const r = await startStep(db, user, stepId);
+        msg = "공정을 시작했습니다. 끝나면 자주 검사를 확인하고 '공정 끝'을 누르세요";
+        if (r.warnings.length) msg += ` · 설비 확인(공장장에게 알림): ${r.warnings.join(" / ")}`;
+      } else if (intent === "finish") {
+        const detail: Record<string, string> = {};
+        for (const k of ["colorCode", "paintMaker", "mixNo", "lot", "tempC", "minutes", "weld"]) if (form.has(k)) detail[k] = s(k);
+        const r = await finishStep(db, user, stepId, { checks: form.getAll("checks").map(String), detail, note: s("stepNote") });
+        msg = r.done ? "모든 공정이 끝났습니다. 수리 건이 최종 검사 대기로 넘어갔고 품질 담당에게 알렸습니다" : "공정을 끝냈습니다. 다음 공정을 시작할 수 있습니다";
+      }
+    });
   } catch (e) {
     redirect(errorUrl(back + (stepId ? `#step-${stepId}` : ""), userMessage(e)));
   }

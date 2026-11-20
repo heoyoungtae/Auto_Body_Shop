@@ -216,3 +216,23 @@ export const errorLog = pgTable(
   },
   (t) => [index("error_log_at_idx").on(t.at), index("error_log_fp_idx").on(t.fingerprint, t.at), index("error_log_code_idx").on(t.code)],
 );
+
+/**
+ * 지금 이 전표를 열어 둔 사람(동시 수정 알림, 2026-11-20).
+ * 화면이 20초마다 알리고, 1분 넘게 소식이 없으면 나간 것으로 본다. 기록이 아니라 잠깐 쓰는 표다.
+ */
+export const editPresence = pgTable(
+  "edit_presence",
+  {
+    /** 전표 열쇠(예: estimate:<id>) */
+    doc: text("doc").notNull(),
+    userId: uuid("user_id").notNull().references(() => appUser.id, { onDelete: "cascade" }),
+    /** 화면 하나하나(같은 사람이 창을 둘 열 수도 있다) */
+    tab: text("tab").notNull(),
+    /** 칸을 고치기 시작했으면 true(그저 보는 중이면 false) */
+    editing: boolean("editing").notNull().default(false),
+    since: timestamp("since", { withTimezone: true }).notNull().defaultNow(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.doc, t.tab] }), index("edit_presence_at_idx").on(t.at)],
+);

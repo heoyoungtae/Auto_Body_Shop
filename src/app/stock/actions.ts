@@ -1,4 +1,6 @@
 "use server";
+import { guardEdit, withLock } from "@/modules/platform/fresh";
+import { stockItem } from "@/db/schema";
 // 재고(STD-07 7절) 화면의 서버 동작
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -45,7 +47,7 @@ export async function saveItemAction(form: FormData) {
   const id = s("id") || null;
   let newId = "";
   try {
-    newId = await saveItem(await getDb(), user, id, itemInput(form));
+    newId = await guardEdit(await getDb(), user, form, (db) => saveItem(db, user, id, itemInput(form)));
   } catch (e) {
     redirect(errorUrl(id ? `/stock/${id}` : "/stock/new", userMessage(e)));
   }
@@ -60,47 +62,50 @@ export async function stockAction(form: FormData) {
   let msg = "저장했습니다";
   let to = back;
   try {
-    const db = await getDb();
-    const intent = s("intent");
-    if (intent === "use") {
-      const r = await useStock(db, user, { itemId: s("itemId"), qty: num(s("qty")), repairOrderId: s("repairOrderId") || null, note: s("useNote") });
-      msg = `사용을 기록했습니다. 남은 수량 ${r.left}${r.low ? " — 안전 재고 아래라 공장장에게 알렸습니다" : ""}`;
-    } else if (intent === "discard") {
-      await discardLot(db, user, s("lotId"), s("discardNote"));
-      msg = "폐기 처리했습니다. 지정 폐기물로 보관하세요(STD-10)";
-    } else if (intent === "stop") {
-      const r = await stopItem(db, user, id, { reason: s("stopReason"), note: s("stopNote"), replacedById: s("replacedById") });
-      msg = r === "stopped" ? "사용 중지했습니다. 재고 목록의 '사용 중지'에서 볼 수 있습니다" : "소진 후 중지로 바꿨습니다. 새 발주는 막고, 남은 것을 다 쓰면 저절로 사용 중지됩니다";
-    } else if (intent === "resume") {
-      await resumeItem(db, user, id);
-      msg = "다시 쓰는 품목으로 되돌렸습니다";
-    } else if (intent === "doc") {
-      const f = form.get("docFile");
-      await addItemDoc(
-        db,
-        user,
-        id,
-        { kind: s("docKind"), title: s("docTitle"), issuer: s("issuer"), issuedOn: s("issuedOn"), expiresOn: s("docExpiresOn"), result: s("result"), lot: s("docLot"), note: s("docNote"), replaceId: s("replaceId") || undefined },
-        f instanceof File && f.size ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null,
-      );
-      msg = "문서를 올렸습니다";
-    } else if (intent === "docRetire") {
-      await retireItemDoc(db, user, s("docId"));
-      msg = "문서를 지난 판으로 뺐습니다";
-    } else if (intent === "orderLow") {
-      const ids = await orderLowStock(db, user, form.getAll("itemIds").map(String));
-      msg = `발주 요청 ${ids.length}장을 만들었습니다. 업체·단가를 확인하고 승인을 요청하세요`;
-      to = ids.length === 1 ? `/purchases/${ids[0]}` : "/purchases?f=review";
-    } else if (intent === "setTrack") {
-      // 관리 방식 바꾸기 추천에서 고른 품목들(값: 품목id:방식)
-      const picks = form.getAll("tracks").map(String);
-      if (!picks.length) throw new UserError("바꿀 품목을 골라 주세요");
-      for (const p of picks) {
-        const [itemId, mode] = p.split(":");
-        await setTrackMode(db, user, itemId, mode);
-      }
-      msg = `${picks.length}개 품목의 관리 방식을 바꿨습니다`;
-    } else throw new UserError("알 수 없는 요청");
+    const root = await getDb();
+    // 같은 전표는 한 번에 한 사람씩(동시에 눌러도 한 번만 처리)
+    await withLock(root, stockItem, id, async (db) => {
+      const intent = s("intent");
+      if (intent === "use") {
+        const r = await useStock(db, user, { itemId: s("itemId"), qty: num(s("qty")), repairOrderId: s("repairOrderId") || null, note: s("useNote") });
+        msg = `사용을 기록했습니다. 남은 수량 ${r.left}${r.low ? " — 안전 재고 아래라 공장장에게 알렸습니다" : ""}`;
+      } else if (intent === "discard") {
+        await discardLot(db, user, s("lotId"), s("discardNote"));
+        msg = "폐기 처리했습니다. 지정 폐기물로 보관하세요(STD-10)";
+      } else if (intent === "stop") {
+        const r = await stopItem(db, user, id, { reason: s("stopReason"), note: s("stopNote"), replacedById: s("replacedById") });
+        msg = r === "stopped" ? "사용 중지했습니다. 재고 목록의 '사용 중지'에서 볼 수 있습니다" : "소진 후 중지로 바꿨습니다. 새 발주는 막고, 남은 것을 다 쓰면 저절로 사용 중지됩니다";
+      } else if (intent === "resume") {
+        await resumeItem(db, user, id);
+        msg = "다시 쓰는 품목으로 되돌렸습니다";
+      } else if (intent === "doc") {
+        const f = form.get("docFile");
+        await addItemDoc(
+          db,
+          user,
+          id,
+          { kind: s("docKind"), title: s("docTitle"), issuer: s("issuer"), issuedOn: s("issuedOn"), expiresOn: s("docExpiresOn"), result: s("result"), lot: s("docLot"), note: s("docNote"), replaceId: s("replaceId") || undefined },
+          f instanceof File && f.size ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null,
+        );
+        msg = "문서를 올렸습니다";
+      } else if (intent === "docRetire") {
+        await retireItemDoc(db, user, s("docId"));
+        msg = "문서를 지난 판으로 뺐습니다";
+      } else if (intent === "orderLow") {
+        const ids = await orderLowStock(db, user, form.getAll("itemIds").map(String));
+        msg = `발주 요청 ${ids.length}장을 만들었습니다. 업체·단가를 확인하고 승인을 요청하세요`;
+        to = ids.length === 1 ? `/purchases/${ids[0]}` : "/purchases?f=review";
+      } else if (intent === "setTrack") {
+        // 관리 방식 바꾸기 추천에서 고른 품목들(값: 품목id:방식)
+        const picks = form.getAll("tracks").map(String);
+        if (!picks.length) throw new UserError("바꿀 품목을 골라 주세요");
+        for (const p of picks) {
+          const [itemId, mode] = p.split(":");
+          await setTrackMode(db, user, itemId, mode);
+        }
+        msg = `${picks.length}개 품목의 관리 방식을 바꿨습니다`;
+      } else throw new UserError("알 수 없는 요청");
+    });
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }

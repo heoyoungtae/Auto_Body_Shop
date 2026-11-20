@@ -1,6 +1,7 @@
 import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { freshFor } from "@/modules/platform/fresh";
 import { FIELD_HELP } from "@/modules/help/fields";
 import { claimView } from "@/modules/repair/claims";
 import { CLAIM_DOCS, CLAIM_STATUS_LABEL, COVERAGE_LABEL, DUN_DAYS } from "@/modules/repair/claim-rules";
@@ -68,7 +69,7 @@ export default async function ClaimPage({ params, searchParams }: { params: Prom
         <div className="space-y-4 xl:col-span-2">
           <Card title="1. 접수 확인" help={{ kind: "panel", id: "claim.info" }}>
             {desk && !locked ? (
-              <AssistForm id={`claim-info-${id}`} action={claimAction} className="space-y-3">
+              <AssistForm id={`claim-info-${id}`} action={claimAction} fresh={c ? await freshFor(db, "claim.info", c.id) : undefined} className="space-y-3">
                 <Hidden roId={id} intent="info" />
                 <div className="grid gap-3 md:grid-cols-3">
                   <TextField help="claim.insurer" name="insurer" required defaultValue={c?.insurer ?? r.insurer ?? ""} from={!c && r.insurer ? "상담·수리 건" : undefined} suggestions={INSURERS.map((x) => ({ value: x }))} />

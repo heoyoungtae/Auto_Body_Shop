@@ -1,4 +1,5 @@
 "use server";
+import { guardEdit } from "@/modules/platform/fresh";
 import { rolesFor } from "@/modules/auth/permissions";
 import { readVehicle } from "../consults/vehicle-form";
 import { redirect } from "next/navigation";
@@ -15,7 +16,7 @@ export async function updateCustomerAction(form: FormData) {
   const user = await requireUser([...STAFF]);
   const id = str(form, "id");
   try {
-    await updateCustomer(await getDb(), user.id, id, { name: str(form, "name"), phone: str(form, "phone"), memo: str(form, "memo") });
+    await guardEdit(await getDb(), user, form, (db) => updateCustomer(db, user.id, id, { name: str(form, "name"), phone: str(form, "phone"), memo: str(form, "memo") }));
   } catch (e) {
     redirect(errorUrl(`/customers/${id}`, userMessage(e)));
   }
@@ -49,7 +50,7 @@ export async function vehicleAction(form: FormData) {
   const user = await requireUser([...STAFF]);
   const id = str(form, "id");
   try {
-    await saveVehicle(await getDb(), user.id, id, { id: str(form, "vehicleId") || undefined, ...readVehicle(form) });
+    await guardEdit(await getDb(), user, form, (db) => saveVehicle(db, user.id, id, { id: str(form, "vehicleId") || undefined, ...readVehicle(form) }));
   } catch (e) {
     redirect(errorUrl(`/customers/${id}`, userMessage(e)));
   }
@@ -109,7 +110,7 @@ export async function businessAction(form: FormData) {
   const id = str(form, "id");
   const kind = str(form, "kind");
   try {
-    await updateBusiness(await getDb(), user.id, id, kind, bizInput(form));
+    await guardEdit(await getDb(), user, form, (db) => updateBusiness(db, user.id, id, kind, bizInput(form)));
   } catch (e) {
     redirect(errorUrl(`/customers/${id}`, userMessage(e)));
   }
