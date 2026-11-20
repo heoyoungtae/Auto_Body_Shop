@@ -2375,6 +2375,20 @@ export const PAGE_HELP = {
     terms: ["통장 맞추기"],
     refs: ["사내 표준서 STD-12"],
   },
+  "suppliers.transfer": {
+    title: "협력업체 옮기기",
+    purpose: "다른 서버(예: 오라클 테스트 서버)에 넣어 둔 협력업체를 서류 파일과 함께 이 앱으로 옮깁니다(대표 요청 2026-11-20).",
+    who: "공장장·대표",
+    steps: [
+      "보내는 쪽 앱(예: 테스트 서버)에서 협력업체 › 옮기기를 열고 '후보·승인 대기 업체 내보내기'를 눌러 .json 파일을 내려받습니다.",
+      "받는 쪽 앱(예: 미니 PC 앱)에서 같은 화면을 열고 '가져오기'에서 그 파일을 고른 뒤 '가져오기'를 누릅니다.",
+      "결과에서 새로 넣은 업체와 건너뛴 업체를 확인합니다.",
+      "협력업체 대장 '후보·승인 대기'에서 업체마다 등록 평가를 하고 대표가 승인합니다.",
+      "옮긴 뒤 내려받은 파일을 지웁니다.",
+    ],
+    tips: ["입금 계좌·통장 사본은 옮기지 않습니다. 받는 쪽에서 회계·대표가 다시 넣고 전화로 확인해야 지급에 씁니다.", "같은 파일을 두 번 올려도 이미 있는 업체는 건너뜁니다."],
+    refs: ["대표 요청 2026-11-20"],
+  },
   "help.serverGuide": {
     title: "서버 설명서",
     purpose: "미니 PC 서버 설치·도메인 연결·출퇴근·데이터 옮기기·백업과 정전 대비·국내 직접 접속·원격 관리(서버가 자택에 있을 때)를 단계별로 설명합니다. 저장소의 설명서(deploy/minipc/README.md)를 그대로 보여 주므로 새 버전이 올라가면 이 화면도 함께 바뀝니다.",
@@ -2801,6 +2815,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/tasks/[id]": "tasks.detail",
   "/suppliers": "suppliers",
   "/suppliers/new": "suppliers.new",
+  "/suppliers/transfer": "suppliers.transfer",
   "/suppliers/[id]": "suppliers.detail",
   "/purchases": "purchases",
   "/purchases/new": "purchases.new",
