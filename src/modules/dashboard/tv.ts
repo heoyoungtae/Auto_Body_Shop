@@ -31,7 +31,7 @@ import { UserError } from "@/modules/platform/errors";
 import { loadShopInfo } from "@/modules/platform/shop";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { processLabel } from "@/modules/repair/work-rules";
-import { classifyRo, dayWord, lateDays, sortBoard, type TvState } from "./tv-rules";
+import { classifyRo, dayWord, lateDays, sortBoard, stageOfProcess, TB_STAGE_KEYS, tbStageOf, type TbStage, type TvState } from "./tv-rules";
 
 export type TvCar = {
   id: string;
@@ -48,7 +48,15 @@ export type TvCar = {
   dueWord: string;
   late: number;
   inAt: string;
+  /** 업체 주문번호(테크베이 등, 있으면) */
+  orderNo: string | null;
+  /** 테크베이용 현황판: 지금 서 있는 공정 단계·그 공정을 하고 있나·공정 막대 칸마다의 단계 */
+  stage: TbStage;
+  doing: boolean;
+  stages: TbStage[];
 };
+/** 오늘 출고한 차(테크베이 현황판 목록 맨 아래) */
+export type TvGone = { id: string; plate: string; model: string; at: string; orderNo: string | null };
 export type TvIncoming = { key: string; when: string; sort: string; today: boolean; plate: string; model: string; tags: string[]; kind: "예약" | "업체 주문" };
 export type TvOutgoing = { key: string; when: string; sort: string; late: number; plate: string; model: string; state: TvState };
 export type TvData = {
@@ -58,6 +66,10 @@ export type TvData = {
   today: string;
   at: string;
   kpi: { todayIn: number; inShop: number; work: number; hold: number; ready: number; late: number };
+  /** 흐름 요약(테크베이 현황판 상단): 오늘 실제 입고 → 공정 단계별 대수(작업 중·대기) → 오늘 출고 */
+  flow: { inToday: number; outToday: number; stages: Record<TbStage, { n: number; doing: number }> };
+  /** 오늘 출고한 차 */
+  gone: TvGone[];
   cars: TvCar[];
   incoming: TvIncoming[];
   outgoing: TvOutgoing[];
@@ -74,7 +86,7 @@ function tagsOf(insurance: string, kind: string | null, portal: string | null): 
 }
 
 /** 현황판 한 장에 들어갈 값 */
-export type TvScope = { branchId?: string | null; workplaceId?: string | null };
+export type TvScope = { branchId?: string | null; workplaceId?: string | null; /** 이 업체 주문 앱 고객(테크베이) 차만 */ portal?: "techbay" | null };
 
 /** 주소의 b(지점)·w(작업장) 값을 확인한다. 없는 값이면 무시(전체) */
 export async function tvScope(db: Db, q: { b?: string | null; w?: string | null }): Promise<TvScope & { label: string | null }> {
@@ -92,14 +104,19 @@ export async function tvScope(db: Db, q: { b?: string | null; w?: string | null 
 
 export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label?: string | null } = {}): Promise<TvData> {
   const today = seoulDate(now);
-  const roWhere = scope.branchId ? and(notInArray(repairOrder.status, ["delivered", "cancelled"]), eq(repairOrder.branchId, scope.branchId)) : notInArray(repairOrder.status, ["delivered", "cancelled"]);
-  const [shop, ros, outToday] = await Promise.all([
+  const dayStart = seoulDateTime(today, "00:00");
+  const dayEnd = seoulDateTime(addDays(today, 1), "00:00");
+  const byBranch = scope.branchId ? eq(repairOrder.branchId, scope.branchId) : undefined;
+  const byPortal = scope.portal ? eq(customer.portal, scope.portal) : undefined;
+  const roWhere = and(notInArray(repairOrder.status, ["delivered", "cancelled"]), byBranch, byPortal);
+  const [shop, ros, outToday, inTodayRows] = await Promise.all([
     loadShopInfo(db),
     db
       .select({
         id: repairOrder.id,
         status: repairOrder.status,
         inAt: repairOrder.inAt,
+        consultationId: repairOrder.consultationId,
         insurance: repairOrder.insurance,
         diagnosedAt: repairOrder.diagnosedAt,
         readyNoticeAt: repairOrder.readyNoticeAt,
@@ -113,19 +130,29 @@ export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label
       .innerJoin(customer, eq(customer.id, repairOrder.customerId))
       .where(roWhere),
     db
-      .select({ id: repairOrder.id, at: repairStatement.deliveredAt, plate: vehicle.plateNo, model: vehicle.model })
+      .select({ id: repairOrder.id, at: repairStatement.deliveredAt, plate: vehicle.plateNo, model: vehicle.model, consultationId: repairOrder.consultationId })
       .from(repairStatement)
       .innerJoin(repairOrder, eq(repairOrder.id, repairStatement.repairOrderId))
       .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
-      .where(
-        and(
-          isNotNull(repairStatement.deliveredAt),
-          gte(repairStatement.deliveredAt, seoulDateTime(today, "00:00")),
-          lt(repairStatement.deliveredAt, seoulDateTime(addDays(today, 1), "00:00")),
-          scope.branchId ? eq(repairOrder.branchId, scope.branchId) : undefined,
-        ),
-      ),
+      .innerJoin(customer, eq(customer.id, repairOrder.customerId))
+      .where(and(isNotNull(repairStatement.deliveredAt), gte(repairStatement.deliveredAt, dayStart), lt(repairStatement.deliveredAt, dayEnd), byBranch, byPortal))
+      .orderBy(asc(repairStatement.deliveredAt)),
+    // 오늘 실제로 들어온 차(지금 상태와 상관없이, 취소 건 빼고)
+    db
+      .select({ id: repairOrder.id })
+      .from(repairOrder)
+      .innerJoin(customer, eq(customer.id, repairOrder.customerId))
+      .where(and(gte(repairOrder.inAt, dayStart), lt(repairOrder.inAt, dayEnd), ne(repairOrder.status, "cancelled"), byBranch, byPortal)),
   ]);
+  // 업체 주문번호(테크베이 주문 → 상담 → 수리 건)
+  const csIds = [...new Set([...ros, ...outToday].map((r) => r.consultationId).filter((x): x is string => !!x))];
+  const orders = new Map(
+    (csIds.length ? await db.select({ cs: portalOrder.consultationId, no: portalOrder.extNo, ext: portalOrder.extId, platform: portalOrder.platform }).from(portalOrder).where(inArray(portalOrder.consultationId, csIds)) : []).map((o) => [
+      o.cs!,
+      o.no ?? (o.platform === "techbay" ? null : o.ext),
+    ]),
+  );
+  const orderOf = (cs: string | null) => (cs ? (orders.get(cs) ?? null) : null);
   const ids = ros.map((r) => r.id);
   const none = Promise.resolve([] as never[]);
   const [ests, claims, wos, pos, oss, insps] = await Promise.all([
@@ -149,6 +176,7 @@ export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label
   const cars: TvCar[] = ros.map((r) => {
     const est = ests.find((e) => e.ro === r.id) ?? null;
     const wo = woOf.get(r.id) ?? null;
+    const mySteps = wo ? steps.filter((s) => s.wo === wo.id).map((s) => ({ process: s.process, label: processLabel(s.process), started: !!s.startedAt, ended: !!s.endedAt, assignee: s.assignee ? (users.get(s.assignee) ?? null) : null })) : [];
     const c = classifyRo({
       status: r.status,
       diagnosed: !!r.diagnosedAt,
@@ -156,7 +184,7 @@ export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label
       estimate: est?.status ?? null,
       claim: claims.find((x) => x.ro === r.id)?.status ?? null,
       hasWorkOrder: !!wo,
-      steps: wo ? steps.filter((s) => s.wo === wo.id).map((s) => ({ process: s.process, label: processLabel(s.process), started: !!s.startedAt, ended: !!s.endedAt, assignee: s.assignee ? (users.get(s.assignee) ?? null) : null })) : [],
+      steps: mySteps,
       partsPending: pos.filter((p) => p.ro === r.id).map((p) => ({ dueOn: p.replyDueOn ?? p.dueOn })),
       outsource: oss.filter((o) => o.ro === r.id).map((o) => o.status as "requested" | "out"),
       inspectRound: Math.max(0, ...insps.filter((i) => i.ro === r.id).map((i) => i.round)),
@@ -164,7 +192,7 @@ export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label
     const due = wo?.dueDate ?? est?.dueDate ?? null;
     const tags = tagsOf(r.insurance, r.kind, r.portal);
     if (c.rework) tags.push("재작업");
-    return { id: r.id, plate: r.plate, model: r.model ?? "", state: c.state, sub: c.sub, tags, done: c.done, total: c.total, current: c.current, due, dueWord: due ? dayWord(due, today) : "미정", late: lateDays(due, today), inAt: r.inAt.toISOString() };
+    return { id: r.id, plate: r.plate, model: r.model ?? "", state: c.state, sub: c.sub, tags, done: c.done, total: c.total, current: c.current, due, dueWord: due ? dayWord(due, today) : "미정", late: lateDays(due, today), inAt: r.inAt.toISOString(), orderNo: orderOf(r.consultationId), ...tbStageOf(c.state, mySteps), stages: mySteps.map((s) => stageOfProcess(s.process)) };
   });
   // 작업장 TV: 그 작업장에 아직 안 끝난 공정이 있는 차만(지금 하는 공정·앞으로 올 공정)
   const inWp = (roId: string) => {
@@ -215,6 +243,14 @@ export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label
     ...(scope.workplaceId ? [] : outToday).map((o) => ({ key: `out-${o.id}`, when: `오늘 ${hhmm(o.at!)}`, sort: `${today}|0`, late: 0, plate: o.plate, model: o.model ?? "", state: "out" as const })),
   ].sort((a, b) => b.late - a.late || a.sort.localeCompare(b.sort));
 
+  // 흐름 요약: 공정 단계별 대수(그중 지금 작업 중인 차)
+  const stageCount = Object.fromEntries(TB_STAGE_KEYS.map((k) => [k, { n: 0, doing: 0 }])) as Record<TbStage, { n: number; doing: number }>;
+  for (const c of board) {
+    stageCount[c.stage].n++;
+    if (c.doing) stageCount[c.stage].doing++;
+  }
+  const gone: TvGone[] = (scope.workplaceId ? [] : outToday).map((o) => ({ id: o.id, plate: o.plate, model: o.model ?? "", at: hhmm(o.at!), orderNo: orderOf(o.consultationId) }));
+
   return {
     shop: shop.name,
     scope: scope.label ?? null,
@@ -228,6 +264,8 @@ export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label
       ready: board.filter((c) => c.state === "ready").length,
       late: board.filter((c) => c.late > 0).length,
     },
+    flow: { inToday: inTodayRows.length, outToday: gone.length, stages: stageCount },
+    gone,
     cars: board,
     incoming,
     outgoing,
@@ -235,47 +273,63 @@ export async function tvBoard(db: Db, now = new Date(), scope: TvScope & { label
 }
 
 // ── TV 링크(로그인 없이 읽기 전용)
-const KEY = "tv";
+// 전체 현황판(tv)과 테크베이용 현황판(tv-techbay)은 열쇠가 따로다. 테크베이 쪽에 링크를 건네도 전체 현황판은 못 본다.
+export type TvBoardKind = "all" | "techbay";
+const KEYS: Record<TvBoardKind, string> = { all: "tv", techbay: "tv-techbay" };
 type TvConfig = { tokenEnc: string | null; tokenHash: string | null; tokenAt: string | null };
 const EMPTY: TvConfig = { tokenEnc: null, tokenHash: null, tokenAt: null };
 
-async function loadCfg(db: Db): Promise<TvConfig> {
-  const [row] = await db.select().from(appConfig).where(eq(appConfig.key, KEY));
+async function loadCfg(db: Db, kind: TvBoardKind): Promise<TvConfig> {
+  const [row] = await db.select().from(appConfig).where(eq(appConfig.key, KEYS[kind]));
   return { ...EMPTY, ...((row?.data ?? {}) as Partial<TvConfig>) };
 }
 
 /** 대표(설정 변경 권한)에게만 지금 링크의 열쇠를 보여 준다 */
-export async function tvLinkView(db: Db, actor: { roles: Role[] }) {
-  const cfg = await loadCfg(db);
+export async function tvLinkView(db: Db, actor: { roles: Role[] }, kind: TvBoardKind = "all") {
+  const cfg = await loadCfg(db, kind);
   const owner = can(actor, "settings.edit");
   return { token: owner && cfg.tokenEnc ? decrypt(cfg.tokenEnc) : null, made: !!cfg.tokenHash, at: cfg.tokenAt, canEdit: owner };
 }
 
 /** TV 링크 열쇠 새로 만들기(예전 링크는 바로 막힘) */
-export async function issueTvToken(db: Db, actor: { id: string; roles: Role[] }, now = new Date()) {
+export async function issueTvToken(db: Db, actor: { id: string; roles: Role[] }, now = new Date(), kind: TvBoardKind = "all") {
   if (!can(actor, "settings.edit")) throw new UserError("TV 링크는 대표만 만듭니다");
   const token = randomToken(24);
   const data: TvConfig = { tokenEnc: encrypt(token), tokenHash: sha256(token), tokenAt: now.toISOString() };
+  const key = KEYS[kind];
   await db
     .insert(appConfig)
-    .values({ key: KEY, data, updatedBy: actor.id, updatedAt: now })
+    .values({ key, data, updatedBy: actor.id, updatedAt: now })
     .onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: now } });
-  await writeAudit(db, { actorId: actor.id, action: "tv.token_issue", entityType: "app_config", entityId: KEY });
+  await writeAudit(db, { actorId: actor.id, action: "tv.token_issue", entityType: "app_config", entityId: key });
   return token;
 }
 
 /** TV 링크 끊기(링크로는 더 못 봄. 로그인한 기기는 그대로 볼 수 있음) */
-export async function revokeTvToken(db: Db, actor: { id: string; roles: Role[] }, now = new Date()) {
+export async function revokeTvToken(db: Db, actor: { id: string; roles: Role[] }, now = new Date(), kind: TvBoardKind = "all") {
   if (!can(actor, "settings.edit")) throw new UserError("TV 링크는 대표만 끊습니다");
+  const key = KEYS[kind];
   await db
     .insert(appConfig)
-    .values({ key: KEY, data: EMPTY, updatedBy: actor.id, updatedAt: now })
+    .values({ key, data: EMPTY, updatedBy: actor.id, updatedAt: now })
     .onConflictDoUpdate({ target: appConfig.key, set: { data: EMPTY, updatedBy: actor.id, updatedAt: now } });
-  await writeAudit(db, { actorId: actor.id, action: "tv.token_revoke", entityType: "app_config", entityId: KEY });
+  await writeAudit(db, { actorId: actor.id, action: "tv.token_revoke", entityType: "app_config", entityId: key });
 }
 
-export async function tvTokenOk(db: Db, token: string | null | undefined) {
+/** 열쇠 확인. 테크베이용 현황판은 전체 TV 열쇠로도 열린다(반대는 안 됨) */
+export async function tvTokenOk(db: Db, token: string | null | undefined, kind: TvBoardKind = "all") {
   if (!token || token.length < 20) return false;
-  const cfg = await loadCfg(db);
+  const h = sha256(token);
+  const kinds: TvBoardKind[] = kind === "techbay" ? ["techbay", "all"] : ["all"];
+  for (const k of kinds) {
+    const cfg = await loadCfg(db, k);
+    if (cfg.tokenHash && cfg.tokenHash === h) return true;
+  }
+  return false;
+}
+
+/** 이 열쇠가 테크베이용 열쇠인가(그 TV는 정비소 밖에 있을 수 있어 출퇴근 장소 기억에 쓰지 않는다) */
+export async function isTechbayToken(db: Db, token: string) {
+  const cfg = await loadCfg(db, "techbay");
   return !!cfg.tokenHash && cfg.tokenHash === sha256(token);
 }

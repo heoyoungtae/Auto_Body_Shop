@@ -15,8 +15,9 @@ export default async function TvSettingsPage({ searchParams }: { searchParams: P
   const { error, notice } = await searchParams;
   const user = await requireUser();
   const db = await getDb();
-  const v = await tvLinkView(db, user);
+  const [v, tb] = await Promise.all([tvLinkView(db, user), tvLinkView(db, user, "techbay")]);
   const url = v.token ? `${appUrl()}/tv?k=${v.token}` : null;
+  const tbUrl = tb.token ? `${appUrl()}/tv/techbay?k=${tb.token}` : null;
   // 지점·작업장만 보는 TV 링크(같은 열쇠에 b=·w= 를 붙임). 지점은 둘 이상일 때만
   const [branches, wps] = await Promise.all([listBranches(db), listWorkplaces(db, { activeOnly: true })]);
   const scoped = [
@@ -94,6 +95,48 @@ export default async function TvSettingsPage({ searchParams }: { searchParams: P
             {!url && v.canEdit && <p className="mt-2 text-xs text-[var(--muted)]">TV 링크를 먼저 만들면 여기서 작업장별 TV 링크를 복사할 수 있습니다.</p>}
           </Card>
         )}
+        <Card title="테크베이용 현황판 링크" help={{ kind: "panel", id: "tv.techbay" }}>
+          <p className="mb-2 text-sm text-[var(--muted)]">
+            테크베이 고객 차만, 공정별 색으로 보여 줍니다. 위쪽은 오늘 입고 → 각 공정 → 출고 대기 → 오늘 출고 순서이고, 입고·출고 예정 칸은 없습니다. 열쇠가 따로라 테크베이 쪽에 건네도 다른 손님 차는 보이지 않습니다.{" "}
+            <Link href="/tv/techbay" className="text-[var(--accent)] hover:underline">
+              앱에서 열기
+            </Link>
+          </p>
+          {tb.canEdit ? (
+            <div className="space-y-2 text-sm">
+              {tbUrl ? (
+                <>
+                  <p className="break-all rounded-md bg-[var(--surface-2)] px-3 py-2 font-mono text-xs">{tbUrl}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CopyButton text={tbUrl} label="링크 복사" />
+                    <a href={tbUrl} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
+                      새 창으로 열기
+                    </a>
+                    <form action={tvLinkAction}>
+                      <input type="hidden" name="intent" value="issue" />
+                      <input type="hidden" name="board" value="techbay" />
+                      <SubmitButton variant="danger">새로 만들기(예전 링크 막기)</SubmitButton>
+                    </form>
+                    <form action={tvLinkAction}>
+                      <input type="hidden" name="intent" value="revoke" />
+                      <input type="hidden" name="board" value="techbay" />
+                      <SubmitButton variant="secondary">링크 끊기</SubmitButton>
+                    </form>
+                  </div>
+                  <p className="text-xs text-[var(--muted)]">만든 때 {tb.at ? fmtTime(tb.at) : "-"}.</p>
+                </>
+              ) : (
+                <form action={tvLinkAction}>
+                  <input type="hidden" name="intent" value="issue" />
+                  <input type="hidden" name="board" value="techbay" />
+                  <SubmitButton>테크베이용 링크 만들기</SubmitButton>
+                </form>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">{tb.made ? "테크베이용 링크가 만들어져 있습니다." : "아직 테크베이용 링크가 없습니다."} 링크는 대표가 만들고 관리합니다.</p>
+          )}
+        </Card>
         <Card title="TV에 띄우는 방법" help={{ kind: "panel", id: "tv.howto" }}>
           <ol className="list-decimal space-y-1 pl-5 text-sm">
             <li>

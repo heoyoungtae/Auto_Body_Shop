@@ -109,3 +109,40 @@ export function lateDays(due: string | null, today: string): number {
 export function sortBoard<T extends { late: number; due: string | null; inAt: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => b.late - a.late || (a.due ?? "9999").localeCompare(b.due ?? "9999") || a.inAt.localeCompare(b.inAt));
 }
+
+// ── 테크베이용 현황판(대표 요청 2026-11-20): 색을 상태가 아니라 공정별로 쓴다.
+// 공정 13개를 TV에서 한눈에 볼 수 있게 단계로 묶는다(작업 흐름 순서). 대표 요청(2026-11-20): 입고·견적은 따로, 탈부착·판금 한 칸, 조립·검사 한 칸. 덴트·도장 준비·광택은 칸을 두지 않는다(덴트는 판금, 퍼티·조색·마스킹·광택은 도장 칸에 셈). 상단 요약은 '오늘 입고 → 각 공정 → 출고 대기 → 오늘 출고'.
+// 색은 어두운 배경에서 서로 구분되는 Okabe-Ito 계열 + 보라·회색. 주홍(#D55E00)은 지연 덧표시 전용이라 쓰지 않는다.
+export const TB_STAGES = {
+  intake: { label: "입고", color: "#9AA3AB", procs: [] as string[], help: "입고 점검·진단" },
+  est: { label: "견적", color: "#CC79A7", procs: [] as string[], help: "견적 작성, 승인·손해사정 대기" },
+  body: { label: "탈부착·판금", color: "#3D7BE0", procs: ["detach", "sheet", "dent", "outsource"], help: "탈부착·판금·용접, 계측 같은 외주(덴트 공정도 여기에 셈)" },
+  paint: { label: "도장·건조", color: "#E69F00", procs: ["putty", "color", "mask", "paint", "dry", "polish"], help: "도장 부스·건조(퍼티·조색·마스킹·광택 공정도 여기에 셈)" },
+  assemble: { label: "조립·검사", color: "#B39DDB", procs: ["assemble", "calibrate", "rework"], help: "조립·작동 확인, 센서·카메라 보정, 최종 검사·재작업" },
+  ready: { label: "출고 대기", color: "#009E73", procs: [] as string[], help: "검사 끝, 고객 인도 대기" },
+} as const;
+export type TbStage = keyof typeof TB_STAGES;
+export const TB_STAGE_KEYS = Object.keys(TB_STAGES) as TbStage[];
+
+/** 공정 → 테크베이 현황판 단계 */
+export function stageOfProcess(process: string): TbStage {
+  for (const k of TB_STAGE_KEYS) if ((TB_STAGES[k].procs as readonly string[]).includes(process)) return k;
+  return "assemble";
+}
+
+/**
+ * 차 한 대가 지금 어느 공정 단계에 있나.
+ * 입고 점검은 intake, 견적·승인(작업 지시 전)은 est, 검사는 조립·검사(공정 다 끝나고 검사 기다림 포함), 출고 대기는 ready.
+ * 공정 중이면 그 공정, 대기·부품·외주 대기면 다음에 할 공정 단계에 서 있는 것으로 본다.
+ */
+export function tbStageOf(state: TvState, steps: { process: string; started: boolean; ended: boolean }[]): { stage: TbStage; doing: boolean } {
+  if (state === "in" || state === "plan") return { stage: "intake", doing: false };
+  if (state === "est") return { stage: "est", doing: false };
+  if (state === "ready" || state === "out") return { stage: "ready", doing: false };
+  if (state === "qc") return { stage: "assemble", doing: true };
+  const cur = steps.find((s) => s.started && !s.ended);
+  if (cur) return { stage: stageOfProcess(cur.process), doing: state === "work" };
+  const next = steps.find((s) => !s.ended);
+  if (next) return { stage: stageOfProcess(next.process), doing: false };
+  return { stage: steps.length ? "assemble" : "est", doing: false };
+}

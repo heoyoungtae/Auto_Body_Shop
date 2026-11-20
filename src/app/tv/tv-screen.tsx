@@ -12,14 +12,14 @@ const REFRESH_MS = 30_000;
 const PAGE_MS = 10_000;
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 
-function seoulNow(d: Date) {
+export function seoulNow(d: Date) {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short" }).formatToParts(d).map((x) => [x.type, x.value]));
   const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
   return { date: `${p.year}년 ${p.month}월 ${p.day}일 (${WEEK[wd]})`, time: `${p.hour === "24" ? "00" : p.hour}:${p.minute}`, hour: Number(p.hour) % 24 };
 }
 
 /** 차량번호: 한글(용도 글자) 앞뒤를 띄워 숫자와 구분(12가3456 → 12가 3456) */
-const plateText = (p: string) => p.replace(/^(\d{2,3})([가-힣])(\d{4})$/, "$1$2 $3");
+export const plateText = (p: string) => p.replace(/^(\d{2,3})([가-힣])(\d{4})$/, "$1$2 $3");
 
 function Chip({ state, small }: { state: TvState; small?: boolean }) {
   const s = TV_STATES[state];
@@ -254,12 +254,12 @@ function Tile({ n, label, color, warn }: { n: number; label: string; color: stri
   );
 }
 
-function toggleFs() {
+export function toggleFs() {
   if (document.fullscreenElement) void document.exitFullscreen();
   else void document.documentElement.requestFullscreen?.().catch(() => {});
 }
 
-const CSS = `
+export const CSS = `
 /* 도움말 창은 TV 화면(z 80)보다 위에 연다 */
 #help-drawer{z-index:90}
 .tv-root{position:fixed;inset:0;z-index:80;background:#0c1524;color:#eef3fa;overflow:hidden;font-size:clamp(12px,1.95vh,24px);font-family:inherit}
@@ -284,7 +284,9 @@ const CSS = `
 .tv-pg{margin-left:auto;display:flex;gap:.35em}.tv-pg i{width:.55em;height:.55em;border-radius:50%;background:#2a3e5c}.tv-pg i.on{background:#cfe0ff}
 .tv-rows{flex:1;min-height:0;display:flex;flex-direction:column;gap:.3em;overflow:hidden}
 .tv-row{display:grid;grid-template-columns:10.5em 7.5em 9.5em minmax(0,1fr) 6.5em;align-items:center;gap:.6em;background:#142235;border:1px solid #24364f;border-left:.5em solid var(--c);border-radius:.45em;padding:0 .7em;height:5.6vh;min-height:2.6em;flex:none}
-.tv-row.th{background:none;border-color:transparent;height:auto;min-height:0;color:#9fb0c6;font-size:.8em;padding-bottom:.2em}
+/* 칸 폭이 em 이라 제목 줄 글자 크기는 줄 전체가 아니라 칸 글자에만 준다(줄 전체를 줄이면 칸 폭도 줄어 어긋남). 왼쪽 띠도 차 줄과 같은 폭으로 둔다 */
+.tv-row.th{background:none;border:1px solid transparent;border-left:.5em solid transparent;height:auto;min-height:0;color:#9fb0c6;padding-bottom:.2em}
+.tv-row.th>span{font-size:.8em}
 .tv-row.late{box-shadow:inset 0 0 0 3px var(--late)}
 .tv-row.hold{border-left-style:dashed}
 .tv-row>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
