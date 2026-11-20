@@ -128,7 +128,16 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
     for (const e of body.events.slice(0, 500).map(cleanEvent)) if (e && !seen.has(key(e))) (seen.add(key(e)), all.push(e));
     next.history = all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, HISTORY_MAX);
   }
-  if (body.status) next.status = { ...cleanStatus(body.status), at: now.toISOString() };
+  if (body.status) {
+    next.status = { ...cleanStatus(body.status), at: now.toISOString() };
+    // 새 버전이 생기면 대표에게 바로 알린다(같은 버전은 한 번만). 미니 PC 가 1분마다 GitHub 끝 번호를 본다
+    const st = next.status;
+    if (st.behind > 0 && st.latest && st.latest !== d.status?.latest) {
+      const first = st.pending[0];
+      const what = first ? `${first.title}${first.pr ? ` (#${first.pr})` : ""}${st.pending.length > 1 ? ` 외 ${st.pending.length - 1}개` : ""}` : `${st.behind}개 변경`;
+      await notifyRole(db, "owner", `새 버전 있음: ${what} — 지금 올리거나 밤 21:30에 저절로 올라갑니다`, `server-new:${st.latest}`, "/settings/server");
+    }
+  }
   if (body.result) {
     const result: UpdateResult = { at: now.toISOString(), ok: body.result.ok === true, message: s(body.result.message, 300) };
     next.result = result;
