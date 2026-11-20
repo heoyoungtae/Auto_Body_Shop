@@ -87,7 +87,21 @@ export type UpdateResult = { at: string; ok: boolean; message: string };
 export type AutoUpdate = { on: boolean; time: string };
 export const AUTO_DEFAULT: AutoUpdate = { on: true, time: "21:30" };
 const autoText = (a: AutoUpdate) => (a.on ? `매일 ${a.time}에 저절로 올라갑니다` : "자동 올리기는 꺼져 있습니다");
+/** 새 버전 올리기 진행 단계(대표 2026-11-20 '진행 바'). 미니 PC 가 지금 도는 프로그램으로 알아내 알려 준다 */
+export const STAGES = ["새 버전 받기", "올리기 전 백업", "새 버전 만들기", "바꿔 끼우기", "열리는지 확인", "정리"] as const;
+const STAGE_START = [0, 5, 15, 85, 93, 98];
+const STAGE_WIDTH = [5, 10, 70, 8, 5, 2];
+const STAGE_SEC = [20, 30, 300, 20, 30, 10];
+export type Progress = { stage: number; stageAt: string };
+/** 진행률(%): 단계 시작점 + 그 단계에서 지난 시간/보통 걸리는 시간(만들기는 지난번 걸린 시간). 단계 안에서는 95%에서 멈춘다 */
+export function progressPct(stage: number, stageSec: number, lastBuildSec?: number | null) {
+  const i = Math.max(0, Math.min(STAGES.length - 1, stage));
+  const expect = i === 2 && lastBuildSec && lastBuildSec > 30 ? lastBuildSec : STAGE_SEC[i];
+  return Math.round(STAGE_START[i] + STAGE_WIDTH[i] * Math.min(0.95, Math.max(0, stageSec) / expect));
+}
 type Data = {
+  progress?: Progress | null;
+  lastBuildSec?: number | null;
   auto?: AutoUpdate; status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
 
 async function load(db: Db): Promise<Data> {
@@ -111,7 +125,11 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   // 요청했는데 15분이 지나도 안 가져갔으면 막지 않고 다시 누를 수 있게
   const pending = !!req && !req.taken && now - Date.parse(req.at) < 15 * 60_000;
   const running = !!req?.taken && (!d.result || Date.parse(d.result.at) < Date.parse(req.taken)) && now - Date.parse(req.taken) < 30 * 60_000;
-  return { health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  const pg = running && d.progress ? d.progress : null;
+  const progress = pg
+    ? { stage: pg.stage, label: STAGES[pg.stage] ?? "", pct: progressPct(pg.stage, (now - Date.parse(pg.stageAt)) / 1000, d.lastBuildSec), sinceMin: Math.floor((now - Date.parse(req!.taken!)) / 60_000) }
+    : null;
+  return { progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -190,7 +208,7 @@ function cleanEvent(x: unknown): UpdateEvent | null {
 
 /** 미니 PC agent 가 1분마다 부른다. status 가 있으면 저장, result 가 있으면 올리기 결과 저장.
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
-export async function agentReport(db: Db, body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[] }, now = new Date()) {
+export async function agentReport(db: Db, body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown } }, now = new Date()) {
   const d = await load(db);
   const next: Data = { ...d };
   if (Array.isArray(body.events) && body.events.length) {
@@ -223,6 +241,15 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
   // 올리는 중인데 결과가 안 왔어도, 이력에 단추로 올린 줄이 오거나 돌고 있는 버전이 바뀌면 끝난 것으로 본다
   // (예전 agent.sh 는 새 버전으로 바뀌는 도중 결과를 못 보낼 수 있었다)
   const taken = d.request?.taken ? Date.parse(d.request.taken) : 0;
+  // 진행 단계: 앞으로만 간다. 만들기 단계를 마치면 걸린 시간을 기억해 다음 진행 바에 쓴다
+  if (body.progress && taken && !(d.result && Date.parse(d.result.at) >= taken)) {
+    const st = Math.max(0, Math.min(STAGES.length - 1, Math.floor(Number(body.progress.stage) || 0)));
+    const prev = d.progress ?? null;
+    if (!prev || st > prev.stage) {
+      if (prev?.stage === 2) next.lastBuildSec = Math.round((now.getTime() - Date.parse(prev.stageAt)) / 1000);
+      next.progress = { stage: st, stageAt: now.toISOString() };
+    }
+  }
   const open = taken && !(d.result && Date.parse(d.result.at) >= taken);
   if (open && !body.result) {
     const takenMin = new Date(taken + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
@@ -242,6 +269,7 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
   const req = d.request;
   if (req && !req.taken && now.getTime() - Date.parse(req.at) < 60 * 60_000) {
     next.request = { ...req, taken: now.toISOString(), fromVersion: next.status?.version ?? d.status?.version ?? "" };
+    next.progress = { stage: 0, stageAt: now.toISOString() };
     update = true;
   }
   await save(db, next);

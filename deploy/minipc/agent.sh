@@ -158,7 +158,26 @@ if [ "$(jq -r '.update // false' <<<"${res:-null}" 2>/dev/null)" = true ]; then
   echo "$(TZ=Asia/Seoul date '+%F %R') 앱 설정에서 새 버전 올리기 요청" >> "$HOME/update.log"
   # 예약 자동 올리기(예전 고정 21:30 포함)가 돌고 있으면 끝날 때까지 기다린 뒤 한 번 더 확인한다(새 버전이 없으면 '이미 최신')
   for i in $(seq 1 180); do pgrep -f 'minipc/update\.sh' >/dev/null || break; sleep 10; done
-  if bash "$DEPLOY/minipc/update.sh" >> "$HOME/update.log" 2>&1; then ok=true; else ok=false; fi
+  # 진행 바(대표 2026-11-20): update.sh 를 뒤에서 돌리고, 지금 도는 프로그램으로 단계를 알아내 앱에 알린다.
+  # 0 새 버전 받기 · 1 올리기 전 백업 · 2 새 버전 만들기 · 3 바꿔 끼우기 · 4 열리는지 확인 · 5 정리
+  bash "$DEPLOY/minipc/update.sh" >> "$HOME/update.log" 2>&1 &
+  upid=$!
+  stage=0; sent=-1; last=0
+  while kill -0 "$upid" 2>/dev/null; do
+    now_s=$(date +%s); d=-1
+    if pgrep -f 'image prune|builder prune' >/dev/null; then d=5
+    elif pgrep -P "$upid" -x sleep >/dev/null && [ "$stage" -ge 3 ]; then d=4
+    elif pgrep -f 'compose (up|restart)' >/dev/null; then d=3
+    elif pgrep -f 'compose build' >/dev/null; then d=2
+    elif pgrep -x pg_dump >/dev/null || pgrep -f 'pg_dump' >/dev/null; then d=1
+    fi
+    [ "$d" -gt "$stage" ] && stage=$d
+    if [ "$stage" != "$sent" ] || [ $((now_s - last)) -ge 20 ]; then
+      post "$(jq -nc --argjson st "$stage" '{progress:{stage:$st}}')" >/dev/null && { sent=$stage; last=$now_s; }
+    fi
+    sleep 3
+  done
+  if wait "$upid"; then ok=true; else ok=false; fi
   msg=$(tail -n 1 "$HOME/update.log")
   result=$(jq -nc --argjson ok $ok --arg m "$msg" '{result:{ok:$ok,message:$m}}')
 elif [ -n "$want" ]; then
