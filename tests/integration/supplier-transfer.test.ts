@@ -44,6 +44,19 @@ describe("협력업체 내보내기·가져오기", () => {
     expect(got).toMatchObject({ status: "candidate", bizNo: "220-81-62517", contactName: "김영업", bankName: "국민", bankHolder: "한빛도료", bankChangedBy: b.owner, bankVerifiedAt: null });
     expect(decrypt(got.bankAccountEnc!)).toBe("12345678901234");
     expect(got.docFiles.map((f) => f.doc).sort()).toEqual(["bankbook", "biz"]);
+    // 앞서 계좌 없이(공장장 파일로) 가져온 업체에 대표 파일로 다시 가져오면 비어 있는 계좌·통장 사본만 채운다
+    const dst2 = await testDb();
+    const c = await seedShop(dst2);
+    const noBank = JSON.stringify(await exportSuppliers(src, pm));
+    await importSuppliers(dst2, { id: c.owner, roles: ["owner"] }, noBank);
+    const [before] = await dst2.select().from(supplier).where(eq(supplier.name, "한빛도료"));
+    expect(before.bankAccountEnc).toBeNull();
+    const fill = await importSuppliers(dst2, { id: c.owner, roles: ["owner"] }, text);
+    expect(fill.added).toHaveLength(0);
+    expect(fill.filled).toEqual([{ name: "한빛도료", bank: true, files: 1 }]);
+    const [after] = await dst2.select().from(supplier).where(eq(supplier.name, "한빛도료"));
+    expect(decrypt(after.bankAccountEnc!)).toBe("12345678901234");
+    expect(after.docFiles.map((f) => f.doc).sort()).toEqual(["bankbook", "biz"]);
     // 두 번 올려도 겹치지 않는다
     const again = await importSuppliers(dst, pm2, text);
     expect(again.added).toHaveLength(0);

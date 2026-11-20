@@ -11,7 +11,7 @@ import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
 import { readStored } from "@/modules/platform/storage";
 import { decrypt } from "@/modules/auth/crypto";
-import { addSupplierDocFiles, createSupplier, SupplierError } from "./supplier";
+import { addSupplierDocFiles, createSupplier, setSupplierBank, SupplierError } from "./supplier";
 
 type Actor = { id: string; roles: Role[] };
 export const TRANSFER_FORMAT = "auto-body-shop/suppliers";
@@ -74,7 +74,7 @@ export async function exportSuppliers(db: Db, actor: Actor, statuses: string[] =
   return { format: TRANSFER_FORMAT, version: 1, exportedAt: now.toISOString(), suppliers: out };
 }
 
-export type ImportResult = { added: { id: string; name: string; files: number; bank: boolean }[]; skipped: { name: string; why: string }[] };
+export type ImportResult = { filled: { name: string; bank: boolean; files: number }[]; added: { id: string; name: string; files: number; bank: boolean }[]; skipped: { name: string; why: string }[] };
 
 /** 가져오기: 모두 후보로 넣는다. 한 업체가 틀려도 나머지는 넣고 이유를 알려 준다 */
 export async function importSuppliers(db: Db, actor: Actor, raw: string, now = new Date()): Promise<ImportResult> {
@@ -88,10 +88,14 @@ export async function importSuppliers(db: Db, actor: Actor, raw: string, now = n
   if (pack?.format !== TRANSFER_FORMAT || !Array.isArray(pack.suppliers)) throw new SupplierError("협력업체 내보내기 파일이 아닙니다");
   if (pack.suppliers.length > 500) throw new SupplierError("한 번에 500곳까지 가져옵니다");
   const withBank = can(actor, "supplier.bank");
-  const have = await db.select({ name: supplier.name, bizNo: supplier.bizNo }).from(supplier);
-  const bizSet = new Set(have.map((h) => h.bizNo?.replace(/\D/g, "")).filter(Boolean));
-  const nameSet = new Set(have.map((h) => h.name.trim()));
-  const res: ImportResult = { added: [], skipped: [] };
+  const have = await db.select({ id: supplier.id, name: supplier.name, bizNo: supplier.bizNo, bankAccountEnc: supplier.bankAccountEnc, docFiles: supplier.docFiles }).from(supplier);
+  const byBiz = new Map(have.filter((h) => h.bizNo).map((h) => [h.bizNo!.replace(/\D/g, ""), h]));
+  const byName = new Map(have.map((h) => [h.name.trim(), h]));
+  const bizSet = new Set(byBiz.keys());
+  const nameSet = new Set(byName.keys());
+  const res: ImportResult = { filled: [], added: [], skipped: [] };
+  const bankbookOf = (s: TransferSupplier) =>
+    (Array.isArray(s.files) ? s.files : []).filter((f) => f && f.doc === "bankbook" && typeof f.data === "string").map((f) => ({ doc: "bankbook", name: String(f.name ?? ""), bytes: new Uint8Array(Buffer.from(f.data, "base64")) }));
   for (const s of pack.suppliers) {
     const name = String(s?.name ?? "").trim();
     const biz = String(s?.bizNo ?? "").replace(/\D/g, "");
@@ -100,6 +104,24 @@ export async function importSuppliers(db: Db, actor: Actor, raw: string, now = n
       continue;
     }
     if (biz ? bizSet.has(biz) : nameSet.has(name)) {
+      // 이미 있는 업체: 앞서 계좌 없이 가져온 경우를 위해, 비어 있는 입금 계좌·통장 사본만 채운다(있는 값은 건드리지 않음)
+      const cur = biz ? byBiz.get(biz) : byName.get(name);
+      if (withBank && cur) {
+        let bank = false;
+        let files = 0;
+        if (!cur.bankAccountEnc && s.bank?.accountNo) {
+          const ok = await setSupplierBank(db, actor, cur.id, { bankName: String(s.bank.bankName ?? ""), accountNo: String(s.bank.accountNo), holder: String(s.bank.holder ?? "") }, now).then(
+            () => true,
+            () => false,
+          );
+          bank = ok;
+        }
+        if (!cur.docFiles.some((f) => f.doc === "bankbook")) for (const u of bankbookOf(s)) files += await addSupplierDocFiles(db, actor, cur.id, [u], now).catch(() => 0);
+        if (bank || files) {
+          res.filled.push({ name, bank, files });
+          continue;
+        }
+      }
       res.skipped.push({ name, why: biz ? "같은 사업자등록번호의 업체가 이미 있습니다" : "같은 이름의 업체가 이미 있습니다" });
       continue;
     }
@@ -138,6 +160,6 @@ export async function importSuppliers(db: Db, actor: Actor, raw: string, now = n
       res.skipped.push({ name, why: e instanceof Error ? e.message : "넣지 못했습니다" });
     }
   }
-  await writeAudit(db, { actorId: actor.id, action: "supplier.import", entityType: "supplier", entityId: "import", after: { added: res.added.length, accounts: res.added.filter((a) => a.bank).length, skipped: res.skipped.length, from: pack.exportedAt } });
+  await writeAudit(db, { actorId: actor.id, action: "supplier.import", entityType: "supplier", entityId: "import", after: { added: res.added.length, filled: res.filled.length, accounts: res.added.filter((a) => a.bank).length, skipped: res.skipped.length, from: pack.exportedAt } });
   return res;
 }
