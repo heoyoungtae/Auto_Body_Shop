@@ -72,9 +72,8 @@ export function TechbayScreen({ initial, k, signedIn, help }: { initial: TvData;
     return () => ro.disconnect();
   }, []);
 
-  // 목록: 입고 중 차 + 맨 아래 오늘 출고한 차(흐리게)
-  type Row = { kind: "car"; c: TvCar } | { kind: "gone"; g: TvData["gone"][number] };
-  const rows: Row[] = [...data.cars.map((c) => ({ kind: "car" as const, c })), ...data.gone.map((g) => ({ kind: "gone" as const, g }))];
+  // 목록은 입고 중 차만(오늘 출고한 차는 위 '오늘 출고' 숫자에만. 대표 지시 2026-11-20)
+  const rows = data.cars;
   const pages = Math.max(1, Math.ceil(rows.length / per));
   useEffect(() => {
     if (pages < 2) return setPage(0);
@@ -162,21 +161,20 @@ export function TechbayScreen({ initial, k, signedIn, help }: { initial: TvData;
             <span className="r">출고 약속</span>
           </div>
           <div className="tv-rows" ref={listRef}>
-            {shown.map((r) =>
-              r.kind === "car" ? (
-                <div key={r.c.id} className={`tv-row tb${r.c.late ? " late" : ""}${r.c.state === "hold" ? " hold" : ""}`} style={{ ["--c" as string]: TB_STAGES[r.c.stage].color }}>
-                  <span className="plate">{plateText(r.c.plate)}</span>
-                  <span className="model">{r.c.model}</span>
-                  <span className="ord">{r.c.orderNo ?? "-"}</span>
+            {shown.map((c) => (
+                <div key={c.id} className={`tv-row tb${c.late ? " late" : ""}${c.state === "hold" ? " hold" : ""}`} style={{ ["--c" as string]: TB_STAGES[c.stage].color }}>
+                  <span className="plate">{plateText(c.plate)}</span>
+                  <span className="model">{c.model}</span>
+                  <span className="ord">{c.orderNo ?? "-"}</span>
                   <span>
-                    <b className={`tv-chip${r.c.doing ? "" : " tb-wait"}`} style={{ ["--c" as string]: TB_STAGES[r.c.stage].color, color: r.c.doing ? "#0b0f14" : undefined }}>
-                      {TB_STAGES[r.c.stage].label}
+                    <b className={`tv-chip${c.doing ? "" : " tb-wait"}`} style={{ ["--c" as string]: TB_STAGES[c.stage].color, color: c.doing ? "#0b0f14" : undefined }}>
+                      {TB_STAGES[c.stage].label}
                     </b>
                   </span>
                   <span className="proc">
                     <span className="now">
-                      <span aria-hidden>{TV_STATES[r.c.state].icon}</span> {TV_STATES[r.c.state].label} · {r.c.sub}
-                      {r.c.tags
+                      <span aria-hidden>{TV_STATES[c.state].icon}</span> {TV_STATES[c.state].label} · {c.sub}
+                      {c.tags
                         .filter((t) => t !== "테크베이")
                         .map((t) => (
                           <span key={t} className="tag">
@@ -184,29 +182,12 @@ export function TechbayScreen({ initial, k, signedIn, help }: { initial: TvData;
                           </span>
                         ))}
                     </span>
-                    <StageSegs c={r.c} />
+                    <StageSegs c={c} />
                   </span>
-                  <span className="r indate">{inDay(r.c.inAt)}</span>
-                  <span className={`due${r.c.late ? " late" : ""}`}>{r.c.late ? `⚠ ${r.c.late}일 지연` : r.c.dueWord}</span>
+                  <span className="r indate">{inDay(c.inAt)}</span>
+                  <span className={`due${c.late ? " late" : ""}`}>{c.late ? `⚠ ${c.late}일 지연` : c.dueWord}</span>
                 </div>
-              ) : (
-                <div key={`g-${r.g.id}`} className="tv-row tb gone" style={{ ["--c" as string]: TV_STATES.out.color }}>
-                  <span className="plate">{plateText(r.g.plate)}</span>
-                  <span className="model">{r.g.model}</span>
-                  <span className="ord">{r.g.orderNo ?? "-"}</span>
-                  <span>
-                    <b className="tv-chip" style={{ ["--c" as string]: TV_STATES.out.color, color: TV_STATES.out.fg }}>
-                      ✓ 출고함
-                    </b>
-                  </span>
-                  <span className="proc">
-                    <span className="now">오늘 {r.g.at} 출고</span>
-                  </span>
-                  <span />
-                  <span className="due">오늘</span>
-                </div>
-              ),
-            )}
+            ))}
             {!rows.length && <div className="tv-empty">입고 중인 테크베이 차가 없습니다.</div>}
           </div>
         </main>
@@ -257,7 +238,6 @@ const TB_CSS = `
 .tv-row.tb{grid-template-columns:10.5em 8em 8em 9em minmax(0,1fr) 4.5em 7em}
 .tv-row.tb .ord{color:#c8d5e6;font-variant-numeric:tabular-nums}
 .tv-row.tb .indate{color:#9fb0c6;font-variant-numeric:tabular-nums}
-.tv-row.gone{opacity:.55}
 .tb-wait{background:none!important;border:3px solid var(--c);color:#eef3fa;padding:0 .5em}
 .tv-segs.tb i{background:var(--c)}.tv-segs.tb i.f{opacity:.25}.tv-segs.tb i.n{box-shadow:0 0 0 2px #ffffff}
 @media (max-width:900px){.tb-flow{flex-wrap:wrap}.tb-arr{display:none}.tb-tile{flex:1 0 22%}.tb-main{flex:none}.tv-row.tb{grid-template-columns:minmax(0,1fr) auto auto}.tv-row.tb .ord,.tv-row.tb .indate,.tv-row.tb>span:nth-child(5){display:none}}
