@@ -28,6 +28,15 @@ changes() {
          title: (((.[1] // "") | split("\n") | map(select(length > 0)) | .[0]) // .[0])}) | .[:40]' 2>/dev/null || echo '[]'
 }
 
+# 날짜 버전(대표 2026-11-20): 26.11.20-7 = 2026-11-20(서울)에 병합된 7번째 변경. 기본 브랜치의 병합 순서로 매긴다
+verlabel() {
+  [ -n "${1:-}" ] || return 0
+  local days d
+  days=$(sudo -u "$OWNER" env TZ=Asia/Seoul git -C "$REPO" log --first-parent --format=%cd --date=format-local:%y.%m.%d -300 "$1" 2>/dev/null) || return 0
+  d=$(head -n 1 <<<"$days"); [ -n "$d" ] || return 0
+  echo "$d-$(grep -cx "$d" <<<"$days")"
+}
+
 # 업데이트 이력: update.log 의 새 줄에서 올림·실패를 찾고, 터미널에서 올린 것(기록 없이 버전이 바뀜)도 잡는다.
 # 처음 한 번은 update.log 전체를 읽어 그동안의 이력도 보낸다. 앱에 잘 보낸 뒤에만 읽은 자리를 옮긴다.
 history_events() {
@@ -48,7 +57,8 @@ history_events() {
     [ -z "$at" ] && continue
     ch='[]'; [ "$kind" = ok ] && [ -n "$from" ] && ch=$(changes "$from" "$to")
     out=$(jq -c --arg at "$at" --arg how "$how" --argjson ok "$([ "$kind" = ok ] && echo true || echo false)" --arg from "$from" --arg to "$to" --arg msg "$msg" --argjson ch "${ch:-[]}" \
-      '. + [{at:$at,how:$how,ok:$ok,from:$from,to:$to,message:$msg,changes:$ch}]' <<<"$out")
+      --arg fromLabel "$(verlabel "$from")" --arg toLabel "$(verlabel "$to")" \
+      '. + [{at:$at,how:$how,ok:$ok,from:$from,to:$to,fromLabel:$fromLabel,toLabel:$toLabel,message:$msg,changes:$ch}]' <<<"$out")
   done <<<"$tsv"
   # 기록 없이 버전이 바뀜 = 미니 PC 터미널에서 올림
   if [ -n "$last_v" ] && [ "$last_v" != "$now_v" ] && ! jq -e --arg v "$now_v" 'any(.[]; .to == $v)' <<<"$out" >/dev/null; then
@@ -86,6 +96,8 @@ if [ ! -f "$STATE/slow" ] || [ -n "$(find "$STATE/slow" -mmin +9 2>/dev/null)" ]
     ssdtemp=$(jq -r '.temperature.current // -1' <<<"$smart" 2>/dev/null || echo -1)
     ssdok=$(jq -r 'if .smart_status.passed == false then false else true end' <<<"$smart" 2>/dev/null || echo true)
   fi
+  latestlabel=""; [ -n "$latest" ] && latestlabel=$(verlabel FETCH_HEAD)
+  printf 'latestlabel=%s\n' "$latestlabel" > "$STATE/slow.label"
   printf 'latest=%s\nbehind=%s\npub=%s\nssdlife=%s\nssdtemp=%s\nssdok=%s\n' "$latest" "$behind" "$pub" "${ssdlife:--1}" "${ssdtemp:--1}" "${ssdok:-true}" > "$STATE/slow"
   # 아직 안 올라간 변경(병합 제목) 미리 보기
   if [ "${behind:-0}" -gt 0 ]; then changes HEAD FETCH_HEAD > "$STATE/pending.json"; else echo '[]' > "$STATE/pending.json"; fi
@@ -119,7 +131,7 @@ mode=tunnel; [ "${DIRECT:-}" = 1 ] && mode=direct
 
 status=$(jq -nc \
   --arg host "$(hostname)" --arg place "$place" --arg mode "$mode" \
-  --arg version "$(g rev-parse --short=7 HEAD)" --arg latest "$latest" --argjson behind "${behind:-0}" \
+  --arg version "$(g rev-parse --short=7 HEAD)" --arg versionLabel "$(verlabel HEAD)" --arg latest "$latest" --arg latestLabel "$(sed -n 's/^latestlabel=//p' "$STATE/slow.label" 2>/dev/null)" --argjson behind "${behind:-0}" \
   --arg lastUpdate "$(tail -n 1 "$HOME/update.log" 2>/dev/null)" --arg lastBackup "$(grep -v '^\s*$' "$HOME/backups.log" 2>/dev/null | tail -n 1)" \
   --arg disk "$(dfh /)" --arg backupDisk "$backup_disk" \
   --arg memory "$memory" --arg uptime "$(awk '{s=int($1); d=int(s/86400); h=int(s%86400/3600); m=int(s%3600/60); printf "%s%s%d분", (d?d"일 ":""), (d||h?h"시간 ":""), m}' /proc/uptime)" \
@@ -127,13 +139,20 @@ status=$(jq -nc \
   --arg services "$services" --arg ups "$ups" \
   --argjson cpuPct "$cpupct" --argjson cpuTemp "$cputemp" --argjson memPct "$mempct" --argjson diskPct "$diskpct" \
   --argjson ssdLife "$ssdlife" --argjson ssdTemp "$ssdtemp" --argjson ssdOk "$ssdok" --argjson rebootNeeded "$reboot" --arg bootAt "$bootat" \
-  '{cpuPct:$cpuPct,cpuTemp:$cpuTemp,memPct:$memPct,diskPct:$diskPct,ssdLife:$ssdLife,ssdTemp:$ssdTemp,ssdOk:$ssdOk,rebootNeeded:$rebootNeeded,bootAt:$bootAt,host:$host,place:$place,mode:$mode,version:$version,latest:$latest,behind:$behind,lastUpdate:$lastUpdate,lastBackup:$lastBackup,disk:$disk,backupDisk:$backupDisk,memory:$memory,uptime:$uptime,lanIp:$lanIp,publicIp:$publicIp,services:$services,ups:$ups}')
+  '{cpuPct:$cpuPct,cpuTemp:$cpuTemp,memPct:$memPct,diskPct:$diskPct,ssdLife:$ssdLife,ssdTemp:$ssdTemp,ssdOk:$ssdOk,rebootNeeded:$rebootNeeded,bootAt:$bootAt,host:$host,place:$place,mode:$mode,version:$version,versionLabel:$versionLabel,latest:$latest,latestLabel:$latestLabel,behind:$behind,lastUpdate:$lastUpdate,lastBackup:$lastBackup,disk:$disk,backupDisk:$backupDisk,memory:$memory,uptime:$uptime,lanIp:$lanIp,publicIp:$publicIp,services:$services,ups:$ups}')
 
 status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" '. + {pending: $p}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }
 events=$(history_events)
 res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end)')") || res=""
 if [ -n "$res" ]; then mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null; fi
+# 예전 이력에 날짜 버전을 채워 달라는 기록 번호가 있으면 계산해 보낸다
+need=$(jq -r '.labelsFor // [] | .[]' <<<"${res:-null}" 2>/dev/null | grep -E '^[0-9a-f]{7,12}$' | head -50)
+if [ -n "$need" ]; then
+  labels='{}'
+  while read -r sha; do labels=$(jq -c --arg k "$sha" --arg v "$(verlabel "$sha")" '. + {($k): $v}' <<<"$labels"); done <<<"$need"
+  post "$(jq -nc --argjson l "$labels" '{labels:$l}')" >/dev/null
+fi
 
 # 자동 올리기 설정(앱 설정 › 서버의 켜기·시각, 대표 2026-11-20). 받은 값을 저장해 두고 앱이 안 열릴 때도 마지막 값으로 돈다.
 auto=$(jq -c '.auto // empty' <<<"${res:-null}" 2>/dev/null)

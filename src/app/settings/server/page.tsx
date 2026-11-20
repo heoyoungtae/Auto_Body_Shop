@@ -41,7 +41,7 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
     ? [
         ["위치", `${PLACE[st.place] ?? (st.place || "-")} · ${st.host || "-"}`],
         ["접속 방식", MODE[st.mode] ?? (st.mode || "-")],
-        ["앱 버전", st.version || "-"],
+        ["앱 버전", st.versionLabel ? `${st.versionLabel} (${st.version})` : st.version || "-"],
         ["가동 시간", `${st.uptime || "-"}${st.bootAt ? ` (켠 때 ${st.bootAt.slice(0, 16)})` : ""}`],
         ["CPU", [st.cpuPct >= 0 ? `${st.cpuPct}% 사용` : "", st.cpuTemp >= 0 ? `온도 ${st.cpuTemp}℃` : ""].filter(Boolean).join(" · ") || "-"],
         ["SSD 건강", st.ssdOk === false ? "자체 진단 실패(교체 준비)" : [st.ssdLife >= 0 ? `수명 ${st.ssdLife}% 남음` : "", st.ssdTemp >= 0 ? `온도 ${st.ssdTemp}℃` : ""].filter(Boolean).join(" · ") || "-"],
@@ -79,11 +79,12 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
           <div className="space-y-3 text-sm">
             {st ? (
               <p>
-                지금 <b className="font-mono">{st.version || "-"}</b>
+                지금 <b className="font-mono">{st.versionLabel || st.version || "-"}</b>
+                {st.versionLabel && <span className="ml-1 font-mono text-xs text-[var(--muted)]">{st.version}</span>}
                 {st.behind > 0 ? (
                   <>
                     {" "}
-                    · <Badge tone="accent">새 버전 있음: 변경 {st.pending?.length || st.behind}개</Badge> <span className="font-mono text-xs text-[var(--muted)]">{st.latest}</span>
+                    · <Badge tone="accent">새 버전 있음: 변경 {st.pending?.length || st.behind}개</Badge> <span className="font-mono text-xs text-[var(--muted)]">{st.latestLabel || st.latest}</span>
                   </>
                 ) : st.latest ? (
                   <>
@@ -209,7 +210,7 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
                       {e.ok ? (
                         <span>
                           <span className="font-mono text-xs">
-                            {e.from || "?"} → {e.to}
+                            {e.fromLabel || e.from || "?"} → {e.toLabel || e.to}
                           </span>
                           {e.changes.length > 0 && <span className="ml-2 text-xs">변경 {e.changes.length}개</span>}
                         </span>
