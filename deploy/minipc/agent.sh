@@ -6,6 +6,8 @@ set -uo pipefail
 # 새 버전을 올리는 동안 update.sh 가 이 파일도 새것으로 바꾼다. bash 는 스크립트를 읽어 가며 돌리므로,
 # 바뀐 파일의 엉뚱한 자리를 읽지 않게 전체를 main 함수로 감싸 처음에 다 읽어 둔다(2026-11-20 결과·이력이 늦게 뜨던 원인).
 main() {
+# 우분투를 한국어로 설치하면 free·uptime 같은 명령이 '메모리:'처럼 한국어로 나와 값을 못 읽는다(2026-11-20 메모리 칸 빈 원인). 영어로 고정
+export LC_ALL=C.UTF-8 LANG=C.UTF-8
 DEPLOY="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="$(dirname "$DEPLOY")"
 cd "$DEPLOY"
@@ -98,7 +100,10 @@ cpu1=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat); sleep 1
 cpu2=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat)
 cpupct=$(awk -v a="$cpu1" -v b="$cpu2" 'BEGIN{split(a,x," ");split(b,y," ");t=y[1]-x[1];i=y[2]-x[2];print (t>0)?int((t-i)*100/t+0.5):-1}')
 cputemp=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | sort -n | tail -1); cputemp=$(num "$([ -n "$cputemp" ] && echo $((cputemp / 1000)))")
-mempct=$(num "$(free | awk '/^Mem:/{printf "%d", ($2-$7)*100/$2}')")
+# 메모리는 말(언어)에 상관없는 /proc/meminfo 에서 읽는다(kB)
+memtotal=$(awk '/^MemTotal:/{print $2}' /proc/meminfo); memavail=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
+mempct=$(num "$([ -n "$memtotal" ] && [ "$memtotal" -gt 0 ] && echo $(( (memtotal - memavail) * 100 / memtotal )))")
+memory=$(awk -v t="$memtotal" -v a="$memavail" 'BEGIN{if(t>0)printf "%.1fG 사용 / %.1fG", (t-a)/1048576, t/1048576}')
 diskpct=$(num "$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc 0-9)")
 reboot=false; [ -f /var/run/reboot-required ] && reboot=true
 bootat=$(uptime -s 2>/dev/null)
@@ -117,7 +122,7 @@ status=$(jq -nc \
   --arg version "$(g rev-parse --short=7 HEAD)" --arg latest "$latest" --argjson behind "${behind:-0}" \
   --arg lastUpdate "$(tail -n 1 "$HOME/update.log" 2>/dev/null)" --arg lastBackup "$(grep -v '^\s*$' "$HOME/backups.log" 2>/dev/null | tail -n 1)" \
   --arg disk "$(dfh /)" --arg backupDisk "$backup_disk" \
-  --arg memory "$(free -h | awk '/^Mem:/{print $3" 사용 / "$2}')" --arg uptime "$(uptime -p | sed 's/^up //')" \
+  --arg memory "$memory" --arg uptime "$(awk '{s=int($1); d=int(s/86400); h=int(s%86400/3600); m=int(s%3600/60); printf "%s%s%d분", (d?d"일 ":""), (d||h?h"시간 ":""), m}' /proc/uptime)" \
   --arg lanIp "$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')" --arg publicIp "$pub" \
   --arg services "$services" --arg ups "$ups" \
   --argjson cpuPct "$cpupct" --argjson cpuTemp "$cputemp" --argjson memPct "$mempct" --argjson diskPct "$diskpct" \
