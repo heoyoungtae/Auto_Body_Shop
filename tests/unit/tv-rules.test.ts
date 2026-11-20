@@ -65,6 +65,9 @@ describe("테크베이 현황판 공정 단계", () => {
   const st = (process: string, started = false, ended = false) => ({ process, started, ended });
   it("공정 → 단계", () => {
     expect(stageOfProcess("sheet")).toBe("body");
+    expect(stageOfProcess("detach")).toBe("body");
+    expect(stageOfProcess("dent")).toBe("body");
+    expect(stageOfProcess("polish")).toBe("paint");
     expect(stageOfProcess("mask")).toBe("prep");
     expect(stageOfProcess("dry")).toBe("paint");
     expect(stageOfProcess("rework")).toBe("assemble");

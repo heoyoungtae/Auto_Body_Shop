@@ -94,12 +94,12 @@ describe("TV 현황판", () => {
     const w = await getWorkOrder(db, woId);
     // 작업 대기: 첫 공정 단계에 '대기'로 서 있다
     const waiting = await tvBoard(db, now, { portal: "techbay" });
-    expect(waiting.cars[0]).toMatchObject({ stage: "detach", doing: false });
+    expect(waiting.cars[0]).toMatchObject({ stage: "body", doing: false });
     expect(waiting.cars[0].stages).toHaveLength(w.steps.length);
     await startStep(db, { id: ids.tech1, roles: ["technician"] }, w.steps[0].id, now);
     const d = await tvBoard(db, now, { portal: "techbay" });
-    expect(d.cars[0]).toMatchObject({ stage: "detach", doing: true, state: "work" });
-    expect(d.flow.stages.detach).toEqual({ n: 1, doing: 1 });
+    expect(d.cars[0]).toMatchObject({ stage: "body", doing: true, state: "work" });
+    expect(d.flow.stages.body).toEqual({ n: 1, doing: 1 });
     expect(d.flow.outToday).toBe(0);
     // 다음 날엔 오늘 입고 0
     expect((await tvBoard(db, new Date("2026-11-11T01:00:00Z"), { portal: "techbay" })).flow.inToday).toBe(0);

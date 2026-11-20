@@ -111,15 +111,13 @@ export function sortBoard<T extends { late: number; due: string | null; inAt: st
 }
 
 // ── 테크베이용 현황판(대표 요청 2026-11-20): 색을 상태가 아니라 공정별로 쓴다.
-// 공정 13개를 TV에서 한눈에 볼 수 있게 단계로 묶는다(작업 흐름 순서). 상단 요약은 '오늘 입고 → 각 공정 → 출고 대기 → 오늘 출고'.
+// 공정 13개를 TV에서 한눈에 볼 수 있게 단계로 묶는다(작업 흐름 순서). 대표 요청(2026-11-20): 탈부착·판금은 한 칸, 덴트·광택은 따로 칸을 두지 않는다(덴트는 판금, 광택은 도장 칸에 셈). 상단 요약은 '오늘 입고 → 각 공정 → 출고 대기 → 오늘 출고'.
 // 색은 어두운 배경에서 서로 구분되는 Okabe-Ito 계열 + 보라·회색. 주홍(#D55E00)은 지연 덧표시 전용이라 쓰지 않는다.
 export const TB_STAGES = {
   intake: { label: "입고·견적", color: "#9AA3AB", procs: [] as string[], help: "입고 점검·진단·견적·승인(작업 지시 전)" },
-  detach: { label: "탈부착", color: "#56B4E9", procs: ["detach"], help: "탈부착" },
-  body: { label: "판금·덴트", color: "#3D7BE0", procs: ["dent", "sheet", "outsource"], help: "덴트·판금·용접, 계측 같은 외주" },
+  body: { label: "탈부착·판금", color: "#3D7BE0", procs: ["detach", "sheet", "dent", "outsource"], help: "탈부착·판금·용접, 계측 같은 외주(덴트 공정은 따로 칸을 두지 않고 여기에 셈)" },
   prep: { label: "도장 준비", color: "#F0E442", procs: ["putty", "color", "mask"], help: "퍼티·서페이서·조색·마스킹" },
-  paint: { label: "도장·건조", color: "#E69F00", procs: ["paint", "dry"], help: "도장 부스·건조" },
-  polish: { label: "광택", color: "#CC79A7", procs: ["polish"], help: "광택" },
+  paint: { label: "도장·건조", color: "#E69F00", procs: ["paint", "dry", "polish"], help: "도장 부스·건조(광택 공정은 따로 칸을 두지 않고 여기에 셈)" },
   assemble: { label: "조립·보정", color: "#B39DDB", procs: ["assemble", "calibrate", "rework"], help: "조립·작동 확인, 센서·카메라 보정, 검사 불합격 재작업" },
   qc: { label: "검사", color: "#DCE3EC", procs: [] as string[], help: "공정 끝, 최종 검사 중이거나 검사 대기" },
   ready: { label: "출고 대기", color: "#009E73", procs: [] as string[], help: "검사 끝, 고객 인도 대기" },
