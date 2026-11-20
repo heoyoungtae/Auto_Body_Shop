@@ -74,7 +74,7 @@ describe("테크베이 현황판 공정 단계", () => {
   });
   it("차의 지금 단계: 하는 공정, 없으면 다음 공정에서 대기", () => {
     expect(tbStageOf("in", [])).toEqual({ stage: "intake", doing: false });
-    expect(tbStageOf("est", [])).toEqual({ stage: "est", doing: false });
+    expect(tbStageOf("est", [])).toEqual({ stage: "intake", doing: false });
     expect(tbStageOf("work", [st("detach", true, true), st("paint", true)])).toEqual({ stage: "paint", doing: true });
     expect(tbStageOf("hold", [st("detach", true, true), st("putty")])).toEqual({ stage: "paint", doing: false });
     expect(tbStageOf("wait", [st("detach", true, true)])).toEqual({ stage: "assemble", doing: false });

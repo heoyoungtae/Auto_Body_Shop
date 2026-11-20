@@ -131,7 +131,7 @@ export function TechbayScreen({ initial, k, signedIn, help }: { initial: TvData;
               <span className="tb-arr" aria-hidden>
                 ›
               </span>
-              <FlowTile n={data.flow.stages[s].n} label={TB_STAGES[s].label} color={TB_STAGES[s].color} sub={s === "ready" || s === "intake" || s === "est" ? undefined : data.flow.stages[s].n ? `작업 ${data.flow.stages[s].doing} · 대기 ${data.flow.stages[s].n - data.flow.stages[s].doing}` : undefined} />
+              <FlowTile n={data.flow.stages[s].n} label={TB_STAGES[s].label} color={TB_STAGES[s].color} sub={s === "ready" || s === "intake" ? undefined : data.flow.stages[s].n ? `작업 ${data.flow.stages[s].doing} · 대기 ${data.flow.stages[s].n - data.flow.stages[s].doing}` : undefined} />
             </Fragment>
           ))}
           <span className="tb-arr" aria-hidden>

@@ -85,9 +85,9 @@ describe("TV 현황판", () => {
     await db.update(customer).set({ kind: "business", portal: "techbay" }).where(eq(customer.id, ro.c));
     const before = await tvBoard(db, now, { portal: "techbay" });
     expect(before.cars).toHaveLength(1);
-    expect(before.cars[0]).toMatchObject({ stage: "est", doing: false });
+    expect(before.cars[0]).toMatchObject({ stage: "intake", doing: false });
     expect(before.flow.inToday).toBe(1);
-    expect(before.flow.stages.est).toEqual({ n: 1, doing: 0 });
+    expect(before.flow.stages.intake).toEqual({ n: 1, doing: 0 });
 
     const { id: woId } = await createWorkOrder(db, mgr(), roId, now);
     await assignRest(db, mgr(), woId, { assignee: ids.tech1, planDate: "2026-11-10" }, now);
