@@ -31,9 +31,14 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
         sub="부품·도료·소모품을 사거나 외주를 맡길 업체입니다. 서류를 확인하고 평가해 70점 이상이면 대표 승인으로 등록하고, 매년 12월 다시 평가합니다."
         actions={
           can(user, "supplier.manage") && (
-            <Link href="/suppliers/new" className={buttonClass()}>
-              후보 업체 등록
-            </Link>
+            <>
+              <Link href="/suppliers/new" className={buttonClass()}>
+                후보 업체 등록
+              </Link>
+              <Link href="/suppliers/transfer" className={buttonClass("secondary")}>
+                옮기기(내보내기·가져오기)
+              </Link>
+            </>
           )
         }
       >

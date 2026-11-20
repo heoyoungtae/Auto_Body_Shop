@@ -341,6 +341,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "punch.out": "퇴근",
   "punch.config": "출퇴근 인터넷 주소 등록",
   "server.update_request": "서버 새 버전 올리기 요청",
+  "supplier.export": "협력업체 내보내기",
+  "supplier.import": "협력업체 가져오기",
   "payroll.prepare": "급여 계산",
   "payroll.transfer_file": "급여 이체 파일 받음",
   "payroll.submit": "급여 승인 요청",
