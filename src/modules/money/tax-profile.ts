@@ -11,6 +11,7 @@ import { holidayName } from "@/modules/platform/business-days";
 import { loadShopCalendar } from "@/modules/platform/calendar";
 import { UserError } from "@/modules/platform/errors";
 import { loadShopInfo, shopAddressLine } from "@/modules/platform/shop";
+import { loadBizReg, vatKindOf, youthGuess } from "@/modules/platform/biz-reg";
 import { addDays } from "@/modules/platform/time";
 import { bankAccountIssue, maskAccount } from "@/modules/purchase/rules";
 import {
@@ -91,17 +92,22 @@ export async function taxOverview(db: Db, actor: Actor, today: string) {
   const guessForm = formFromBizNo(shop.bizNo);
   const guessRegion = regionOf(shopAddressLine(shop));
   const region = p.region || guessRegion.region;
-  const rec = region && p.ceoYouth != null ? recommendRelief(region, p.ceoYouth, p.openedOn, today) : null;
+  const reg = await loadBizReg(db);
+  // 개인: 등록증의 생년월일과 개업일로 청년 여부 짐작(대표가 고른 값이 있으면 그것)
+  const youth = (p.form || guessForm) === "corporate" ? null : youthGuess(reg.birth, p.openedOn);
+  const ceoYouth = p.ceoYouth ?? youth?.value ?? null;
+  const rec = region && ceoYouth != null ? recommendRelief(region, ceoYouth, p.openedOn, today) : null;
   const full = can(actor, "payroll.view") && p.bankAccountEnc ? decrypt(p.bankAccountEnc) : null;
-  return { p, form: p.form || guessForm, formGuessed: !p.form && !!guessForm, guessRegion, region, rec, bankFull: full };
+  return { p, form: p.form || guessForm, formGuessed: !p.form && !!guessForm, guessRegion, region, rec, bankFull: full, reg, youth, ceoYouth };
 }
 
 export type TaxInput = {
-  form: string;
+  /** 사업 형태·개업일·법인등록번호는 사업자등록증 칸에서 넣는다. 넘어오지 않으면 그대로 */
+  form?: string;
   formSince: string;
-  corpRegNo: string;
+  corpRegNo?: string;
   fiscalStartMonth: number;
-  openedOn: string;
+  openedOn?: string;
   region: string;
   ceoYouth: string;
   relief: string;
@@ -121,13 +127,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export async function saveTaxProfile(db: Db, actor: Actor, i: TaxInput, now = new Date()) {
   if (!actor.roles.includes("owner")) throw new UserError("세금·사업 형태는 대표만 바꿉니다");
   const before = await loadTaxProfile(db);
+  i = { ...i, form: i.form ?? before.form, openedOn: i.openedOn ?? before.openedOn, corpRegNo: i.corpRegNo ?? before.corpRegNo };
   if (i.form && !isBizForm(i.form)) throw new UserError("사업 형태를 골라 주세요");
   if (i.region && !isRegion(i.region)) throw new UserError("지역 구분을 골라 주세요");
   if (i.relief && !(i.relief in RELIEF_KINDS)) throw new UserError("받는 감면을 골라 주세요");
-  for (const [k, v] of [["개업일", i.openedOn], ["형태 시작일", i.formSince]] as const)
+  for (const [k, v] of [["개업일", i.openedOn ?? ""], ["형태 시작일", i.formSince]] as const)
     if (v && !DATE.test(v)) throw new UserError(`${k}은 날짜로 넣어 주세요`);
   if (!(i.fiscalStartMonth >= 1 && i.fiscalStartMonth <= 12)) throw new UserError("사업연도 시작 달은 1~12월입니다");
-  const corpRegNo = i.corpRegNo.replace(/\D/g, "");
+  const corpRegNo = (i.corpRegNo ?? "").replace(/\D/g, "");
   if (i.form === "corporate" && corpRegNo && corpRegNo.length !== 13)
     throw new UserError("법인등록번호는 13자리입니다(예: 120111-1234567)");
   const no = i.accountNo.replace(/[\s-]/g, "");
@@ -141,7 +148,7 @@ export async function saveTaxProfile(db: Db, actor: Actor, i: TaxInput, now = ne
     formSince: i.form && i.form !== before.form && !i.formSince ? i.openedOn || now.toISOString().slice(0, 10) : i.formSince,
     corpRegNo: corpRegNo ? `${corpRegNo.slice(0, 6)}-${corpRegNo.slice(6)}` : "",
     fiscalStartMonth: i.form === "corporate" ? i.fiscalStartMonth : 1,
-    openedOn: i.openedOn,
+    openedOn: i.openedOn ?? "",
     region: (i.region as Region) || "",
     ceoYouth: i.ceoYouth === "1" ? true : i.ceoYouth === "0" ? false : null,
     relief: (i.relief as ReliefKind) || "",
@@ -171,6 +178,7 @@ export async function taxTodos(db: Db, actor: Actor, today: string) {
   const p = await loadTaxProfile(db);
   const shop = await loadShopInfo(db);
   const form = p.form || formFromBizNo(shop.bizNo);
+  const vat = vatKindOf((await loadBizReg(db)).kind) ?? undefined;
   if (!p.form) {
     if (actor.roles.includes("owner"))
       out.push({
@@ -191,7 +199,7 @@ export async function taxTodos(db: Db, actor: Actor, today: string) {
   const year = Number(today.slice(0, 4));
   const horizon = addDays(today, 14);
   for (const y of [year, year + 1]) {
-    for (const d of taxDeadlines(y, { form, fiscalStartMonth: p.fiscalStartMonth || 1, withholding: !!anyRun, halfYear: p.halfYearWithholding, diligent: false })) {
+    for (const d of taxDeadlines(y, { form, fiscalStartMonth: p.fiscalStartMonth || 1, withholding: !!anyRun, halfYear: p.halfYearWithholding, diligent: false, vat })) {
       const due = shiftDue(d.due, isHoliday);
       if (due < today || due > horizon) continue;
       out.push({
@@ -213,6 +221,7 @@ export async function taxCalendar(db: Db, today: string) {
   const shop = await loadShopInfo(db);
   const form = p.form || formFromBizNo(shop.bizNo);
   if (!form) return [];
+  const vat = vatKindOf((await loadBizReg(db)).kind) ?? undefined;
   const cal = await loadShopCalendar(db);
   const isHoliday = (d: string) => holidayName(cal, d) != null;
   const [anyRun] = await db.select({ id: payrollRun.id }).from(payrollRun).limit(1);
@@ -220,7 +229,7 @@ export async function taxCalendar(db: Db, today: string) {
   const end = addDays(today, 365);
   const out: { key: string; due: string; days: number; what: string; detail: string }[] = [];
   for (const y of [year, year + 1])
-    for (const d of taxDeadlines(y, { form, fiscalStartMonth: p.fiscalStartMonth || 1, withholding: !!anyRun, halfYear: p.halfYearWithholding, diligent: false })) {
+    for (const d of taxDeadlines(y, { form, fiscalStartMonth: p.fiscalStartMonth || 1, withholding: !!anyRun, halfYear: p.halfYearWithholding, diligent: false, vat })) {
       const due = shiftDue(d.due, isHoliday);
       if (due < today || due > end) continue;
       out.push({ ...d, due, days: Math.round((Date.parse(due) - Date.parse(today)) / 864e5) });

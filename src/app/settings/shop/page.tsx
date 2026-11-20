@@ -3,7 +3,10 @@ import { getDb } from "@/db/runtime";
 import { loadShopInfo, shopAddressLine, shopMissing } from "@/modules/platform/shop";
 import { hasManyBranches } from "@/modules/platform/branch";
 import { AssistForm } from "../../_assist";
-import { AddressField, TextField } from "../../_input";
+import { AddressField, DateField, TextField } from "../../_input";
+import { canOpenRegFile, loadBizReg, REG_KINDS } from "@/modules/platform/biz-reg";
+import { formFromBizNo } from "@/modules/money/tax-rules";
+import { NtsLine, RegFields, RegFileCard, RegMoreFields } from "./reg-card";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Card, ErrorBox, Notice, PageTitle } from "../../_ui";
@@ -21,9 +24,11 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
   const shop = await loadShopInfo(db);
   const tax = await taxOverview(db, user, seoulDate());
   const missing = shopMissing(shop);
+  const reg = await loadBizReg(db);
+  const kindGuess = !reg.kind && formFromBizNo(shop.bizNo) === "corporate" ? "corporate" : "";
   return (
     <>
-      <PageTitle help="settings.shop" sub="법정 견적서(별지 제89호의3)·정비명세서의 '정비사업자' 칸에 그대로 찍힙니다. 한 번만 넣으면 됩니다.">
+      <PageTitle help="settings.shop" sub="사업자등록증을 올리고 적힌 대로 한 번만 넣으면 견적서·정비명세서와 세금 설정에 그대로 쓰입니다.">
         사업장 정보
       </PageTitle>
       <div className="mb-4 space-y-2">
@@ -31,27 +36,45 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
         {notice && <Notice>{notice}</Notice>}
         {missing.length > 0 && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">아직 빈 칸: {missing.join(", ")}. 비어 있으면 견적서를 고객에게 낼 수 없습니다(서식의 필수 칸).</p>}
       </div>
-      <Card title="정비사업자" help={{ kind: "panel", id: "shop.info" }}>
+      <RegFileCard reg={reg} owner={owner} canOpen={canOpenRegFile(user)} />
+      <div id="reg" className="mt-4">
+      <Card title="등록증 내용 · 정비사업자" help={{ kind: "panel", id: "shop.info" }}>
+        {reg.nts && <NtsLine nts={reg.nts} />}
         {owner ? (
           <AssistForm id="shop-info" action={saveShopAction} className="space-y-4">
+            <RegFields reg={reg} kindGuess={kindGuess} corpRegNo={tax.p.corpRegNo} />
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <TextField help="shop.name" name="name" required defaultValue={shop.name} />
               <TextField help="shop.ceo" name="ceo" defaultValue={shop.ceo} />
-              <TextField help="shop.phone" name="phone" inputMode="tel" defaultValue={shop.phone} />
               <TextField help="shop.bizNo" name="bizNo" inputMode="numeric" defaultValue={shop.bizNo} />
-              <TextField help="shop.repairRegNo" name="repairRegNo" defaultValue={shop.repairRegNo} />
+              <DateField help="tax.openedOn" name="openedOn" defaultValue={tax.p.openedOn} quick={[]} />
             </div>
             <AddressField help={{ zip: "shop.zip", address: "shop.address", detail: "shop.addressDetail" }} defaults={{ zip: shop.zip, address: shop.address, detail: shop.addressDetail }} />
-            <SubmitButton>저장</SubmitButton>
+            <RegMoreFields reg={reg} />
+            <p className="text-sm font-medium">정비소</p>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <TextField help="shop.phone" name="phone" inputMode="tel" defaultValue={shop.phone} />
+              <TextField help="shop.repairRegNo" name="repairRegNo" defaultValue={shop.repairRegNo} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <SubmitButton>저장</SubmitButton>
+              <SubmitButton variant="secondary" name="intent" value="nts">저장하고 국세청에서 확인</SubmitButton>
+            </div>
           </AssistForm>
         ) : (
           <dl className="grid gap-1 text-sm sm:grid-cols-2">
             {[
-              ["업체명", shop.name],
+              ["등록증 종류", reg.kind ? REG_KINDS[reg.kind] : ""],
+              ["상호", shop.name],
               ["대표자", shop.ceo],
               ["사업자등록번호", shop.bizNo],
+              ["개업일", tax.p.openedOn],
+              ...(reg.kind === "corporate" ? [["법인등록번호", tax.p.corpRegNo], ["본점 주소", reg.hqAddress]] : []),
+              ["사업장 주소", shopAddressLine(shop)],
+              ["업태 · 종목", [reg.bizType, reg.bizItem].filter(Boolean).join(" · ")],
+              ["전자세금계산서 메일", reg.invoiceEmail],
+              ["관할 세무서", reg.taxOffice],
               ["정비업 등록번호", shop.repairRegNo],
-              ["주소", shopAddressLine(shop)],
               ["전화번호", shop.phone],
             ].map(([k, v]) => (
               <div key={k} className="grid grid-cols-[8rem_1fr]">
@@ -62,6 +85,7 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
           </dl>
         )}
       </Card>
+      </div>
       <TaxCard o={tax} owner={owner} many={await hasManyBranches(db)} />
       <div className="mt-4">
         <Card title="직인" help={{ kind: "panel", id: "shop.seal" }}>

@@ -6,18 +6,52 @@ import { saveShopInfo, saveShopSeal } from "@/modules/platform/shop";
 import { UserError } from "@/modules/platform/errors";
 import { errorUrl, noticeUrl, requireOwner, userMessage } from "../../_lib/session";
 import { saveTaxProfile } from "@/modules/money/tax-profile";
+import { addRegFile, checkNts, saveBizReg } from "@/modules/platform/biz-reg";
 
 const PATH = "/settings/shop";
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
 export async function saveShopAction(form: FormData) {
   const user = await requireOwner();
+  let msg = "사업장 정보를 저장했습니다. 견적서·정비명세서와 세금 설정에 바로 쓰입니다";
   try {
-    await saveShopInfo(await getDb(), user.id, { name: s(form, "name"), ceo: s(form, "ceo"), bizNo: s(form, "bizNo"), repairRegNo: s(form, "repairRegNo"), zip: s(form, "zip"), address: s(form, "address"), addressDetail: s(form, "addressDetail"), phone: s(form, "phone") });
+    const db = await getDb();
+    await saveShopInfo(db, user.id, { name: s(form, "name"), ceo: s(form, "ceo"), bizNo: s(form, "bizNo"), repairRegNo: s(form, "repairRegNo"), zip: s(form, "zip"), address: s(form, "address"), addressDetail: s(form, "addressDetail"), phone: s(form, "phone") });
+    await saveBizReg(db, user, {
+      kind: s(form, "regKind"),
+      openedOn: s(form, "openedOn"),
+      birth: s(form, "birth"),
+      corpRegNo: s(form, "corpRegNo"),
+      bizType: s(form, "bizType"),
+      bizItem: s(form, "bizItem"),
+      hqAddress: s(form, "hqAddress"),
+      coOwners: s(form, "coOwners"),
+      unitTax: form.get("unitTax") === "1",
+      invoiceEmail: s(form, "invoiceEmail"),
+      issuedOn: s(form, "issuedOn"),
+      taxOffice: s(form, "taxOffice"),
+    });
+    if (form.get("intent") === "nts") {
+      const r = await checkNts(db, { actorId: user.id });
+      if (!r.ok) throw new UserError(`저장했습니다. 그런데 ${r.message}`);
+      msg = `저장했습니다. ${r.message}`;
+    }
+  } catch (e) {
+    redirect(errorUrl(`${PATH}#reg`, userMessage(e)));
+  }
+  redirect(noticeUrl(PATH, msg) + "#reg");
+}
+
+export async function uploadRegFileAction(form: FormData) {
+  const user = await requireOwner();
+  try {
+    const f = form.getAll("regFile").find((x): x is File => x instanceof File && x.size > 0);
+    if (!f) throw new UserError("등록증 파일을 골라 주세요");
+    await addRegFile(await getDb(), user, { fileName: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
   } catch (e) {
     redirect(errorUrl(PATH, userMessage(e)));
   }
-  redirect(noticeUrl(PATH, "사업장 정보를 저장했습니다. 견적서·정비명세서에 바로 찍힙니다"));
+  redirect(noticeUrl(PATH, "사업자등록증을 올렸습니다. 아래 '등록증 내용'을 등록증과 같게 맞춰 주세요") + "#reg");
 }
 
 export async function saveSealAction(form: FormData) {
@@ -37,11 +71,8 @@ export async function saveTaxAction(form: FormData) {
   const user = await requireOwner();
   try {
     await saveTaxProfile(await getDb(), user, {
-      form: s(form, "form"),
       formSince: s(form, "formSince"),
-      corpRegNo: s(form, "corpRegNo"),
       fiscalStartMonth: Number(s(form, "fiscalStartMonth") || 1),
-      openedOn: s(form, "openedOn"),
       region: s(form, "region"),
       ceoYouth: s(form, "ceoYouth"),
       relief: s(form, "relief"),

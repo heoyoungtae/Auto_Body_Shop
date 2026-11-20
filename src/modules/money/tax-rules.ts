@@ -153,7 +153,7 @@ export function shiftDue(date: string, isHoliday: (iso: string) => boolean) {
  */
 export function taxDeadlines(
   year: number,
-  o: { form: BizForm; fiscalStartMonth: number; withholding: boolean; halfYear: boolean; diligent: boolean },
+  o: { form: BizForm; fiscalStartMonth: number; withholding: boolean; halfYear: boolean; diligent: boolean; /** 개인의 부가세 과세 유형(사업자등록증). 없으면 일반과세자 */ vat?: "general" | "simple" | "exempt" },
 ): TaxDeadline[] {
   const out: TaxDeadline[] = [];
   if (o.withholding) {
@@ -168,10 +168,17 @@ export function taxDeadlines(
     out.push({ key: `wh-annual-${year}`, due: iso(year, 3, 10), what: "근로소득 지급명세서 제출(연말정산)", detail: "지난해 직원별 연간 급여·소득세. 세무사에게 맡기면 자료만 넘깁니다" });
   }
   if (o.form === "individual") {
-    out.push({ key: `vat-${year}-01`, due: iso(year, 1, 25), what: "부가가치세 확정 신고(지난해 7~12월)", detail: "매출·매입 세금계산서·카드·현금영수증 자료" });
-    out.push({ key: `vat-${year}-04`, due: iso(year, 4, 25), what: "부가가치세 예정고지 납부", detail: "세무서가 보낸 고지서 금액을 냅니다(신고 없음)" });
-    out.push({ key: `vat-${year}-07`, due: iso(year, 7, 25), what: "부가가치세 확정 신고(1~6월)", detail: "매출·매입 세금계산서·카드·현금영수증 자료" });
-    out.push({ key: `vat-${year}-10`, due: iso(year, 10, 25), what: "부가가치세 예정고지 납부", detail: "세무서가 보낸 고지서 금액을 냅니다(신고 없음)" });
+    if (o.vat === "simple") {
+      out.push({ key: `vat-${year}-01`, due: iso(year, 1, 25), what: "부가가치세 신고(간이과세자, 지난해 1~12월)", detail: "간이과세자는 1년에 한 번 신고합니다. 매출·매입 세금계산서·카드·현금영수증 자료" });
+      out.push({ key: `vat-${year}-07`, due: iso(year, 7, 25), what: "부가가치세 예정부과 납부(간이과세자)", detail: "세무서 고지서 금액(지난해 세금의 절반). 1~6월에 세금계산서를 냈으면 예정 신고를 합니다" });
+    } else if (o.vat === "exempt") {
+      out.push({ key: `vat-${year}-02`, due: iso(year, 2, 10), what: "사업장 현황 신고(면세사업자, 지난해)", detail: "부가세 신고 대신 지난해 수입 금액과 사업장 현황을 홈택스로 신고합니다" });
+    } else {
+      out.push({ key: `vat-${year}-01`, due: iso(year, 1, 25), what: "부가가치세 확정 신고(지난해 7~12월)", detail: "매출·매입 세금계산서·카드·현금영수증 자료" });
+      out.push({ key: `vat-${year}-04`, due: iso(year, 4, 25), what: "부가가치세 예정고지 납부", detail: "세무서가 보낸 고지서 금액을 냅니다(신고 없음)" });
+      out.push({ key: `vat-${year}-07`, due: iso(year, 7, 25), what: "부가가치세 확정 신고(1~6월)", detail: "매출·매입 세금계산서·카드·현금영수증 자료" });
+      out.push({ key: `vat-${year}-10`, due: iso(year, 10, 25), what: "부가가치세 예정고지 납부", detail: "세무서가 보낸 고지서 금액을 냅니다(신고 없음)" });
+    }
     out.push({
       key: `inc-${year}`,
       due: o.diligent ? iso(year, 6, 30) : iso(year, 5, 31),
