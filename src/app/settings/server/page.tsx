@@ -158,12 +158,17 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
             )}
             {owner && v.silent && <p className="text-xs text-[var(--danger)]">서버 소식이 끊겨 지금은 누를 수 없습니다(아래 &lsquo;서버 정보&rsquo; 참고).</p>}
             {owner && (
-              <form action={setAutoUpdateAction} className="space-y-2 border-t border-[var(--line)] pt-3">
-                <p className="font-medium">자동 올리기</p>
-                <RadioRow help="server.autoOn" name="on" required defaultValue={v.auto.on ? "on" : "off"} options={[{ value: "on", label: "켜기", tone: "ok" }, { value: "off", label: "끄기" }]} />
-                <TextField help="server.autoTime" name="time" type="time" required defaultValue={v.auto.time} />
-                <SubmitButton>저장</SubmitButton>
-              </form>
+              <details className="border-t border-[var(--line)] pt-3">
+                <summary className="cursor-pointer">
+                  <span className="font-medium">자동 올리기</span>{" "}
+                  <span className="text-[var(--muted)]">{v.auto.on ? `켜짐 · 매일 ${v.auto.time}` : "꺼짐"} · 바꾸려면 누르세요</span>
+                </summary>
+                <form action={setAutoUpdateAction} className="mt-2 space-y-2">
+                  <RadioRow help="server.autoOn" name="on" required defaultValue={v.auto.on ? "on" : "off"} options={[{ value: "on", label: "켜기", tone: "ok" }, { value: "off", label: "끄기" }]} />
+                  <TextField help="server.autoTime" name="time" type="time" required defaultValue={v.auto.time} />
+                  <SubmitButton>저장</SubmitButton>
+                </form>
+              </details>
             )}
           </div>
         </Card>
