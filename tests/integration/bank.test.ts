@@ -235,3 +235,48 @@ describe("문자 → 통장 고르기", () => {
     expect(r2.status).toBe("unknown"); // 끝자리가 보이는데 다르면 넣지 않는다
   });
 });
+
+describe("문자 받는 주소: 전달 앱마다 다른 꼴", () => {
+  const SMS = "보낸사람 : 15662566()\n[Web발신]\n2026/11/20 13:41\n출금 1원\n잔액 19,405,246원\n문자테스트\n491***86601061\n기업";
+  async function setup() {
+    await saveAccount(db, owner(), { kind: "bank", company: "ibk", name: "사업자 통장", digits: "061", payDay: null, sms: true });
+    const t = await issueToken(db, owner(), now);
+    (globalThis as unknown as { __db?: Promise<Db> }).__db = Promise.resolve(db);
+    const route = await import("@/app/api/bank-sms/[token]/route");
+    return { t, route, ctx: { params: Promise.resolve({ token: t }) } };
+  }
+  const done = () => ((globalThis as unknown as { __db?: Promise<Db> }).__db = undefined);
+
+  it("실제 기업은행 문자(전달 앱 머리 포함)를 061 통장에 넣는다", async () => {
+    const { t, route, ctx } = await setup();
+    const res = await route.POST(new Request(`http://x/api/bank-sms/${t}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: SMS }) }), ctx);
+    expect(((await res.json()) as { status: string }).status).toBe("added");
+    done();
+  });
+
+  it("모르는 이름의 JSON·폼·multipart 도 받는다", async () => {
+    const { t, route } = await setup();
+    const ctx = () => ({ params: Promise.resolve({ token: t }) });
+    const r1 = await route.POST(new Request(`http://x/a`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ from: "15662566", smsBody: SMS }) }), ctx());
+    expect(((await r1.json()) as { status: string }).status).toBe("added");
+    const fd = new FormData();
+    fd.set("sender", "15662566");
+    fd.set("contents", SMS.replace("출금 1원", "출금 2원"));
+    const r2 = await route.POST(new Request(`http://x/a`, { method: "POST", body: fd }), ctx());
+    expect(((await r2.json()) as { status: string }).status).toBe("added");
+    const r3 = await route.POST(new Request(`http://x/a`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ from: "1", mms: SMS.replace("출금 1원", "출금 3원") }).toString() }), ctx());
+    expect(((await r3.json()) as { status: string }).status).toBe("added");
+    done();
+  });
+
+  it("내용 없는 요청·주소만 연 GET 도 받은 기록에 꼴을 남긴다", async () => {
+    const { t, route } = await setup();
+    const ctx = () => ({ params: Promise.resolve({ token: t }) });
+    expect((await route.POST(new Request(`http://x/a`, { method: "POST" }), ctx())).status).toBe(400);
+    expect((await route.GET(new Request(`http://x/a`), ctx())).status).toBe(200);
+    const cfg = await loadFeed(db);
+    expect(cfg.recent.map((r) => r.status)).toEqual(["empty", "empty"]);
+    expect(cfg.recent[0].note).toMatch(/GET/);
+    done();
+  });
+});

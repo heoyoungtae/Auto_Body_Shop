@@ -15,7 +15,7 @@ import { ShowWhen } from "../../../consults/show-when";
 import { feedAction } from "../actions";
 import { CopyButton } from "../copy-button";
 
-const RESULT_LABEL = { added: "내역에 넣음", dup: "이미 받은 거래", ignored: "은행 문자 아님", unknown: "등록 안 된 통장·카드", failed: "읽지 못함" } as const;
+const RESULT_LABEL = { added: "내역에 넣음", dup: "이미 받은 거래", ignored: "은행 문자 아님", unknown: "등록 안 된 통장·카드", failed: "읽지 못함", empty: "내용 없음" } as const;
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 const opts = (o: Record<string, { label: string }>) => Object.entries(o).map(([value, v]) => ({ value, label: v.label }));
 
@@ -176,7 +176,7 @@ export default async function BankSettingsPage({ searchParams }: { searchParams:
           <p className="text-sm">
             마지막으로 받은 문자: <b>{cfg.lastSmsAt ? fmtTime(cfg.lastSmsAt) : "아직 없음"}</b> · 지금까지 {cfg.smsCount ?? 0}통
           </p>
-          {!cfg.lastSmsAt && !cfg.rejected?.n && (
+          {!cfg.lastSmsAt && !cfg.rejected?.n && !cfg.recent?.length && (
             <p className="mt-1 text-xs text-[var(--muted)]">
               휴대폰에서 보냈는데도 &apos;아직 없음&apos;이면, 문자가 이 서버까지 오지 않은 것입니다. 휴대폰 전달 앱에 넣은 주소가 위 &apos;2. 문자 받는 주소&apos;와 글자 하나까지 같은지 보세요. 서버를 옮겼다면(테스트 서버 → 미니 PC) 예전 서버 주소가 남아 있기 쉽습니다.
             </p>
