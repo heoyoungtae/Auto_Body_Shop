@@ -38,7 +38,7 @@ export type Change = { pr: number | null; title: string };
 export type UpdateEvent = { at: string; how: string; ok: boolean; from: string; to: string; message: string; changes: Change[] };
 export const HOW_LABEL: Record<string, string> = { nightly: "밤 21:30 자동", button: "앱에서 지금 올리기", terminal: "미니 PC 터미널" };
 const HISTORY_MAX = 200;
-export type UpdateRequest = { at: string; by: string | null; taken: string | null };
+export type UpdateRequest = { at: string; by: string | null; taken: string | null; fromVersion?: string };
 export type UpdateResult = { at: string; ok: boolean; message: string };
 type Data = { status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
 
@@ -138,6 +138,18 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
       await notifyRole(db, "owner", `새 버전 있음: ${what} — 지금 올리거나 밤 21:30에 저절로 올라갑니다`, `server-new:${st.latest}`, "/settings/server");
     }
   }
+  // 올리는 중인데 결과가 안 왔어도, 이력에 단추로 올린 줄이 오거나 돌고 있는 버전이 바뀌면 끝난 것으로 본다
+  // (예전 agent.sh 는 새 버전으로 바뀌는 도중 결과를 못 보낼 수 있었다)
+  const taken = d.request?.taken ? Date.parse(d.request.taken) : 0;
+  const open = taken && !(d.result && Date.parse(d.result.at) >= taken);
+  if (open && !body.result) {
+    const takenMin = new Date(taken + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
+    const ev = (next.history ?? []).find((e) => e.how === "button" && e.at >= takenMin);
+    const from = d.request?.fromVersion ?? "";
+    const ver = next.status?.version ?? "";
+    if (ev) body = { ...body, result: { ok: ev.ok, message: ev.ok ? `새 버전 올림 ${ev.from} → ${ev.to}` : ev.message } };
+    else if (body.status && from && ver && ver !== from) body = { ...body, result: { ok: true, message: `새 버전 올림 ${from} → ${ver}` } };
+  }
   if (body.result) {
     const result: UpdateResult = { at: now.toISOString(), ok: body.result.ok === true, message: s(body.result.message, 300) };
     next.result = result;
@@ -147,7 +159,7 @@ export async function agentReport(db: Db, body: { status?: Record<string, unknow
   let update = false;
   const req = d.request;
   if (req && !req.taken && now.getTime() - Date.parse(req.at) < 60 * 60_000) {
-    next.request = { ...req, taken: now.toISOString() };
+    next.request = { ...req, taken: now.toISOString(), fromVersion: next.status?.version ?? d.status?.version ?? "" };
     update = true;
   }
   await save(db, next);

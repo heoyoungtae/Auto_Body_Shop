@@ -64,4 +64,22 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     const notes = (await db.select().from(notification).where(eq(notification.userId, ids.owner))).filter((n) => n.title.startsWith("새 버전 있음"));
     expect(notes.map((n) => n.title)).toEqual([expect.stringContaining("업체 견적서로 품목 일괄 등록 (#50) 외 1개")]);
   });
+
+  it("결과가 안 와도 버전이 바뀌거나 단추 이력이 오면 끝난 것으로 본다", async () => {
+    const st = { host: "abs-server", version: "aaa1111", latest: "bbb2222", behind: 1 };
+    await agentReport(db, { status: st }, t(0));
+    await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(0));
+    expect(await agentReport(db, { status: st }, t(1))).toMatchObject({ update: true });
+    expect((await serverOpsView(db, t(5).getTime())).running).toBe(true);
+    await agentReport(db, { status: { ...st, version: "bbb2222", behind: 0 } }, t(9));
+    let v = await serverOpsView(db, t(9).getTime());
+    expect(v).toMatchObject({ running: false, result: { ok: true, message: "새 버전 올림 aaa1111 → bbb2222" } });
+
+    // 두 번째: 단추로 올린 실패 줄이 이력으로 오면 실패로 끝낸다
+    await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(20));
+    await agentReport(db, {}, t(21));
+    await agentReport(db, { events: [{ at: "2026-11-19 10:27", how: "button", ok: false, from: "", to: "", message: "새 버전 만들기 실패", changes: [] }] }, t(28));
+    v = await serverOpsView(db, t(28).getTime());
+    expect(v).toMatchObject({ running: false, result: { ok: false, message: "새 버전 만들기 실패" } });
+  });
 });

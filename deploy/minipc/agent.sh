@@ -3,12 +3,15 @@
 # 앱 설정 › 서버 화면에 이 PC 상태를 알리고, 대표가 '지금 새 버전 올리기'를 눌렀으면 받아서 update.sh 를 돌린다.
 # 앱 쪽 주소: /api/server-agent (JOBS_TOKEN). 앱이 도커 안에서 서버를 직접 건드리지 않게 하려는 구조다.
 set -uo pipefail
+# 새 버전을 올리는 동안 update.sh 가 이 파일도 새것으로 바꾼다. bash 는 스크립트를 읽어 가며 돌리므로,
+# 바뀐 파일의 엉뚱한 자리를 읽지 않게 전체를 main 함수로 감싸 처음에 다 읽어 둔다(2026-11-20 결과·이력이 늦게 뜨던 원인).
+main() {
 DEPLOY="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="$(dirname "$DEPLOY")"
 cd "$DEPLOY"
 set -a; . ./.env; set +a
 exec 9>/run/auto-body-shop-agent.lock
-flock -n 9 || exit 0   # 앞 차례가 아직 새 버전을 올리는 중
+flock -n 9 || return 0   # 앞 차례가 아직 새 버전을 올리는 중
 OWNER="$(stat -c %U "$REPO")"
 g() { sudo -u "$OWNER" git -C "$REPO" "$@"; }
 URL="${APP_INTERNAL_URL:-http://127.0.0.1:3000}/api/server-agent"
@@ -99,9 +102,9 @@ status=$(jq -nc \
 status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" '. + {pending: $p}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }
 events=$(history_events)
-res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end)')") || exit 0
+res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end)')") || return 0
 mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null
-[ "$(jq -r '.update // false' <<<"$res" 2>/dev/null)" = true ] || exit 0
+[ "$(jq -r '.update // false' <<<"$res" 2>/dev/null)" = true ] || return 0
 
 # 대표가 '지금 새 버전 올리기'를 눌렀다
 echo "$(TZ=Asia/Seoul date '+%F %R') 앱 설정에서 새 버전 올리기 요청" >> "$HOME/update.log"
@@ -110,7 +113,14 @@ for i in $(seq 1 180); do pgrep -f 'minipc/update\.sh' >/dev/null || break; slee
 if bash "$DEPLOY/minipc/update.sh" >> "$HOME/update.log" 2>&1; then ok=true; else ok=false; fi
 msg=$(tail -n 1 "$HOME/update.log")
 rm -f "$STATE/slow"   # 버전 정보를 바로 새로
+# 결과와 이력을 한 번에 보낸다(화면이 결과를 받는 그때 이력도 바로 보이게)
+events=$(history_events)
 for i in 1 2 3 4 5 6; do
-  post "$(jq -nc --argjson ok $ok --arg m "$msg" '{result:{ok:$ok,message:$m}}')" >/dev/null && break
+  if post "$(jq -nc --argjson ok $ok --arg m "$msg" --argjson e "${events:-[]}" '{result:{ok:$ok,message:$m}} + (if ($e | length) > 0 then {events:$e} else {} end)')" >/dev/null; then
+    mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null
+    break
+  fi
   sleep 10
 done
+}
+main "$@"; exit $?
