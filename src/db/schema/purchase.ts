@@ -217,6 +217,14 @@ export const stockItem = pgTable(
     expCategory: text("exp_category"),
     /** 화학물질 목록(F-09-02) 연결. MSDS 는 그쪽 한 곳에서 관리한다 */
     chemicalId: uuid("chemical_id").references(() => chemical.id),
+    /** 관리 방식(rules TRACK_MODES): qty 수량 관리 · count 실사로 관리 · none 관리 안 함 */
+    trackMode: text("track_mode").notNull().default("qty"),
+    /**
+     * 묶음 구매(박스로 사서 낱개로 씀): buyUnit 사는 단위(박스), buyQty 입수(1박스 = 40롤).
+     * qty·safetyQty·valueWon 은 낱개(unit) 기준, unitWon 은 사는 단위 1개의 공급가. 낱개 원가 = unitWon ÷ buyQty
+     */
+    buyUnit: text("buy_unit"),
+    buyQty: integer("buy_qty"),
     /** false = 사용 중지(목록·발주·사용에서 빠짐) */
     active: boolean("active").notNull().default(true),
     /** 소진 후 중지: 새 발주는 막고 남은 것은 쓴다. 0이 되면 사용 중지로 바뀜 */
@@ -458,4 +466,117 @@ export const fixtureEvent = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("fixture_event_fx_idx").on(t.fixtureId, t.at)],
+);
+
+/**
+ * 업체별 단가표(품목 × 업체, 대표 요청 2026-11-20 "같은 품목이라도 거래처별 단가가 다를 수 있다").
+ * unitWon 은 늘 공급가. supName·supUnit 은 그 업체 견적서에 적힌 품명·단위(다음 견적서를 저절로 맞추는 데 씀).
+ * source: quote 견적서 · receive 입고 검수(발주 단가) · manual 품목 고치기·처음 등록
+ */
+export const supplierPrice = pgTable(
+  "supplier_price",
+  {
+    id: id(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => stockItem.id),
+    supplierId: uuid("supplier_id")
+      .notNull()
+      .references(() => supplier.id),
+    unitWon: integer("unit_won").notNull(),
+    vatMode: text("vat_mode").notNull().default("excluded"),
+    supName: text("sup_name"),
+    supUnit: text("sup_unit"),
+    /** 이 업체의 입수(1박스 = ?개). 업체마다 다를 수 있어 따로 둔다. 비면 품목 입수 */
+    packQty: integer("pack_qty"),
+    quotedOn: text("quoted_on"),
+    validUntil: text("valid_until"),
+    source: text("source").notNull(),
+    ref: text("ref"),
+    updatedBy: uuid("updated_by").references(() => appUser.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("supplier_price_item_sup_idx").on(t.itemId, t.supplierId), index("supplier_price_sup_idx").on(t.supplierId)],
+);
+
+/** 단가 변동 이력. 단가가 바뀔 때마다(처음 포함) 한 줄. beforeWon 이 null 이면 처음 들어온 단가 */
+export const priceHistory = pgTable(
+  "price_history",
+  {
+    id: id(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => stockItem.id),
+    supplierId: uuid("supplier_id").references(() => supplier.id),
+    beforeWon: integer("before_won"),
+    afterWon: integer("after_won").notNull(),
+    source: text("source").notNull(),
+    ref: text("ref"),
+    quoteId: uuid("quote_id"),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("price_history_item_idx").on(t.itemId, t.at)],
+);
+
+export type QuoteLine = {
+  /** 견적서 원문 */
+  supName: string;
+  spec: string | null;
+  supUnit: string | null;
+  qty: number;
+  /** 견적서에 적힌 단가(부가세 방식은 견적서 전체 vatMode) */
+  unitWon: number;
+  amountWon: number | null;
+  /** 판정: same 같은 품목(단가만 갱신) · similar 비슷한 품목(확인 필요) · new 새 품목 · dup 같은 견적서 안 중복(건너뜀) */
+  match: "same" | "similar" | "new" | "dup";
+  itemId: string | null;
+  candidates: { id: string; name: string; spec: string | null; score: number }[];
+  /** 새 품목일 때 추천값 */
+  name: string;
+  kind: string;
+  unit: string;
+  packAmount: number | null;
+  packUnit: string | null;
+  /** 묶음 입수(1 BOX = ?개)와 낱개 단위. 견적서·양식에서 읽거나 사람이 적음 */
+  buyQty?: number | null;
+  baseUnit?: string | null;
+  /** 추천 관리 방식과 이유 */
+  track?: string;
+  trackReason?: string;
+  note: string | null;
+};
+
+/**
+ * 받은 견적서(단가표) 한 장. 엑셀·CSV 올리기나 붙여넣기로 읽어 draft 로 두고, 표에서 확인한 뒤 done(일괄 등록).
+ * 사진 읽기(AI)는 나중에 붙인다(source: file · paste · photo)
+ */
+export const priceQuote = pgTable(
+  "price_quote",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull().unique(),
+    supplierId: uuid("supplier_id").references(() => supplier.id),
+    /** 견적서에서 읽은 사업자번호·업체명(업체를 못 찾았을 때 새 업체 등록에 불러옴) */
+    readBizNo: text("read_biz_no"),
+    readName: text("read_name"),
+    quotedOn: text("quoted_on").notNull(),
+    validUntil: text("valid_until"),
+    vatMode: text("vat_mode").notNull().default("excluded"),
+    source: text("source").notNull(),
+    fileName: text("file_name"),
+    path: text("path"),
+    lines: jsonb("lines").$type<QuoteLine[]>().notNull(),
+    /** 견적서에 적힌 합계(공급가). 줄 합계와 다르면 경고 */
+    readTotalWon: integer("read_total_won"),
+    totalWon: integer("total_won").notNull().default(0),
+    status: text("status").notNull().default("draft"),
+    added: integer("added").notNull().default(0),
+    updated: integer("updated").notNull().default(0),
+    skipped: integer("skipped").notNull().default(0),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  (t) => [index("price_quote_sup_idx").on(t.supplierId)],
 );

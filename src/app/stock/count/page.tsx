@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
-import { COUNT_KINDS, type CountKind } from "@/modules/purchase/rules";
+import { COUNT_KINDS, packLabel, type CountKind } from "@/modules/purchase/rules";
 import { listCounts, listStock } from "@/modules/purchase/stock";
 import { branchStock } from "@/modules/purchase/transfer";
 import { loadPolicy } from "@/modules/platform/policy";
@@ -19,7 +19,9 @@ export default async function StockCountPage({ searchParams }: { searchParams: P
   const db = await getDb();
   const kind: CountKind = q.kind === "quarterly" ? "quarterly" : "monthly";
   const [all, counts, p] = await Promise.all([listStock(db, "all"), listCounts(db), loadPolicy(db)]);
-  const items = kind === "monthly" ? all.filter((i) => i.kind === "paint" || i.unitWon >= 30_000) : all;
+  // '관리 안 함'은 세지 않고, '실사로 관리'는 월말마다 센다(줄어든 만큼이 사용량)
+  const counted = all.filter((i) => i.trackMode !== "none");
+  const items = kind === "monthly" ? counted.filter((i) => i.kind === "paint" || i.unitWon >= 30_000 || i.trackMode === "count") : counted;
   // 지점이 여럿이면 지금 지점의 장부 수량과 맞춘다
   const many = (user.branches?.length ?? 0) > 1;
   const bs = many ? (await branchStock(db, items.map((i) => i.id))).by : null;
@@ -58,7 +60,7 @@ export default async function StockCountPage({ searchParams }: { searchParams: P
                   {items.map((i) => (
                     <div key={i.id}>
                       <input type="hidden" name="itemId" value={i.id} />
-                      <NumberField help="st.actual" name={`actual_${i.id}`} label={`${i.name}${i.spec ? ` ${i.spec}` : ""}${i.location ? ` (${i.location})` : ""}`} min={0} unit={i.unit} current={bookOf(i)} />
+                      <NumberField help="st.actual" name={`actual_${i.id}`} label={`${i.name}${i.spec ? ` ${i.spec}` : ""}${i.location ? ` (${i.location})` : ""}${packLabel(i) ? ` · ${packLabel(i)}, 낱개로` : ""}${i.trackMode === "count" ? " · 실사로 관리" : ""}`} min={0} unit={i.unit} current={bookOf(i)} />
                     </div>
                   ))}
                 </div>

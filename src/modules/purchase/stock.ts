@@ -1,9 +1,9 @@
 // 재고와 보관(STD-07 7절): 품목·안전 재고, 입고(발주 검수에서), 사용 기록(선입선출), 유효기간 알림·폐기, 실사
-import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { alias } from "drizzle-orm/pg-core";
-import { avgUnit, postMove } from "./cost";
-import { appUser, chemical, repairOrder, stockCount, stockItem, stockItemDoc, stockLot, stockMove, supplier } from "@/db/schema";
+import { avgUnit, baseUnitWon, postMove } from "./cost";
+import { appUser, chemical, purchaseLine, purchaseOrder, repairOrder, stockCount, stockItem, stockItemDoc, stockLot, stockMove, supplier } from "@/db/schema";
 import { isExpCategory } from "@/modules/money/rules";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
@@ -17,7 +17,8 @@ import { issueNc } from "@/modules/quality/nc";
 import { createOrder } from "./order";
 import { branchStock } from "./transfer";
 import { actorBranch } from "@/modules/platform/docno";
-import { belowSafety, COUNT_KINDS, countDiff, docExpiry, EXPIRY_ALERT_DAYS, fifoTake, isItemDocKind, isPackUnit, isStockKind, isStopReason, isVatMode, ITEM_DOC_KINDS, KIND_EXP_CATEGORY, splitVat, STOP_REASONS, suggestOrderQty, type CountKind, type StockKind, type VatMode } from "./rules";
+import { recordPrice, type PriceInput } from "./price";
+import { belowSafety, COUNT_KINDS, countDiff, docExpiry, EXPIRY_ALERT_DAYS, fifoTake, isItemDocKind, isPackUnit, isStockKind, isStopReason, isVatMode, isTrackMode, recommendTrack, TRACK_MODES, type TrackMode, ITEM_DOC_KINDS, KIND_EXP_CATEGORY, splitVat, STOP_REASONS, suggestOrderQty, suggestBuyQty, type CountKind, type StockKind, type VatMode } from "./rules";
 
 export class StockError extends UserError {}
 type Actor = { id: string; roles: Role[]; branchId?: string };
@@ -50,6 +51,13 @@ export type ItemInput = {
   supplierId: string;
   openingQty?: number;
   openingExpiresOn?: string;
+  /** 관리 방식. 비우면 추천값(recommendTrack) */
+  trackMode?: string;
+  /** 묶음 구매: 사는 단위(박스)와 입수(1박스 = ?개). 입수가 1 이하·비면 묶음 아님 */
+  buyUnit?: string;
+  buyQty?: number | null;
+  /** 단가가 어디서 왔는지(견적서 일괄 등록이면 견적서 정보). 없으면 직접 입력 */
+  price?: Omit<PriceInput, "itemId" | "supplierId" | "unitWon" | "vatMode" | "by" | "at" | "before">;
 };
 
 export async function saveItem(db: Db, actor: Actor, id: string | null, input: ItemInput, now = new Date()) {
@@ -75,13 +83,31 @@ export async function saveItem(db: Db, actor: Actor, id: string | null, input: I
     if (!sp) throw new StockError("주 거래 업체를 찾을 수 없습니다");
     if (sp.status === "stopped" || sp.status === "rejected") throw new StockError(`${sp.name}은(는) 거래하지 않는 업체입니다. 다른 업체를 고르세요`);
   }
+  const buyQty = input.buyQty && input.buyQty > 1 ? input.buyQty : null;
+  if (buyQty != null && (!Number.isInteger(buyQty) || buyQty > 100_000)) throw new StockError("입수(사는 단위 1개에 든 낱개 수)는 2 이상 정수입니다");
+  const buyUnit = buyQty ? (input.buyUnit ?? "").trim() : "";
+  if (buyQty && !buyUnit) throw new StockError("사는 단위(박스·세트 등)를 골라 주세요");
+  if (buyQty && buyUnit === input.unit.trim()) throw new StockError("사는 단위와 재고(쓰는) 단위가 같습니다. 예: 사는 단위 박스, 쓰는 단위 롤");
+  let trackMode: TrackMode;
+  if (input.trackMode) {
+    if (!isTrackMode(input.trackMode)) throw new StockError("관리 방식을 골라 주세요");
+    trackMode = input.trackMode;
+  } else {
+    const p = await loadPolicy(db, seoulDate(now));
+    trackMode = recommendTrack({ kind: input.kind, unitWon: splitVat(input.unitWon, vatMode).supply, buyQty, expiryTracked: input.expiryTracked, chemicalId: input.chemicalId || null, safetyQty: input.safetyQty }, { low: p["stock.track_low"], high: p["stock.track_high"] }).mode;
+  }
+  if (trackMode === "none" && (input.expiryTracked || input.kind === "paint")) throw new StockError("도료·유효기간 관리 품목은 '관리 안 함'으로 둘 수 없습니다");
+  if (trackMode === "none" && (input.openingQty ?? 0) > 0) throw new StockError("'관리 안 함' 품목은 수량을 세지 않습니다. 지금 수량을 비우거나 관리 방식을 바꾸세요");
   const v = {
+    trackMode,
+    buyUnit: buyUnit || null,
+    buyQty,
     name: input.name.trim(),
     kind: input.kind,
     spec: clean(input.spec),
     unit: input.unit.trim(),
     location: clean(input.location),
-    safetyQty: input.safetyQty,
+    safetyQty: trackMode === "none" ? 0 : input.safetyQty,
     unitWon: splitVat(input.unitWon, vatMode).supply,
     vatMode,
     packAmount: pack,
@@ -96,7 +122,11 @@ export async function saveItem(db: Db, actor: Actor, id: string | null, input: I
   if (id) {
     const before = await itemRow(db, id);
     if (before.expiryTracked && !v.expiryTracked && before.qty > 0) throw new StockError("남은 재고가 있는 동안에는 유효기간 관리를 끌 수 없습니다");
+    if (v.trackMode === "none" && before.trackMode !== "none" && before.qty > 0) throw new StockError(`남은 수량 ${before.qty}${before.unit}이 있습니다. 다 쓰거나 실사로 0을 맞춘 뒤 '관리 안 함'으로 바꾸세요`);
     await db.update(stockItem).set(v).where(eq(stockItem.id, id));
+    // 단가나 업체가 바뀌면 업체 단가표·단가 이력에 남긴다
+    if (v.unitWon !== before.unitWon || (v.supplierId && v.supplierId !== before.supplierId))
+      await recordPrice(db, { itemId: id, supplierId: v.supplierId, unitWon: v.unitWon, vatMode, before: before.unitWon, packQty: buyQty, by: actor.id, at: now, ...(input.price ?? { source: "manual" }) });
     await writeAudit(db, { actorId: actor.id, action: "stock.item", entityType: "stock_item", entityId: id, before: { safetyQty: before.safetyQty, location: before.location }, after: { safetyQty: v.safetyQty, location: v.location } });
     return id;
   }
@@ -107,8 +137,9 @@ export async function saveItem(db: Db, actor: Actor, id: string | null, input: I
     const [i] = await tx.insert(stockItem).values({ ...v, qty: opening, createdAt: now }).returning({ id: stockItem.id });
     if (opening > 0) {
       if (v.expiryTracked) await tx.insert(stockLot).values({ itemId: i.id, expiresOn: input.openingExpiresOn!, qty: opening });
-      await postMove(tx, { id: i.id, qty: 0, valueWon: 0, unitWon: v.unitWon }, { branchId: actorBranch(actor), qty: opening, reason: "count", note: "처음 등록(기초 재고)", by: actor.id, at: now }, v.unitWon);
+      await postMove(tx, { id: i.id, qty: 0, valueWon: 0, unitWon: v.unitWon, buyQty }, { branchId: actorBranch(actor), qty: opening, reason: "count", note: "처음 등록(기초 재고)", by: actor.id, at: now }, baseUnitWon(v));
     }
+    if (v.unitWon > 0) await recordPrice(tx, { itemId: i.id, supplierId: v.supplierId, unitWon: v.unitWon, vatMode, packQty: buyQty, by: actor.id, at: now, ...(input.price ?? { source: "manual" }) });
     return i.id;
   });
   await writeAudit(db, { actorId: actor.id, action: "stock.item_create", entityType: "stock_item", entityId: newId, after: { name: v.name, opening } });
@@ -174,6 +205,7 @@ export async function useStock(db: Db, actor: Actor, input: { itemId: string; qt
   if (!can(actor, "stock.use")) throw new StockError("자재 사용은 기술자·공장장이 적습니다");
   const i = await itemRow(db, input.itemId);
   if (!i.active) throw new StockError("쓰지 않는 품목입니다");
+  if (i.trackMode === "none") throw new StockError(`${i.name}은(는) '관리 안 함' 품목이라 사용 기록을 적지 않습니다`);
   if (!Number.isInteger(input.qty) || input.qty < 1) throw new StockError("쓴 양을 적어 주세요");
   const today = seoulDate(now);
   let takes: { id: string; take: number }[] = [];
@@ -237,14 +269,16 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
   if (!(input.kind in COUNT_KINDS)) throw new StockError("실사 구분을 골라 주세요");
   const given = input.lines.filter((l) => Number.isInteger(l.actual) && l.actual >= 0);
   if (!given.length) throw new StockError("실물 수량을 하나 이상 적어 주세요");
-  const items = await db.select().from(stockItem).where(inArray(stockItem.id, given.map((g) => g.itemId)));
+  const items = (await db.select().from(stockItem).where(inArray(stockItem.id, given.map((g) => g.itemId)))).filter((i) => i.trackMode !== "none");
   const byId = new Map(items.map((i) => [i.id, i]));
   // 지점이 여럿이면 지금 지점의 장부 수량과 맞춘다(지점이 하나면 회사 전체 = 본점)
   const at = actorBranch(actor);
   const bs = (await branchStock(db, items.map((i) => i.id))).by;
   const bookOf = (id: string) => bs.get(id)?.get(at)?.qty ?? 0;
   const lines = given.filter((g) => byId.has(g.itemId)).map((g) => ({ itemId: g.itemId, name: byId.get(g.itemId)!.name, book: bookOf(g.itemId), actual: g.actual, unitWon: Math.round(avgUnit(byId.get(g.itemId)!)) }));
-  const d = countDiff(lines);
+  // '실사로 관리' 품목은 줄어든 만큼이 곧 사용량이라 차이(부적합 기준)에 넣지 않는다
+  const isCountMode = (itemId: string) => byId.get(itemId)!.trackMode === "count";
+  const d = countDiff(lines.filter((l) => !isCountMode(l.itemId)));
   const p = await loadPolicy(db, seoulDate(now));
   const over = d.pct > p["stock.count_diff_pct"];
   if (over && !input.note.trim()) throw new StockError(`차이가 ${d.pct}%로 기준(${p["stock.count_diff_pct"]}%)을 넘습니다. 짐작 가는 원인을 적어 주세요`);
@@ -264,7 +298,8 @@ export async function recordCount(db: Db, actor: Actor, input: { kind: string; l
       const total = Math.max(0, it.qty + diff);
       await tx.update(stockItem).set({ qty: total, updatedAt: now }).where(eq(stockItem.id, it.id));
       if (it.windDown && total <= 0) await tx.update(stockItem).set({ active: false, windDown: false }).where(eq(stockItem.id, it.id));
-      await postMove(tx, it, { branchId: at, qty: diff, reason: "count", note: `${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual}`, by: actor.id, at: now });
+      const used = isCountMode(it.id) && diff < 0;
+      await postMove(tx, it, { branchId: at, qty: diff, reason: used ? "use" : "count", note: used ? `실사로 계산한 사용량(${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual})` : `${COUNT_KINDS[input.kind as CountKind]} 장부 ${l.book} → 실물 ${l.actual}`, by: actor.id, at: now });
     }
     return c.id;
   });
@@ -299,7 +334,8 @@ export async function orderLowStock(db: Db, actor: Actor, itemIds: string[], now
           kind: "stock",
           supplierId: sup || null,
           note: "안전 재고 미달 발주 요청",
-          lines: list.map((i) => ({ name: i.name, spec: i.spec ?? undefined, qty: Math.max(1, suggestOrderQty(i)), unitWon: i.unitWon, stockItemId: i.id })),
+          // 묶음 품목은 사는 단위로 올림(낱개 30개 모자라고 1박스 = 40개면 1박스)
+          lines: list.map((i) => ({ name: i.name, spec: i.spec ?? undefined, qty: Math.max(1, suggestBuyQty(i)), unitWon: i.unitWon, stockItemId: i.id })),
         },
         now,
       ),
@@ -340,7 +376,7 @@ export async function listStock(db: Db, filter: StockFilter = "all", now = new D
       expired: ls.filter((l) => l.expiresOn < today),
       expiring: ls.filter((l) => l.expiresOn >= today && l.expiresOn <= soon),
       // 소진 후 중지 품목은 다시 사지 않으므로 미달로 보지 않는다
-      low: !i.windDown && belowSafety(i),
+      low: !i.windDown && i.trackMode !== "none" && belowSafety(i),
       docState: docState.get(i.id) ?? null,
     };
   });
@@ -436,6 +472,12 @@ export async function replacementOptions(db: Db, exceptId: string) {
 }
 
 /** 직전에 등록한 품목의 단가 방식(다음 등록 때 그대로 불러온다) */
+/** 관리 방식 추천 기준(정책값) */
+export async function trackPolicy(db: Db, now = new Date()) {
+  const p = await loadPolicy(db, seoulDate(now));
+  return { low: p["stock.track_low"], high: p["stock.track_high"] };
+}
+
 export async function lastVatMode(db: Db): Promise<VatMode> {
   const [r] = await db.select({ m: stockItem.vatMode }).from(stockItem).orderBy(desc(stockItem.createdAt)).limit(1);
   return r && isVatMode(r.m) ? r.m : "excluded";
@@ -503,7 +545,58 @@ export async function stockTodos(db: Db, actor: Actor, today: string, now = new 
       out.push({ key: `stock-count-${month}`, when: today >= lastDay ? "today" : "soon", what: quarter ? "분기 말 전체 재고 실사" : "월말 재고 실사(도료·고가 소모품)", detail: `${lastDay}까지`, href: `/stock/count?kind=${quarter ? "quarterly" : "monthly"}`, action: "실사하기" });
     }
   }
+  // 분기 첫 2주: 관리 방식 다시 추천(최근 90일 매입 금액 순)
+  if (["01", "04", "07", "10"].includes(month.slice(5)) && today.slice(8) <= "14") {
+    const tr = await trackReview(db, now);
+    if (tr.length) out.push({ key: `stock-track-${month}`, when: "soon", what: `재고 관리 방식 바꾸기 추천 ${tr.length}개 품목`, detail: tr.slice(0, 4).map((t) => `${t.name} ${TRACK_MODES[t.current]}→${TRACK_MODES[t.suggest]}`).join(", "), href: "/stock#track", action: "보고 바꾸기" });
+  }
   return out;
+}
+
+/**
+ * 관리 방식 다시 추천(분기마다). 최근 90일 매입 금액(입고된 발주 줄)으로 ABC 분석:
+ * 누적 80%까지 A → 수량 관리, 95%까지 B → 실사로 관리, 나머지 C → 관리 안 함.
+ * 도료·유효기간·화학물질·상비 부품은 늘 수량 관리, 안전 재고가 있으면 '관리 안 함' 대신 실사. 매입 기록이 5개 품목 미만이면 추천하지 않는다
+ */
+export async function trackReview(db: Db, now = new Date()) {
+  const since = new Date(now.getTime() - 90 * 86_400_000);
+  const items = (await db.select().from(stockItem).where(eq(stockItem.active, true))).filter((i) => !i.windDown);
+  const spend = await db
+    .select({ itemId: purchaseLine.stockItemId, won: sql<number>`sum(${purchaseLine.receivedQty} * ${purchaseLine.unitWon})`.mapWith(Number) })
+    .from(purchaseLine)
+    .innerJoin(purchaseOrder, eq(purchaseOrder.id, purchaseLine.orderId))
+    .where(and(isNotNull(purchaseLine.stockItemId), gt(purchaseLine.receivedQty, 0), gte(purchaseOrder.updatedAt, since)))
+    .groupBy(purchaseLine.stockItemId);
+  const won = new Map(spend.map((r) => [r.itemId!, r.won]));
+  const out: { id: string; name: string; current: TrackMode; suggest: TrackMode; reason: string; won: number }[] = [];
+  const must = (i: typeof stockItem.$inferSelect) => i.kind === "paint" || i.kind === "part" || i.expiryTracked || !!i.chemicalId;
+  for (const i of items) if (must(i) && i.trackMode !== "qty") out.push({ id: i.id, name: i.name, current: i.trackMode as TrackMode, suggest: "qty", reason: "도료·유효기간·화학물질·상비 부품은 수량 관리", won: won.get(i.id) ?? 0 });
+  const ranked = items.filter((i) => !must(i) && (won.get(i.id) ?? 0) > 0).sort((a, b) => won.get(b.id)! - won.get(a.id)!);
+  if (ranked.length >= 5) {
+    const total = ranked.reduce((a, i) => a + won.get(i.id)!, 0);
+    let cum = 0;
+    for (const i of ranked) {
+      const w = won.get(i.id)!;
+      const start = cum / total;
+      cum += w;
+      let suggest: TrackMode = start < 0.8 ? "qty" : start < 0.95 ? "count" : "none";
+      if (suggest === "none" && i.safetyQty > 0) suggest = "count";
+      const grade = suggest === "qty" ? "A" : suggest === "count" ? "B" : "C";
+      if (suggest !== i.trackMode) out.push({ id: i.id, name: i.name, current: i.trackMode as TrackMode, suggest, reason: `최근 90일 매입 ${w.toLocaleString("ko-KR")}원, 매입 금액 순 ${grade}등급(누적 ${Math.round((cum / total) * 100)}%)`, won: w });
+    }
+  }
+  return out;
+}
+
+/** 관리 방식만 바꾸기(추천 목록에서 한 번에) */
+export async function setTrackMode(db: Db, actor: Actor, id: string, mode: string, now = new Date()) {
+  if (!can(actor, "stock.manage")) throw new StockError("재고 품목은 공장장·대표가 정합니다");
+  if (!isTrackMode(mode)) throw new StockError("관리 방식을 골라 주세요");
+  const i = await itemRow(db, id);
+  if (mode === "none" && (i.kind === "paint" || i.expiryTracked)) throw new StockError("도료·유효기간 관리 품목은 '관리 안 함'으로 둘 수 없습니다");
+  if (mode === "none" && i.qty > 0) throw new StockError(`${i.name}: 남은 수량 ${i.qty}${i.unit}이 있습니다. 다 쓰거나 실사로 0을 맞춘 뒤 '관리 안 함'으로 바꾸세요`);
+  await db.update(stockItem).set({ trackMode: mode, safetyQty: mode === "none" ? 0 : i.safetyQty, updatedAt: now }).where(eq(stockItem.id, id));
+  await writeAudit(db, { actorId: actor.id, action: "stock.item", entityType: "stock_item", entityId: id, before: { trackMode: i.trackMode }, after: { trackMode: mode } });
 }
 
 

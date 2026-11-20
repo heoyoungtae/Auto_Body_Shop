@@ -8,23 +8,27 @@ import { stockItem, stockMove } from "@/db/schema";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-/** 평균 단가(공급가, 원). 수량이 없으면 최근 매입 단가 */
-export const avgUnit = (i: { qty: number; valueWon: number; unitWon: number }) => (i.qty > 0 ? i.valueWon / i.qty : i.unitWon);
+/** 장부 품목(낱개 수량·금액, 사는 단위 단가, 입수) */
+type Book = { qty: number; valueWon: number; unitWon: number; buyQty?: number | null };
+/** 낱개 1개의 최근 매입 단가(묶음이면 사는 단위 단가 ÷ 입수) */
+export const baseUnitWon = (i: { unitWon: number; buyQty?: number | null }) => (i.buyQty && i.buyQty > 1 ? i.unitWon / i.buyQty : i.unitWon);
+/** 평균 단가(낱개 1개 공급가, 원). 수량이 없으면 최근 매입 단가 */
+export const avgUnit = (i: Book) => (i.qty > 0 ? i.valueWon / i.qty : baseUnitWon(i));
 
 /**
  * 움직임 하나의 금액. before = 움직이기 전 장부(수량·금액·최근 매입 단가), qty = +들어옴 / −나감,
  * inUnit = 들어올 때 매입 공급가(입고·처음 등록). 없으면 평균 단가로 계산한다.
  */
-export function moveCost(before: { qty: number; valueWon: number; unitWon: number }, qty: number, inUnit?: number | null) {
+export function moveCost(before: Book, qty: number, inUnit?: number | null) {
   const bq = Math.max(0, before.qty);
   const bv = bq > 0 ? before.valueWon : 0;
   let amount: number;
-  if (qty >= 0) amount = Math.round(qty * (inUnit != null ? inUnit : avgUnit({ qty: bq, valueWon: bv, unitWon: before.unitWon })));
+  if (qty >= 0) amount = Math.round(qty * (inUnit != null ? inUnit : avgUnit({ qty: bq, valueWon: bv, unitWon: before.unitWon, buyQty: before.buyQty })));
   else if (bq + qty <= 0) amount = -bv;
   else amount = -Math.round((bv * -qty) / bq);
   const balQty = Math.max(0, bq + qty);
   const balWon = balQty > 0 ? bv + amount : 0;
-  return { unitWon: qty ? Math.round(Math.abs(amount / qty)) : Math.round(avgUnit({ qty: bq, valueWon: bv, unitWon: before.unitWon })), amountWon: amount, balQty, balWon };
+  return { unitWon: qty ? Math.round(Math.abs(amount / qty)) : Math.round(avgUnit({ qty: bq, valueWon: bv, unitWon: before.unitWon, buyQty: before.buyQty })), amountWon: amount, balQty, balWon };
 }
 
 /** branchId: 움직인 지점(없으면 본점). transfer = 지점 사이 이동(회사 전체 재고·장부 금액은 그대로) */
@@ -34,7 +38,7 @@ export type MoveInput = { branchId?: string | null; qty: number; reason: "receiv
  * 움직임 기록 + 장부 금액 맞추기. item 은 움직이기 전 장부(수량·금액·최근 매입 단가).
  * 수량(qty)은 부르는 쪽이 따로 바꾼다(로트·사용 중지 처리와 같이 하므로). 돌려준 값으로 item 을 이어 쓸 수 있다.
  */
-export async function postMove(tx: Tx | Db, item: { id: string; qty: number; valueWon: number; unitWon: number }, mv: MoveInput, inUnit?: number | null) {
+export async function postMove(tx: Tx | Db, item: Book & { id: string }, mv: MoveInput, inUnit?: number | null) {
   const c = moveCost(item, mv.qty, inUnit);
   await tx.update(stockItem).set({ valueWon: c.balWon }).where(eq(stockItem.id, item.id));
   await tx.insert(stockMove).values({ ...(mv.branchId ? { branchId: mv.branchId } : {}), itemId: item.id, qty: mv.qty, reason: mv.reason, ref: mv.ref ?? null, repairOrderId: mv.repairOrderId ?? null, lot: mv.lot ?? null, note: mv.note ?? null, unitWon: c.unitWon, amountWon: c.amountWon, by: mv.by, at: mv.at });

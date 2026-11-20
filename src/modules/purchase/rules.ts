@@ -145,7 +145,7 @@ export const lateForRepair = (replyDueOn: string | null, roDueOn: string | null)
 export const STOCK_KINDS = { paint: "도료(퍼티·경화제 포함)", consumable: "소모품", part: "상비 부품" } as const;
 export type StockKind = keyof typeof STOCK_KINDS;
 export const isStockKind = (s: string): s is StockKind => s in STOCK_KINDS;
-export const STOCK_UNITS = ["개", "통", "캔", "L", "kg", "롤", "장", "박스", "세트"] as const;
+export const STOCK_UNITS = ["개", "통", "캔", "L", "kg", "롤", "장", "박스", "세트", "벌"] as const;
 export const MOVE_REASON = { receive: "입고", use: "사용", count: "실사 조정", discard: "폐기(유효기간)", transfer: "지점 이동" } as const;
 /** 유효기간 알림(7절: 30일 전) */
 export const EXPIRY_ALERT_DAYS = 30;
@@ -248,3 +248,53 @@ export function nextFxNo(existing: string[]) {
   const n = existing.map((x) => Number(/^FX-(\d+)$/.exec(x)?.[1] ?? 0)).reduce((a, b) => Math.max(a, b), 0) + 1;
   return `FX-${String(n).padStart(3, "0")}`;
 }
+
+// ── 재고 관리 방식·묶음 입수(대표 결정 2026-11-20) ──
+
+/**
+ * 관리 방식. qty 수량 관리(입고 +, 쓸 때마다 사용 기록 −, 안전 재고 알림) /
+ * count 실사로 관리(사용 기록 없이 월말 실사로 남은 양만 셈. 사용량 = 기초 + 입고 − 기말) /
+ * none 관리 안 함(산 날 비용, 수량을 세지 않음. 발주·단가표에는 나옴)
+ */
+export const TRACK_MODES = { qty: "수량 관리", count: "실사로 관리", none: "관리 안 함" } as const;
+export type TrackMode = keyof typeof TRACK_MODES;
+export const isTrackMode = (s: string): s is TrackMode => s in TRACK_MODES;
+export const TRACK_HINT: Record<TrackMode, string> = {
+  qty: "입고하면 늘고, 쓸 때마다 사용 기록으로 뺍니다",
+  count: "쓸 때 적지 않고 월말 실사로 남은 양만 셉니다",
+  none: "산 날 비용으로 끝. 수량을 세지 않습니다",
+};
+
+/** 관리 방식 추천과 이유. unitWon = 사는 단위(박스·캔) 공급가 */
+export function recommendTrack(
+  i: { kind: string; unitWon: number; buyQty?: number | null; expiryTracked?: boolean; chemicalId?: string | null; safetyQty?: number },
+  p: { low: number; high: number },
+): { mode: TrackMode; reason: string } {
+  const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+  if (i.kind === "paint") return { mode: "qty", reason: "도료·퍼티·경화제·신나는 유효기간·로트·MSDS 때문에 수량 관리" };
+  if (i.expiryTracked || i.chemicalId) return { mode: "qty", reason: "유효기간·화학물질 품목은 수량 관리" };
+  if (i.kind === "part") return { mode: "qty", reason: "상비 부품은 수리 건에 바로 쓰므로 수량 관리" };
+  if (i.unitWon >= p.high) return { mode: "qty", reason: `단가 ${won(i.unitWon)}로 ${won(p.high)} 이상` };
+  if ((i.buyQty ?? 1) >= 10) return { mode: "count", reason: `묶음(입수 ${i.buyQty})으로 사서 조금씩 쓰는 소모품` };
+  if (i.unitWon >= p.low) return { mode: "count", reason: `단가 ${won(i.unitWon)}로 ${won(p.low)}~${won(p.high)} 사이 소모품` };
+  if ((i.safetyQty ?? 0) > 0) return { mode: "count", reason: "안전 재고를 두었으므로 실사로 관리" };
+  return { mode: "none", reason: `단가 ${won(i.unitWon)}로 ${won(p.low)} 미만 소모품` };
+}
+
+/** 사는 단위 1개에 든 낱개 수(입수). 묶음이 아니면 1 */
+export const packOf = (i: { buyQty?: number | null }) => (i.buyQty && i.buyQty > 1 ? i.buyQty : 1);
+/** 사는 단위 이름(묶음이 아니면 재고 단위) */
+export const buyUnitOf = (i: { unit: string; buyUnit?: string | null; buyQty?: number | null }) => (packOf(i) > 1 && i.buyUnit ? i.buyUnit : i.unit);
+/** '1박스 = 40롤' */
+export const packLabel = (i: { unit: string; buyUnit?: string | null; buyQty?: number | null }) => (packOf(i) > 1 ? `1${buyUnitOf(i)} = ${packOf(i)}${i.unit}` : "");
+/** 낱개 수량을 '3박스 20롤(140롤)'처럼 */
+export function fmtPackQty(qty: number, i: { unit: string; buyUnit?: string | null; buyQty?: number | null }) {
+  const n = packOf(i);
+  if (n <= 1) return `${qty.toLocaleString("ko-KR")}${i.unit}`;
+  const box = Math.floor(qty / n);
+  const rest = qty - box * n;
+  const parts = [box ? `${box}${buyUnitOf(i)}` : "", rest ? `${rest}${i.unit}` : ""].filter(Boolean).join(" ") || `0${i.unit}`;
+  return `${parts}(${qty.toLocaleString("ko-KR")}${i.unit})`;
+}
+/** 발주 제안 수량(사는 단위, 올림) */
+export const suggestBuyQty = (i: { qty: number; safetyQty: number; buyQty?: number | null }) => Math.ceil(suggestOrderQty(i) / packOf(i));

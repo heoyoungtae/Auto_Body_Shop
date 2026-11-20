@@ -4,8 +4,9 @@ import { getDb } from "@/db/runtime";
 import { repairOrder, vehicle } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import { pastLines, roDueDate } from "@/modules/purchase/order";
-import { suggestOrderQty } from "@/modules/purchase/rules";
+import { buyUnitOf, packLabel, suggestBuyQty } from "@/modules/purchase/rules";
 import { orderableStock } from "@/modules/purchase/stock";
+import { priceBook } from "@/modules/purchase/price";
 import { PART_CODES } from "@/modules/repair/estimate-rules";
 import { LineRows } from "../line-rows";
 import { SUPPLIER_STATUS, type SupplierStatus } from "@/modules/purchase/rules";
@@ -28,6 +29,7 @@ export default async function NewPurchasePage({ searchParams }: { searchParams: 
   const today = seoulDate();
   const kind = ro ? "repair" : "stock";
   const [sups, stock0, past] = await Promise.all([supplierOptions(db, ro ? "parts" : undefined), ro ? Promise.resolve([]) : orderableStock(db), pastLines(db, null, kind)]);
+  const book = ro ? {} : Object.fromEntries(await priceBook(db));
   // 안전 재고 미달 품목을 위로
   const stock = [...stock0].sort((a, b) => Number(b.low) - Number(a.low));
   return (
@@ -65,11 +67,12 @@ export default async function NewPurchasePage({ searchParams }: { searchParams: 
               <h3 className="mb-1 text-sm font-semibold">품목(여러 줄 한꺼번에)</h3>
               <LineRows
                 kind={kind}
-                stock={stock.map((s) => ({ id: s.id, name: s.name, spec: s.spec, unit: s.unit, unitWon: s.unitWon, qty: s.qty, suggest: suggestOrderQty(s), low: s.low, mine: false }))}
+                stock={stock.map((s) => ({ id: s.id, name: s.name, spec: s.spec, unit: buyUnitOf(s), pack: packLabel(s), unitWon: s.unitWon, qty: s.qty, suggest: suggestBuyQty(s), low: s.low, mine: false }))}
                 past={past}
                 partCodes={Object.entries(PART_CODES).map(([value, label]) => ({ value, label }))}
                 start={5}
                 submit={false}
+                prices={book}
               />
             </div>
             <div className="md:col-span-2">

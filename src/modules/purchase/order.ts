@@ -5,6 +5,9 @@ import { and, asc, desc, eq, inArray, isNotNull, ne, notInArray } from "drizzle-
 import type { Db } from "@/db/client";
 import { isPayTerm } from "@/modules/money/rules";
 import { postMove } from "./cost";
+import { recordPrice } from "./price";
+import { PRICE_RISE_ALERT_PCT } from "./quote-rules";
+import { buyUnitOf, packOf } from "./rules";
 import { appUser, customer, estimate, estimateLine, purchaseLine, purchaseOrder, purchaseReceipt, repairOrder, stockItem, stockLot, supplier, vehicle, workOrder } from "@/db/schema";
 import { rolesOf } from "@/modules/approval/line";
 import { can } from "@/modules/auth/permissions";
@@ -334,6 +337,7 @@ export async function receiveOrder(db: Db, actor: Actor, id: string, input: Rece
   }
   const bad = got.filter((g) => g.bad > 0);
   if (bad.length && !input.badNote.trim()) throw new PurchaseError("불합격 이유(파손·변형·품번 다름 등)를 적어 주세요");
+  const rises: string[] = [];
   const done = await db.transaction(async (tx) => {
     const [r] = await tx
       .insert(purchaseReceipt)
@@ -352,18 +356,32 @@ export async function receiveOrder(db: Db, actor: Actor, id: string, input: Rece
       l.receivedQty += g.ok;
       const it = l.stockItemId ? items.get(l.stockItemId) : null;
       if (it && g.ok > 0) {
+        // 업체 단가표·단가 이력: 발주 단가가 그 업체의 최근 단가가 된다(사는 단위 단가)
+        if (l.unitWon > 0) {
+          const r = await recordPrice(tx, { itemId: it.id, supplierId: o.supplierId, unitWon: l.unitWon, vatMode: "excluded", source: "receive", ref: o.docNo, before: it.unitWon, packQty: it.buyQty, by: actor.id, at: now });
+          if (r.pct != null && r.pct >= PRICE_RISE_ALERT_PCT) rises.push(`${it.name} ${r.before!.toLocaleString("ko-KR")}→${l.unitWon.toLocaleString("ko-KR")}원(+${r.pct}%)`);
+        }
+      }
+      if (it && g.ok > 0 && it.trackMode === "none") {
+        // 관리 안 함: 수량은 세지 않고 단가만 남긴다(산 날 비용)
+        await tx.update(stockItem).set({ unitWon: l.unitWon || it.unitWon, updatedAt: now }).where(eq(stockItem.id, it.id));
+      } else if (it && g.ok > 0) {
+        // 묶음 품목: 발주·입고는 사는 단위(박스), 재고는 낱개(박스 × 입수). 낱개 원가 = 발주 단가 ÷ 입수
+        const n = packOf(it);
+        const base = g.ok * n;
         // 입고 금액 = 발주 단가(공급가) × 합격 수량. 평균 단가는 장부 금액 ÷ 수량으로 다시 나온다(이동평균)
-        const c = await postMove(tx, it, { branchId: o.branchId, qty: g.ok, reason: "receive", ref: o.docNo, lot: clean(g.lot), by: actor.id, at: now }, l.unitWon || it.unitWon);
-        await tx.update(stockItem).set({ qty: it.qty + g.ok, unitWon: l.unitWon || it.unitWon, location: clean(g.location) ?? it.location, updatedAt: now }).where(eq(stockItem.id, it.id));
-        it.qty += g.ok;
+        const c = await postMove(tx, it, { branchId: o.branchId, qty: base, reason: "receive", ref: o.docNo, lot: clean(g.lot), note: n > 1 ? `${g.ok}${buyUnitOf(it)} × ${n}` : null, by: actor.id, at: now }, (l.unitWon || it.unitWon) / n);
+        await tx.update(stockItem).set({ qty: it.qty + base, unitWon: l.unitWon || it.unitWon, location: clean(g.location) ?? it.location, updatedAt: now }).where(eq(stockItem.id, it.id));
+        it.qty += base;
         it.valueWon = c.balWon;
-        if (it.expiryTracked) await tx.insert(stockLot).values({ itemId: it.id, lot: clean(g.lot), expiresOn: g.expiresOn!, qty: g.ok });
+        if (it.expiryTracked) await tx.insert(stockLot).values({ itemId: it.id, lot: clean(g.lot), expiresOn: g.expiresOn!, qty: base });
       }
     }
     const all = lines.every((l) => l.receivedQty >= l.qty);
     await tx.update(purchaseOrder).set({ status: all ? "received" : "partial", receivedAt: all ? now : null, updatedAt: now }).where(eq(purchaseOrder.id, id));
     return { receiptId: r.id, all };
   });
+  if (rises.length) await notifyRole(db, "owner", `매입 단가 ${PRICE_RISE_ALERT_PCT}% 넘게 오름(${o.docNo}): ${rises.join(", ")}`, `price-rise-${done.receiptId}`, `/purchases/${id}`);
   await writeAudit(db, { actorId: actor.id, action: "purchase.receive", entityType: "purchase_order", entityId: o.docNo, after: { lines: got.length, bad: bad.length, all: done.all } });
   if (bad.length) {
     let nc: { id: string; docNo: string } | null = null;

@@ -1,9 +1,9 @@
 // 재고 품목 칸(새로 등록·고치기 같이 씀)
 import Link from "next/link";
 import { EXP_CATEGORIES } from "@/modules/money/rules";
-import { itemExpCategory, PACK_UNITS, shownUnitWon, STOCK_KINDS, STOCK_UNITS, VAT_MODES, isVatMode, type VatMode } from "@/modules/purchase/rules";
+import { itemExpCategory, PACK_UNITS, shownUnitWon, STOCK_KINDS, STOCK_UNITS, TRACK_HINT, TRACK_MODES, VAT_MODES, isVatMode, type TrackMode, type VatMode } from "@/modules/purchase/rules";
 import { NumberField, RadioRow, SelectField, TextField } from "../_input";
-import { KindLinksCategory, VatPreview } from "./item-assist";
+import { KindLinksCategory, PackPreview, TrackHint, VatPreview } from "./item-assist";
 import { SupplierPicker, type SupOpt } from "./supplier-picker";
 
 type I = {
@@ -21,6 +21,9 @@ type I = {
   chemicalId: string | null;
   expiryTracked: boolean;
   supplierId: string | null;
+  trackMode: string;
+  buyUnit: string | null;
+  buyQty: number | null;
 };
 
 export function ItemFields({
@@ -30,7 +33,10 @@ export function ItemFields({
   canAddSupplier,
   canAddChemical,
   vatModeDefault = "excluded",
+  track,
 }: {
+  /** 관리 방식 추천 기준(정책값) */
+  track: { low: number; high: number };
   i?: I;
   suppliers: SupOpt[];
   chemicals: { id: string; name: string; maker: string | null; hasMsds: string | null }[];
@@ -46,6 +52,9 @@ export function ItemFields({
       <RadioRow help="st.kind" name="kind" required defaultValue={i?.kind} options={Object.entries(STOCK_KINDS).map(([value, label]) => ({ value, label }))} />
       <TextField help="st.spec" name="spec" defaultValue={i?.spec ?? ""} />
       <SelectField help="st.unit" name="unit" required defaultValue={i?.unit ?? "개"} options={STOCK_UNITS.map((u) => ({ value: u, label: u }))} />
+      <SelectField help="st.buyUnit" name="buyUnit" defaultValue={i?.buyUnit ?? ""} placeholder="묶음 아님(재고 단위로 삼)" options={STOCK_UNITS.map((u) => ({ value: u, label: u }))} />
+      <NumberField help="st.buyQty" name="buyQty" min={2} max={100000} defaultValue={i?.buyQty ?? null} />
+      <PackPreview />
       <NumberField help="st.packAmount" name="packAmount" min={1} defaultValue={i?.packAmount ?? null} />
       <SelectField help="st.packUnit" name="packUnit" defaultValue={i?.packUnit ?? ""} placeholder="단위" options={PACK_UNITS.map((u) => ({ value: u, label: u }))} />
       <TextField help="st.location" name="location" defaultValue={i?.location ?? ""} />
@@ -64,6 +73,8 @@ export function ItemFields({
           .map(([value, label]) => ({ value, label }))}
       />
       <KindLinksCategory />
+      <RadioRow help="st.trackMode" name="trackMode" defaultValue={i?.trackMode} options={Object.entries(TRACK_MODES).map(([value, label]) => ({ value, label: `${label}(${TRACK_HINT[value as TrackMode]})` }))} />
+      <TrackHint low={track.low} high={track.high} />
       <RadioRow help="st.expiryTracked" name="expiryTracked" required defaultValue={i ? (i.expiryTracked ? "1" : "0") : undefined} options={[
         { value: "1", label: "관리함(도료·퍼티·경화제)" },
         { value: "0", label: "안 함" },

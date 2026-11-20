@@ -281,6 +281,20 @@ export const DEFAULT_POLICY = {
     clause: "7.3",
     max: 100,
   },
+  "stock.track_low": {
+    value: 10_000,
+    unit: "원",
+    label: "재고 관리 방식 추천: 이 단가 미만 소모품은 '관리 안 함'",
+    clause: "7.1",
+    max: 1_000_000,
+  },
+  "stock.track_high": {
+    value: 50_000,
+    unit: "원",
+    label: "재고 관리 방식 추천: 이 단가 이상은 '수량 관리'",
+    clause: "7.1",
+    max: 10_000_000,
+  },
   "asset.register_min": {
     value: 500_000,
     unit: "원 이상",

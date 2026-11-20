@@ -5,8 +5,10 @@ import { can } from "@/modules/auth/permissions";
 import { EXP_CATEGORIES } from "@/modules/money/rules";
 import { addDays } from "@/modules/platform/time";
 import { DOC_RESULTS, docExpiry, EXPIRY_ALERT_DAYS, ITEM_DOC_KINDS, itemExpCategory, MOVE_REASON, STOCK_KINDS, STOP_REASONS, VAT_MODES, type ItemDocKind, type StockKind, type StopReason, type VatMode } from "@/modules/purchase/rules";
-import { chemicalOptions, getItem, replacementOptions } from "@/modules/purchase/stock";
+import { chemicalOptions, getItem, replacementOptions, trackPolicy } from "@/modules/purchase/stock";
 import { supplierOptions } from "@/modules/purchase/supplier";
+import { itemPriceHistory, itemPrices, PRICE_SOURCES, type PriceSource } from "@/modules/purchase/price";
+import { changePct, PRICE_RISE_ALERT_PCT } from "@/modules/purchase/quote-rules";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
 import { DateField, RadioRow, SelectField, TextField } from "../../_input";
@@ -30,6 +32,7 @@ export default async function StockItemPage({ params, searchParams }: { params: 
   const today = seoulDate();
   const soon = addDays(today, EXPIRY_ALERT_DAYS);
   const [sups, chems, reps] = manage ? await Promise.all([supplierOptions(db), chemicalOptions(db), replacementOptions(db, id)]) : [[], [], []];
+  const [prices, history, tp] = await Promise.all([itemPrices(db, id, today), itemPriceHistory(db, id), trackPolicy(db)]);
   const liveDocs = docs.filter((x) => x.d.active);
   const oldDocs = docs.filter((x) => !x.d.active);
   const stopped = !i.active || i.windDown;
@@ -114,6 +117,61 @@ export default async function StockItemPage({ params, searchParams }: { params: 
             )}
           </Card>
         )}
+        <Card title="업체별 단가" help={{ kind: "panel", id: "stock.prices" }}>
+          {prices.length ? (
+            <ul className="divide-y divide-[var(--line)] text-sm">
+              {prices.map((p) => (
+                <li key={p.id} className={`flex flex-wrap items-center gap-2 py-1.5 ${p.expired ? "opacity-60" : ""}`}>
+                  <b className="tabular-nums">{won(p.unitWon)}</b>
+                  <span>{p.supplierName}</span>
+                  {p.main && <Badge tone="accent">주 거래 업체</Badge>}
+                  {p.cheapest && <Badge tone="ok">가장 쌈</Badge>}
+                  {p.expired && <Badge tone="warn">견적 유효기간 지남</Badge>}
+                  <span className="text-xs text-[var(--muted)]">
+                    {PRICE_SOURCES[p.source as PriceSource] ?? p.source}
+                    {p.ref ? ` ${p.ref}` : ""}
+                    {p.quotedOn ? ` · 견적일 ${p.quotedOn}` : ""}
+                    {p.validUntil ? ` · ${p.validUntil}까지` : ""}
+                    {p.supName ? ` · 업체 품명 '${p.supName}'${p.supUnit ? `(${p.supUnit})` : ""}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">
+              업체 단가가 없습니다. 품목 고치기에서 주 거래 업체와 단가를 넣거나{" "}
+              <Link href="/stock/import" className="text-[var(--accent)]">
+                견적서로 등록
+              </Link>
+              합니다.
+            </p>
+          )}
+        </Card>
+        <Card title="단가 이력" help={{ kind: "panel", id: "stock.priceHistory" }}>
+          {history.length ? (
+            <ul className="divide-y divide-[var(--line)] text-sm">
+              {history.map(({ h, supplierName, byName }) => {
+                const pct = changePct(h.beforeWon, h.afterWon);
+                return (
+                  <li key={h.id} className="flex flex-wrap items-center gap-2 py-1.5">
+                    <span className="text-xs text-[var(--muted)]">{fmtTime(h.at)}</span>
+                    <span>{supplierName ?? "업체 미정"}</span>
+                    <span className="tabular-nums">
+                      {h.beforeWon != null ? `${won(h.beforeWon)} → ` : "처음 "}
+                      <b>{won(h.afterWon)}</b>
+                    </span>
+                    {pct != null && <b className={`text-xs ${pct >= PRICE_RISE_ALERT_PCT ? "text-[var(--danger)]" : pct > 0 ? "text-[var(--warn)]" : "text-[var(--ok)]"}`}>{pct > 0 ? `+${pct}` : pct}%</b>}
+                    <Badge>{PRICE_SOURCES[h.source as PriceSource] ?? h.source}</Badge>
+                    {h.ref && (h.quoteId ? <Link href={`/stock/import/${h.quoteId}`} className="text-xs text-[var(--accent)]">{h.ref}</Link> : <span className="text-xs">{h.ref}</span>)}
+                    <span className="text-xs text-[var(--muted)]">{byName ?? ""}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">단가가 바뀐 기록이 없습니다.</p>
+          )}
+        </Card>
         <Card title="움직임(최근 50건)" help={{ kind: "panel", id: "stock.moves" }}>
           {moves.length ? (
             <ul className="divide-y divide-[var(--line)] text-sm">
@@ -257,7 +315,7 @@ export default async function StockItemPage({ params, searchParams }: { params: 
           <Card title="품목 고치기" help={{ kind: "panel", id: "stock.item" }}>
             <AssistForm id={`stock-edit-${id}`} action={saveItemAction} className="grid gap-3 md:grid-cols-2">
               <input type="hidden" name="id" value={id} />
-              <ItemFields i={i} suppliers={sups} chemicals={chems} canAddSupplier={can(user, "supplier.manage")} canAddChemical={can(user, "safety.manage")} />
+              <ItemFields track={tp} i={i} suppliers={sups} chemicals={chems} canAddSupplier={can(user, "supplier.manage")} canAddChemical={can(user, "safety.manage")} />
               <div className="md:col-span-2">
                 <SubmitButton>저장</SubmitButton>
               </div>

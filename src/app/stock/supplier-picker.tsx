@@ -17,7 +17,25 @@ const STATUS: Record<string, string> = { candidate: "후보", proposed: "등록 
 /** 품목 구분 → 업체 취급 분야 */
 const KIND_TO_SUP: Record<string, string> = { paint: "paint", consumable: "consumable", part: "parts" };
 
-export function SupplierPicker({ suppliers, defaultValue, canCreate }: { suppliers: SupOpt[]; defaultValue?: string | null; canCreate: boolean }) {
+export function SupplierPicker({
+  suppliers,
+  defaultValue,
+  canCreate,
+  helpKey = "st.supplierId",
+  newName,
+  newBizNo,
+  submitOnPick = false,
+}: {
+  suppliers: SupOpt[];
+  defaultValue?: string | null;
+  canCreate: boolean;
+  helpKey?: "st.supplierId" | "qt.supplierId";
+  /** 새 업체 창에 미리 넣을 상호·사업자번호(견적서에서 읽은 값) */
+  newName?: string | null;
+  newBizNo?: string | null;
+  /** 고르면 바로 폼을 보낸다(견적서 확인 화면: 업체가 바뀌면 다시 판정) */
+  submitOnPick?: boolean;
+}) {
   const id = useId();
   const [list, setList] = useState(suppliers);
   const [value, setValue] = useState(defaultValue ?? "");
@@ -62,6 +80,7 @@ export function SupplierPicker({ suppliers, defaultValue, canCreate }: { supplie
     setQ(s?.name ?? "");
     setOpen(false);
     hidden.current?.form?.dispatchEvent(new Event("input", { bubbles: true }));
+    if (submitOnPick) setTimeout(() => hidden.current?.form?.requestSubmit(), 0);
   };
 
   const kindNow = () => {
@@ -72,7 +91,7 @@ export function SupplierPicker({ suppliers, defaultValue, canCreate }: { supplie
 
   return (
     <div ref={box} className="relative">
-      <Shell id={id} helpKey="st.supplierId">
+      <Shell id={id} helpKey={helpKey}>
         <div className="flex gap-2">
           <input
             id={id}
@@ -143,7 +162,8 @@ export function SupplierPicker({ suppliers, defaultValue, canCreate }: { supplie
       )}
       {adding && (
         <QuickSupplier
-          initialName={chosen ? "" : q}
+          initialName={chosen ? "" : q || newName || ""}
+          initialBizNo={newBizNo ?? ""}
           kind={kindNow()}
           onClose={() => setAdding(false)}
           onDone={(s) => {
@@ -159,7 +179,7 @@ export function SupplierPicker({ suppliers, defaultValue, canCreate }: { supplie
   );
 }
 
-function QuickSupplier({ initialName, kind, onClose, onDone }: { initialName: string; kind: string; onClose: () => void; onDone: (s: { id: string; name: string }) => void }) {
+function QuickSupplier({ initialName, initialBizNo = "", kind, onClose, onDone }: { initialName: string; initialBizNo?: string; kind: string; onClose: () => void; onDone: (s: { id: string; name: string }) => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const first = useRef<HTMLDivElement>(null);
@@ -192,7 +212,7 @@ function QuickSupplier({ initialName, kind, onClose, onDone }: { initialName: st
             <TextField help="sup.items" name="items" />
             <TextField help="sup.contactName" name="contactName" />
             <TextField help="sup.phone" name="phone" type="tel" />
-            <TextField help="sup.bizNo" name="bizNo" inputMode="numeric" />
+            <TextField help="sup.bizNo" name="bizNo" inputMode="numeric" defaultValue={initialBizNo} />
             <ShowWhen field="payTerm" initial="next_end" cases={{ next_day: <NumberField help="sup.payDay" name="payDay" unit="일" min={1} max={31} required defaultValue={10} /> }}>
               <RadioRow help="sup.payTerm" name="payTerm" required defaultValue="next_end" options={Object.entries(PAY_TERMS).map(([value, label]) => ({ value, label }))} />
             </ShowWhen>
