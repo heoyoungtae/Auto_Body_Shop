@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (f.size > 300 * 1024 * 1024) throw new Error("파일이 너무 큽니다(300MB 까지)");
     const r = await importSuppliers(await getDb(), user, await f.text());
     const q = new URLSearchParams({
-      added: r.added.map((a) => `${a.name}(서류 ${a.files})`).join("|"),
+      added: r.added.map((a) => `${a.name}(서류 ${a.files}${a.bank ? ", 계좌" : ""})`).join("|"),
       skipped: r.skipped.map((s) => `${s.name}: ${s.why}`).join("|"),
     });
     return back(`/suppliers/transfer?${q}`);

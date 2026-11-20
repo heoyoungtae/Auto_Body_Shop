@@ -16,7 +16,7 @@ export default async function SupplierTransferPage({ searchParams }: { searchPar
     <>
       <PageTitle
         help="suppliers.transfer"
-        sub="다른 서버(예: 테스트 서버)에 넣어 둔 협력업체를 서류 파일과 함께 파일 하나로 옮깁니다. 입금 계좌·통장 사본은 옮기지 않습니다."
+        sub="테스트 서버에 넣어 둔 협력업체를 서류·입금 계좌·통장 사본과 함께 미니 PC 앱으로 한 번 옮깁니다. 옮긴 뒤 이 화면은 없앱니다."
         actions={
           <Link href="/suppliers?f=candidate" className={buttonClass("secondary")}>
             협력업체 대장
@@ -56,14 +56,16 @@ export default async function SupplierTransferPage({ searchParams }: { searchPar
                   전체 내보내기
                 </a>
               </div>
-              <p className="text-xs text-[var(--muted)]">파일에는 업체 연락처와 서류 사진이 들어 있습니다. 옮긴 뒤에는 지워 주세요.</p>
+              <p className="text-xs text-[var(--muted)]">
+                입금 계좌·통장 사본은 계좌 권한자(대표·회계)가 내보낼 때만 들어갑니다. 파일에 <b>계좌번호가 그대로</b> 들어 있으니 옮긴 즉시 지우고, 메신저·메일로 보내지 마세요.
+              </p>
             </div>
           </Card>
           <Card title="2. 받는 쪽에서 가져오기" help={{ kind: "panel", id: "sup.import" }}>
             <form action="/api/suppliers/import" method="post" encType="multipart/form-data" className="space-y-3">
               <TransferFile />
               <p className="text-xs text-[var(--muted)]">
-                모두 <b>후보</b>로 들어갑니다. 등록 평가와 대표 승인은 여기서 새로 합니다. 같은 사업자등록번호(번호가 없으면 같은 이름)의 업체는 건너뜁니다.
+                모두 <b>후보</b>로 들어갑니다. 등록 평가와 대표 승인은 여기서 새로 합니다. 입금 계좌는 &lsquo;확인 전&rsquo;으로 들어가 넣은 사람이 아닌 회계·대표가 전화로 확인해야 지급에 씁니다. 같은 사업자등록번호(번호가 없으면 같은 이름)의 업체는 건너뜁니다.
               </p>
               <SubmitButton>가져오기</SubmitButton>
             </form>
