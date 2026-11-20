@@ -74,7 +74,7 @@ export const BANK_GUIDE: GuideSection[] = [
       {
         title: "설치와 권한",
         steps: [
-          { t: "'SMS to URL Forwarder'를 설치합니다", d: "Play 스토어에서 찾아 개발자 이름(bogkonstantin)을 확인합니다. Play 스토어에 없으면 소스 공개 앱 장터 F-Droid(f-droid.org)에서 받습니다: 휴대폰 인터넷으로 f-droid.org 에 들어가 F-Droid 앱을 받아 설치(설치 중 '이 출처 허용'을 켬) → F-Droid 에서 'SMS to URL Forwarder' 검색 → 설치." },
+          { t: "'SMS to URL Forwarder'를 설치합니다", d: "Play 스토어에서 찾아 개발자 이름(bogkonstantin)을 확인합니다. 이름이 비슷한 다른 앱(광고·'PC Sync'·'푸시서비스' 메뉴가 있는 문자 전달 앱)은 URL 로 보낼 때 문자 내용을 싣지 않아 앱에 들어오지 않습니다(2026-11-20 확인, 받은 기록에 'GET 주소만 열림'으로 찍힘). Play 스토어에 없으면 소스 공개 앱 장터 F-Droid(f-droid.org)에서 받습니다: 휴대폰 인터넷으로 f-droid.org 에 들어가 F-Droid 앱을 받아 설치(설치 중 '이 출처 허용'을 켬) → F-Droid 에서 'SMS to URL Forwarder' 검색 → 설치." },
           { t: "앱을 처음 열면 '문자 읽기(SMS)' 권한을 '허용'합니다", d: "거부했으면 휴대폰 설정 › 애플리케이션 › SMS to URL Forwarder › 권한 › SMS › 허용." },
           { t: "알림 권한도 허용합니다(보낸 기록 확인용)" },
         ],
