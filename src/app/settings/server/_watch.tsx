@@ -40,6 +40,15 @@ export function UpdateWatch({ active, resultAt, ok, message }: { active: boolean
     }
   }, [active, resultAt, ok, message, router]);
 
+  // 평소에도 1분마다 새로 받는다. 새 버전 있음·서버 상태가 새로고침 없이 바뀌게(대표 2026-11-20 "새 버전이 안 보이네")
+  useEffect(() => {
+    if (active) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 60_000);
+    return () => clearInterval(t);
+  }, [active, router]);
+
   if (active)
     return (
       <p className="text-xs text-[var(--muted)]" aria-live="polite">

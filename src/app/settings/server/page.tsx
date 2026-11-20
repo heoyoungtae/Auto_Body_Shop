@@ -157,7 +157,7 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
                 <dt className="text-[var(--muted)]">마지막 백업</dt>
                 <dd className="break-words">{st.lastBackup || "-"}</dd>
               </dl>
-              <p className="mt-2 text-xs text-[var(--muted)]">서버가 알려 온 때 {fmtTime(st.at)} · 1분마다 새로 받습니다.</p>
+              <p className="mt-2 text-xs text-[var(--muted)]">서버가 알려 온 때 {fmtTime(st.at)} · 이 화면은 1분마다 저절로 새로 받습니다.</p>
             </>
           ) : null}
         </Card>
