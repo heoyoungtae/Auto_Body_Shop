@@ -2,12 +2,14 @@
 // 발주서 품목 한꺼번에 넣기(대표 지시 2026-11-12 "항목 추가는 한꺼번에").
 // 줄을 여러 개 펼쳐 두고 한 번에 저장한다. 재고 품목을 고르면 품명·규격·단가·권장 수량이 채워지고,
 // 전에 발주한 품명을 적으면 직전 단가·품번·규격을 불러온다. 엑셀에서 여러 줄을 복사해 품명 칸에 붙여 넣으면 줄마다 나뉜다.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FieldHelpKey } from "@/modules/help/fields";
 import { HelpButton } from "../_help-drawer";
 import { SubmitButton } from "../_submit";
 
-export type StockPick = { id: string; name: string; spec: string | null; unit: string; unitWon: number; qty: number; suggest: number; low: boolean; mine: boolean };
+export type StockPick = { id: string; name: string; spec: string | null; unit: string; pack?: string; unitWon: number; qty: number; suggest: number; low: boolean; mine: boolean };
+/** 품목별 업체 단가(업체별 단가표). 업체를 고르면 그 업체 단가를 불러오고, 더 싼 업체를 알려 준다 */
+export type SupPrice = { supplierId: string; name: string; unitWon: number };
 export type PastLine = { name: string; partNo: string | null; spec: string | null; unitWon: number; partCode: string | null; on: string };
 
 type Row = { key: number; stockItemId: string; name: string; partNo: string; spec: string; partCode: string; qty: string; unitWon: string; from: string };
@@ -26,7 +28,12 @@ export function LineRows({
   partCodes,
   start = 5,
   submit = true,
+  prices = {},
+  supplierId: fixedSup,
 }: {
+  prices?: Record<string, SupPrice[]>;
+  /** 발주서 업체(고친 화면). 없으면 같은 양식의 업체 칸(supplierId)을 따라간다 */
+  supplierId?: string | null;
   /** false: 바깥 양식의 저장 단추로 함께 보낸다(발주서 만들기 화면) */
   submit?: boolean;
   kind: "repair" | "stock";
@@ -42,9 +49,32 @@ export function LineRows({
   const stockBy = useMemo(() => new Map(stock.map((s) => [s.id, s])), [stock]);
   const low = stock.filter((s) => s.low);
   const used = new Set(rows.map((r) => r.stockItemId).filter(Boolean));
+  const root = useRef<HTMLDivElement>(null);
+  const [formSup, setFormSup] = useState("");
+  const sup = fixedSup ?? formSup;
+  useEffect(() => {
+    if (fixedSup !== undefined) return;
+    const el = root.current?.closest("form")?.querySelector<HTMLSelectElement>('[name="supplierId"]');
+    if (!el) return;
+    const on = () => setFormSup(el.value);
+    on();
+    el.addEventListener("change", on);
+    return () => el.removeEventListener("change", on);
+  }, [fixedSup]);
+  /** 고른 업체의 단가 → 없으면 품목 단가 */
+  const priceOf = (s: StockPick) => prices[s.id]?.find((p) => p.supplierId === sup)?.unitWon ?? s.unitWon;
+  /** 지금 단가보다 싼 다른 업체 */
+  const cheaper = (itemId: string, now: number) => {
+    const c = (prices[itemId] ?? []).filter((p) => p.supplierId !== sup && p.unitWon < now).sort((a, b) => a.unitWon - b.unitWon)[0];
+    return c ? `${c.name}이(가) ${(now - c.unitWon).toLocaleString("ko-KR")}원 쌉니다(${c.unitWon.toLocaleString("ko-KR")}원)` : "";
+  };
 
   const set = (key: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const fromStock = (s: StockPick): Partial<Row> => ({ stockItemId: s.id, name: s.name, spec: s.spec ?? "", qty: String(Math.max(1, s.suggest)), unitWon: s.unitWon ? String(s.unitWon) : "", from: "재고 품목" });
+  const fromStock = (s: StockPick): Partial<Row> => {
+    const own = prices[s.id]?.find((p) => p.supplierId === sup);
+    const won = priceOf(s);
+    return { stockItemId: s.id, name: s.name, spec: s.spec ?? "", qty: String(Math.max(1, s.suggest)), unitWon: won ? String(won) : "", from: own ? `업체 단가표(${own.name})` : "재고 품목" };
+  };
   /** 빈 줄부터 채우고 모자라면 줄을 늘린다 */
   const fill = (patches: Partial<Row>[]) =>
     setRows((rs) => {
@@ -100,7 +130,7 @@ export function LineRows({
   );
 
   return (
-    <div className="space-y-2">
+    <div ref={root} className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {kind === "stock" && low.length > 0 && (
           <button type="button" className="rounded-md border border-[var(--accent)] px-3 py-1.5 text-[var(--accent)] hover:bg-[var(--accent-soft)]" onClick={() => fill(low.filter((s) => !used.has(s.id)).map(fromStock))}>
@@ -153,8 +183,8 @@ export function LineRows({
                           <option key={s.id} value={s.id} disabled={used.has(s.id) && s.id !== r.stockItemId}>
                             {s.mine ? "★ " : ""}
                             {s.name}
-                            {s.spec ? ` ${s.spec}` : ""} · 지금 {s.qty}
-                            {s.unit}
+                            {s.spec ? ` ${s.spec}` : ""}
+                            {s.pack ? ` (${s.pack})` : ""} · 지금 {s.qty}
                             {s.low ? " (미달)" : ""}
                           </option>
                         ))}
@@ -164,6 +194,7 @@ export function LineRows({
                   <td className="py-1 pr-2">
                     <input data-assist="grid" aria-label={`${i + 1}번째 줄 품명`} name={`r${r.key}_name`} value={r.name} list="po-past-names" className={box} placeholder={i === 0 ? "예: 앞범퍼 커버" : ""} onChange={(e) => onName(r, e.target.value)} onPaste={(e) => onPaste(r, e)} />
                     {r.from && need && <p className="mt-0.5 text-xs text-[var(--accent)]">↳ {r.from}에서 불러옴</p>}
+                    {r.stockItemId && cheaper(r.stockItemId, Number(digits(r.unitWon)) || 0) && <p className="mt-0.5 text-xs text-[var(--warn)]">{cheaper(r.stockItemId, Number(digits(r.unitWon)) || 0)}</p>}
                   </td>
                   <td className="py-1 pr-2">
                     <input data-assist="grid" aria-label={`${i + 1}번째 줄 품번`} name={`r${r.key}_partNo`} value={r.partNo} className={box} autoCapitalize="characters" spellCheck={false} onChange={(e) => set(r.key, { partNo: e.target.value.toUpperCase() })} />
@@ -186,7 +217,7 @@ export function LineRows({
                   <td className="py-1 pr-2">
                     <div className="flex items-center gap-1">
                       <input data-assist="grid" aria-label={`${i + 1}번째 줄 수량`} name={`r${r.key}_qty`} value={r.qty} inputMode="numeric" required={need} pattern="[1-9][0-9]*" className={`${box} text-right`} onChange={(e) => set(r.key, { qty: digits(e.target.value) })} />
-                      <span className="shrink-0 text-xs text-[var(--muted)]">{it?.unit ?? "개"}</span>
+                      <span className="shrink-0 text-xs text-[var(--muted)]" title={it?.pack || undefined}>{it?.unit ?? "개"}</span>
                     </div>
                   </td>
                   <td className="py-1 pr-2">

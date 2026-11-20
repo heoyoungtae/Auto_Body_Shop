@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
-import { chemicalOptions, lastVatMode } from "@/modules/purchase/stock";
+import { chemicalOptions, lastVatMode, trackPolicy } from "@/modules/purchase/stock";
 import { supplierOptions } from "@/modules/purchase/supplier";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../_assist";
@@ -17,7 +17,7 @@ export default async function NewStockItemPage({ searchParams }: { searchParams:
   const q = await searchParams;
   const user = await requireUser();
   const db = await getDb();
-  const [sups, chems, vm] = await Promise.all([supplierOptions(db), chemicalOptions(db), lastVatMode(db)]);
+  const [sups, chems, vm, tp] = await Promise.all([supplierOptions(db), chemicalOptions(db), lastVatMode(db), trackPolicy(db)]);
   return (
     <>
       <PageTitle
@@ -35,7 +35,7 @@ export default async function NewStockItemPage({ searchParams }: { searchParams:
       {can(user, "stock.manage") ? (
         <Card title="품목" help={{ kind: "panel", id: "stock.item" }}>
           <AssistForm id="stock-new" action={saveItemAction} className="grid gap-3 md:grid-cols-2">
-            <ItemFields suppliers={sups} chemicals={chems} vatModeDefault={vm} canAddSupplier={can(user, "supplier.manage")} canAddChemical={can(user, "safety.manage")} />
+            <ItemFields track={tp} suppliers={sups} chemicals={chems} vatModeDefault={vm} canAddSupplier={can(user, "supplier.manage")} canAddChemical={can(user, "safety.manage")} />
             <NumberField help="st.openingQty" name="openingQty" min={0} defaultValue={0} />
             <DateField help="st.openingExpiresOn" name="openingExpiresOn" min={seoulDate()} quick={[]} />
             <div className="md:col-span-2">

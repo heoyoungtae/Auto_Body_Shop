@@ -3,8 +3,9 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { createSupplier } from "@/modules/purchase/supplier";
-import { addItemDoc, discardLot, orderLowStock, recordCount, resumeItem, retireItemDoc, saveItem, stopItem, useStock, type ItemInput } from "@/modules/purchase/stock";
+import { addItemDoc, discardLot, orderLowStock, recordCount, resumeItem, retireItemDoc, saveItem, setTrackMode, stopItem, useStock, type ItemInput } from "@/modules/purchase/stock";
 import { UserError } from "@/modules/platform/errors";
+import { commitQuote, discardQuote, readQuote, setQuoteSupplier, type CommitRow } from "@/modules/purchase/quote-import";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
 const str = (form: FormData) => (k: string) => String(form.get(k) ?? "").trim();
@@ -32,6 +33,9 @@ function itemInput(form: FormData): ItemInput {
     supplierId: s("supplierId"),
     openingQty: num(s("openingQty")) || 0,
     openingExpiresOn: s("openingExpiresOn"),
+    trackMode: s("trackMode") || undefined,
+    buyUnit: s("buyUnit"),
+    buyQty: s("buyUnit") && s("buyQty") ? num(s("buyQty")) : null,
   };
 }
 
@@ -87,6 +91,15 @@ export async function stockAction(form: FormData) {
       const ids = await orderLowStock(db, user, form.getAll("itemIds").map(String));
       msg = `발주 요청 ${ids.length}장을 만들었습니다. 업체·단가를 확인하고 승인을 요청하세요`;
       to = ids.length === 1 ? `/purchases/${ids[0]}` : "/purchases?f=review";
+    } else if (intent === "setTrack") {
+      // 관리 방식 바꾸기 추천에서 고른 품목들(값: 품목id:방식)
+      const picks = form.getAll("tracks").map(String);
+      if (!picks.length) throw new UserError("바꿀 품목을 골라 주세요");
+      for (const p of picks) {
+        const [itemId, mode] = p.split(":");
+        await setTrackMode(db, user, itemId, mode);
+      }
+      msg = `${picks.length}개 품목의 관리 방식을 바꿨습니다`;
     } else throw new UserError("알 수 없는 요청");
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
@@ -137,4 +150,70 @@ export async function quickSupplierAction(form: FormData): Promise<{ ok: true; i
   } catch (e) {
     return { ok: false, error: userMessage(e) };
   }
+}
+
+// ── 견적서(단가표)로 품목 일괄 등록 ──
+
+export async function readQuoteAction(form: FormData) {
+  const user = await requireUser();
+  const s = str(form);
+  const f = form.get("file");
+  const file = f instanceof File && f.size > 0 ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null;
+  let id = "";
+  try {
+    id = await readQuote(await getDb(), user, {
+      supplierId: s("supplierId"),
+      quotedOn: s("quotedOn"),
+      validDays: s("validDays") ? num(s("validDays")) : null,
+      vatMode: s("vatMode"),
+      file,
+      text: String(form.get("paste") ?? ""),
+    });
+  } catch (e) {
+    redirect(errorUrl("/stock/import", userMessage(e)));
+  }
+  redirect(`/stock/import/${id}`);
+}
+
+export async function quoteSupplierAction(form: FormData) {
+  const user = await requireUser();
+  const s = str(form);
+  const id = s("id");
+  try {
+    await setQuoteSupplier(await getDb(), user, id, s("supplierId"));
+  } catch (e) {
+    redirect(errorUrl(`/stock/import/${id}`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/stock/import/${id}`, "업체를 바꾸고 같은 품목을 다시 찾았습니다"));
+}
+
+export async function commitQuoteAction(form: FormData) {
+  const user = await requireUser();
+  const s = str(form);
+  const id = s("id");
+  let msg = "";
+  try {
+    let rows: CommitRow[] = [];
+    try {
+      rows = JSON.parse(String(form.get("rows") ?? "[]"));
+    } catch {
+      throw new UserError("표를 읽지 못했습니다. 화면을 새로 고쳐 다시 해 주세요");
+    }
+    const r = await commitQuote(await getDb(), user, id, { supplierId: s("supplierId"), quotedOn: s("quotedOn"), validUntil: s("validUntil"), vatMode: s("vatMode"), rows });
+    msg = `새 품목 ${r.added}개 등록, ${r.updated}개 단가 갱신, ${r.skipped}줄 건너뜀${r.rises ? ` · 10% 넘게 오른 ${r.rises}개는 대표에게 알렸습니다` : ""}`;
+  } catch (e) {
+    redirect(errorUrl(`/stock/import/${id}`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/stock/import/${id}`, msg));
+}
+
+export async function discardQuoteAction(form: FormData) {
+  const user = await requireUser();
+  const id = str(form)("id");
+  try {
+    await discardQuote(await getDb(), user, id);
+  } catch (e) {
+    redirect(errorUrl(`/stock/import/${id}`, userMessage(e)));
+  }
+  redirect(noticeUrl("/stock/import", "견적서를 버렸습니다"));
 }

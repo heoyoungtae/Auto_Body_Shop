@@ -3,8 +3,8 @@ import { getDb } from "@/db/runtime";
 import { runList, type Q } from "@/modules/listq/core";
 import { stockList } from "@/modules/listq/defs/purchase";
 import { can } from "@/modules/auth/permissions";
-import { STOCK_KINDS, STOP_REASONS, suggestOrderQty, type StockKind, type StopReason } from "@/modules/purchase/rules";
-import { listStock, type StockFilter } from "@/modules/purchase/stock";
+import { fmtPackQty, packLabel, TRACK_MODES, STOCK_KINDS, STOP_REASONS, suggestBuyQty, suggestOrderQty, type StockKind, type StopReason } from "@/modules/purchase/rules";
+import { listStock, trackReview, type StockFilter } from "@/modules/purchase/stock";
 import { branchStock } from "@/modules/purchase/transfer";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../_assist";
@@ -36,6 +36,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
   const rows = lr.rows;
   const low = f === "low" ? rows : await listStock(db, "low");
   const manage = can(user, "stock.manage");
+  const track = manage ? await trackReview(db) : [];
   const today = seoulDate();
   // 지점이 여럿이면 지점별 수량을 보인다(고른 지점 수량 + 전체). 지점이 하나면 그대로
   const brs = user.branches ?? [];
@@ -67,6 +68,9 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                 <Link href="/stock/new" className={buttonClass("secondary")}>
                   품목 등록
                 </Link>
+                <Link href="/stock/import" className={buttonClass("secondary")}>
+                  견적서로 품목 등록
+                </Link>
               </>
             )}
           </div>
@@ -81,10 +85,22 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
           <AssistForm id="stock-order-low" action={stockAction} className="space-y-3" guard={false}>
             <input type="hidden" name="intent" value="orderLow" />
             <input type="hidden" name="back" value="/stock?f=low" />
-            <CheckGroup help="po.stockItem" name="itemIds" label="발주할 품목" defaultChecked={low.map((r) => r.id)} options={low.map((r) => ({ value: r.id, label: `${r.name} ${r.qty}/${r.safetyQty}${r.unit} → ${suggestOrderQty(r)}${r.unit}${r.supplierName ? ` · ${r.supplierName}` : " · 업체 미정"}` }))} />
+            <CheckGroup help="po.stockItem" name="itemIds" label="발주할 품목" defaultChecked={low.map((r) => r.id)} options={low.map((r) => ({ value: r.id, label: `${r.name} ${r.qty}/${r.safetyQty}${r.unit} → ${packLabel(r) ? `${suggestBuyQty(r)}${r.buyUnit}(${packLabel(r)})` : `${suggestOrderQty(r)}${r.unit}`}${r.supplierName ? ` · ${r.supplierName}` : " · 업체 미정"}` }))} />
             <SubmitButton>발주 요청 만들기(업체별 한 장)</SubmitButton>
           </AssistForm>
         </Card>
+      )}
+      {manage && track.length > 0 && (
+        <div id="track" className="mt-4">
+          <Card title={`관리 방식 바꾸기 추천 ${track.length}개 품목`} help={{ kind: "panel", id: "stock.trackReview" }}>
+            <AssistForm id="stock-track" action={stockAction} className="space-y-3" guard={false}>
+              <input type="hidden" name="intent" value="setTrack" />
+              <input type="hidden" name="back" value="/stock" />
+              <CheckGroup help="st.trackMode" name="tracks" label="바꿀 품목" defaultChecked={track.map((t) => `${t.id}:${t.suggest}`)} options={track.map((t) => ({ value: `${t.id}:${t.suggest}`, label: `${t.name}: ${TRACK_MODES[t.current]} → ${TRACK_MODES[t.suggest]} (${t.reason})` }))} />
+              <SubmitButton>고른 품목 바꾸기</SubmitButton>
+            </AssistForm>
+          </Card>
+        </div>
       )}
       <div className="mt-4">
         <Card title="재고 품목" help={{ kind: "panel", id: "stock.list" }}>
@@ -119,6 +135,8 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                         </Link>
                         {r.spec && <span className="ml-1 text-xs text-[var(--muted)]">{r.spec}</span>}
                         {r.windDown && <Badge tone="warn">소진 후 중지</Badge>}
+                        {r.trackMode === "count" && <Badge>실사로 관리</Badge>}
+                        {packLabel(r) && <span className="ml-1 text-xs text-[var(--muted)]">{packLabel(r)}</span>}
                         {r.docState && <Badge tone={r.docState === "expired" ? "danger" : "warn"}>{r.docState === "expired" ? "문서 기한 지남" : "문서 기한 임박"}</Badge>}
                         {(r.windDown || !r.active) && r.stopReason && (
                           <span className="block text-xs text-[var(--muted)]">
@@ -130,8 +148,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                       <td className="pr-2 text-xs">{STOCK_KINDS[r.kind as StockKind]}</td>
                       <td className="pr-2 text-xs">{r.location ?? "-"}</td>
                       <td className={`pr-2 text-right whitespace-nowrap ${r.low ? "font-bold text-[var(--danger)]" : ""}`}>
-                        {bs && view ? (bs.get(r.id)?.get(view)?.qty ?? 0) : r.qty}
-                        {r.unit}
+                        {r.trackMode === "none" ? <span className="text-xs font-normal text-[var(--muted)]">관리 안 함</span> : fmtPackQty(bs && view ? (bs.get(r.id)?.get(view)?.qty ?? 0) : r.qty, r)}
                         {bs && (
                           <span className="block text-xs font-normal text-[var(--muted)]">
                             {view

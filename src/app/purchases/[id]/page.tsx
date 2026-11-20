@@ -6,8 +6,9 @@ import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { ROLE_LABEL, type Role } from "@/modules/auth/roles";
 import { getOrder, pastLines } from "@/modules/purchase/order";
-import { lateForRepair, suggestOrderQty, PO_KINDS, PO_STATUS, PO_TONE, RECEIPT_CHECKS, SENT_VIA, SUPPLIER_STATUS, type PoKind, type PoStatus, type SupplierStatus } from "@/modules/purchase/rules";
+import { buyUnitOf, lateForRepair, packLabel, suggestBuyQty, PO_KINDS, PO_STATUS, PO_TONE, RECEIPT_CHECKS, SENT_VIA, SUPPLIER_STATUS, type PoKind, type PoStatus, type SupplierStatus } from "@/modules/purchase/rules";
 import { orderableStock } from "@/modules/purchase/stock";
+import { priceBook } from "@/modules/purchase/price";
 import { supplierBank, supplierOptions } from "@/modules/purchase/supplier";
 import { PART_CODES } from "@/modules/repair/estimate-rules";
 import { seoulDate } from "@/modules/platform/time";
@@ -40,6 +41,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
   const nm = (u: string | null) => (u ? (names.get(u) ?? "-") : "-");
   const approverRole = o.approverRole as Role | null;
   const canApprove = status === "review" && approverRole && (user.roles.includes(approverRole) || user.roles.includes("owner")) && (o.createdBy !== user.id || user.roles.includes("owner"));
+  const book = draft && o.kind === "stock" ? Object.fromEntries(await priceBook(db)) : {};
   const [sups, stock0, past] = draft ? await Promise.all([supplierOptions(db, o.kind === "repair" ? "parts" : undefined), o.kind === "stock" ? orderableStock(db) : Promise.resolve([]), pastLines(db, o.supplierId, o.kind)]) : [[], [], []];
   // 이 발주서 업체가 주 거래 업체인 품목과 미달 품목을 앞에
   const stock = [...stock0].sort((a, b) => Number(b.supplierId === o.supplierId) - Number(a.supplierId === o.supplierId) || Number(b.low) - Number(a.low));
@@ -249,7 +251,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
                               <TextField help="po.partNo" name="partNo" defaultValue={l.partNo ?? ""} />
                               <TextField help="po.spec" name="spec" defaultValue={l.spec ?? ""} />
                               {o.kind === "repair" && <SelectField help="po.partCode" name="partCode" required defaultValue={l.partCode ?? ""} from={l.estimateLineId ? "견적" : undefined} options={Object.entries(PART_CODES).map(([value, label]) => ({ value, label }))} />}
-                              <NumberField help="po.qty" name="qty" required min={1} unit={l.stockItemId ? (items.get(l.stockItemId)?.unit ?? "개") : "개"} defaultValue={l.qty} />
+                              <NumberField help="po.qty" name="qty" required min={1} unit={l.stockItemId && items.get(l.stockItemId) ? buyUnitOf(items.get(l.stockItemId)!) : "개"} defaultValue={l.qty} />
                               <NumberField help="po.unitWon" name="unitWon" required min={0} unit="원" defaultValue={l.unitWon} />
                               <div className="flex gap-2 md:col-span-3">
                                 <SubmitButton variant="secondary">줄 저장</SubmitButton>
@@ -283,10 +285,12 @@ export default async function PurchasePage({ params, searchParams }: { params: P
                   <input type="hidden" name="intent" value="lines" />
                   <LineRows
                     kind={o.kind === "repair" ? "repair" : "stock"}
-                    stock={stock.map((s) => ({ id: s.id, name: s.name, spec: s.spec, unit: s.unit, unitWon: s.unitWon, qty: s.qty, suggest: suggestOrderQty(s), low: s.low, mine: !!o.supplierId && s.supplierId === o.supplierId }))}
+                    stock={stock.map((s) => ({ id: s.id, name: s.name, spec: s.spec, unit: buyUnitOf(s), pack: packLabel(s), unitWon: s.unitWon, qty: s.qty, suggest: suggestBuyQty(s), low: s.low, mine: !!o.supplierId && s.supplierId === o.supplierId }))}
                     past={past}
                     partCodes={Object.entries(PART_CODES).map(([value, label]) => ({ value, label }))}
                     start={lines.length ? 3 : 5}
+                    prices={book}
+                    supplierId={o.supplierId ?? ""}
                   />
                 </AssistForm>
               </details>
@@ -306,9 +310,9 @@ export default async function PurchasePage({ params, searchParams }: { params: P
                     <fieldset key={l.id} className="grid gap-2 rounded-md border border-[var(--line)] p-2 md:grid-cols-3 2xl:grid-cols-5">
                       <input type="hidden" name="lineId" value={l.id} />
                       <legend className="px-1 text-sm font-semibold">
-                        {l.name} <span className="text-xs font-normal text-[var(--muted)]">남은 {l.qty - l.receivedQty}{it?.unit ?? "개"}{l.partNo ? ` · ${l.partNo}` : ""}</span>
+                        {l.name} <span className="text-xs font-normal text-[var(--muted)]">남은 {l.qty - l.receivedQty}{it ? buyUnitOf(it) : "개"}{it && packLabel(it) ? ` (${packLabel(it)}, 재고에는 낱개로 더함)` : ""}{l.partNo ? ` · ${l.partNo}` : ""}</span>
                       </legend>
-                      <NumberField help="po.rcvOk" name={`ok_${l.id}`} min={0} max={l.qty - l.receivedQty} unit={it?.unit ?? "개"} defaultValue={l.qty - l.receivedQty} />
+                      <NumberField help="po.rcvOk" name={`ok_${l.id}`} min={0} max={l.qty - l.receivedQty} unit={it ? buyUnitOf(it) : "개"} defaultValue={l.qty - l.receivedQty} />
                       <NumberField help="po.rcvBad" name={`bad_${l.id}`} min={0} unit={it?.unit ?? "개"} defaultValue={0} />
                       {it?.expiryTracked && (
                         <>

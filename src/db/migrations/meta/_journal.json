@@ -414,6 +414,13 @@
       "when": 1795067772103,
       "tag": "0058_branches_2",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795141304230,
+      "tag": "0059_quote_prices",
+      "breakpoints": true
     }
   ]
 }

@@ -161,6 +161,10 @@ export const POLICY_HELP: Record<PolicyKey, string> = {
   "proposal.reply_days": "개선 제안에 채택 여부를 회신하는 기한.",
   "stock.count_diff_pct":
     "재고 실사에서 장부와 실물의 금액 차이가 이 비율을 넘으면 원인을 조사하도록 부적합(F-Q-10)을 저절로 발행합니다(STD-07 7절).",
+  "stock.track_low":
+    "품목을 등록할 때 관리 방식을 추천하는 기준입니다. 사는 단위(박스·캔) 단가가 이 금액보다 싼 소모품은 '관리 안 함'(산 날 비용, 수량 안 셈)을 권합니다. 안전 재고를 두었거나 묶음(입수 10개 이상)으로 사면 '실사로 관리'를 권합니다.",
+  "stock.track_high":
+    "사는 단위 단가가 이 금액 이상이면 '수량 관리'(입고·사용을 낱낱이 기록)를 권합니다. 도료·화학물질·유효기간 품목·상비 부품은 금액과 상관없이 수량 관리입니다.",
   "asset.register_min": "이 금액 이상인 비품은 자산 대장에 올려 관리합니다.",
   "payroll.attendance_close_day": "매월 근태를 확정하는 날(1~28일).",
   "money.outsource_trade":
