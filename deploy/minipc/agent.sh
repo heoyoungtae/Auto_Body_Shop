@@ -74,11 +74,34 @@ if [ ! -f "$STATE/slow" ] || [ -n "$(find "$STATE/slow" -mmin +9 2>/dev/null)" ]
     behind=$(g rev-list --count HEAD..FETCH_HEAD 2>/dev/null || echo 0)
   fi
   pub=$(curl -4 -fsS -m 10 https://1.1.1.1/cdn-cgi/trace 2>/dev/null | sed -n 's/^ip=//p')
-  printf 'latest=%s\nbehind=%s\npub=%s\n' "$latest" "$behind" "$pub" > "$STATE/slow"
+  # SSD 건강(남은 수명·온도·자체 진단). smartctl 이 없으면 한 번만 설치해 본다
+  command -v smartctl >/dev/null || [ -f "$STATE/smart_tried" ] || { touch "$STATE/smart_tried"; DEBIAN_FRONTEND=noninteractive timeout 300 apt-get install -y -qq smartmontools >/dev/null 2>&1; }
+  ssdlife=-1; ssdtemp=-1; ssdok=true
+  dev=$(lsblk -rnso NAME,TYPE "$(findmnt -no SOURCE /)" 2>/dev/null | awk '$2=="disk"{print "/dev/"$1; exit}')
+  if command -v smartctl >/dev/null && [ -n "$dev" ]; then
+    smart=$(timeout 20 smartctl -j -H -A "$dev" 2>/dev/null)
+    ssdlife=$(jq -r '(.nvme_smart_health_information_log.percentage_used // null) as $u | if $u == null then -1 else ([100 - $u, 0] | max) end' <<<"$smart" 2>/dev/null || echo -1)
+    ssdtemp=$(jq -r '.temperature.current // -1' <<<"$smart" 2>/dev/null || echo -1)
+    ssdok=$(jq -r 'if .smart_status.passed == false then false else true end' <<<"$smart" 2>/dev/null || echo true)
+  fi
+  printf 'latest=%s\nbehind=%s\npub=%s\nssdlife=%s\nssdtemp=%s\nssdok=%s\n' "$latest" "$behind" "$pub" "${ssdlife:--1}" "${ssdtemp:--1}" "${ssdok:-true}" > "$STATE/slow"
   # 아직 안 올라간 변경(병합 제목) 미리 보기
   if [ "${behind:-0}" -gt 0 ]; then changes HEAD FETCH_HEAD > "$STATE/pending.json"; else echo '[]' > "$STATE/pending.json"; fi
 fi
 latest=$(sed -n 's/^latest=//p' "$STATE/slow"); behind=$(sed -n 's/^behind=//p' "$STATE/slow"); pub=$(sed -n 's/^pub=//p' "$STATE/slow")
+num() { [[ "$1" =~ ^-?[0-9]+$ ]] && echo "$1" || echo -1; }
+ssdlife=$(num "$(sed -n 's/^ssdlife=//p' "$STATE/slow")"); ssdtemp=$(num "$(sed -n 's/^ssdtemp=//p' "$STATE/slow")")
+ssdok=$(sed -n 's/^ssdok=//p' "$STATE/slow"); [ "$ssdok" = false ] || ssdok=true
+
+# 서버 상태 숫자(대표 2026-11-20): CPU 사용률(1초 재기)·CPU 온도·메모리·디스크 %, 보안 업데이트 뒤 다시 켤 필요, 마지막으로 켠 때
+cpu1=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat); sleep 1
+cpu2=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat)
+cpupct=$(awk -v a="$cpu1" -v b="$cpu2" 'BEGIN{split(a,x," ");split(b,y," ");t=y[1]-x[1];i=y[2]-x[2];print (t>0)?int((t-i)*100/t+0.5):-1}')
+cputemp=$(cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | sort -n | tail -1); cputemp=$(num "$([ -n "$cputemp" ] && echo $((cputemp / 1000)))")
+mempct=$(num "$(free | awk '/^Mem:/{printf "%d", ($2-$7)*100/$2}')")
+diskpct=$(num "$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc 0-9)")
+reboot=false; [ -f /var/run/reboot-required ] && reboot=true
+bootat=$(uptime -s 2>/dev/null)
 
 dfh() { df -h --output=avail,size,pcent "$1" 2>/dev/null | tail -1 | awk '{print $1" 남음 / "$2" (사용 "$3")"}'; }
 backup_disk=""
@@ -97,7 +120,9 @@ status=$(jq -nc \
   --arg memory "$(free -h | awk '/^Mem:/{print $3" 사용 / "$2}')" --arg uptime "$(uptime -p | sed 's/^up //')" \
   --arg lanIp "$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')" --arg publicIp "$pub" \
   --arg services "$services" --arg ups "$ups" \
-  '{host:$host,place:$place,mode:$mode,version:$version,latest:$latest,behind:$behind,lastUpdate:$lastUpdate,lastBackup:$lastBackup,disk:$disk,backupDisk:$backupDisk,memory:$memory,uptime:$uptime,lanIp:$lanIp,publicIp:$publicIp,services:$services,ups:$ups}')
+  --argjson cpuPct "$cpupct" --argjson cpuTemp "$cputemp" --argjson memPct "$mempct" --argjson diskPct "$diskpct" \
+  --argjson ssdLife "$ssdlife" --argjson ssdTemp "$ssdtemp" --argjson ssdOk "$ssdok" --argjson rebootNeeded "$reboot" --arg bootAt "$bootat" \
+  '{cpuPct:$cpuPct,cpuTemp:$cpuTemp,memPct:$memPct,diskPct:$diskPct,ssdLife:$ssdLife,ssdTemp:$ssdTemp,ssdOk:$ssdOk,rebootNeeded:$rebootNeeded,bootAt:$bootAt,host:$host,place:$place,mode:$mode,version:$version,latest:$latest,behind:$behind,lastUpdate:$lastUpdate,lastBackup:$lastBackup,disk:$disk,backupDisk:$backupDisk,memory:$memory,uptime:$uptime,lanIp:$lanIp,publicIp:$publicIp,services:$services,ups:$ups}')
 
 status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" '. + {pending: $p}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }

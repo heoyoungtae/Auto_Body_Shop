@@ -42,7 +42,10 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
         ["위치", `${PLACE[st.place] ?? (st.place || "-")} · ${st.host || "-"}`],
         ["접속 방식", MODE[st.mode] ?? (st.mode || "-")],
         ["앱 버전", st.version || "-"],
-        ["가동 시간", st.uptime || "-"],
+        ["가동 시간", `${st.uptime || "-"}${st.bootAt ? ` (켠 때 ${st.bootAt.slice(0, 16)})` : ""}`],
+        ["CPU", [st.cpuPct >= 0 ? `${st.cpuPct}% 사용` : "", st.cpuTemp >= 0 ? `온도 ${st.cpuTemp}℃` : ""].filter(Boolean).join(" · ") || "-"],
+        ["SSD 건강", st.ssdOk === false ? "자체 진단 실패(교체 준비)" : [st.ssdLife >= 0 ? `수명 ${st.ssdLife}% 남음` : "", st.ssdTemp >= 0 ? `온도 ${st.ssdTemp}℃` : ""].filter(Boolean).join(" · ") || "-"],
+        ["다시 켜기", st.rebootNeeded ? "필요(보안 업데이트, 새벽 4시에 저절로)" : "필요 없음"],
         ["디스크(SSD)", st.disk || "-"],
         ["백업 디스크", st.backupDisk || "연결 안 됨"],
         ["메모리", st.memory || "-"],
@@ -129,6 +132,12 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
           </div>
         </Card>
         <Card title="서버 정보" help={{ kind: "panel", id: "server.info" }}>
+          <div
+            className={`mb-3 rounded-md border px-3 py-2 text-sm ${v.health.level === "ok" ? "border-[var(--ok)] bg-[var(--ok-soft)]" : v.health.level === "warn" ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--danger)] bg-[var(--danger-soft)]"}`}
+          >
+            <span className="font-semibold">{v.health.level === "ok" ? "● 정상" : v.health.level === "warn" ? "▲ 주의" : "■ 위험"}</span>
+            {v.health.reasons.length > 0 ? <span className="ml-2">{v.health.reasons.join(" · ")}</span> : <span className="ml-2 text-[var(--muted)]">온도·SSD·공간·프로그램 모두 괜찮습니다</span>}
+          </div>
           {v.silent && (
             <p className="mb-3 rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">
               {v.silentMin == null
