@@ -217,11 +217,12 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
             {st?.lastUpdate && <p className="text-xs text-[var(--muted)]">업데이트 기록 마지막 줄: {st.lastUpdate}</p>}
             {owner ? (
               <form action={requestUpdateAction}>
-                <SubmitButton disabled={v.pending || v.running || v.silent}>지금 새 버전 올리기</SubmitButton>
+                <SubmitButton disabled={v.pending || v.running || v.silent || v.upToDate}>지금 새 버전 올리기</SubmitButton>
               </form>
             ) : (
               <p className="text-xs text-[var(--muted)]">새 버전 올리기는 대표가 합니다.</p>
             )}
+            {owner && v.upToDate && !v.silent && !v.running && <p className="text-xs text-[var(--muted)]">이미 최신 버전이라 올릴 것이 없습니다. 새 버전이 생기면 단추가 켜지고 대표에게 알림이 갑니다.</p>}
             {owner && v.silent && <p className="text-xs text-[var(--danger)]">서버 소식이 끊겨 지금은 누를 수 없습니다(아래 &lsquo;서버 정보&rsquo; 참고).</p>}
             {owner && (
               <details className="border-t border-[var(--line)] pt-3">

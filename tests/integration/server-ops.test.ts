@@ -43,6 +43,11 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     expect(notes.some((n) => n.title.includes("새 버전 올리기 실패"))).toBe(true);
     // 끝났으니 다시 요청할 수 있다
     await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(10));
+    // 이미 최신이면 누를 수 없다
+    await agentReport(db, { status: { host: "abs-server", version: "def5678", latest: "def5678", behind: 0 } }, t(40));
+    await agentReport(db, { result: { ok: true, message: "x" } }, t(41));
+    expect((await serverOpsView(db, t(41).getTime())).upToDate).toBe(true);
+    await expect(requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(41))).rejects.toThrow(/최신/);
   });
 
   it("응답 속도·접속량·데이터 양을 5분 칸으로 모으고, 느리거나 오류가 잦으면 주의", async () => {
@@ -108,6 +113,7 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     expect(v.status).toMatchObject({ version: "bbb2222", behind: 0 });
 
     // 두 번째: 단추로 올린 실패 줄이 이력으로 오면 실패로 끝낸다
+    await agentReport(db, { status: { ...st, version: "bbb2222", latest: "ccc3333", behind: 1 } }, t(19));
     await requestUpdate(db, { id: ids.owner, roles: ["owner"] }, t(20));
     await agentReport(db, {}, t(21));
     await agentReport(db, { events: [{ at: "2026-11-19 10:27", how: "button", ok: false, from: "", to: "", message: "새 버전 만들기 실패", changes: [] }] }, t(28));

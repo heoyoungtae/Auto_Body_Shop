@@ -181,7 +181,9 @@ export async function serverOpsView(db: Db, now = Date.now()) {
     ? { stage: pg.stage, label: STAGES[pg.stage] ?? "", pct: progressPct(pg.stage, (now - Date.parse(pg.stageAt)) / 1000, d.lastBuildSec), sinceMin: Math.floor((now - Date.parse(req!.taken!)) / 60_000) }
     : null;
   const series = d.series ?? [];
-  return { series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  // 새 버전이 없으면 올릴 것이 없다(대표 2026-11-20). 미니 PC 가 1분마다 GitHub 끝 번호를 보므로 최신인지 바로 안다
+  const upToDate = !!d.status?.latest && d.status.behind === 0;
+  return { upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -202,6 +204,7 @@ export async function requestUpdate(db: Db, actor: Actor, now = new Date()) {
   const v = await serverOpsView(db, now.getTime());
   if (v.pending) throw new UserError("이미 요청했습니다. 서버가 몇 초 안에 가져갑니다");
   if (v.running) throw new UserError("지금 새 버전을 올리는 중입니다. 끝나면 이 화면에 저절로 뜹니다");
+  if (v.upToDate) throw new UserError("이미 최신 버전이라 올릴 것이 없습니다");
   const d = await load(db);
   const request: UpdateRequest = { at: now.toISOString(), by: actor.id, taken: null };
   await save(db, { ...d, request }, actor.id);
