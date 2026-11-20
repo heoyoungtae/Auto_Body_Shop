@@ -277,6 +277,11 @@ describe("문자 받는 주소: 전달 앱마다 다른 꼴", () => {
     const cfg = await loadFeed(db);
     expect(cfg.recent.map((r) => r.status)).toEqual(["empty", "empty"]);
     expect(cfg.recent[0].note).toMatch(/GET/);
+    expect(cfg.recent[0].note).toMatch(/보낸 프로그램 모름/);
+    await route.GET(new Request(`http://x/a`, { headers: { "user-agent": "okhttp/4.12.0", "x-sms-from": "15662566" } }), ctx());
+    expect((await loadFeed(db)).recent[0].note).toMatch(/okhttp.*x-sms-from/);
+    const r = await route.GET(new Request(`http://x/a`, { headers: { "x-message": encodeURIComponent(SMS.replace("출금 1원", "출금 4원")) } }), ctx());
+    expect(((await r.json()) as { status: string }).status).toBe("added");
     done();
   });
 });

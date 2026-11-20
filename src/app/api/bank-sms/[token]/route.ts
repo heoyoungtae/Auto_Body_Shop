@@ -30,6 +30,27 @@ export function chooseText(fields: Field[]): string | null {
   return pool.sort((a, b) => b[1].length - a[1].length)[0]?.[1] ?? null;
 }
 
+const STD_HEADERS = new Set(["accept", "accept-encoding", "accept-language", "connection", "content-length", "content-type", "host", "user-agent", "cache-control", "pragma", "upgrade-insecure-requests", "referer", "origin", "cookie", "priority", "te", "dnt"]);
+
+/** 누가 보냈는지(브라우저·전달 앱)와 별난 머리글 이름 — 받은 기록에 남겨 '내용 없음' 원인을 찾는다 */
+function who(req: Request) {
+  const ua = req.headers.get("user-agent") ?? "";
+  const by = !ua ? "보낸 프로그램 모름" : /Mozilla/.test(ua) ? "브라우저" : ua.slice(0, 40);
+  const extra = [...req.headers.keys()].filter((k) => !STD_HEADERS.has(k) && !/^(sec-|x-forwarded|x-real-ip|cf-|via|forwarded)/.test(k));
+  return `${by}${extra.length ? ` · 머리글 ${extra.slice(0, 6).join(",")}` : ""}`;
+}
+
+/** 일부 앱은 문자를 머리글(header)에 싣는다 */
+function headerFields(req: Request): [string, string][] {
+  return [...req.headers.entries()].filter(([k]) => !STD_HEADERS.has(k)).map(([k, v]) => {
+    try {
+      return [k, decodeURIComponent(v)] as [string, string];
+    } catch {
+      return [k, v] as [string, string];
+    }
+  });
+}
+
 async function handle(req: Request, token: string) {
   const db = await getDb();
   if (!(await tokenOk(db, token))) {
@@ -65,8 +86,12 @@ async function handle(req: Request, token: string) {
   let text = chooseText(fields);
   if (!text?.trim()) text = chooseText([...url.searchParams.entries()]);
   if (!text?.trim()) {
+    const h = chooseText(headerFields(req).filter(([, v]) => /(입금|출금|승인|취소|잔액)/.test(v)));
+    if (h) text = h;
+  }
+  if (!text?.trim()) {
     const names = [...fields.map(([k]) => k), ...url.searchParams.keys()].filter(Boolean);
-    await noteEmptyRequest(db, `${req.method} ${type || "형식 없음"}${names.length ? ` · 이름 ${names.slice(0, 6).join(",")}` : " · 내용 없음"}`);
+    await noteEmptyRequest(db, `${req.method} ${type || "형식 없음"}${names.length ? ` · 이름 ${names.slice(0, 6).join(",")}` : " · 내용 없음"} · ${who(req)}`);
     return Response.json({ ok: false, message: "문자 내용(text)이 비었습니다" }, { status: 400 });
   }
   const r = await ingestSms(db, text);
@@ -83,11 +108,12 @@ export const PUT = POST;
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const q = new URL(req.url).searchParams;
-  if (![...q.values()].some((v) => v.trim())) {
+  const hasHeaderSms = headerFields(req).some(([, v]) => /(입금|출금|승인|취소|잔액)/.test(v));
+  if (![...q.values()].some((v) => v.trim()) && !hasHeaderSms) {
     const db = await getDb();
     if (!(await tokenOk(db, token))) return Response.json({ ok: false, message: "주소가 맞지 않습니다" }, { status: 401 });
     // 전달 앱이 문자 내용 없이 GET 만 보내도 '성공'으로 보이므로 기록에 남긴다(브라우저로 연 연결 확인도 여기)
-    await noteEmptyRequest(db, "GET 주소만 열림(문자 내용 없음) — 브라우저 연결 확인이면 괜찮음, 전달 앱이면 보내는 방식을 POST 로");
+    await noteEmptyRequest(db, `GET 주소만 열림(문자 내용 없음) · ${who(req)}`);
     return Response.json({ ok: true, message: "연결됨. 문자 전달 앱 설정이 맞습니다" });
   }
   return handle(req, token);
