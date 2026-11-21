@@ -4,6 +4,7 @@ import { rolesFor } from "@/modules/auth/permissions";
 import { readVehicle } from "./vehicle-form";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
+import { replyToRequest } from "@/modules/site/service";
 import { createConsultation, markReplied, sendReservationConfirm, updateConsultation, type ConsentInput } from "@/modules/customer/service";
 import { MessagingError } from "@/modules/messaging/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
@@ -107,6 +108,20 @@ export async function confirmAction(form: FormData) {
     const r = await sendReservationConfirm(await getDb(), user.id, id);
     if (!r.ok) throw new MessagingError(`보내지 못했습니다: ${r.error ?? "대행사 오류"}. 전화로 안내해 주세요`);
     msg = `예약 확인을 ${r.channel}(으)로 보냈습니다${r.demo ? " — 데모라 실제로 가지는 않았고 발송 이력에만 남았습니다" : ""}`;
+  } catch (e) {
+    redirect(errorUrl(`/consults/${id}`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/consults/${id}`, msg));
+}
+
+/** 홈페이지·내 차 수첩 요청에 비밀 답 쓰기(처음이면 손님에게 알림) */
+export async function webReplyAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  const id = String(form.get("id"));
+  let msg: string;
+  try {
+    const r = await replyToRequest(await getDb(), user, id, String(form.get("reply") ?? ""), form.getAll("notify").includes("1"));
+    msg = !r.sent ? "답을 고쳤습니다. 손님이 내 차 수첩에서 바로 봅니다" : r.sent.ok ? `답을 저장하고 ${r.sent.channel}(으)로 알렸습니다${r.sent.demo ? " — 데모라 실제로 가지는 않았고 발송 이력에만 남았습니다" : ""}` : `답은 저장했지만 알림을 보내지 못했습니다(${r.sent.error ?? "대행사 오류"}). 전화로 알려 주세요`;
   } catch (e) {
     redirect(errorUrl(`/consults/${id}`, userMessage(e)));
   }

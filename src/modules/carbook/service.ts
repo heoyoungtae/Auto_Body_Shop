@@ -100,7 +100,7 @@ export async function verifyCode(db: Db, raw: string, rawCode: string, meta: Met
   if (!MOBILE_RE.test(phone)) throw new CarbookError("휴대폰 번호부터 다시 넣어 주세요");
   if (code.length !== OTP.digits) throw new CarbookError(`문자로 받은 숫자 ${OTP.digits}자리를 넣어 주세요`);
   const ph = phoneHash(phone);
-  const [o] = await db.select().from(carbookOtp).where(eq(carbookOtp.phoneHash, ph)).orderBy(desc(carbookOtp.createdAt)).limit(1);
+  const [o] = await db.select().from(carbookOtp).where(and(eq(carbookOtp.phoneHash, ph), eq(carbookOtp.purpose, "login"))).orderBy(desc(carbookOtp.createdAt)).limit(1);
   if (!o || o.usedAt) throw new CarbookError("인증번호를 먼저 받아 주세요");
   if (o.tries >= OTP.maxTries) throw new CarbookError(`여러 번 틀려 잠겼습니다. ${OTP.lockMinutes}분 뒤 인증번호를 다시 받아 주세요`);
   if (o.expiresAt < now) throw new CarbookError("인증번호 시간이 지났습니다. 다시 받아 주세요");

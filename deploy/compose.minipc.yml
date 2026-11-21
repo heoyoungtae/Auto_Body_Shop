@@ -41,6 +41,8 @@ services:
       SENSITIVE_ENCRYPTION_KEY: ${SENSITIVE_ENCRYPTION_KEY:-}
       JOBS_TOKEN: ${JOBS_TOKEN:-}
       APP_URL: ${APP_URL:-}
+      # 홈페이지 주소(쉼표로 여럿, 예: jmotors.co.kr,www.jmotors.co.kr). 비우면 홈페이지 주소 없음
+      HOMEPAGE_HOST: ${HOMEPAGE_HOST:-}
       TRUST_CF_IP: ${TRUST_CF_IP:-}
       SERVER_ON_SITE: ${SERVER_ON_SITE:-}
       SERVER_LAN_CIDR: ${SERVER_LAN_CIDR:-}
@@ -81,6 +83,8 @@ services:
       SITE_HOST: ${SITE_HOST}
     volumes:
       - ./Caddyfile.direct:/etc/caddy/Caddyfile:ro
+      # 홈페이지 주소(minipc/homepage.sh)
+      - ./caddy-sites:/etc/caddy/sites:ro
       - caddy:/data
     depends_on:
       - app

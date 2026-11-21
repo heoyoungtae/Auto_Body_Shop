@@ -83,6 +83,14 @@ export const KAKAO_TEMPLATES = {
     changedOn: "2026-11-21",
     text: "#{고객명} 고객님, #{업체명} '내 차 수첩' 알림입니다.\n\n#{안내내용}\n\n자세한 내용은 내 차 수첩에서 보실 수 있습니다.\n#{수첩링크}\n알림은 내 차 수첩 › 더보기 › 알림에서 끌 수 있습니다.\n문의: #{업체전화}",
   },
+  web_reply: {
+    title: "견적 요청 답변",
+    usage: "홈페이지 견적 요청·내 차 수첩 사진 상담에 정비소가 처음 답을 썼을 때(답은 요청한 손님만 내 차 수첩에서 봄)",
+    std: "STD-01",
+    vars: ["고객명", "업체명", "요청번호", "답변링크", "업체전화"],
+    changedOn: "2026-11-21",
+    text: "#{고객명} 고객님, #{업체명}입니다.\n보내 주신 견적 요청(#{요청번호})에 답변을 드렸습니다.\n\n아래 링크를 누르고 휴대폰 문자 인증을 하시면 답변을 보실 수 있습니다(요청하신 분만 볼 수 있습니다).\n#{답변링크}\n\n문의: #{업체전화}",
+  },
   survey: {
     title: "만족도 설문 요청",
     usage: "출고 뒤 정해진 날(정책값 '만족도 설문 발송')",
@@ -111,6 +119,8 @@ export const renderKakao = (key: KakaoKey, v: Record<string, string>) =>
 /** 테스트 발송에 쓰는 보기 값 */
 export const SAMPLE_VARS: Record<string, string> = {
   고객명: "홍길동",
+  요청번호: "CS-2611-0001",
+  답변링크: "https://jmotors.co.kr/my/consult",
   업체명: APP_NAME,
   동의링크: "https://example.sslip.io/consent/보기",
   기한: "3일",

@@ -80,7 +80,8 @@ export default async function ConsultsPage({ searchParams }: { searchParams: Pro
                           {r.docNo}
                         </Link>
                         <div className="text-xs text-[var(--muted)]">
-                          {seoulParts(r.at).date.slice(5)} {seoulParts(r.at).time} · {CHANNEL_LABEL[r.channel]}
+                          {seoulParts(r.at).date.slice(5)} {seoulParts(r.at).time} · {r.source === "web" ? "홈페이지" : CHANNEL_LABEL[r.channel]}
+                          {r.channel === "online" && !r.webReplyAt && <span className="ml-1 text-[var(--warn)]">· 답 안 씀</span>}
                         </div>
                       </td>
                       <td className="px-3 py-2">

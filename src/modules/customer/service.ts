@@ -185,7 +185,7 @@ export type VehicleInput = {
   bodyType?: string;
 };
 
-export async function saveVehicle(db: Db, actorId: string, customerId: string, input: VehicleInput, today = seoulDate()) {
+export async function saveVehicle(db: Db, actorId: string | null, customerId: string, input: VehicleInput, today = seoulDate()) {
   const plateNo = plateOf(input.plateNo);
   const vin = input.vin?.trim() ? normalizeVin(input.vin) : null;
   if (vin && !VIN_RE.test(vin)) throw new CustomerError("차대번호는 영문·숫자 17자리입니다(I·O·Q는 쓰지 않음). 등록증의 '차대번호' 칸을 보고 적어 주세요");
@@ -563,7 +563,7 @@ export async function markReplied(db: Db, actorId: string, id: string, now = new
   await writeAudit(db, { actorId, action: "consult.replied", entityType: "consultation", entityId: c.docNo });
 }
 
-export type ConsultFilter = "active" | "reservations" | "due" | "all";
+export type ConsultFilter = "active" | "reservations" | "due" | "online" | "all";
 
 /** 상담 목록. 표시: 회신 기한 지남, 재연락 날 됨, 오늘 예약 */
 export async function listConsultations(db: Db, filter: ConsultFilter, now = new Date(), q?: string, date?: string, max = 200) {
@@ -571,6 +571,8 @@ export async function listConsultations(db: Db, filter: ConsultFilter, now = new
   const conds = [];
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) conds.push(eq(consultation.result, "reserved"), gte(consultation.reservedAt, seoulDateTime(date, "00:00")), lt(consultation.reservedAt, seoulDateTime(addDays(date, 1), "00:00")));
   if (filter === "active") conds.push(inArray(consultation.result, ["open", "reserved", "recontact"]));
+  // 홈페이지 견적 요청·내 차 수첩 사진 상담(손님이 보낸 것). 답을 안 쓴 것부터 위로
+  if (filter === "online") conds.push(eq(consultation.channel, "online"));
   if (filter === "reservations") conds.push(eq(consultation.result, "reserved"), gte(consultation.reservedAt, seoulDateTime(today, "00:00")));
   if (filter === "due")
     conds.push(
@@ -592,6 +594,8 @@ export async function listConsultations(db: Db, filter: ConsultFilter, now = new
       docNo: consultation.docNo,
       at: consultation.at,
       channel: consultation.channel,
+      source: consultation.source,
+      webReplyAt: consultation.webReplyAt,
       result: consultation.result,
       reservedAt: consultation.reservedAt,
       recontactOn: consultation.recontactOn,

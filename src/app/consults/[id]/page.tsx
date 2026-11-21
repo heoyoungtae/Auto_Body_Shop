@@ -8,7 +8,7 @@ import { portalOrderView } from "@/modules/partner/service";
 import { PortalSteps } from "../../portal-orders/portal-steps";
 import { portalStepAction } from "../../portal-orders/actions";
 import { AssistForm } from "../../_assist";
-import { TextField } from "../../_input";
+import { CheckGroup, TextAreaField, TextField } from "../../_input";
 import { CHANNEL_LABEL, INSURANCE_LABEL, RESULT_LABEL, seoulParts } from "@/modules/customer/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { VEHICLE_OPTIONS, type VehicleOption } from "@/modules/customer/generations";
@@ -16,7 +16,7 @@ import { dayLabel, koMoney } from "../../_format";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
-import { confirmAction, repliedAction } from "../actions";
+import { confirmAction, repliedAction, webReplyAction } from "../actions";
 import { startRepairAction } from "../../repairs/actions";
 import { repairsOfConsults } from "@/modules/repair/service";
 import { ConsultZonesView } from "../consult-zones";
@@ -29,6 +29,21 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
       <dd>{children || <span className="text-[var(--muted)]">—</span>}</dd>
     </div>
   );
+}
+
+/** 답 초안: 손님 이름·다친 곳·예상 금액(상담에 적었으면)·원하는 날을 넣어 둔다. 직원은 고쳐서 보낸다 */
+function replyDraft(c: { customer: { name: string }; damageParts: string | null; estMin: number | null; estMax: number | null; wantDate: string | null }) {
+  const won = (n: number) => `${Math.round(n / 10000).toLocaleString("ko-KR")}만 원`;
+  const est = c.estMin != null || c.estMax != null ? `예상 수리비는 ${[c.estMin, c.estMax].filter((n): n is number => n != null).map(won).join(" ~ ")} 정도입니다.` : "예상 수리비는 ○○만 원 ~ ○○만 원 정도입니다.";
+  return [
+    `${c.customer.name} 고객님, 보내 주신 사진 잘 보았습니다.`,
+    c.damageParts ? `요청하신 곳: ${c.damageParts.split("\n")[0]}` : "",
+    `${est} 작업 기간은 ○일 정도 걸립니다.`,
+    "사진만 보고 드리는 대략 금액이며, 정식 견적은 차를 직접 보고 확정합니다.",
+    c.wantDate ? `원하신 날(${c.wantDate})에 입고 가능합니다. 편하실 때 전화 주시면 예약해 드리겠습니다.` : "방문 가능한 날을 전화나 답장으로 알려 주시면 예약해 드리겠습니다.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export default async function ConsultDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; notice?: string }> }) {
@@ -53,7 +68,7 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
         help="consults.detail" std="F-01-01"
         sub={
           <>
-            {fmtTime(c.at)} · {CHANNEL_LABEL[c.channel]} · 상담원 {c.advisor ?? "—"}
+            {fmtTime(c.at)} · {c.source === "web" ? "홈페이지 견적 요청" : CHANNEL_LABEL[c.channel]} · 상담원 {c.advisor ?? "—"}
             {c.from && (
               <>
                 {" "}· <Link href={`/consults/${c.from.id}`} className="text-[var(--accent)]">{c.from.docNo}</Link>에서 불러옴
@@ -189,6 +204,28 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
           </Card>
         </div>
         <div className="space-y-4">
+          {c.channel === "online" && (
+            <Card title="손님에게 답변(비밀)" help={{ kind: "panel", id: "consult.webReply" }}>
+              <div className="space-y-2 text-sm">
+                <p className="text-[var(--muted)]">요청한 손님만 내 차 수첩에서 휴대폰 문자 인증 뒤 봅니다. 처음 답하면 알림톡(안 되면 문자)으로 알립니다.</p>
+                {c.webReplyAt && (
+                  <p>
+                    <Badge tone="ok">답함 {fmtTime(c.webReplyAt)}</Badge>
+                  </p>
+                )}
+                {canWrite ? (
+                  <AssistForm id={`web-reply-${c.id}`} action={webReplyAction} className="space-y-3">
+                    <input type="hidden" name="id" value={c.id} />
+                    <TextAreaField help="consult.webReply" name="reply" rows={7} required defaultValue={c.webReply ?? replyDraft(c)} />
+                    {c.webReplyAt && <CheckGroup help="consult.webReplyNotify" name="notify" options={[{ value: "1", label: "고친 답을 다시 알리기" }]} />}
+                    <SubmitButton>{c.webReplyAt ? "답 고치기" : "답 보내기"}</SubmitButton>
+                  </AssistForm>
+                ) : (
+                  <p className="whitespace-pre-line">{c.webReply ?? "아직 답이 없습니다."}</p>
+                )}
+              </div>
+            </Card>
+          )}
           <Card title="결과·예약" help={{ kind: "panel", id: "consult.result" }}>
             <div className="space-y-2 text-sm">
               <p className="flex flex-wrap items-center gap-1.5">
