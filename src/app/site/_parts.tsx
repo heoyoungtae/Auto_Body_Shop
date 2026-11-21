@@ -7,6 +7,7 @@ import { PAGE_HELP, type PageHelpKey } from "@/modules/help/pages";
 import { loadShopInfo, formatBizNo } from "@/modules/platform/shop";
 import { siteConfig } from "@/modules/site/service";
 import { isHomepageHost } from "@/modules/site/rules";
+import type { ArticleBlock } from "@/modules/site/articles";
 import { HelpButton } from "../_help-drawer";
 
 /** 홈페이지 주소(jmotors.co.kr)면 '/', 앱 주소(테스트 서버)면 '/site' */
@@ -69,3 +70,52 @@ export const siteBtn = (kind: "red" | "navy" | "ink" | "line" | "ghost" = "red")
           ? "border border-white/35 text-white hover:border-white hover:bg-white/10"
           : "border border-[var(--line-strong)] hover:border-[var(--fg)]"
   }`;
+
+/** 기술자료 본문: '## 소제목' · '- 항목' · 문단 */
+export function ArticleBody({ blocks }: { blocks: ArticleBlock[] }) {
+  return (
+    <div className="space-y-5 text-[17px] leading-[1.85]">
+      {blocks.map((b, i) =>
+        b.kind === "h" ? (
+          <h2 key={i} className="!mt-10 border-l-[3px] border-[var(--red)] pl-3 text-xl font-bold leading-snug sm:text-[1.4rem]">
+            {b.text}
+          </h2>
+        ) : b.kind === "ul" ? (
+          <ul key={i} className="space-y-2 rounded-xl bg-[var(--paper)] p-5 sm:p-6">
+            {b.items.map((t, j) => (
+              <li key={j} className="flex gap-3">
+                <span aria-hidden className="mt-[0.75em] size-1.5 shrink-0 rounded-full bg-[var(--red)]" />
+                <span>{t}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={i}>{b.text}</p>
+        ),
+      )}
+    </div>
+  );
+}
+
+/** 화면 아래 마무리 띠: 사진 견적 요청 · 전화 */
+export function CtaBand({ requests, phone, tel, title = "사진 몇 장이면 충분합니다", body }: { requests: boolean; phone: string; tel: string; title?: string; body?: string }) {
+  return (
+    <section className="hero-bg -mx-5 rounded-none px-5 py-14 text-center text-white sm:mx-0 sm:rounded-3xl sm:px-10">
+      <p className="eyebrow mb-3 !text-white/55">ESTIMATE</p>
+      <h2 className="text-2xl font-bold sm:text-3xl">{title}</h2>
+      {body && <p className="mx-auto mt-3 max-w-xl text-white/70">{body}</p>}
+      <div className="mt-7 flex flex-wrap justify-center gap-3">
+        {requests && (
+          <a href="/request" className={siteBtn("red")}>
+            사진으로 견적 요청
+          </a>
+        )}
+        {phone && (
+          <a href={`tel:${tel}`} className={siteBtn("ghost")}>
+            전화 {phone}
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}

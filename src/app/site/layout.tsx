@@ -29,13 +29,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const NAV = [
   { href: "/about", label: "정비소 소개" },
+  { href: "/services", label: "수리 안내" },
   { href: "/cases", label: "작업 사례" },
   { href: "/insurance", label: "보험 수리" },
-  { href: "/guide", label: "이용 안내" },
+  { href: "/tech", label: "기술자료" },
   { href: "/faq", label: "자주 묻는 질문" },
   { href: "/notice", label: "공지사항" },
-  { href: "/my", label: "내 차 수첩" },
+  { href: "/carbook-guide", label: "내 차 수첩", isNew: true },
 ] as const;
+
+const NewDot = () => <span className="ml-1 rounded-full bg-[var(--red)] px-1.5 py-px align-[2px] text-[10px] font-bold leading-none text-white">NEW</span>;
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const db = await getDb();
@@ -81,14 +84,15 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               <img src={brandUrl(brand, "logo-light")} alt={shop.name} width={w} height={h} className="h-9 w-auto max-w-[46vw] object-contain object-left sm:h-10" />
             </picture>
           </Link>
-          <nav aria-label="홈페이지 메뉴" className="ml-auto hidden items-center gap-1 lg:flex">
+          <nav aria-label="홈페이지 메뉴" className="ml-auto hidden items-center gap-0.5 xl:flex">
             {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="rounded-full px-3 py-2 text-[15px] font-medium text-[var(--fg)]/80 transition hover:bg-[var(--surface-2)] hover:text-[var(--fg)]">
+              <Link key={n.href} href={n.href} className="whitespace-nowrap rounded-full px-3 py-2 text-[15px] font-medium text-[var(--fg)]/80 transition hover:bg-[var(--surface-2)] hover:text-[var(--fg)]">
                 {n.label}
+                {"isNew" in n && <NewDot />}
               </Link>
             ))}
             {shop.phone && (
-              <a href={`tel:${shop.tel}`} className="ml-3 hidden border-l border-[var(--line)] pl-4 text-[15px] font-semibold tabular-nums xl:inline">
+              <a href={`tel:${shop.tel}`} className="ml-3 hidden border-l border-[var(--line)] pl-4 text-[15px] font-semibold tabular-nums 2xl:inline">
                 {shop.phone}
               </a>
             )}
@@ -96,7 +100,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               견적 요청
             </Link>
           </nav>
-          <details className="relative ml-auto lg:hidden">
+          <Link href="/request" className={`${siteBtn("red")} ml-auto hidden min-h-10 px-5 text-sm lg:inline-flex xl:hidden`}>
+            견적 요청
+          </Link>
+          <details className="relative ml-auto lg:ml-1 xl:hidden">
             <summary className="flex size-11 list-none items-center justify-center rounded-full hover:bg-[var(--surface-2)] [&::-webkit-details-marker]:hidden" aria-label="메뉴 열기">
               <svg aria-hidden viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
                 <path d="M4 7h16M4 12h16M4 17h16" />
@@ -109,6 +116,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               {NAV.map((n) => (
                 <Link key={n.href} href={n.href} className="block rounded-xl px-4 py-3 font-medium hover:bg-[var(--surface-2)]">
                   {n.label}
+                  {"isNew" in n && <NewDot />}
                 </Link>
               ))}
               <Link href="/request" className={`${siteBtn("red")} mt-1 w-full`}>
@@ -185,6 +193,21 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             <p>
               <Link href="/guide" className="hover:text-white">
                 이용 안내
+              </Link>
+            </p>
+            <p>
+              <Link href="/services" className="hover:text-white">
+                수리 안내
+              </Link>
+            </p>
+            <p>
+              <Link href="/tech" className="hover:text-white">
+                기술자료
+              </Link>
+            </p>
+            <p>
+              <Link href="/carbook-guide" className="hover:text-white">
+                내 차 수첩 사용설명서
               </Link>
             </p>
             {app && (

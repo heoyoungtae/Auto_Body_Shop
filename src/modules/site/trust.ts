@@ -32,8 +32,10 @@ export type SiteTrust = {
   reviews: SiteReview[];
   certs: SiteCert[];
   photos: SitePhoto[];
+  /** 첫 화면 배경으로 쓸 정비소 사진(사진 id). 비우면 기본 그림(/site-art/hero.svg) */
+  hero: string;
 };
-export const EMPTY_TRUST: SiteTrust = { links: { naver: "", kakao: "", google: "" }, rating: { score: null, count: null, source: "" }, reviews: [], certs: [], photos: [] };
+export const EMPTY_TRUST: SiteTrust = { links: { naver: "", kakao: "", google: "" }, rating: { score: null, count: null, source: "" }, reviews: [], certs: [], photos: [], hero: "" };
 
 export async function siteTrust(db: Db): Promise<SiteTrust> {
   const [r] = await db.select({ data: appConfig.data }).from(appConfig).where(eq(appConfig.key, KEY));
@@ -130,8 +132,24 @@ export async function removeShopPhoto(db: Db, actor: Actor, id: string) {
   const t = await siteTrust(db);
   const p = t.photos.find((x) => x.id === id);
   if (!p) return;
-  await put(db, actor, { ...t, photos: t.photos.filter((x) => x.id !== id) }, "site.photo_delete", { kind: p.kind });
+  await put(db, actor, { ...t, photos: t.photos.filter((x) => x.id !== id), hero: t.hero === id ? "" : t.hero }, "site.photo_delete", { kind: p.kind });
   await removeStored(p.path);
+}
+
+/** 첫 화면 배경 사진 고르기(빈 값이면 기본 그림으로 되돌림) */
+export async function setHeroPhoto(db: Db, actor: Actor, id: string) {
+  mustWrite(actor);
+  const t = await siteTrust(db);
+  if (id && !t.photos.some((p) => p.id === id)) throw new SiteError("없는 사진입니다");
+  await put(db, actor, { ...t, hero: id }, "site.hero", { hero: id ? "photo" : "default" });
+}
+
+export const DEFAULT_HERO = "/site-art/hero.svg";
+
+/** 첫 화면 배경 주소: 고른 정비소 사진, 없으면 기본 그림 */
+export function heroImage(t: SiteTrust) {
+  const p = t.hero ? t.photos.find((x) => x.id === t.hero) : undefined;
+  return p ? `/api/site-file/${p.path}` : DEFAULT_HERO;
 }
 
 /** 홈페이지에서 누구나 여는 정비소 사진인지(지금 걸려 있는 것만) */

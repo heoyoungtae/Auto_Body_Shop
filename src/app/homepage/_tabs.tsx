@@ -1,10 +1,11 @@
-// 홈페이지 글 관리 화면 위 탭(자주 묻는 질문 · 공지사항 · 작업 사례 · 견적 요청함)
+// 홈페이지 글 관리 화면 위 탭(자주 묻는 질문 · 공지사항 · 작업 사례 · 기술자료 · 후기·사진·인증 · 견적 요청함)
 import Link from "next/link";
 
 const TABS = [
   { href: "/homepage/faq", label: "자주 묻는 질문" },
   { href: "/homepage/notice", label: "공지사항" },
   { href: "/homepage/cases", label: "작업 사례" },
+  { href: "/homepage/articles", label: "기술자료" },
   { href: "/homepage/trust", label: "후기·사진·인증" },
   { href: "/consults?f=online", label: "견적 요청함" },
 ] as const;
