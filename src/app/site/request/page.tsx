@@ -39,7 +39,7 @@ export default async function RequestPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="mx-auto max-w-2xl">
-      <SiteTitle help="site.request" sub="사진 몇 장과 다친 곳을 알려 주시면 대략 금액과 기간을 답해 드립니다. 답은 요청하신 분만 보실 수 있습니다.">
+      <SiteTitle eyebrow="ESTIMATE" help="site.request" sub="사진 몇 장과 다친 곳을 알려 주시면 대략 금액과 기간을 답해 드립니다. 답은 요청하신 분만 보실 수 있습니다.">
         견적 요청
       </SiteTitle>
       <ErrorBox message={q.error} />

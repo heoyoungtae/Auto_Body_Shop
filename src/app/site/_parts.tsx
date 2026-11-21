@@ -22,20 +22,50 @@ export async function siteData() {
   return { shop, ceo: info.ceo, bizNo: info.bizNo ? formatBizNo(info.bizNo) : "", cfg, mapUrl: shop.address ? `https://map.naver.com/p/search/${encodeURIComponent(shop.address.replace(/^\(\d+\)\s*/, ""))}` : "" };
 }
 
-/** 홈페이지 화면 제목: 큰 글자 + 도움말 단추(모든 화면 도움말 규칙) */
-export function SiteTitle({ help, children, sub }: { help: PageHelpKey; children: ReactNode; sub?: ReactNode }) {
+/** 홈페이지 화면 제목: 영어 작은 머리말 + 큰 글자 + 도움말 단추(모든 화면 도움말 규칙) */
+export function SiteTitle({ help, children, sub, eyebrow }: { help: PageHelpKey; children: ReactNode; sub?: ReactNode; eyebrow?: string }) {
   return (
-    <div className="mb-6" data-page-help={help}>
-      <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight break-keep sm:text-3xl">
+    <div className="mb-10" data-page-help={help}>
+      {eyebrow && <p className="eyebrow eyebrow-red mb-3">{eyebrow}</p>}
+      <h1 className="flex items-center gap-2 text-3xl font-bold leading-tight break-keep sm:text-[2.6rem]">
         <span>{children}</span>
         <HelpButton topic={{ kind: "page", id: help }} name={PAGE_HELP[help].title} />
       </h1>
-      {sub && <p className="mt-2 text-[var(--muted)]">{sub}</p>}
+      {sub && <p className="mt-3 max-w-2xl text-lg text-[var(--muted)]">{sub}</p>}
     </div>
   );
 }
 
-export const siteBtn = (kind: "red" | "navy" | "line" = "red") =>
-  `inline-flex min-h-12 items-center justify-center gap-2 rounded-lg px-5 text-base font-semibold transition ${
-    kind === "red" ? "bg-[#d71f2b] text-white hover:bg-[#b91822]" : kind === "navy" ? "bg-[#0a3e96] text-white hover:bg-[#08327a]" : "border border-[var(--line-strong)] hover:bg-[var(--surface-2)]"
+/** 섹션 머리: 영어 머리말 + 제목 + (오른쪽) 더 보기 */
+export function SectionHead({ eyebrow, title, more, id, dark = false }: { eyebrow: string; title: ReactNode; more?: { href: string; label: string }; id?: string; dark?: boolean }) {
+  return (
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p className="eyebrow mb-2">{eyebrow}</p>
+        <h2 id={id} className={`text-2xl font-bold sm:text-[2rem] ${dark ? "text-white" : ""}`}>
+          {title}
+        </h2>
+      </div>
+      {more && (
+        <a href={more.href} className={`group inline-flex items-center gap-1.5 text-sm font-semibold ${dark ? "text-white/80 hover:text-white" : "text-[var(--fg)] hover:text-[var(--red)]"}`}>
+          {more.label}
+          <span aria-hidden className="transition group-hover:translate-x-0.5">
+            →
+          </span>
+        </a>
+      )}
+    </div>
+  );
+}
+
+/** 단추 모양: red(주 행동) · ink(먹색) · line(테두리) · ghost(어두운 바탕 위 흰 테두리) */
+export const siteBtn = (kind: "red" | "navy" | "ink" | "line" | "ghost" = "red") =>
+  `inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-[15px] font-semibold tracking-[-0.01em] transition ${
+    kind === "red"
+      ? "bg-[var(--red)] text-white shadow-[0_8px_24px_rgb(200_16_46_/_0.28)] hover:bg-[var(--red-hi)]"
+      : kind === "navy" || kind === "ink"
+        ? "bg-[var(--ink)] text-white hover:bg-black dark:bg-white dark:text-[var(--ink)] dark:hover:bg-white/90"
+        : kind === "ghost"
+          ? "border border-white/35 text-white hover:border-white hover:bg-white/10"
+          : "border border-[var(--line-strong)] hover:border-[var(--fg)]"
   }`;

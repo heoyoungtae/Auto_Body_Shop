@@ -5,6 +5,7 @@ import { readVehicle } from "./vehicle-form";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { replyToRequest } from "@/modules/site/service";
+import { faqFromConsult } from "@/modules/site/content";
 import { createConsultation, markReplied, sendReservationConfirm, updateConsultation, type ConsentInput } from "@/modules/customer/service";
 import { MessagingError } from "@/modules/messaging/service";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
@@ -126,6 +127,19 @@ export async function webReplyAction(form: FormData) {
     redirect(errorUrl(`/consults/${id}`, userMessage(e)));
   }
   redirect(noticeUrl(`/consults/${id}`, msg));
+}
+
+/** 비밀 답변 → 자주 묻는 질문 초안(공개 안 함). 만든 초안을 고치는 화면으로 간다 */
+export async function faqDraftAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  const id = String(form.get("id"));
+  let faqId: string;
+  try {
+    faqId = await faqFromConsult(await getDb(), user, id);
+  } catch (e) {
+    redirect(errorUrl(`/consults/${id}`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/homepage/faq?edit=${faqId}`, "초안을 만들었습니다. 고친 뒤 '공개'를 켜고 저장하세요"));
 }
 
 export async function repliedAction(form: FormData) {

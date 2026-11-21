@@ -10,12 +10,13 @@ import { requireMy } from "./_session";
 import { LinkOnlyNote, MySteps, ShopFooter } from "./_parts";
 import { vapidKeys } from "@/modules/carbook/push";
 import { MyPushAsk } from "./push-ask";
+import { carbookNotices, noticeTitle } from "@/modules/site/content";
 
 export default async function MyHome() {
   const s = await requireMy();
   const db = await getDb();
-  const [h, shop, up, vapid] = await Promise.all([myHome(db, s), shopCard(db), myUpcoming(db, s), vapidKeys(db)]);
   const today = seoulDate();
+  const [h, shop, up, vapid, news] = await Promise.all([myHome(db, s), shopCard(db), myUpcoming(db, s), vapidKeys(db), carbookNotices(db, s.customerId, today)]);
   return (
     <div className="space-y-4 pt-2">
       <PageTitle help="my.home" sub={`${s.name.slice(0, 1)}${"*".repeat(Math.max(1, s.name.length - 1))} 고객님 · ${shop.name}`}>
@@ -25,6 +26,20 @@ export default async function MyHome() {
       {s.scope === "link" && <LinkOnlyNote />}
       {/* 홈 화면 앱으로 처음 열면 알림 받기를 묻는다(문자 인증으로 들어온 경우만 켤 수 있음) */}
       {s.scope === "full" && <MyPushAsk vapid={vapid.publicKey} />}
+      {news.length > 0 && (
+        <Card title="정비소 소식" help={{ kind: "panel", id: "my.news" }}>
+          <ul className="space-y-1.5 text-sm">
+            {news.map((n) => (
+              <li key={n.id}>
+                <Link href={`/notice/${n.id}`} className="flex gap-2 hover:underline">
+                  <span className="min-w-0 flex-1 truncate">{noticeTitle(n)}</span>
+                  <span className="shrink-0 text-xs text-[var(--muted)]">{n.startsOn.slice(5).replace("-", ".")}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {h.todos.length > 0 && (
         <Card title={`할 일 ${h.todos.length}`} help={{ kind: "panel", id: "my.todo" }}>

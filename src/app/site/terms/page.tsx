@@ -19,7 +19,7 @@ export default async function TermsPage() {
   const { shop, cfg } = await siteData();
   return (
     <article className="mx-auto max-w-3xl leading-relaxed">
-      <SiteTitle help="site.terms" sub={shop.name}>
+      <SiteTitle eyebrow="TERMS" help="site.terms" sub={shop.name}>
         이용약관
       </SiteTitle>
       <ol className="space-y-5">

@@ -5228,6 +5228,70 @@ export const FIELD_HELP = {
     label: "처리방침 시행일",
     detail: "처리방침·이용약관을 언제부터 적용하는지입니다. 내용을 바꾸면 7일 뒤 날짜로 고치고 공지합니다.",
   },
+  "homepage.faqCategory": {
+    label: "분야",
+    detail: "홈페이지에서 이 분야 묶음 아래에 보입니다. 수리·작업, 견적·비용, 보험 수리, 기간·맡기기, 보증·출고 뒤, 내 차 수첩·개인정보.",
+  },
+  "homepage.faqQuestion": {
+    label: "질문",
+    hint: "손님 말투로 한 문장(200자까지)",
+    example: "도색한 뒤 바로 세차해도 되나요?",
+    maxLength: 200,
+  },
+  "homepage.faqAnswer": {
+    label: "답",
+    detail: "쉬운 말로 적습니다. 빈 줄로 문단을 나눕니다(3000자까지). 휴대폰 번호·차량번호는 넣지 않습니다.",
+  },
+  "homepage.faqSort": {
+    label: "순서",
+    detail: "같은 분야 안에서 작을수록 위에 보입니다(0~999). 처음 초안은 10, 20, 30… 으로 들어갑니다.",
+  },
+  "homepage.publish": {
+    label: "공개",
+    detail: "켜면 홈페이지에 보입니다. 끄면 초안으로 남고 손님에게는 안 보입니다.",
+  },
+  "homepage.noticeTitle": {
+    label: "제목",
+    hint: "한 줄(80자까지). 첫 화면 띠에도 이 제목이 보입니다",
+    example: "설 연휴 휴무 안내(2월 16일~18일)",
+    maxLength: 80,
+  },
+  "homepage.noticeBody": {
+    label: "내용",
+    detail: "공지 내용입니다. 빈 줄로 문단을 나눕니다(5000자까지). 정비소 전화는 괜찮지만 손님 휴대폰 번호는 넣지 않습니다.",
+  },
+  "homepage.noticeStarts": {
+    label: "게시 시작",
+    detail: "이날부터 홈페이지에 보입니다. 미래 날짜면 그날 저절로 올라갑니다(수첩 알림도 그날 오후 4시에).",
+  },
+  "homepage.noticeEnds": {
+    label: "게시 끝",
+    detail: "이날까지 보이고 다음 날 저절로 내려갑니다. 비우면 지울 때까지 계속 보입니다.",
+  },
+  "homepage.noticeOpts": {
+    label: "보이는 방법",
+    detail: "맨 위 고정: 목록 맨 위. 첫 화면 띠: 모든 홈페이지 화면 위에 한 줄. 수첩 알림: 내 차 수첩 알림을 켠 손님 휴대폰에 한 번. 광고: 할인·이벤트면 꼭 켭니다((광고) 표시·동의 손님에게만).",
+  },
+  "homepage.caseTitle": {
+    label: "제목",
+    hint: "무엇을 어떻게 고쳤는지 한 줄(80자까지)",
+    example: "아반떼 뒷문 찌그러짐 덴트 복원",
+    maxLength: 80,
+  },
+  "homepage.caseCategory": {
+    label: "분야",
+    detail: "홈페이지 작업 사례의 분야 단추(찌그러짐·긁힘·도색)로 나뉩니다. 상담 때 고른 손상 유형으로 미리 채워져 있습니다.",
+  },
+  "homepage.caseCar": {
+    label: "차종",
+    hint: "제조사·모델만(차량번호 없이)",
+    example: "현대 아반떼",
+    maxLength: 40,
+  },
+  "homepage.caseBody": {
+    label: "설명",
+    detail: "손상 상태, 고친 방법, 걸린 기간을 손님이 알기 쉽게 적습니다(2000자까지). 손님 이름·차량번호는 적지 않습니다.",
+  },
   "consult.webReply": {
     label: "답변",
     detail: "요청한 손님에게 보일 답입니다. 대략 금액 범위·작업 기간·방문 가능한 날을 적습니다. 초안의 ○○ 자리를 채워 주세요(2000자까지).",
