@@ -131,6 +131,8 @@ export const consultation = pgTable(
     damageZones: jsonb("damage_zones").$type<{ part: string; view: string; cell: number; kind: string }[]>().notNull().default([]),
     cause: text("cause"),
     photoCount: integer("photo_count").notNull().default(0),
+    /** 고객이 내 차 수첩에서 보낸 사진(STORAGE_DIR 경로). 직원이 받은 상담에는 비어 있다 */
+    photos: jsonb("photos").$type<string[]>().notNull().default([]),
     /** 고객이 말한 주행거리(km, 대략) */
     mileage: integer("mileage"),
     /** 예비 판단: 수리 방법, 구조물 손상 의심 */

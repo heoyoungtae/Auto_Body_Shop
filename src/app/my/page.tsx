@@ -92,6 +92,19 @@ export default async function MyHome() {
           </Link>
         ))}
 
+      {s.scope === "full" && h.cars.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          <Link href="/my/consult" className="block rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-sm hover:bg-[var(--surface-2)]">
+            <span className="font-semibold">사진으로 상담 요청</span>
+            <span className="block text-xs text-[var(--muted)]">다친 곳을 찍어 보내면 정비소가 연락드립니다</span>
+          </Link>
+          <Link href="/my/cert" className="block rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-sm hover:bg-[var(--surface-2)]">
+            <span className="font-semibold">수리 이력 확인서</span>
+            <span className="block text-xs text-[var(--muted)]">차 팔 때 보여 줄 수리 내역 한 장</span>
+          </Link>
+        </div>
+      )}
+
       {s.scope === "full" && (
         <Card title="내 차" help={{ kind: "panel", id: "my.cars" }}>
           {h.cars.length ? (

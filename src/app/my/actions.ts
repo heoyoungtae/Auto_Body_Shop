@@ -6,9 +6,11 @@ import { getDb } from "@/db/runtime";
 import { claimWarranty, endAllSessions, endSession, markSold, myEstimateDoc, requestCode, sessionOf, verifyCode } from "@/modules/carbook/service";
 import { PHONE_COOKIE } from "@/modules/carbook/rules";
 import { addEntry, deleteEntry, leaveCarbook, saveInsurance, savePrefs, setConsent } from "@/modules/carbook/records";
+import { subscribePush, unsubscribePush } from "@/modules/carbook/push";
+import { issueCert, requestConsult, revokeCert } from "@/modules/carbook/requests";
 import { approveByCarbook } from "@/modules/repair/estimate-approval";
 import { errorUrl, requestMeta, userMessage } from "../_lib/session";
-import { clearMyCookie, myToken, requireMy, setMyCookie } from "./_session";
+import { clearMyCookie, mySession, myToken, requireMy, setMyCookie } from "./_session";
 
 /** 1단계: 인증번호 받기. 번호는 다음 칸까지 짧은 쿠키(10분)에만 둔다(주소창에 남기지 않음) */
 export async function requestCodeAction(form: FormData) {
@@ -176,4 +178,73 @@ export async function leaveAction() {
   }
   await clearMyCookie();
   redirect("/my/login?left=1");
+}
+
+// ── 3단계: 푸시 ──
+/** 화면(클라이언트)에서 부른다. 오류는 글로 돌려준다 */
+export async function pushOnAction(endpoint: string): Promise<{ error?: string }> {
+  const s = await mySession();
+  if (!s) return { error: "다시 들어와 주세요" };
+  try {
+    await subscribePush(await getDb(), s, String(endpoint), (await requestMeta()).userAgent ?? null);
+    return {};
+  } catch (e) {
+    return { error: userMessage(e) };
+  }
+}
+
+export async function pushOffAction(endpoint: string) {
+  const s = await mySession();
+  if (s) await unsubscribePush(await getDb(), s, String(endpoint));
+}
+
+// ── 3단계: 사진으로 상담 요청, 수리 이력 확인서 ──
+export async function requestConsultAction(form: FormData) {
+  const s = await requireMy(true);
+  const photos: Uint8Array[] = [];
+  for (const f of form.getAll("photo")) if (f instanceof File && f.size) photos.push(new Uint8Array(await f.arrayBuffer()));
+  let due: string;
+  try {
+    let zones: unknown = [];
+    try {
+      zones = JSON.parse(String(form.get("damageZones") ?? "[]"));
+    } catch {
+      zones = [];
+    }
+    ({ replyDue: due } = await requestConsult(await getDb(), s, {
+      vehicleId: String(form.get("vehicleId") ?? ""),
+      damageParts: String(form.get("damageParts") ?? ""),
+      damageZones: zones,
+      insurance: String(form.get("insurance") ?? ""),
+      insurer: String(form.get("insurer") ?? ""),
+      wantDate: String(form.get("wantDate") ?? ""),
+      needs: String(form.get("needs") ?? ""),
+      photos,
+    }));
+  } catch (e) {
+    redirect(errorUrl("/my/consult", userMessage(e)));
+  }
+  redirect(`/my/consult?sent=1&due=${due}`);
+}
+
+export async function issueCertAction(form: FormData) {
+  const s = await requireMy(true);
+  let id: string;
+  try {
+    ({ id } = await issueCert(await getDb(), s, String(form.get("vehicleId") ?? ""), form.getAll("withAmount").map(String).includes("yes")));
+  } catch (e) {
+    redirect(errorUrl("/my/cert", userMessage(e)));
+  }
+  redirect(`/my/cert/${id}`);
+}
+
+export async function revokeCertAction(form: FormData) {
+  const s = await requireMy(true);
+  const id = String(form.get("id") ?? "");
+  try {
+    await revokeCert(await getDb(), s, id);
+  } catch (e) {
+    redirect(errorUrl(`/my/cert/${id}`, userMessage(e)));
+  }
+  redirect(`/my/cert/${id}`);
 }

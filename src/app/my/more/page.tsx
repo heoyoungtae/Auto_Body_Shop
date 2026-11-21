@@ -11,12 +11,14 @@ import { Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { consentAction, leaveAction, logoutAction, markSoldAction, savePrefsAction } from "../actions";
 import { requireMy } from "../_session";
 import { KakaoHint } from "./kakao-hint";
+import { AppCard } from "./app-card";
+import { vapidKeys } from "@/modules/carbook/push";
 
 export default async function MyMorePage({ searchParams }: { searchParams: Promise<{ error?: string; sold?: string; prefs?: string; withdrawn?: string }> }) {
   const q = await searchParams;
   const s = await requireMy();
   const db = await getDb();
-  const [shop, h, prefs, consent] = await Promise.all([shopCard(db), myHome(db, s), myPrefs(db, s), consentState(db, s.customerId)]);
+  const [shop, h, prefs, consent, vapid] = await Promise.all([shopCard(db), myHome(db, s), myPrefs(db, s), consentState(db, s.customerId), vapidKeys(db)]);
   return (
     <div className="space-y-4 pt-2">
       <PageTitle help="my.more" sub={s.phoneMasked ? `${s.phoneMasked}로 들어옴` : undefined}>
@@ -62,6 +64,12 @@ export default async function MyMorePage({ searchParams }: { searchParams: Promi
       </Card>
 
       {s.scope === "full" && (
+        <Card title="홈 화면에 두기·푸시" help={{ kind: "panel", id: "my.app" }}>
+          <AppCard vapid={vapid.publicKey} />
+        </Card>
+      )}
+
+      {s.scope === "full" && (
         <Card title="알림" help={{ kind: "panel", id: "my.alerts" }}>
           {consent.agreed ? (
             <AssistForm id="my-prefs" action={savePrefsAction} className="space-y-4">
@@ -101,7 +109,7 @@ export default async function MyMorePage({ searchParams }: { searchParams: Promi
         </Card>
       )}
 
-      <KakaoHint />
+      {s.scope !== "full" && <KakaoHint />}
 
       {s.scope === "full" && (
         <Card title="내 기록 동의·그만 쓰기" help={{ kind: "panel", id: "my.leave" }}>

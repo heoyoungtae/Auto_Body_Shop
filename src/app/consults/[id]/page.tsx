@@ -152,7 +152,19 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
               <Row k="손상 유형">{c.damageTypes.join(", ")}</Row>
               <Row k="부위"><span className="whitespace-pre-line">{c.damageParts}</span></Row>
               <Row k="경위">{c.cause}</Row>
-              <Row k="받은 사진">{c.photoCount ? `${c.photoCount}장${c.photoCount < 3 ? " (3장 미만 — 더 요청)" : ""}` : ""}</Row>
+              <Row k="받은 사진">
+                {c.photoCount ? `${c.photoCount}장${c.photoCount < 3 ? " (3장 미만 — 더 요청)" : ""}` : ""}
+                {(c.photos ?? []).length > 0 && (
+                  <span className="mt-1 flex flex-wrap gap-1">
+                    {(c.photos ?? []).map((p) => (
+                      <a key={p} href={`/api/files/${p}`} target="_blank" rel="noreferrer" title="고객이 내 차 수첩에서 보낸 사진">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/api/files/${p}`} alt="고객이 보낸 사진" className="size-20 rounded border border-[var(--line)] object-cover" />
+                      </a>
+                    ))}
+                  </span>
+                )}
+              </Row>
               <Row k="예비 판단">
                 {c.methods.join(", ")}
                 {c.structural && <Badge tone="warn">구조물 손상 의심</Badge>}
