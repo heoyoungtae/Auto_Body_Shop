@@ -6,6 +6,7 @@ import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
 import { noticeTitle, publicCases, publicFaqs, publicNotices } from "@/modules/site/content";
 import { featuredArticles } from "@/modules/site/articles";
+import { caseSamples, SAMPLE_LABEL, sampleImg } from "@/modules/site/case-samples";
 import { SERVICE_PAGES } from "@/modules/site/service-pages";
 import { heroImage, PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
 import { ServiceIcon } from "./_icons";
@@ -40,6 +41,8 @@ export default async function SiteHome() {
   const db = await getDb();
   const [{ shop, cfg, mapUrl }, p, cases, notices, faqs, trust, articles] = await Promise.all([siteData(), loadPolicy(db), publicCases(db, "", 3), publicNotices(db), publicFaqs(db), siteTrust(db), featuredArticles(db, 3)]);
   const hero = heroImage(trust);
+  // 실제 공개 사례가 없으면 예시 그림 3장(분야마다 하나, '예시(실제 작업사진 준비중)' 표시)
+  const samples = caseSamples(cases.length).filter((_, i) => i % 2 === 0);
   const reviewLinks = [
     ["네이버 후기", trust.links.naver],
     ["카카오맵 후기", trust.links.kakao],
@@ -261,6 +264,33 @@ export default async function SiteHome() {
           </div>
         </div>
       </section>
+
+      {/* 작업 사례 예시(실제 사례가 없을 때만) */}
+      {samples.length > 0 && (
+        <section aria-labelledby="samples">
+          <SectionHead eyebrow="OUR WORK" id="samples" title="이렇게 고칩니다" more={{ href: "/cases", label: "작업 사례 보기" }} />
+          <ul className="grid gap-5 sm:grid-cols-3">
+            {samples.map((x) => (
+              <li key={x.key}>
+                <Link href={`/services/${x.service}`} className="lift group block overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+                  <div className="relative grid grid-cols-2 gap-px bg-[var(--line)]">
+                    <span className="absolute inset-x-0 top-2 z-10 mx-auto w-fit rounded-full bg-[var(--red)] px-3 py-1 text-xs font-semibold text-white">{SAMPLE_LABEL}</span>
+                    {(["before", "after"] as const).map((side) => (
+                      // eslint-disable-next-line @next/next/no-img-element -- 예시 그림
+                      <img key={side} src={sampleImg(x.key, side)} alt={`${SAMPLE_LABEL} ${side === "before" ? "수리 전" : "수리 후"}`} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                    ))}
+                  </div>
+                  <div className="p-5">
+                    <p className="eyebrow eyebrow-red !tracking-[0.12em]">{x.category}</p>
+                    <p className="mt-1 font-bold">{x.title}</p>
+                    <p className="mt-1 text-sm text-[var(--muted)]">{SAMPLE_LABEL}</p>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 작업 사례 */}
       {cases.length > 0 && (

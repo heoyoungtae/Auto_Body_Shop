@@ -1,4 +1,4 @@
-// 홈페이지 › 자주 묻는 질문 관리: 분야별 목록(공개·초안), 고치기·새로 쓰기, 처음 초안 20개 불러오기.
+// 홈페이지 › 자주 묻는 질문 관리: 분야별 목록(공개·초안), 고치기·새로 쓰기, 빠진 처음 글 다시 넣기(처음 23개는 홈페이지를 처음 열 때 저절로 공개).
 // 손님은 홈페이지 '자주 묻는 질문'에서 읽기만 한다(묻고 답하기 없음). 상담 답변에서 '초안으로 만들기'를 누르면 여기로 온다.
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
@@ -52,13 +52,13 @@ export default async function FaqAdminPage({ searchParams }: { searchParams: Pro
           actions={
             starterLeft > 0 ? (
               <form action={faqStartersAction}>
-                <button className={buttonClass("secondary")}>처음 초안 {starterLeft}개 불러오기</button>
+                <button className={buttonClass("secondary")}>빠진 처음 글 {starterLeft}개 다시 넣기</button>
               </form>
             ) : undefined
           }
         >
           {!rows.length ? (
-            <Empty>아직 질문이 없습니다. 위의 &lsquo;처음 초안 불러오기&rsquo;로 표준서 기반 초안 20개를 넣고 고쳐 공개하세요.</Empty>
+            <Empty>아직 질문이 없습니다. 홈페이지를 처음 열면 표준서 기반 질문 {FAQ_STARTERS.length}개가 저절로 공개로 들어갑니다. 지금 넣으려면 위 단추를 누르세요.</Empty>
           ) : (
             <div className="space-y-4">
               {cats.map((c) => {

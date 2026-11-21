@@ -37,7 +37,7 @@ export async function faqStartersAction() {
   } catch (e) {
     redirect(errorUrl("/homepage/faq", userMessage(e)));
   }
-  redirect(noticeUrl("/homepage/faq", n ? `초안 ${n}개를 넣었습니다(공개 안 함). 하나씩 읽고 고친 뒤 공개하세요` : "넣을 초안이 없습니다(이미 모두 넣었습니다)"));
+  redirect(noticeUrl("/homepage/faq", n ? `처음 글 ${n}개를 넣어 공개했습니다. 맞지 않는 글은 고치거나 공개를 꺼 주세요` : "넣을 초안이 없습니다(이미 모두 넣었습니다)"));
 }
 
 export async function saveNoticeAction(form: FormData) {
@@ -197,5 +197,5 @@ export async function articleStartersAction() {
   } catch (e) {
     redirect(errorUrl("/homepage/articles", userMessage(e)));
   }
-  redirect(noticeUrl("/homepage/articles", n ? `초안 ${n}편을 넣었습니다(공개 안 함). 하나씩 읽고 고친 뒤 공개하세요` : "넣을 초안이 없습니다(이미 모두 넣었습니다)"));
+  redirect(noticeUrl("/homepage/articles", n ? `처음 글 ${n}편을 넣어 공개했습니다. 맞지 않는 글은 고치거나 공개를 꺼 주세요` : "넣을 초안이 없습니다(이미 모두 넣었습니다)"));
 }

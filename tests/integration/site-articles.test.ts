@@ -5,6 +5,8 @@ import { ARTICLE_STARTERS } from "@/modules/site/article-starters";
 import { featuredArticles, listArticles, loadArticleStarters, parseBody, publicArticles, readArticle, saveArticle } from "@/modules/site/articles";
 import { routeFor } from "@/modules/site/rules";
 import { SERVICE_PAGES } from "@/modules/site/service-pages";
+import { CASE_SAMPLES, caseSamples } from "@/modules/site/case-samples";
+import { existsSync } from "node:fs";
 import { addShopPhoto, DEFAULT_HERO, heroImage, removeShopPhoto, setHeroPhoto, siteTrust } from "@/modules/site/trust";
 import { seedShop, testDb } from "./db";
 import { WEBP } from "./flow";
@@ -19,19 +21,19 @@ const advisor = () => ({ id: ids.advisor, roles: ["advisor"] as const });
 const tech = () => ({ id: ids.tech1, roles: ["technician"] as const });
 
 describe("기술자료", () => {
-  it("처음 초안은 정책값을 넣어 공개 안 함으로, 두 번 눌러도 한 번만", async () => {
-    expect(await loadArticleStarters(db, advisor())).toBe(ARTICLE_STARTERS.length);
-    expect(await loadArticleStarters(db, advisor())).toBe(0);
+  it("처음 글은 홈페이지를 처음 열 때 정책값을 넣어 저절로 공개, 지우면 단추로 되살린다", async () => {
+    expect(await publicArticles(db)).toHaveLength(ARTICLE_STARTERS.length);
     const rows = await listArticles(db);
-    expect(rows.every((r) => !r.published)).toBe(true);
+    expect(rows.every((r) => r.published)).toBe(true);
     expect(rows.find((r) => r.slug === "paint-process")!.body).toMatch(/\d+~\d+μm/);
-    expect(await publicArticles(db)).toEqual([]);
+    expect(await loadArticleStarters(db, advisor())).toBe(0);
+    const rust = rows.find((r) => r.slug === "rust-stages")!;
+    await saveArticle(db, advisor(), { ...rust, published: false });
+    expect(await publicArticles(db)).toHaveLength(ARTICLE_STARTERS.length - 1); // 내린 글은 다시 올리지 않는다
     await expect(loadArticleStarters(db, tech())).rejects.toThrow(/상담을 쓸 수 있는/);
   });
 
   it("공개한 글만 보이고, 낱말로 찾고, 분야마다 하나씩 홈에 띄운다", async () => {
-    await loadArticleStarters(db, advisor());
-    for (const r of await listArticles(db)) await saveArticle(db, advisor(), { ...r, published: true });
     expect((await publicArticles(db)).length).toBe(ARTICLE_STARTERS.length);
     expect((await publicArticles(db, "염화 칼슘")).map((a) => a.slug)).toEqual(["winter-salt"]);
     expect((await publicArticles(db, "", "부식 예방")).every((a) => a.category === "부식 예방")).toBe(true);
@@ -68,6 +70,14 @@ describe("첫 화면 배경·새 화면 주소", () => {
     await removeShopPhoto(db, advisor(), p.id);
     expect((await siteTrust(db)).hero).toBe("");
     expect(heroImage(await siteTrust(db))).toBe(DEFAULT_HERO);
+  });
+
+  it("작업 사례 예시는 실제 공개 사례가 없을 때만, 그림 파일이 있다", () => {
+    expect(caseSamples(0)).toHaveLength(CASE_SAMPLES.length);
+    expect(caseSamples(0, "긁힘").every((x) => x.category === "긁힘")).toBe(true);
+    expect(caseSamples(1)).toEqual([]);
+    for (const x of CASE_SAMPLES) for (const side of ["before", "after"]) expect(existsSync(`public/site-art/cases/${x.key}-${side}.svg`)).toBe(true);
+    for (const x of CASE_SAMPLES) expect(SERVICE_PAGES.some((s) => s.slug === x.service)).toBe(true);
   });
 
   it("수리 안내·기술자료·수첩 설명서는 홈페이지 화면으로", () => {

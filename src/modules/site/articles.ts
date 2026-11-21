@@ -1,14 +1,13 @@
 // 홈페이지 3단계 › 기술자료: 손님이 읽는 차체 수리 상식 글. 직원(consult.write)이 쓰고 공개하며, 손님은 읽기만 한다.
-// 처음 초안 10편(표준서 기반, 정책값 숫자 넣음)을 '공개 안 함'으로 불러와 고쳐 공개한다.
-import { and, asc, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+// 처음 글 17편(표준서 기반, 정책값 숫자 넣음)은 홈페이지를 처음 열 때 저절로 공개로 들어간다(starters.ts). 직원이 고치고 내린다.
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { siteArticle } from "@/db/schema";
 import type { Role } from "@/modules/auth/roles";
 import { can } from "@/modules/auth/permissions";
 import { writeAudit } from "@/modules/platform/audit";
-import { loadPolicy } from "@/modules/platform/policy";
-import { seoulDate } from "@/modules/platform/time";
-import { ARTICLE_CATEGORIES, ARTICLE_STARTERS } from "./article-starters";
+import { ARTICLE_CATEGORIES } from "./article-starters";
+import { articleStarterRows, ensureArticleStarters, readMinutes } from "./starters";
 import { maskPersonal } from "./rules";
 import { SiteError } from "./service";
 
@@ -18,8 +17,7 @@ function mustWrite(actor: Actor) {
   if (!can(actor, "consult.write")) throw new SiteError("홈페이지 글은 상담을 쓸 수 있는 사람(상담원·공장장·대표)이 씁니다");
 }
 
-/** 읽는 데 걸리는 분: 한국어 1분에 300자 남짓(꼼꼼히 읽는 속도) */
-export const readMinutes = (body: string) => Math.max(1, Math.round(body.replace(/\s+/g, "").length / 300));
+export { readMinutes } from "./starters";
 
 /** 주소용 이름: 영문 소문자·숫자·하이픈 3~60자 */
 export const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -66,6 +64,7 @@ const order = (c: string) => {
 
 /** 공개한 글만(본문 빼고). q 가 있으면 제목·요약·본문에서 찾는다(띄어쓰기 무시) */
 export async function publicArticles(db: Db, q = "", category = "") {
+  await ensureArticleStarters(db);
   const rows = await db
     .select({ id: siteArticle.id, slug: siteArticle.slug, category: siteArticle.category, title: siteArticle.title, summary: siteArticle.summary, body: siteArticle.body, minutes: siteArticle.minutes, sort: siteArticle.sort, updatedAt: siteArticle.updatedAt })
     .from(siteArticle)
@@ -91,6 +90,7 @@ export async function featuredArticles(db: Db, n = 3) {
 /** 공개 글 한 편(본 횟수 +1)과 같은 분야 다른 글 */
 export async function readArticle(db: Db, slug: string) {
   if (!SLUG_RE.test(slug)) return null;
+  await ensureArticleStarters(db);
   const [a] = await db.select().from(siteArticle).where(and(eq(siteArticle.slug, slug), eq(siteArticle.published, true)));
   if (!a) return null;
   await db.update(siteArticle).set({ views: sql`${siteArticle.views} + 1` }).where(eq(siteArticle.id, a.id));
@@ -140,17 +140,11 @@ export async function deleteArticle(db: Db, actor: Actor, id: string) {
   if (r) await writeAudit(db, { actorId: actor.id, action: "site.article_delete", entityType: "site_article", entityId: id, before: { title: r.t } });
 }
 
-/** 처음 초안 10편 넣기(이미 넣은 것·같은 주소 이름은 건너뜀). 지금 정책값을 넣고 '공개 안 함'으로 둔다 */
+/** 처음 글 17편 가운데 빠진 것 넣기(이미 넣은 것·같은 주소 이름은 건너뜀). 지금 정책값을 넣고 바로 공개한다 */
 export async function loadArticleStarters(db: Db, actor: Actor, now = new Date()) {
   mustWrite(actor);
-  const have = await db.select({ k: siteArticle.starterKey, slug: siteArticle.slug }).from(siteArticle).where(isNotNull(siteArticle.slug));
-  const keys = new Set(have.map((r) => r.k));
-  const slugs = new Set(have.map((r) => r.slug));
-  const p = await loadPolicy(db, seoulDate(now));
-  const rows = ARTICLE_STARTERS.filter((s) => !keys.has(s.key) && !slugs.has(s.slug)).map((s, i) => {
-    const body = s.body(p);
-    return { slug: s.slug, category: s.category, title: s.title, summary: s.summary, body, minutes: readMinutes(body), sort: (ARTICLE_STARTERS.indexOf(s) + 1) * 10, published: false, origin: "starter", starterKey: s.key, updatedBy: actor.id, createdAt: new Date(now.getTime() + i), updatedAt: now };
-  });
+  const have = await db.select({ k: siteArticle.starterKey, slug: siteArticle.slug }).from(siteArticle);
+  const rows = await articleStarterRows(db, new Set(have.map((r) => r.k)), new Set(have.map((r) => r.slug)), true, actor.id, now);
   if (rows.length) await db.insert(siteArticle).values(rows);
   await writeAudit(db, { actorId: actor.id, action: "site.article_starters", entityType: "site_article", entityId: "starters", after: { added: rows.length } });
   return rows.length;

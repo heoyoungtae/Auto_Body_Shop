@@ -55,21 +55,45 @@ describe("주소", () => {
 });
 
 describe("자주 묻는 질문", () => {
-  it("처음 초안 20개는 정책값을 넣어 공개 안 함으로, 두 번 넣지 않는다", async () => {
-    expect(await loadFaqStarters(db, advisor())).toBe(FAQ_STARTERS.length);
-    expect(FAQ_STARTERS).toHaveLength(20);
-    expect(await loadFaqStarters(db, advisor())).toBe(0);
+  it("처음 질문 23개는 홈페이지를 처음 열 때 저절로 공개, 모두 지워도 다시 채우지 않는다", async () => {
+    expect(FAQ_STARTERS).toHaveLength(23);
+    expect(FAQ_STARTERS.some((x) => x.key === "panel-or-replace")).toBe(true);
+    expect(await publicFaqs(db)).toHaveLength(23);
     const rows = await db.select().from(schema.siteFaq);
-    expect(rows.every((r) => !r.published && r.origin === "starter")).toBe(true);
+    expect(rows.every((r) => r.published && r.origin === "starter")).toBe(true);
     expect(rows.find((r) => r.starterKey === "warranty")?.answer).toMatch(/도장·판금 12개월, 덴트 6개월, 광택 1개월/);
+    expect(await publicFaqs(db)).toHaveLength(23); // 두 번 넣지 않는다
+    await db.delete(schema.siteFaq);
     expect(await publicFaqs(db)).toHaveLength(0);
+    // 지운 처음 질문은 단추로 되살린다(바로 공개)
+    expect(await loadFaqStarters(db, advisor())).toBe(23);
+    expect(await loadFaqStarters(db, advisor())).toBe(0);
+    expect(await publicFaqs(db)).toHaveLength(23);
     await expect(loadFaqStarters(db, tech())).rejects.toThrow(/상담을 쓸 수 있는/);
   });
 
+  it("예전에 '공개 안 함'으로 불러 둔 초안만 있으면 처음 열 때 공개로 바꾼다", async () => {
+    const now = new Date();
+    await db.insert(schema.siteFaq).values(FAQ_STARTERS.slice(0, 3).map((x, i) => ({ category: x.category, question: x.q, answer: "답", sort: i, published: false, origin: "starter", starterKey: x.key, createdAt: now, updatedAt: now })));
+    expect(await publicFaqs(db)).toHaveLength(23);
+  });
+
+  it("처음 질문을 뒤에 늘리면 새 질문만 저절로 들어가고, 지운 질문은 돌아오지 않는다", async () => {
+    await publicFaqs(db);
+    await db.delete(schema.siteFaq).where(eq(schema.siteFaq.starterKey, "privacy")); // 직원이 지움
+    // 판금·교환 질문이 생기기 전 표시였다고 치고 되돌린다
+    await db.update(schema.appConfig).set({ data: { at: "x", keys: FAQ_STARTERS.map((x) => x.key).filter((k) => k !== "panel-or-replace") } }).where(eq(schema.appConfig.key, "site_seed_faq"));
+    await db.delete(schema.siteFaq).where(eq(schema.siteFaq.starterKey, "panel-or-replace"));
+    const keys = (await publicFaqs(db)).map((f) => f.question);
+    expect(keys).toContain("판금으로 고칠지, 부품을 교환할지는 어떻게 정하나요?");
+    expect(keys).toHaveLength(22);
+  });
+
   it("공개한 것만 보이고, 분야·낱말(띄어쓰기 무시)로 찾는다. 공개 글에 휴대폰 번호가 있으면 막는다", async () => {
-    await loadFaqStarters(db, advisor());
-    const [w] = await db.select().from(schema.siteFaq).where(eq(schema.siteFaq.starterKey, "after-wash"));
-    await saveFaq(db, advisor(), { id: w.id, category: w.category, question: w.question, answer: w.answer, sort: 5, published: true });
+    // 처음 질문은 이미 넣었다가 모두 지운 상태로 둔다(직접 쓴 질문만 보이게)
+    await db.insert(schema.appConfig).values({ key: "site_seed_faq", data: { at: "x", keys: FAQ_STARTERS.map((x) => x.key) } });
+    await saveFaq(db, advisor(), { category: "보증·출고 뒤", question: "도색한 뒤 바로 세차해도 되나요?", answer: "출고 뒤 일주일은 자동 세차를 피해 주세요.", sort: 5, published: true });
+    await saveFaq(db, advisor(), { category: "보증·출고 뒤", question: "아직 공개하지 않은 질문입니다", answer: "자동 세차 이야기", sort: 6, published: false });
     await saveFaq(db, advisor(), { category: "보험 수리", question: "보험 처리하면 할증되나요?", answer: "보험사에 확인해 주세요.", sort: 10, published: true });
     expect((await publicFaqs(db)).map((f) => f.category)).toEqual(["보험 수리", "보증·출고 뒤"]); // 분야 순서대로
     expect(await publicFaqs(db, "자동 세차")).toHaveLength(1);
