@@ -443,6 +443,10 @@ export const MENU: MenuGroup[] = [
         href: "/settings/tv",
       },
       {
+        label: "로고·앱 아이콘",
+        href: "/settings/brand",
+      },
+      {
         label: "내 차 수첩(고객용)",
         roles: ["owner"],
         href: "/settings/carbook",

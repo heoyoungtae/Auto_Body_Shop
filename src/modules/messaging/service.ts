@@ -1,5 +1,6 @@
 // 문자관리 설정·시험 발송·이력. 비밀 키는 암호화해 저장하고 화면에는 '저장됨' 여부만 돌려준다.
 // 권한(대표) 확인은 화면 계층에서 한다.
+import { APP_NAME } from "@/modules/platform/brand";
 import { desc, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, messageLog, messagingConfig } from "@/db/schema";
@@ -322,7 +323,7 @@ export async function smsTest(
 ) {
   const to = mobile(toRaw);
   const p = await smsRuntime(db);
-  const text = `[외관수리 정비소] 문자 연결 시험입니다. (${PROVIDERS[p.id].label})`;
+  const text = `[${SHOP_NAME}] 문자 연결 시험입니다. (${PROVIDERS[p.id].label})`;
   const [r] = await ADAPTERS[p.id].send(
     p.cfg,
     p.sender,
@@ -449,7 +450,7 @@ export async function kakaoTest(
       {
         to,
         text,
-        subject: "외관수리 정비소",
+        subject: SHOP_NAME,
         pfId: data.pfId,
         templateId: data.codes[k] ?? "DEMO",
         variables: Object.fromEntries(
@@ -613,7 +614,8 @@ export async function listLogs(db: Db, limit = 200) {
 }
 
 // ── 고객 안내 발송(상담·예약·견적·출고 화면과 주기 작업이 쓴다) ──
-export const SHOP_NAME = "외관수리 정비소";
+/** 문자·알림톡의 업체명(앱 이름과 같다). 손님 화면처럼 사업장 정보가 있으면 그 상호를 먼저 쓴다 */
+export const SHOP_NAME = APP_NAME;
 
 /** 전화번호를 보기 좋게: 0212345678 → 02-1234-5678, 15881234 → 1588-1234 */
 export function formatPhone(raw: string): string {

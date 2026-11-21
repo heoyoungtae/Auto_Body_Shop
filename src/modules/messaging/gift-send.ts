@@ -1,5 +1,6 @@
 // 기프티콘 발송·이력(STD-06 사후관리, 설정 › 기프티콘 공급사)
 // 고객 고르기 → 목적(이벤트·감사는 광고 수신 동의 고객만, 불만 보상은 대표만) → 상품(건당 상한 이하) → 월 예산·중복 확인 → 발송 → 이력·취소
+import { APP_NAME } from "@/modules/platform/brand";
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import {
@@ -207,7 +208,7 @@ export async function sendGift(
   const trId = `abs${docNo.replace(/\D/g, "")}${Math.random().toString(36).slice(2, 6)}`;
   const message = (
     input.message.trim() ||
-    `${t.name}님, 외관수리 정비소입니다. ${GIFT_PURPOSES[purpose]}으로 작은 선물을 보내 드립니다. 감사합니다.`
+    `${t.name}님, ${APP_NAME}입니다. ${GIFT_PURPOSES[purpose]}으로 작은 선물을 보내 드립니다. 감사합니다.`
   ).slice(0, 1000);
   let orderNo: string | null = null;
   let error: string | null = null;
@@ -220,7 +221,7 @@ export async function sendGift(
             goodsCode: g.code,
             phone,
             trId,
-            title: "외관수리 정비소 선물",
+            title: `${APP_NAME} 선물`,
             message,
             callback: data.callback,
           },

@@ -2,6 +2,8 @@
 // 미래모터스의 3종(예약 확인·예약 하루 전·정비 완료)을 외관수리 흐름(표준서 STD-01~06)에 맞춰 늘렸다.
 // 문구는 카카오 검수에서 바뀔 수 있으니, 승인된 문구와 같게 여기도 고친다. 정보성만 가능(광고 불가).
 
+import { APP_NAME } from "@/modules/platform/brand";
+
 export type KakaoTemplate = {
   title: string;
   usage: string;
@@ -109,7 +111,7 @@ export const renderKakao = (key: KakaoKey, v: Record<string, string>) =>
 /** 테스트 발송에 쓰는 보기 값 */
 export const SAMPLE_VARS: Record<string, string> = {
   고객명: "홍길동",
-  업체명: "외관수리 정비소",
+  업체명: APP_NAME,
   동의링크: "https://example.sslip.io/consent/보기",
   기한: "3일",
   예약일시: "11월 10일(화) 오전 10:00",
