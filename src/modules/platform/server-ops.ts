@@ -202,7 +202,7 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   const series = d.series ?? [];
   // 새 버전이 없으면 올릴 것이 없다(대표 2026-11-20). 미니 PC 가 1분마다 GitHub 끝 번호를 보므로 최신인지 바로 안다
   const upToDate = !!d.status?.latest && d.status.behind === 0;
-  return { ddns: d.ddns ?? [], upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  return { ddns: d.ddns ?? [], upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: (d.history ?? []).map((e) => ({ ...e, changes: e.changes.filter((c) => isChangeTitle(c.title)) })), status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -279,12 +279,15 @@ function num(x: unknown, max: number) {
   const v = Number(x);
   return Number.isFinite(v) && v >= 0 && v <= max ? Math.round(v) : -1;
 }
+/** 커밋 꼬리말(Co-Authored-By·Claude-Session 등)·충돌 메모(#)는 변경 이름이 아니다(대표 2026-11-21 '업데이트 이력에 이게 뭐야?') */
+const TRAILER = /^(#|[A-Za-z][A-Za-z-]*-By:|Claude-Session:|Signed-off-by:)/i;
+export const isChangeTitle = (t: string) => !!t && !TRAILER.test(t.trim());
 function cleanChanges(x: unknown): Change[] {
   return (Array.isArray(x) ? x : []).slice(0, 40).map((c) => {
     const o = (c ?? {}) as Record<string, unknown>;
     const pr = Number(o.pr);
     return { pr: Number.isInteger(pr) && pr > 0 ? pr : null, title: s(o.title, 200), label: cleanLabel(o.label) };
-  }).filter((c) => c.title);
+  }).filter((c) => isChangeTitle(c.title));
 }
 function cleanEvent(x: unknown): UpdateEvent | null {
   const o = (x ?? {}) as Record<string, unknown>;
