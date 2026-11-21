@@ -26,10 +26,11 @@ changes() {
   labels=$(sudo -u "$OWNER" env TZ=Asia/Seoul git -C "$REPO" log --first-parent --format='%H %cd' --date=format-local:%y.%m.%d -300 "$2" 2>/dev/null |
     tac | awk '{c[$2]++; print $1" "$2"-"c[$2]}' | jq -Rsc 'split("\n") | map(select(length > 0) | split(" ") | {(.[0]): .[1]}) | add // {}' 2>/dev/null)
   [ -n "$labels" ] || labels='{}'
-  g log --merges --format='%H%x1f%s%x1f%b%x1e' "$1..$2" 2>/dev/null | jq -Rsc --argjson lb "$labels" '
+  # 기본 브랜치에 들어온 병합만(--first-parent). 작업 가지 안의 병합·커밋 꼬리말(Co-Authored-By 등)은 변경 이름이 아니다
+  g log --first-parent --merges --format='%H%x1f%s%x1f%b%x1e' "$1..$2" 2>/dev/null | jq -Rsc --argjson lb "$labels" '
     split("\u001e") | map(sub("^\\s+"; "")) | map(select(length > 0) | split("\u001f")) |
     map({pr: ((.[1] | capture("#(?<n>[0-9]+)") | .n | tonumber)? // null),
-         title: (((.[2] // "") | split("\n") | map(select(length > 0)) | .[0]) // .[1]),
+         title: (((.[2] // "") | split("\n") | map(select(length > 0 and (test("^(#|[A-Za-z][A-Za-z-]*-By:|Claude-Session:)"; "i") | not))) | .[0]) // .[1]),
          label: ($lb[.[0]] // "")}) | .[:40]' 2>/dev/null || echo '[]'
 }
 
