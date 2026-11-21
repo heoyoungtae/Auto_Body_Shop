@@ -40,7 +40,7 @@ export const BRAND_RULES: Record<BrandKind, Rule> = {
     shape: "wide",
     minSide: 120,
     advice: "가로가 세로의 3배 이상, 가로 1400px 정도, 투명 바탕",
-    defaultSize: [1400, 313],
+    defaultSize: [1400, 309],
   },
   "logo-dark": {
     label: "가로 로고 · 어두운 화면용",
