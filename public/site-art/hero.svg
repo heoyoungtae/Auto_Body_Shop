@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <!-- 홈페이지 첫 화면 기본 배경(정비소 사진을 올리기 전): 작업등 아래 차체 곡면과 도장 반사광을 가까이서 본 모습 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b0d10"/>
+      <stop offset="1" stop-color="#121519"/>
+    </linearGradient>
+    <linearGradient id="panel1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a0409"/>
+      <stop offset=".38" stop-color="#9e0e27"/>
+      <stop offset=".46" stop-color="#e0304a"/>
+      <stop offset=".52" stop-color="#8a0b21"/>
+      <stop offset="1" stop-color="#160205"/>
+    </linearGradient>
+    <linearGradient id="panel2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d0f12"/>
+      <stop offset=".5" stop-color="#2b3038"/>
+      <stop offset=".56" stop-color="#5a616c"/>
+      <stop offset=".62" stop-color="#1d2127"/>
+      <stop offset="1" stop-color="#08090b"/>
+    </linearGradient>
+    <linearGradient id="hl" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".55" stop-color="#fff" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="78%" cy="8%" r="60%">
+      <stop offset="0" stop-color="#fff" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="b1"><feGaussianBlur stdDeviation="1.2"/></filter>
+    <filter id="b6"><feGaussianBlur stdDeviation="8"/></filter>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b0d10" stop-opacity=".95"/>
+      <stop offset=".45" stop-color="#0b0d10" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#0b0d10" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <!-- 어두운 쇳빛 판(뒤) -->
+  <path d="M-50 640 C 300 520, 700 470, 1100 520 S 1600 640, 1700 600 L 1700 980 L -50 980 Z" fill="url(#panel2)"/>
+  <!-- 빨간 도장 판(앞) -->
+  <path d="M500 900 C 640 640, 900 420, 1240 340 C 1420 300, 1560 300, 1700 320 L 1700 980 L 500 980 Z" fill="url(#panel1)"/>
+  <!-- 판 사이 틈(패널 간극) -->
+  <path d="M500 900 C 640 640, 900 420, 1240 340 C 1420 300, 1560 300, 1700 320" stroke="#000" stroke-opacity=".7" stroke-width="5" fill="none"/>
+  <!-- 프레스 라인 -->
+  <path d="M640 900 C 780 700, 1000 540, 1300 470 C 1460 434, 1580 430, 1700 440" stroke="#000" stroke-opacity=".35" stroke-width="3" fill="none"/>
+  <path d="M644 898 C 784 698, 1004 538, 1304 468 C 1464 432, 1584 428, 1700 438" stroke="#ff8a9a" stroke-opacity=".35" stroke-width="1.2" fill="none"/>
+  <!-- 작업등 반사(곧게 비친 줄 조명) -->
+  <g filter="url(#b1)">
+    <path d="M700 760 C 860 600, 1060 500, 1320 440" stroke="url(#hl)" stroke-width="7" fill="none"/>
+    <path d="M760 790 C 920 640, 1110 548, 1380 490" stroke="url(#hl)" stroke-width="2.5" fill="none" opacity=".7"/>
+    <path d="M1000 420 C 1160 370, 1360 350, 1600 356" stroke="url(#hl)" stroke-width="3" fill="none" opacity=".8"/>
+    <path d="M100 590 C 400 520, 760 500, 1080 526" stroke="url(#hl)" stroke-width="2" fill="none" opacity=".45"/>
+  </g>
+  <!-- 빛 번짐 -->
+  <ellipse cx="1180" cy="470" rx="220" ry="40" transform="rotate(-18 1180 470)" fill="#fff" opacity=".12" filter="url(#b6)"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+  <!-- 글자 쪽(왼쪽)을 어둡게 -->
+  <rect width="1600" height="900" fill="url(#fade)"/>
+</svg>

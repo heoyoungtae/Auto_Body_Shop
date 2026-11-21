@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { rolesFor } from "@/modules/auth/permissions";
-import { PHOTO_KINDS, REVIEW_SOURCES, siteTrust, TRUST_LIMIT } from "@/modules/site/trust";
+import { heroImage, PHOTO_KINDS, REVIEW_SOURCES, siteTrust, TRUST_LIMIT } from "@/modules/site/trust";
 import { siteUrl } from "@/modules/site/service";
 import { homepageHosts } from "@/modules/site/rules";
 import { seoulDate } from "@/modules/platform/time";
@@ -12,7 +12,7 @@ import { DateField, NumberField, SelectField, TextAreaField, TextField } from ".
 import { SubmitButton } from "../../_submit";
 import { buttonClass, Card, Empty, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { HomepageTabs } from "../_tabs";
-import { addCertAction, addReviewAction, removeCertAction, removeReviewAction, removeShopPhotoAction, saveTrustLinksAction } from "../actions";
+import { addCertAction, addReviewAction, removeCertAction, removeReviewAction, removeShopPhotoAction, saveTrustLinksAction, setHeroAction } from "../actions";
 import { ShopPhotoUpload } from "./shop-photo-upload";
 
 const stars = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
@@ -21,6 +21,7 @@ export default async function TrustAdminPage({ searchParams }: { searchParams: P
   const { error, notice } = await searchParams;
   await requireUser([...rolesFor("consult.write")]);
   const t = await siteTrust(await getDb());
+  const hero = heroImage(t);
   const site = homepageHosts().length ? siteUrl() : "/site";
   return (
     <>
@@ -93,6 +94,14 @@ export default async function TrustAdminPage({ searchParams }: { searchParams: P
                   <img src={`/api/files/${p.path}`} alt={p.caption || PHOTO_KINDS[p.kind]} className="aspect-[4/3] w-full object-cover" />
                   <figcaption className="px-2 py-1 text-xs">
                     <b>{PHOTO_KINDS[p.kind]}</b> {p.caption}
+                    {t.hero === p.id ? (
+                      <span className="mt-1 block font-semibold text-[var(--accent)]">첫 화면 배경</span>
+                    ) : (
+                      <form action={setHeroAction} className="mt-1">
+                        <input type="hidden" name="id" value={p.id} />
+                        <button className="text-[var(--accent)] underline">첫 화면 배경으로</button>
+                      </form>
+                    )}
                   </figcaption>
                   <form action={removeShopPhotoAction} className="absolute right-1 top-1">
                     <input type="hidden" name="id" value={p.id} />
@@ -102,6 +111,19 @@ export default async function TrustAdminPage({ searchParams }: { searchParams: P
               ))}
             </div>
           )}
+          <div className="mb-4 flex items-center gap-3 rounded-md bg-[var(--surface-2)] p-3 text-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 첫 화면 배경 미리 보기 */}
+            <img src={hero.startsWith("/api/site-file/") ? hero.replace("/api/site-file/", "/api/files/") : hero} alt="" className="h-12 w-20 shrink-0 rounded object-cover" />
+            <p className="min-w-0 flex-1">
+              <b>첫 화면 배경</b>: {t.hero ? "고른 정비소 사진" : "기본 그림(차체 곡면)"}. 가로로 넓고 밝지 않은 외관·작업장 사진이 잘 어울립니다.
+            </p>
+            {t.hero && (
+              <form action={setHeroAction}>
+                <input type="hidden" name="id" value="" />
+                <button className={buttonClass("secondary")}>기본 그림으로</button>
+              </form>
+            )}
+          </div>
           <ShopPhotoUpload kinds={PHOTO_KINDS} full={t.photos.length >= TRUST_LIMIT.photos} />
           <p className="mt-3 text-xs text-[var(--muted)]">직원 얼굴이 나오는 사진은 그 직원에게 홈페이지에 써도 되는지 먼저 물어보세요. 손님 차 번호판이 보이면 올리지 마세요.</p>
         </Card>

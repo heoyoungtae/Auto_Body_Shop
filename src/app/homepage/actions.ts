@@ -1,10 +1,11 @@
 "use server";
-// 홈페이지 글 관리(자주 묻는 질문 · 공지사항 · 작업 사례) 저장 — 상담을 쓸 수 있는 직원
+// 홈페이지 글 관리(자주 묻는 질문 · 공지사항 · 작업 사례 · 기술자료 · 후기·사진·인증) 저장 — 상담을 쓸 수 있는 직원
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { rolesFor } from "@/modules/auth/permissions";
 import { addCasePhoto, createCase, deleteCase, deleteFaq, deleteNotice, loadFaqStarters, removeCasePhoto, saveCase, saveFaq, saveNotice } from "@/modules/site/content";
-import { addCert, addReview, addShopPhoto, removeCert, removeReview, removeShopPhoto, saveTrustLinks } from "@/modules/site/trust";
+import { addCert, addReview, addShopPhoto, removeCert, removeReview, removeShopPhoto, saveTrustLinks, setHeroPhoto } from "@/modules/site/trust";
+import { deleteArticle, loadArticleStarters, saveArticle } from "@/modules/site/articles";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
 const STAFF = rolesFor("consult.write");
@@ -147,6 +148,11 @@ export async function removeCertAction(form: FormData) {
   const user = await requireUser([...STAFF]);
   await trustDo(async () => removeCert(await getDb(), user, g(form, "id")), "지웠습니다");
 }
+export async function setHeroAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  const id = g(form, "id");
+  await trustDo(async () => setHeroPhoto(await getDb(), user, id), id ? "첫 화면 배경으로 정했습니다" : "첫 화면 배경을 기본 그림으로 되돌렸습니다");
+}
 export async function removeShopPhotoAction(form: FormData) {
   const user = await requireUser([...STAFF]);
   await trustDo(async () => removeShopPhoto(await getDb(), user, g(form, "id")), "사진을 뺐습니다");
@@ -162,4 +168,34 @@ export async function uploadShopPhotoAction(form: FormData): Promise<{ ok: true 
   } catch (e) {
     return { ok: false, error: userMessage(e) };
   }
+}
+
+// ── 기술자료 ──
+export async function saveArticleAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  const id = g(form, "id") || undefined;
+  let saved = id;
+  try {
+    saved = await saveArticle(await getDb(), user, { id, slug: g(form, "slug"), category: g(form, "category"), title: g(form, "title"), summary: g(form, "summary"), body: g(form, "body"), sort: Number(g(form, "sort") || 100), published: on(form, "published") });
+  } catch (e) {
+    redirect(errorUrl(id ? `/homepage/articles?edit=${id}` : "/homepage/articles", userMessage(e)));
+  }
+  redirect(noticeUrl(`/homepage/articles?edit=${saved}`, on(form, "published") ? "저장했습니다. 홈페이지에 바로 보입니다" : "저장했습니다(공개 안 함 — 홈페이지에는 아직 안 보입니다)"));
+}
+
+export async function deleteArticleAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  await deleteArticle(await getDb(), user, g(form, "id"));
+  redirect(noticeUrl("/homepage/articles", "지웠습니다"));
+}
+
+export async function articleStartersAction() {
+  const user = await requireUser([...STAFF]);
+  let n = 0;
+  try {
+    n = await loadArticleStarters(await getDb(), user);
+  } catch (e) {
+    redirect(errorUrl("/homepage/articles", userMessage(e)));
+  }
+  redirect(noticeUrl("/homepage/articles", n ? `초안 ${n}편을 넣었습니다(공개 안 함). 하나씩 읽고 고친 뒤 공개하세요` : "넣을 초안이 없습니다(이미 모두 넣었습니다)"));
 }

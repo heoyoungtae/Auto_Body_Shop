@@ -5302,6 +5302,39 @@ export const FIELD_HELP = {
     label: "분야",
     detail: "홈페이지에서 이 분야 묶음 아래에 보입니다. 수리·작업, 견적·비용, 보험 수리, 기간·맡기기, 보증·출고 뒤, 내 차 수첩·개인정보.",
   },
+  "homepage.articleSlug": {
+    label: "주소 이름",
+    hint: "영문 소문자·숫자·하이픈(예: rust-stages)",
+    detail: "홈페이지 주소 끝에 붙습니다(jmotors.co.kr/tech/rust-stages). 공개 뒤에 바꾸면 예전 주소가 끊기니 되도록 그대로 두세요.",
+    example: "winter-salt",
+    maxLength: 60,
+  },
+  "homepage.articleCategory": {
+    label: "분야",
+    detail: "기술자료 화면에서 이 분야로 묶여 보입니다. 차량 관리·부식 예방이 맨 앞에 보입니다.",
+  },
+  "homepage.articleTitle": {
+    label: "제목",
+    hint: "손님이 궁금해할 말로 한 줄(120자까지)",
+    example: "겨울 염화칼슘, 봄에 꼭 씻어 내세요",
+    maxLength: 120,
+  },
+  "homepage.articleSummary": {
+    label: "요약",
+    hint: "목록·검색 결과에 보이는 두세 줄(300자까지)",
+    detail: "네이버·구글 검색 결과에도 이 요약이 설명으로 쓰입니다.",
+    maxLength: 300,
+  },
+  "homepage.articleBody": {
+    label: "본문",
+    hint: "'## 소제목', '- 항목', 빈 줄로 문단",
+    detail: "줄 맨 앞에 '## '을 쓰면 소제목, '- '를 쓰면 점 항목이 됩니다. 빈 줄을 넣으면 문단이 나뉩니다. 읽는 시간은 글자 수로 저절로 계산됩니다.",
+    maxLength: 20000,
+  },
+  "homepage.articleSort": {
+    label: "순서",
+    detail: "같은 분야 안에서 작을수록 위에 보입니다(0~999). 홈 첫 화면에는 공개 글 가운데 앞 세 편이 보입니다.",
+  },
   "homepage.faqQuestion": {
     label: "질문",
     hint: "손님 말투로 한 문장(200자까지)",

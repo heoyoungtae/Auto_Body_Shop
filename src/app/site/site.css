@@ -66,3 +66,20 @@
     transform: none;
   }
 }
+/* 첫 화면 배경: 아주 느리게 다가오는 움직임 */
+.site .hero-photo {
+  animation: hero-zoom 24s ease-out both;
+}
+@keyframes hero-zoom {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site .hero-photo {
+    animation: none;
+  }
+}

@@ -86,3 +86,32 @@ export const siteCase = pgTable(
   },
   (t) => [index("site_case_pub_idx").on(t.published, t.workedOn), index("site_case_ro_idx").on(t.repairOrderId)],
 );
+
+/**
+ * 기술자료(3단계): 손님이 읽는 차체 수리 상식 글. 처음 초안(표준서 기반, 공개 안 함)을 불러와 직원이 고쳐 공개한다.
+ * 본문은 간단한 꾸밈만: '## 소제목', '- 항목', 빈 줄로 문단.
+ */
+export const siteArticle = pgTable(
+  "site_article",
+  {
+    id: id(),
+    /** 주소에 쓰는 짧은 영문 이름(예: dent-vs-panel) */
+    slug: text("slug").notNull().unique(),
+    category: text("category").notNull(),
+    title: text("title").notNull(),
+    /** 목록·검색 결과에 보이는 두세 줄 요약 */
+    summary: text("summary").notNull(),
+    body: text("body").notNull(),
+    /** 읽는 데 걸리는 분(저장 때 글자 수로 계산) */
+    minutes: integer("minutes").notNull().default(3),
+    sort: integer("sort").notNull().default(100),
+    published: boolean("published").notNull().default(false),
+    origin: text("origin"),
+    starterKey: text("starter_key"),
+    views: integer("views").notNull().default(0),
+    updatedBy: uuid("updated_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("site_article_pub_idx").on(t.published, t.category, t.sort)],
+);

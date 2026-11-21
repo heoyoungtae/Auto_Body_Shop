@@ -21,13 +21,16 @@ export const SITE_PATHS: Record<string, string> = {
   "/cases": "/site/cases",
   "/insurance": "/site/insurance",
   "/guide": "/site/guide",
+  "/services": "/site/services",
+  "/tech": "/site/tech",
+  "/carbook-guide": "/site/carbook-guide",
 };
 
-/** 글 한 건 주소(/notice/글번호, /cases/글번호)도 홈페이지 화면으로 */
-const SITE_PREFIXES = ["/notice/", "/cases/"];
+/** 글 한 건 주소(/notice/글번호, /cases/글번호, /services/분야, /tech/글이름)도 홈페이지 화면으로 */
+const SITE_PREFIXES = ["/notice/", "/cases/", "/services/", "/tech/"];
 
 /** 홈페이지 주소에서 그대로 열어 주는 손님용 화면(나머지 직원 화면은 앱 주소로 보낸다) */
-const PUBLIC_BASES = ["/site", "/my", "/estimate", "/consent", "/survey", "/verify", "/brand", "/brand-default", "/fonts", "/api/my", "/api/site-file", "/_next", "/icons", "/favicon", "/robots", "/sitemap", "/manifest"];
+const PUBLIC_BASES = ["/site", "/my", "/estimate", "/consent", "/survey", "/verify", "/brand", "/brand-default", "/fonts", "/site-art", "/api/my", "/api/site-file", "/_next", "/icons", "/favicon", "/robots", "/sitemap", "/manifest"];
 
 export type SiteRoute = { kind: "rewrite"; to: string } | { kind: "pass" } | { kind: "app" };
 
@@ -36,7 +39,7 @@ export function routeFor(path: string, onHomepage: boolean): SiteRoute {
   const clean = path.length > 1 ? path.replace(/\/$/, "") : path;
   if (onHomepage && clean === "/") return { kind: "rewrite", to: "/site" };
   if (SITE_PATHS[clean]) return { kind: "rewrite", to: SITE_PATHS[clean] };
-  if (SITE_PREFIXES.some((p) => clean.startsWith(p)) && /^\/(notice|cases)\/[0-9a-f-]{36}$/i.test(clean)) return { kind: "rewrite", to: `/site${clean}` };
+  if (SITE_PREFIXES.some((p) => clean.startsWith(p)) && (/^\/(notice|cases)\/[0-9a-f-]{36}$/i.test(clean) || /^\/(services|tech)\/[a-z0-9]+(-[a-z0-9]+)*$/.test(clean))) return { kind: "rewrite", to: `/site${clean}` };
   if (!onHomepage) return { kind: "pass" };
   return PUBLIC_BASES.some((b) => clean === b || clean.startsWith(`${b}/`) || clean.startsWith(`${b}.`)) ? { kind: "pass" } : { kind: "app" };
 }

@@ -1,14 +1,16 @@
-// 홈페이지 첫 화면(고급·전문 컨셉): 먹색 첫 화면(한 줄 소개·견적 요청·전화, 믿을 근거 숫자) → 수리 분야 → 품질 기준 →
-// 진행 순서 → 작업 사례 → 보험·보증 → 자주 묻는 질문 → 공지·내 차 수첩·오시는 길 → 마무리 띠.
+// 홈페이지 첫 화면(고급·전문 컨셉): 배경 사진 첫 화면(한 줄 소개·견적 요청·내 차 수첩, 믿을 근거 숫자) → 수리 분야(4) → 고를 이유 → 품질 기준 →
+// 정비소 사진 → 진행 순서 → 내 차 수첩(홍보 중심, 휴대폰 그림) → 작업 사례 → 후기 → 보험·보증 → 기술자료 → 자주 묻는 질문 → 공지·오시는 길 → 마무리 띠.
 // 숫자(보증 기간·검사 기준·회신 기한)는 정책값에서 불러와 정비소 기준이 바뀌면 함께 바뀐다.
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
 import { noticeTitle, publicCases, publicFaqs, publicNotices } from "@/modules/site/content";
-import { SERVICES } from "@/modules/site/rules";
-import { PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
+import { featuredArticles } from "@/modules/site/articles";
+import { SERVICE_PAGES } from "@/modules/site/service-pages";
+import { heroImage, PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
+import { ServiceIcon } from "./_icons";
 import { SectionHead, siteBtn, siteData, SiteTitle } from "./_parts";
+import { PhoneEstimate, PhoneProgress, PhoneWarranty } from "./_phone";
 
 const STEPS = [
   { t: "상담", d: "전화·방문·홈페이지로 다친 곳을 알려 주세요." },
@@ -19,16 +21,25 @@ const STEPS = [
   { t: "출고", d: "명세서·사진·보증을 내 차 수첩에 남깁니다." },
 ];
 
-/** 수리 분야 선 그림(얇은 선, 글자색을 따름) */
-const ICONS: Record<string, ReactNode> = {
-  찌그러짐: <path d="M4 15c3-6 5 2 8-4s5 2 8-3M4 19h16" />,
-  긁힘: <path d="M5 18 19 6M8 19l9-8M5 14l7-6" />,
-  도색: <path d="M6 4h9v5H6zM15 6h3v5h-7v3M11 14h2v6h-2z" />,
-};
+/** 내 차 수첩: 정비소 홍보의 중심(대표 2026-11-22 "부각시켜 이미지도 넣고") */
+const CARBOOK = [
+  { t: "수리 진행을 실시간으로", d: "지금 어느 공정인지, 부위마다 얼마나 됐는지 휴대폰으로 봅니다." },
+  { t: "견적은 휴대폰으로 승인", d: "부위별 금액을 보고 맡길 작업만 골라 서명합니다." },
+  { t: "서류는 평생 보관", d: "법정 견적서·정비명세서·작업 사진을 언제든 다시 봅니다." },
+  { t: "보증 신청은 사진 한 장", d: "이상이 생기면 사진과 한 줄이면 됩니다. 어느 수리인지는 저절로 이어집니다." },
+];
+
+const WHY = [
+  { n: "01", t: "표준서대로 일합니다", d: "상담부터 출고까지 사내 업무 표준서의 순서와 기준을 따릅니다. 사람마다 다르게 하지 않습니다." },
+  { n: "02", t: "모든 공정을 기록합니다", d: "공정마다 사진, 조색 배합, 도막 두께를 남기고 고객님과 함께 봅니다." },
+  { n: "03", t: "검사는 다른 사람이", d: "작업한 사람이 아닌 검사자가 기준표대로 재고 확인한 뒤 출고합니다." },
+  { n: "04", t: "승인한 만큼만 받습니다", d: "법정 견적서로 먼저 알려 드리고, 승인 없는 작업이나 금액 추가는 없습니다." },
+];
 
 export default async function SiteHome() {
   const db = await getDb();
-  const [{ shop, cfg, mapUrl }, p, cases, notices, faqs, trust] = await Promise.all([siteData(), loadPolicy(db), publicCases(db, "", 3), publicNotices(db), publicFaqs(db), siteTrust(db)]);
+  const [{ shop, cfg, mapUrl }, p, cases, notices, faqs, trust, articles] = await Promise.all([siteData(), loadPolicy(db), publicCases(db, "", 3), publicNotices(db), publicFaqs(db), siteTrust(db), featuredArticles(db, 3)]);
+  const hero = heroImage(trust);
   const reviewLinks = [
     ["네이버 후기", trust.links.naver],
     ["카카오맵 후기", trust.links.kakao],
@@ -50,8 +61,13 @@ export default async function SiteHome() {
   return (
     <div className="space-y-24 sm:space-y-32">
       {/* 첫 화면 */}
-      <section className="hero-bg relative -mx-5 -mt-12 overflow-hidden px-5 pb-16 pt-20 text-white sm:-mt-16 sm:pb-20 sm:pt-28 lg:mx-[calc(50%-50vw)] lg:px-[calc(50vw-50%+1.25rem)]">
-        <div className="mx-auto max-w-6xl">
+      <section className="relative -mx-5 -mt-12 overflow-hidden bg-[var(--ink)] px-5 pb-16 pt-20 text-white sm:-mt-16 sm:pb-20 sm:pt-28 lg:mx-[calc(50%-50vw)] lg:px-[calc(50vw-50%+1.25rem)]">
+        {/* 배경: 고른 정비소 사진, 없으면 기본 그림(차체 곡면). 글자가 읽히게 왼쪽·아래를 어둡게 덮는다 */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- 배경 그림 그대로 */}
+        <img src={hero} alt="" aria-hidden className="hero-photo absolute inset-0 size-full object-cover" fetchPriority="high" />
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-r from-[var(--ink)]/95 via-[var(--ink)]/70 to-[var(--ink)]/20" />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[var(--ink)] to-transparent" />
+        <div className="relative mx-auto max-w-6xl">
           <p className="eyebrow mb-5 !text-white/55">COLLISION · DENT · PAINT</p>
           <div className="max-w-3xl [&_h1]:text-[2.4rem] [&_h1]:leading-[1.15] sm:[&_h1]:text-6xl [&_button]:text-white/60 [&_h1]:mb-0">
             <SiteTitle help="site.home">{cfg.headline}</SiteTitle>
@@ -63,8 +79,11 @@ export default async function SiteHome() {
                 사진으로 견적 요청
               </Link>
             )}
+            <Link href="/carbook-guide" className={siteBtn("ghost")}>
+              내 차 수첩 둘러보기
+            </Link>
             {shop.phone && (
-              <a href={`tel:${shop.tel}`} className={siteBtn("ghost")}>
+              <a href={`tel:${shop.tel}`} className="inline-flex min-h-12 items-center px-2 text-[15px] font-semibold text-white/80 hover:text-white">
                 전화 {shop.phone}
               </a>
             )}
@@ -86,21 +105,44 @@ export default async function SiteHome() {
 
       {/* 수리 분야 */}
       <section aria-labelledby="svc">
-        <SectionHead eyebrow="SERVICES" id="svc" title="이런 수리를 합니다" more={{ href: "/about", label: "정비소 소개" }} />
-        <div className="grid gap-5 sm:grid-cols-3">
-          {SERVICES.map((s, i) => (
-            <div key={s.title} className="lift rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-7">
+        <SectionHead eyebrow="SERVICES" id="svc" title="이런 수리를 합니다" more={{ href: "/services", label: "수리 안내 모두 보기" }} />
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {SERVICE_PAGES.map((s, i) => (
+            <Link key={s.slug} href={`/services/${s.slug}`} className="lift group flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-7">
               <div className="mb-8 flex items-center justify-between">
-                <svg aria-hidden viewBox="0 0 24 24" className="size-9 text-[var(--red)]" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
-                  {ICONS[s.title]}
-                </svg>
+                <ServiceIcon name={s.slug} />
                 <span className="text-sm font-semibold tabular-nums text-[var(--steel)]">0{i + 1}</span>
               </div>
               <p className="mb-2 text-xl font-bold">{s.title}</p>
-              <p className="leading-relaxed text-[var(--muted)]">{s.body}</p>
-            </div>
+              <p className="flex-1 leading-relaxed text-[var(--muted)]">{s.lead}</p>
+              <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold group-hover:text-[var(--red)]">
+                방법·기간·비용 기준 <span aria-hidden>→</span>
+              </span>
+            </Link>
           ))}
         </div>
+      </section>
+
+      {/* 고를 이유 */}
+      <section aria-labelledby="why" className="grid gap-10 lg:grid-cols-[1fr_1.5fr]">
+        <div>
+          <p className="eyebrow mb-2">WHY US</p>
+          <h2 id="why" className="text-2xl font-bold leading-snug sm:text-[2rem]">
+            작은 수리도
+            <br />
+            같은 기준으로
+          </h2>
+          <p className="mt-4 max-w-sm leading-relaxed text-[var(--muted)]">문콕 하나를 고쳐도 견적, 기록, 검사, 보증까지 같은 순서를 밟습니다. 그래서 결과가 사람이나 날에 따라 달라지지 않습니다.</p>
+        </div>
+        <ol className="grid gap-x-8 gap-y-10 sm:grid-cols-2">
+          {WHY.map((w) => (
+            <li key={w.n}>
+              <p className="text-4xl font-bold tabular-nums text-[var(--line-strong)]">{w.n}</p>
+              <p className="mt-2 text-lg font-bold">{w.t}</p>
+              <p className="mt-1.5 leading-relaxed text-[var(--muted)]">{w.d}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
       {/* 품질 기준 */}
@@ -172,6 +214,52 @@ export default async function SiteHome() {
             </li>
           ))}
         </ol>
+      </section>
+
+      {/* 내 차 수첩: 홍보의 중심 */}
+      <section aria-labelledby="carbook" className="relative -mx-5 overflow-hidden bg-[var(--ink)] px-5 py-20 text-white sm:py-24 lg:mx-[calc(50%-50vw)] lg:px-[calc(50vw-50%+1.25rem)]">
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(50rem_28rem_at_90%_10%,rgb(200_16_46_/_0.35),transparent_60%),radial-gradient(40rem_24rem_at_0%_100%,rgb(64_92_140_/_0.3),transparent_60%)]" />
+        <div className="relative mx-auto grid max-w-6xl gap-14 lg:grid-cols-[1fr_1.15fr] lg:items-center">
+          <div>
+            <p className="eyebrow mb-3 !text-white/55">
+              MY CAR BOOK <span className="ml-2 rounded-full bg-[var(--red)] px-2 py-0.5 text-[10px] tracking-normal text-white">무료</span>
+            </p>
+            <h2 id="carbook" className="text-3xl font-bold leading-tight sm:text-[2.6rem]">
+              수리가 끝나도
+              <br />
+              기록은 남습니다
+            </h2>
+            <p className="mt-5 max-w-lg text-lg leading-relaxed text-white/70">우리 정비소에서 고친 차는 모두 &lsquo;내 차 수첩&rsquo;에 남습니다. 앱을 깔 필요도, 회원가입도 없이 휴대폰 문자 인증 한 번이면 됩니다.</p>
+            <ul className="mt-8 grid gap-5 sm:grid-cols-2">
+              {CARBOOK.map((c) => (
+                <li key={c.t} className="border-l-2 border-[var(--red)] pl-4">
+                  <p className="font-bold">{c.t}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-white/60">{c.d}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-sm text-white/55">차를 팔 때는 수리 이력 확인서를 뽑아 사는 분께 보여 줄 수 있습니다. QR로 진짜인지 누구나 확인합니다.</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/carbook-guide" className={siteBtn("red")}>
+                어떻게 쓰는지 보기
+              </Link>
+              <Link href="/my" className={siteBtn("ghost")}>
+                내 차 수첩 열기
+              </Link>
+            </div>
+          </div>
+          <div className="flex items-center justify-center gap-4 text-[var(--fg)] [&>div]:shrink-0">
+            <div className="hidden translate-y-6 scale-90 sm:block">
+              <PhoneEstimate />
+            </div>
+            <div className="relative z-10">
+              <PhoneProgress />
+            </div>
+            <div className="hidden translate-y-6 scale-90 md:block">
+              <PhoneWarranty months={p["warranty.paint_months"]} />
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* 작업 사례 */}
@@ -291,6 +379,25 @@ export default async function SiteHome() {
         </div>
       </section>
 
+      {/* 기술자료 */}
+      {articles.length > 0 && (
+        <section aria-labelledby="tech">
+          <SectionHead eyebrow="KNOWLEDGE" id="tech" title="차를 오래 아끼는 방법" more={{ href: "/tech", label: "기술자료 모두 보기" }} />
+          <ul className="grid gap-5 md:grid-cols-3">
+            {articles.map((a, i) => (
+              <li key={a.id}>
+                <Link href={`/tech/${a.slug}`} className={`lift flex h-full flex-col rounded-2xl p-7 ${i === 0 ? "hero-bg text-white" : "border border-[var(--line)] bg-[var(--surface)]"}`}>
+                  <p className={`eyebrow !tracking-[0.12em] ${i === 0 ? "!text-white/60" : "eyebrow-red"}`}>{a.category}</p>
+                  <p className="mt-2 text-lg font-bold leading-snug">{a.title}</p>
+                  <p className={`mt-2 line-clamp-3 flex-1 text-[15px] leading-relaxed ${i === 0 ? "text-white/70" : "text-[var(--muted)]"}`}>{a.summary}</p>
+                  <p className={`mt-5 text-sm ${i === 0 ? "text-white/55" : "text-[var(--steel)]"}`}>{a.minutes}분 읽기</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* 자주 묻는 질문 */}
       {faqs.length > 0 && (
         <section aria-labelledby="faq">
@@ -311,8 +418,8 @@ export default async function SiteHome() {
         </section>
       )}
 
-      {/* 공지·내 차 수첩·오시는 길 */}
-      <section className="grid gap-5 md:grid-cols-3">
+      {/* 공지·오시는 길 */}
+      <section className="grid gap-5 md:grid-cols-2">
         <div className="rounded-2xl border border-[var(--line)] p-7">
           <p className="eyebrow mb-2">NOTICE</p>
           <h2 className="mb-4 text-xl font-bold">공지사항</h2>
@@ -332,14 +439,6 @@ export default async function SiteHome() {
           )}
           <Link href="/notice" className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-[var(--red)]">
             공지 모두 보기 <span aria-hidden>→</span>
-          </Link>
-        </div>
-        <div className="rounded-2xl border border-[var(--line)] p-7">
-          <p className="eyebrow mb-2">MY CAR BOOK</p>
-          <h2 className="mb-3 text-xl font-bold">내 차 수첩</h2>
-          <p className="leading-relaxed text-[var(--muted)]">수리 진행·사진·견적서·명세서·보증 기간을 휴대폰으로 봅니다. 아이디 없이 휴대폰 문자 인증으로 들어옵니다.</p>
-          <Link href="/my" className={`${siteBtn("ink")} mt-5`}>
-            내 차 수첩 열기
           </Link>
         </div>
         <div className="rounded-2xl border border-[var(--line)] p-7">
