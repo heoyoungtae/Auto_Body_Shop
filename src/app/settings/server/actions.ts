@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { requestUpdate, setAutoUpdate } from "@/modules/platform/server-ops";
+import { blockIpManually, setGeoBlock, unblockIp } from "@/modules/platform/security";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../../_lib/session";
 
 export async function requestUpdateAction() {
@@ -27,4 +28,36 @@ export async function setAutoUpdateAction(form: FormData) {
     redirect(errorUrl("/settings/server", userMessage(e)));
   }
   redirect(noticeUrl("/settings/server", msg));
+}
+
+// 공격 대책(대표 2026-11-21): 외국 접속 막기 켜기·끄기, 차단 풀기·직접 막기(대표)
+export async function setGeoBlockAction(form: FormData) {
+  const user = await requireUser();
+  const on = form.get("geo") === "on";
+  try {
+    await setGeoBlock(await getDb(), user, on);
+  } catch (e) {
+    redirect(errorUrl("/settings/server#security", userMessage(e)));
+  }
+  redirect(noticeUrl("/settings/server", on ? "외국 접속 막기를 켰습니다. 국내 주소가 아니면 앱을 열 수 없습니다" : "외국 접속 막기를 껐습니다"));
+}
+export async function unblockIpAction(form: FormData) {
+  const user = await requireUser();
+  const ip = String(form.get("ip") ?? "");
+  try {
+    await unblockIp(await getDb(), user, ip);
+  } catch (e) {
+    redirect(errorUrl("/settings/server#security", userMessage(e)));
+  }
+  redirect(noticeUrl("/settings/server", `${ip} 차단을 풀었습니다(서버 방화벽은 1분 안에 풀림)`));
+}
+export async function blockIpAction(form: FormData) {
+  const user = await requireUser();
+  const ip = String(form.get("ip") ?? "").trim();
+  try {
+    await blockIpManually(await getDb(), user, ip, Number(form.get("hours")) || 24);
+  } catch (e) {
+    redirect(errorUrl("/settings/server#security", userMessage(e)));
+  }
+  redirect(noticeUrl("/settings/server", `${ip} 를 막았습니다`));
 }

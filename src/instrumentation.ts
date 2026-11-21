@@ -1,6 +1,16 @@
 // 앱 오류 기록(대표 2026-11-20): 화면을 열거나 저장하다 난 오류를 오류 기록(설정 › 서버 › 오류 기록)에 남긴다.
 // 직원 화면에는 같은 오류 번호(digest)가 나오므로, 번호만 알려 주면 찾을 수 있다.
-export function register() {}
+// 앱이 켜질 때 막을 주소·외국 접속 막기 상태를 메모리에 올린다(대표 2026-11-21 공격 대책). 실패해도 1분 안에 서버 상태 알림 때 다시 채워진다
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  try {
+    const { getDb } = await import("@/db/runtime");
+    const { refreshSecurity } = await import("@/modules/platform/security");
+    await refreshSecurity(await getDb());
+  } catch {
+    // 조용히
+  }
+}
 
 export async function onRequestError(err: unknown, request: { path: string; method: string; headers: Record<string, string | string[] | undefined> }) {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;

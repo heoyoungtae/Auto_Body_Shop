@@ -2,10 +2,12 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { HOW_LABEL, serverOpsView, SILENT_MIN, STAGES, type Change } from "@/modules/platform/server-ops";
 import { requireUser } from "../../_lib/session";
-import { RadioRow, TextField } from "../../_input";
+import { NumberField, RadioRow, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
-import { requestUpdateAction, setAutoUpdateAction } from "./actions";
+import { blockIpAction, requestUpdateAction, setAutoUpdateAction, setGeoBlockAction, unblockIpAction } from "./actions";
+import { RULES, securityView } from "@/modules/platform/security";
+import { certDays } from "@/modules/platform/server-ops";
 import { UpdateWatch } from "./_watch";
 import { Spark, type SparkPoint } from "./_spark";
 import { fmtBps, fmtBytes, fmtValue } from "./_fmt";
@@ -51,6 +53,8 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
   const db = await getDb();
   const v = await serverOpsView(db);
   const errToday = owner ? await errorCountToday(db) : 0;
+  const sec = await securityView(db);
+  const cd = certDays(v.status);
   const st = v.status;
   const tr = v.traffic;
   const now = Date.now();
@@ -108,6 +112,19 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
         ["UPS", st.ups || "연결 안 됨"],
         ["내부 주소", st.lanIp || "-"],
         ["인터넷 주소", st.publicIp || "-"],
+        [
+          "도메인",
+          st.mode !== "direct"
+            ? "클라우드플레어 터널로 들어옵니다(주소·인증서는 클라우드플레어가 관리)"
+            : [
+                st.siteHost || "-",
+                st.dnsIp ? (st.dnsIp === st.publicIp ? `→ ${st.dnsIp}(맞음)` : `→ ${st.dnsIp}(서버 주소 ${st.publicIp || "?"}와 다름)`) : "",
+                cd != null ? `인증서 ${cd < 0 ? "만료됨" : `${cd}일 남음`}(${st.certUntil.slice(0, 10)}까지, 30일 남으면 저절로 갱신)` : "",
+              ]
+                .filter(Boolean)
+                .join(" · "),
+        ],
+        ["주소 자동 고치기", v.ddns.length ? `${v.ddns[0].at} ${v.ddns[0].kind === "changed" ? "주소 바뀜·고침" : "실패"}: ${v.ddns[0].message}` : st.mode === "direct" ? "바뀐 적 없음(5분마다 확인)" : "-"],
         ["프로그램", st.services || "-"],
       ]
     : [];
@@ -270,6 +287,82 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
           ) : null}
         </Card>
       </div>
+      {owner && (
+        <div className="mt-4" id="security">
+          <Card title="보안(공격 막기)" help={{ kind: "panel", id: "server.security" }}>
+            <div className="space-y-3 text-sm">
+              <p>
+                지금 막고 있는 주소 <b>{sec.blocks.length}</b>개 · 오늘 새로 막음 <b>{sec.todayBlocks}</b>번 · 외국 접속 막기{" "}
+                {sec.geoOn ? <Badge tone="ok">켜짐</Badge> : <Badge>꺼짐</Badge>}
+              </p>
+              <p className="text-xs text-[var(--muted)]">
+                자동으로 막는 기준: 한 주소에서 {RULES.loginWindowMin}분 안에 로그인 실패 {RULES.loginFails}번(1시간), 1분에 요청 {RULES.floodPerMin}번(1시간), 1분에 취약점 찾기 {RULES.scanPerMin}번(하루). 막으면 대표에게 알림이 갑니다. 공유기 안 주소와 서버 자신의 주소는 막지 않습니다.
+              </p>
+              {sec.blocks.length > 0 && (
+                <ul className="divide-y divide-[var(--line)] rounded-md border border-[var(--line)]">
+                  {sec.blocks.map((b) => (
+                    <li key={b.ip} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <span>
+                        <b className="font-mono">{b.ip}</b> <span className="text-[var(--muted)]">{b.reason} · {fmtTime(b.until)}까지</span>
+                      </span>
+                      <form action={unblockIpAction}>
+                        <input type="hidden" name="ip" value={b.ip} />
+                        <SubmitButton variant="secondary">풀기</SubmitButton>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <details className="border-t border-[var(--line)] pt-3">
+                <summary className="cursor-pointer">
+                  <span className="font-medium">외국 접속 막기</span> <span className="text-[var(--muted)]">{sec.geoOn ? "켜짐" : "꺼짐"} · 바꾸려면 누르세요</span>
+                </summary>
+                <form action={setGeoBlockAction} className="mt-2 space-y-2">
+                  <RadioRow help="server.geoBlock" name="geo" required defaultValue={sec.geoOn ? "on" : "off"} options={[{ value: "on", label: "켜기(국내만)", tone: "ok" }, { value: "off", label: "끄기" }]} />
+                  <p className="text-xs text-[var(--muted)]">
+                    {sec.kr ? `국내 주소 목록 ${sec.kr.n.toLocaleString("ko-KR")}묶음 · ${fmtTime(sec.kr.at)} 받음(한 주마다 새로 받음)` : "국내 주소 목록을 아직 받지 못했습니다. 서버가 받아 오면 켤 수 있습니다."}
+                  </p>
+                  <SubmitButton>저장</SubmitButton>
+                </form>
+              </details>
+              <details className="border-t border-[var(--line)] pt-3">
+                <summary className="cursor-pointer">
+                  <span className="font-medium">주소 직접 막기</span> <span className="text-[var(--muted)]">오류 기록·접속에서 수상한 주소를 막습니다</span>
+                </summary>
+                <form action={blockIpAction} className="mt-2 space-y-2">
+                  <TextField help="server.blockIp" name="ip" required />
+                  <NumberField help="server.blockHours" name="hours" required defaultValue={24} unit="시간" min={1} max={8760} />
+                  <SubmitButton>막기</SubmitButton>
+                </form>
+              </details>
+              {sec.log.length > 0 && (
+                <details className="border-t border-[var(--line)] pt-3">
+                  <summary className="cursor-pointer">최근 차단 기록 {sec.log.length}건</summary>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {sec.log.slice(0, 30).map((b, i) => (
+                      <li key={`${b.ip}-${b.at}-${i}`}>
+                        <span className="text-[var(--muted)]">{fmtTime(b.at)}</span> <span className="font-mono">{b.ip}</span> {b.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {v.ddns.length > 0 && (
+                <details className="border-t border-[var(--line)] pt-3">
+                  <summary className="cursor-pointer">앱 주소 자동 고치기 기록 {v.ddns.length}건</summary>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {v.ddns.map((e, i) => (
+                      <li key={`${e.at}-${i}`}>
+                        <span className="text-[var(--muted)]">{e.at}</span> {e.kind === "changed" ? <Badge tone="accent">바뀜</Badge> : <Badge tone="danger">실패</Badge>} {e.message}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
       <div className="mt-4">
         <Card title="24시간 흐름" help={{ kind: "panel", id: "server.trend" }}>
           {v.series.length ? (
