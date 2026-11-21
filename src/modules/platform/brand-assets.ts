@@ -36,7 +36,7 @@ export const BRAND_RULES: Record<BrandKind, Rule> = {
   },
   "logo-light": {
     label: "가로 로고 · 밝은 화면용",
-    usedIn: "직원 로그인 화면(밝은 화면)",
+    usedIn: "화면 맨 위 머리줄, 직원 로그인 화면(밝은 화면)",
     shape: "wide",
     minSide: 120,
     advice: "가로가 세로의 3배 이상, 가로 1400px 정도, 투명 바탕",
@@ -44,7 +44,7 @@ export const BRAND_RULES: Record<BrandKind, Rule> = {
   },
   "logo-dark": {
     label: "가로 로고 · 어두운 화면용",
-    usedIn: "직원 로그인 화면(휴대폰·PC가 어두운 화면일 때)",
+    usedIn: "화면 맨 위 머리줄, 직원 로그인 화면(휴대폰·PC가 어두운 화면일 때)",
     shape: "wide",
     minSide: 120,
     advice: "가로가 세로의 3배 이상, 가로 1400px 정도, 투명 바탕(흰 글자)",
@@ -60,7 +60,7 @@ export const BRAND_RULES: Record<BrandKind, Rule> = {
   },
   "small-icon": {
     label: "작은 아이콘(48px 이하)",
-    usedIn: "브라우저 탭(파비콘), 화면 맨 위 머리줄",
+    usedIn: "브라우저 탭(파비콘)",
     shape: "square",
     minSide: 32,
     advice: "정사각형, 96×96~256×256 권장. 작게 줄여도 알아보는 단순한 그림",

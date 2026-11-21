@@ -11,7 +11,7 @@ import { HelpProvider } from "./_help-drawer";
 import { TableCards } from "./_table-cards";
 import { MenuButton, NavProvider, Sidebar, TabBar } from "./_sidebar";
 import { APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
-import { brandUrl, loadBrand } from "@/modules/platform/brand-assets";
+import { brandSize, brandUrl, loadBrand } from "@/modules/platform/brand-assets";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -47,6 +47,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = me?.mustChangePassword ? null : me;
   const db = await getDb();
   const [unread, brand] = await Promise.all([user ? unreadCount(db, user.id) : 0, loadBrand(db)]);
+  const [logoW, logoH] = brandSize(brand, "logo-light");
   return (
     <html lang="ko">
       <body className="min-h-screen">
@@ -55,12 +56,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <header id="site-header" className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]">
               <div className="flex min-h-14 items-center gap-2 px-2 sm:px-4">
                 {user && <MenuButton />}
-                <Link href={user ? "/home" : "/login"} className="flex min-w-0 items-center gap-2 font-semibold" title={APP_NAME}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- 작은 아이콘이라 그대로 쓴다 */}
-                  <img src={brandUrl(brand, "small-icon")} alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
-                  {/* 좁은 화면은 짧은 이름, 넓은 화면은 전체 이름 */}
-                  <span className="truncate sm:hidden">{APP_SHORT_NAME}</span>
-                  <span className="hidden truncate sm:inline">{APP_NAME}</span>
+                <Link href={user ? "/home" : "/login"} className="flex min-w-0 shrink items-center" title={APP_NAME}>
+                  {/* 가로 로고(대표 지시 2026-11-21). 어두운 화면이면 어두운 화면용 로고 */}
+                  <picture className="block shrink-0">
+                    <source media="(prefers-color-scheme: dark)" srcSet={brandUrl(brand, "logo-dark")} />
+                    {/* eslint-disable-next-line @next/next/no-img-element -- 설정에서 올린 그림을 그대로 쓴다 */}
+                    <img src={brandUrl(brand, "logo-light")} alt={APP_NAME} width={logoW} height={logoH} className="h-8 w-auto max-w-[45vw] object-contain object-left sm:h-10 sm:max-w-none" />
+                  </picture>
                 </Link>
                 {user && (user.branches?.length ?? 0) > 1 && (
                   <Suspense>
