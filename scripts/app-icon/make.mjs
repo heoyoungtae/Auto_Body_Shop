@@ -1,6 +1,6 @@
 // 앱 아이콘 만들기 (2026-11-21 대표 시안: 톱니·스패너·차·빨간 선 심벌)
 //   큰 아이콘(홈 화면·설치 앱) = symbol.png(원본 그림에서 오린 심벌, 투명) + 파란 바탕
-//   작은 아이콘(48px 이하: 브라우저 탭·머리줄) = icon-small.svg(로고의 J·M 글자를 오려 붙인 JM, 2026-11-21 '다' 시안)
+//   작은 아이콘(48px 이하: 브라우저 탭·머리줄) = icon-small.svg(로고의 빨간 J, 2026-11-21 대표 결정)
 // 실행: node scripts/app-icon/make.mjs  (playwright 크로미움 필요 — 클라우드 작업 환경에 있음)
 // 결과: src/app/favicon.ico(16·32·48)·icon.png(48)·apple-icon.png(180), public/icons/icon-small-96.png, public/icons/icon-192·512·maskable-512.png
 // original-with-text.png 는 글자 들어간 원본(문구 '제이모터스'), 가로 로고는 public/brand/logo-*.png
