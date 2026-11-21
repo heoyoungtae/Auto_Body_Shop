@@ -4,7 +4,7 @@ import { carbookLink } from "@/db/schema";
 import { randomToken, sha256 } from "@/modules/auth/crypto";
 import { LINK_DAYS } from "./rules";
 
-const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const appUrl = () => (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
 
 /** 링크(90일). 열면 그 수리 건만 보는 로그인이 되고, 나머지 기록은 문자 인증 뒤에 보인다 */
 export async function makeLink(db: Db, customerId: string, roId: string | null, now = new Date()) {

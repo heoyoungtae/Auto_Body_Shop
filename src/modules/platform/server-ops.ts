@@ -9,6 +9,7 @@ import { writeAudit } from "./audit";
 import { UserError } from "./errors";
 import { notifyRole } from "./notify";
 import { recordErrorSafe } from "./error-log";
+import { domainReminders, domainReport, pendingCfToken } from "./domain";
 import { blockedIps, needKr, noteHotIps, refreshSecurity, saveKrRanges, setSelfIp } from "./security";
 
 const KEY = "server_ops";
@@ -296,7 +297,7 @@ function cleanEvent(x: unknown): UpdateEvent | null {
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
 export async function agentReport(
   db: Db,
-  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[]; hot?: unknown; krRanges?: unknown; ddns?: unknown[] },
+  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[]; hot?: unknown; krRanges?: unknown; ddns?: unknown[]; domainInfo?: unknown; cfTokenResult?: unknown },
   now = new Date(),
 ) {
   // 짧은 확인(대표 2026-11-20 "1분 기다림이 왜 필요한가"): 미니 PC 가 1분 사이사이 5초마다 올리기 요청만 묻는다.
@@ -317,6 +318,8 @@ export async function agentReport(
   // 공격 대책(대표 2026-11-21): 주소별 폭주·취약점 찾기, 국내 주소 목록
   if (body.hot) await noteHotIps(db, body.hot, now);
   if (body.krRanges) await saveKrRanges(db, body.krRanges, now);
+  // 설정 › 도메인(대표 2026-11-21): 만료일·네임서버·토큰 상태, 토큰 바꾸기 결과
+  await domainReport(db, body, now);
   const d = await load(db);
   const next: Data = { ...d };
   // 인터넷 주소 자동 고치기 기록: 바뀌면 알리고, 실패하면 알리고 오류 기록에도 남긴다(같은 일은 하루 한 번 알림)
@@ -360,6 +363,7 @@ export async function agentReport(
     next.status = { ...cleanStatus(body.status), at: now.toISOString() };
     next.series = addSample(d.series ?? [], next.status, now);
     if (next.status.publicIp) await setSelfIp(db, next.status.publicIp);
+    await domainReminders(db, now);
     // 인증서는 30일 남았을 때 저절로 갱신된다. 14일 안으로 들어왔으면 갱신이 안 되는 것이라 하루 한 번 알린다
     const cd = certDays(next.status, now.getTime());
     if (cd != null && cd < 14)
@@ -429,5 +433,7 @@ export async function agentReport(
   // 막을 주소(미니 PC 방화벽용)·국내 주소 목록 필요 여부. 앱 메모리 상태도 이때 새로 채운다
   await refreshSecurity(db);
   const blocked = await blockedIps(db, now.getTime());
-  return { update, auto: d.auto ?? AUTO_DEFAULT, blocked, ...((await needKr(db, now)) ? { needKr: true } : {}), ...(labelsFor.length && !body.labels ? { labelsFor } : {}) };
+  // 대표가 앱에서 넣은 새 클라우드플레어 토큰(이 PC 안에서만 오가는 응답). 미니 PC 가 확인해 .env 에 저장하고 결과를 알린다
+  const cfTokenNew = await pendingCfToken(db, now);
+  return { update, auto: d.auto ?? AUTO_DEFAULT, blocked, ...(cfTokenNew ? { cfTokenNew } : {}), ...((await needKr(db, now)) ? { needKr: true } : {}), ...(labelsFor.length && !body.labels ? { labelsFor } : {}) };
 }

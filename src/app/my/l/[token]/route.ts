@@ -12,7 +12,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const db = await getDb();
   const jar = await cookies();
   const base = new URL(req.url);
-  const go = (path: string) => NextResponse.redirect(new URL(path, process.env.APP_URL ?? base.origin), 303);
+  const go = (path: string) => NextResponse.redirect(new URL(path, process.env.APP_URL || base.origin), 303);
   const now = await sessionOf(db, jar.get(COOKIE)?.value);
   const o = await openLink(db, token, await requestMeta());
   if (!o) return go(`/my/login?error=${encodeURIComponent("링크 기간(90일)이 지났거나 올바르지 않습니다. 휴대폰 문자 인증으로 들어와 주세요")}`);

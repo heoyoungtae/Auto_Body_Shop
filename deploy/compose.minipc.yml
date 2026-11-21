@@ -33,9 +33,21 @@ services:
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
     logging: *log
-    env_file: .env
+    # 앱에는 쓰는 값만 넘긴다(대표 2026-11-21). 클라우드플레어·터널 토큰, 백업 암호 등은 앱이 뚫려도 새지 않게 넘기지 않는다.
+    # 앱 코드에서 새 환경값(process.env.…)을 쓰면 여기에도 꼭 더할 것(tests/unit/compose-env.test.ts 가 확인)
     environment:
       DATABASE_URL: postgres://shop:${DB_PASSWORD}@db:5432/shop
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
+      SENSITIVE_ENCRYPTION_KEY: ${SENSITIVE_ENCRYPTION_KEY:-}
+      JOBS_TOKEN: ${JOBS_TOKEN:-}
+      APP_URL: ${APP_URL:-}
+      TRUST_CF_IP: ${TRUST_CF_IP:-}
+      SERVER_ON_SITE: ${SERVER_ON_SITE:-}
+      SERVER_LAN_CIDR: ${SERVER_LAN_CIDR:-}
+      DEMO_SEED: ${DEMO_SEED:-}
+      INIT_OWNER_LOGIN: ${INIT_OWNER_LOGIN:-}
+      INIT_OWNER_PASSWORD: ${INIT_OWNER_PASSWORD:-}
+      INIT_OWNER_NAME: ${INIT_OWNER_NAME:-}
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

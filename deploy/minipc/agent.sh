@@ -237,6 +237,39 @@ if [ -n "$res" ] && [ "${DIRECT:-}" = 1 ] && command -v iptables >/dev/null && i
     echo "$fwh" > "$STATE/fw_hash"
   fi
 fi
+# 설정 › 도메인(대표 2026-11-21) ①: 대표가 앱에서 넣은 새 클라우드플레어 토큰을 확인해 .env 에 저장한다(틀리면 이전 토큰 그대로)
+newtok=$(jq -r '.cfTokenNew // empty' <<<"${res:-null}" 2>/dev/null)
+if [[ "$newtok" =~ ^[A-Za-z0-9_-]{30,200}$ ]]; then
+  tok_ok=false
+  vr=$(curl -fsS -m 30 -H "Authorization: Bearer $newtok" https://api.cloudflare.com/client/v4/user/tokens/verify 2>/dev/null)
+  if [ "$(jq -r '.result.status // empty' <<<"$vr" 2>/dev/null)" = active ]; then
+    if [ -z "${SITE_HOST:-}" ] || ( . ./minipc/cf.sh; CF_API_TOKEN="$newtok"; ZONE_ID=$(cf_zone_id); [ -n "$ZONE_ID" ] && cf GET "/zones/$ZONE_ID/dns_records?name=$SITE_HOST" >/dev/null 2>&1 ); then
+      printf 'CF_API_TOKEN=%s\n' "$newtok" | bash ./set-env.sh >/dev/null 2>&1 && { tok_ok=true; tok_msg="확인하고 서버에 저장함"; CF_API_TOKEN=$newtok; }
+    else tok_msg="토큰은 맞지만 ${SITE_HOST} 의 DNS 를 고칠 권한이 없습니다(Edit zone DNS, 이 도메인으로 다시 만드세요)"; fi
+  else tok_msg="클라우드플레어가 이 토큰을 받지 않았습니다(틀렸거나 지워졌거나 만료됨)"; fi
+  post "$(jq -nc --argjson ok "$tok_ok" --arg m "${tok_msg:-저장 실패}" --arg l "${newtok: -4}" '{cfTokenResult:{ok:$ok,message:$m,last4:$l}}')" >/dev/null
+  rm -f "$STATE/domain_day"
+fi
+unset newtok
+# ②: 하루 한 번 도메인 만료일(공개 등록 정보 RDAP)·네임서버·토큰 상태·앱 주소의 DNS 기록
+if [ -n "${SITE_HOST:-}" ] && [ "$(cat "$STATE/domain_day" 2>/dev/null)" != "$(TZ=Asia/Seoul date +%F)" ]; then
+  apex=$(awk -F. '{ n = NF; two = ($NF == "kr" && $(NF-1) ~ /^(co|or|go|ne|re|ac|pe)$/); if (two && n >= 3) print $(n-2) "." $(n-1) "." $n; else print $(n-1) "." $n }' <<<"$SITE_HOST")
+  rdap=$(curl -fsS -m 20 https://data.iana.org/rdap/dns.json 2>/dev/null | jq -r --arg t "${apex##*.}" '.services[] | select(.[0] | index($t)) | .[1][0]' 2>/dev/null | head -n 1)
+  dexp=""; [ -n "$rdap" ] && dexp=$(curl -fsS -m 20 -H 'Accept: application/rdap+json' "${rdap%/}/domain/$apex" 2>/dev/null | jq -r '[.events[]? | select(.eventAction == "expiration") | .eventDate][0] // empty' 2>/dev/null)
+  dns_ns=$(curl -fsS -m 15 -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$apex&type=NS" 2>/dev/null | jq -c '[.Answer[]? | select(.type == 2) | .data]' 2>/dev/null); [ -n "$dns_ns" ] || dns_ns='[]'
+  dtok=null; drec=null
+  if [ -n "${CF_API_TOKEN:-}" ]; then
+    # 오류 응답(401 등)도 본문을 받는다. 인터넷이 안 되어 본문이 없을 때는 토큰을 '틀림'으로 보지 않는다
+    vr=$(curl -sS -m 20 -H "Authorization: Bearer $CF_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify 2>/dev/null)
+    if jq -e 'type == "object"' <<<"$vr" >/dev/null 2>&1; then
+      dtok=$(jq -c --arg l "${CF_API_TOKEN: -4}" '(.result.status // "invalid") as $st | {ok: ($st == "active"), status: $st, expiresOn: (.result.expires_on // ""), last4: $l}' <<<"$vr")
+    fi
+    rec=$( ( . ./minipc/cf.sh; ZONE_ID=$(cf_zone_id); [ -n "$ZONE_ID" ] && cf_record ) 2>/dev/null)
+    [ -n "$rec" ] && drec=$(jq -c '{type, content, proxied}' <<<"$rec" 2>/dev/null)
+  fi
+  dinfo=$(jq -nc --arg apex "$apex" --arg exp "$dexp" --argjson ns "$dns_ns" --argjson tok "${dtok:-null}" --argjson rec "${drec:-null}" '{apex: $apex, expiry: $exp, ns: $ns, token: $tok, record: $rec}')
+  post "$(jq -nc --argjson d "$dinfo" '{domainInfo: $d}')" >/dev/null && TZ=Asia/Seoul date +%F > "$STATE/domain_day"
+fi
 # 외국 접속 막기용 국내 주소 목록: 앱이 달라고 하면(없거나 8일 지남) APNIC 공개 배정표에서 KR IPv4 만 뽑아 보낸다. 실패하면 1시간 뒤 다시
 if [ "$(jq -r '.needKr // false' <<<"${res:-null}" 2>/dev/null)" = true ] && [ -z "$(find "$STATE/kr_tried" -mmin -60 2>/dev/null)" ]; then
   touch "$STATE/kr_tried"

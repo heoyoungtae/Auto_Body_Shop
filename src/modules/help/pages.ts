@@ -513,6 +513,19 @@ export const PAGE_HELP = {
     ],
     refs: ["대표 요청 2026-11-19 원격 업데이트"],
   },
+  "settings.domain": {
+    title: "도메인",
+    purpose: "앱 주소(도메인)의 만료일, 등록 업체·클라우드플레어 계정, API 토큰, 인증서, 주소 자동 고치기를 한곳에서 관리합니다(대표 요청 2026-11-21).",
+    who: "대표만 봅니다.",
+    steps: [
+      "'도메인 정보'에서 만료일과 남은 날을 봅니다. 서버가 읽지 못하면 '만료일 직접 적기'에 등록 업체 사이트에 나온 날을 적습니다.",
+      "등록 업체·클라우드플레어 계정 칸에 업체 이름, 아이디, 가입 이메일, 비밀번호, 2단계 인증 여부, 복구 코드 둔 곳을 적어 둡니다.",
+      "비밀번호가 필요하면 '비밀번호 보기'에 내 앱 비밀번호를 넣습니다. 30초 동안 보입니다.",
+      "클라우드플레어 토큰이 '맞지 않음'이면 새 토큰을 만들어 '새 토큰으로 바꾸기'에 붙여 넣습니다.",
+    ],
+    tips: ["만료 60·30·7일 전, 토큰이 맞지 않게 될 때, 비밀번호를 바꾼 지 1년이 지날 때 대표에게 알림이 갑니다.", "접속 방식(국내 직접·터널) 바꾸기는 아직 미니 PC 에서 합니다(서버 설명서 9단계)."],
+    refs: ["대표 요청 2026-11-21 도메인 관리"],
+  },
   "settings.serverErrors": {
     title: "오류 기록",
     purpose: "앱 화면·저장 중에 난 오류와 서버(앱 프로그램·DB·관문·미니 PC)의 오류를 모아, 같은 것끼리 묶어 봅니다(대표 요청 2026-11-20).",
@@ -3191,6 +3204,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/brand": "settings.brand",
   "/settings/server": "settings.server",
   "/settings/server/errors": "settings.serverErrors",
+  "/settings/domain": "settings.domain",
   "/tv": "tv",
   "/tv/techbay": "tvTechbay",
   "/settings/body-parts": "settings.bodyParts",

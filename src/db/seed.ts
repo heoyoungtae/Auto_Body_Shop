@@ -35,7 +35,7 @@ export async function seed(db: Db, env: Record<string, string | undefined> = pro
     return;
   }
   if (env.INIT_OWNER_LOGIN && env.INIT_OWNER_PASSWORD) {
-    await createUser(db, null, { loginId: env.INIT_OWNER_LOGIN, name: env.INIT_OWNER_NAME ?? "대표", password: env.INIT_OWNER_PASSWORD, roles: ["owner"] });
+    await createUser(db, null, { loginId: env.INIT_OWNER_LOGIN, name: env.INIT_OWNER_NAME || "대표", password: env.INIT_OWNER_PASSWORD, roles: ["owner"] });
   }
 }
 

@@ -700,7 +700,7 @@ export const resultLabel = (r: string) => RESULT_LABEL[r as keyof typeof RESULT_
 export { CONSENT_LINK_DAYS } from "./consent-const";
 import { CONSENT_LINK_DAYS } from "./consent-const";
 
-export const appUrl = () => (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+export const appUrl = () => (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
 
 /** 동의 요청 링크를 만들어 보낸다. 링크는 CONSENT_LINK_DAYS 일 동안 열린다 */
 export async function sendConsentRequest(db: Db, actorId: string | null, customerId: string, consultId: string | null, now = new Date(), f: typeof fetch = fetch) {
