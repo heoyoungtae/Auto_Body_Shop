@@ -385,6 +385,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "bank.token_issue": "문자 받는 주소 새로 만듦",
   "tv.token_issue": "TV 현황판 링크 새로 만듦",
   "carbook.config": "내 차 수첩 설정 바꿈",
+  "brand.upload": "로고·앱 아이콘 등록",
+  "brand.reset": "로고·앱 아이콘 기본 그림으로 되돌림",
   "carbook.invite": "내 차 수첩 초대 문자 보냄",
   "carbook.hide_photos": "고객에게 보일 사진 고름",
   "carbook.sold": "고객이 차 판 것을 알림(내 차 수첩)",

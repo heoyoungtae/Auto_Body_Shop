@@ -2,8 +2,9 @@
 //   큰 아이콘(홈 화면·설치 앱) = symbol.png(원본 그림에서 오린 심벌, 투명) + 파란 바탕
 //   작은 아이콘(48px 이하: 브라우저 탭·머리줄) = icon-small.svg(로고의 빨간 J, 2026-11-21 대표 결정)
 // 실행: node scripts/app-icon/make.mjs  (playwright 크로미움 필요 — 클라우드 작업 환경에 있음)
-// 결과: src/app/favicon.ico(16·32·48)·icon.png(48)·apple-icon.png(180), public/icons/icon-small-96.png, public/icons/icon-192·512·maskable-512.png
-// original-with-text.png 는 글자 들어간 원본(문구 '제이모터스'), 가로 로고는 public/brand/logo-*.png
+// 결과(앱에 들어 있는 기본 그림): public/favicon.ico(16·32·48), public/brand-default/app-icon.png(512)·small-icon.png(96),
+//   public/icons/apple-180.png·icon-192.png·maskable-512.png. 원본·가로 로고 기본은 public/brand-default/original·logo-*.png
+// 대표가 설정 › 로고·앱 아이콘에 PNG를 올리면 그것이 기본 그림보다 먼저 쓰인다(modules/platform/brand-assets.ts)
 import { createRequire } from "node:module";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -39,9 +40,9 @@ async function tiny(size) {
 }
 
 const out = (p, buf) => { writeFileSync(join(root, p), buf); console.log("만듦", p, buf.length, "바이트"); };
-out("src/app/apple-icon.png", await big(180, { scale: 0.86 })); // 아이폰이 모서리를 알아서 둥글린다
+out("public/icons/apple-180.png", await big(180, { scale: 0.86 })); // 아이폰 기본(모서리는 아이폰이 둥글림). 설정에서 앱 아이콘을 올리면 그것을 씀 // 아이폰이 모서리를 알아서 둥글린다
 out("public/icons/icon-192.png", await big(192, { round: true }));
-out("public/icons/icon-512.png", await big(512, { round: true }));
+out("public/brand-default/app-icon.png", await big(512, { round: true }));
 out("public/icons/maskable-512.png", await big(512, { scale: 0.72 })); // 안드로이드가 원 등으로 잘라도 심벌이 남게(안쪽 80%)
 
 // favicon.ico: PNG를 그대로 담는 ICO(16·32·48)
@@ -58,7 +59,6 @@ sizes.forEach((s, i) => {
   head.writeUInt32LE(imgs[i].length, e + 8); head.writeUInt32LE(offset, e + 12);
   offset += imgs[i].length;
 });
-out("src/app/favicon.ico", Buffer.concat([head, ...imgs]));
-out("src/app/icon.png", await tiny(48));
-out("public/icons/icon-small-96.png", await tiny(96)); // 머리줄 로고 자리(28px, 고해상도 화면 대비 96)
+out("public/favicon.ico", Buffer.concat([head, ...imgs]));
+out("public/brand-default/small-icon.png", await tiny(96));
 await browser.close();

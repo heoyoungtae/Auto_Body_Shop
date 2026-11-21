@@ -11,16 +11,25 @@ import { HelpProvider } from "./_help-drawer";
 import { TableCards } from "./_table-cards";
 import { MenuButton, NavProvider, Sidebar, TabBar } from "./_sidebar";
 import { APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
+import { brandUrl, loadBrand } from "@/modules/platform/brand-assets";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  // 화면마다 제목을 주면 탭에 '화면 제목 · 제이모터스'로 보인다
-  title: { default: APP_NAME, template: `%s · ${APP_SHORT_NAME}` },
-  applicationName: APP_NAME,
-  description: "사내 표준서에 따라 상담부터 출고, 설비·품질까지 관리하는 차체 외관 수리(찌그러짐·긁힘·도색) 정비소 업무 앱",
-  // 아이폰 '홈 화면에 추가' 때 아이콘 밑 이름(파비콘·아이콘 파일은 app/favicon.ico·icon.png·apple-icon.png, 설치 정보는 app/manifest.ts)
-  appleWebApp: { capable: true, title: APP_SHORT_NAME, statusBarStyle: "default" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  // 파비콘·아이폰 홈 화면 아이콘은 설정 › 로고·앱 아이콘에 올린 그림(없으면 앱 기본 그림). 설치 정보는 app/manifest.ts
+  const brand = await loadBrand(await getDb());
+  return {
+    // 화면마다 제목을 주면 탭에 '화면 제목 · 제이모터스'로 보인다
+    title: { default: APP_NAME, template: `%s · ${APP_SHORT_NAME}` },
+    applicationName: APP_NAME,
+    description: "사내 표준서에 따라 상담부터 출고, 설비·품질까지 관리하는 차체 외관 수리(찌그러짐·긁힘·도색) 정비소 업무 앱",
+    icons: {
+      icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: brandUrl(brand, "small-icon"), type: "image/png" }],
+      apple: brand["app-icon"] ? brandUrl(brand, "app-icon") : "/icons/apple-180.png",
+    },
+    // 아이폰 '홈 화면에 추가' 때 아이콘 밑 이름
+    appleWebApp: { capable: true, title: APP_SHORT_NAME, statusBarStyle: "default" },
+  };
+}
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: APP_THEME_COLOR };
 
@@ -36,7 +45,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const me = await currentUser();
   // 새 비밀번호를 정하기 전(임시 비밀번호로 들어옴)에는 메뉴·알림을 보이지 않는다
   const user = me?.mustChangePassword ? null : me;
-  const unread = user ? await unreadCount(await getDb(), user.id) : 0;
+  const db = await getDb();
+  const [unread, brand] = await Promise.all([user ? unreadCount(db, user.id) : 0, loadBrand(db)]);
   return (
     <html lang="ko">
       <body className="min-h-screen">
@@ -47,7 +57,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {user && <MenuButton />}
                 <Link href={user ? "/home" : "/login"} className="flex min-w-0 items-center gap-2 font-semibold" title={APP_NAME}>
                   {/* eslint-disable-next-line @next/next/no-img-element -- 작은 아이콘이라 그대로 쓴다 */}
-                  <img src="/icons/icon-small-96.png" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
+                  <img src={brandUrl(brand, "small-icon")} alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
                   {/* 좁은 화면은 짧은 이름, 넓은 화면은 전체 이름 */}
                   <span className="truncate sm:hidden">{APP_SHORT_NAME}</span>
                   <span className="hidden truncate sm:inline">{APP_NAME}</span>

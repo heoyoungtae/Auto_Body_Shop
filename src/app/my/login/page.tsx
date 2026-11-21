@@ -10,14 +10,19 @@ import { ErrorBox, Notice, PageTitle } from "../../_ui";
 import { requestCodeAction, verifyCodeAction } from "../actions";
 import { mySession } from "../_session";
 import { ShopFooter } from "../_parts";
+import { brandUrl, loadBrand } from "@/modules/platform/brand-assets";
 
 export default async function MyLogin({ searchParams }: { searchParams: Promise<{ step?: string; error?: string; demo?: string; more?: string; next?: string; bye?: string }> }) {
   const q = await searchParams;
-  const shop = await shopCard(await getDb());
+  const db = await getDb();
+  const [shop, brand] = await Promise.all([shopCard(db), loadBrand(db)]);
   const s = await mySession();
   const codeStep = q.step === "code";
   return (
     <div className="pt-2">
+      {/* 원본 로고(설정 › 로고·앱 아이콘) */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- 정적 로고 그림 */}
+      <img src={brandUrl(brand, "original")} alt={shop.name} width={160} height={160} className="mx-auto mb-3 size-40 rounded-3xl" />
       <PageTitle help="my.login" sub={shop.name}>
         내 차 수첩
       </PageTitle>

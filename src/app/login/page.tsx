@@ -9,18 +9,23 @@ import { currentUser } from "../_lib/session";
 import { loginAction } from "./actions";
 import { DemoPick } from "./demo-pick";
 import { APP_NAME } from "@/modules/platform/brand";
+import { brandSize, brandUrl, loadBrand } from "@/modules/platform/brand-assets";
+import { getDb } from "@/db/runtime";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   if (await currentUser()) redirect("/home");
   const demo = process.env.DEMO_SEED === "1" || !process.env.DATABASE_URL;
+  // 로고는 설정 › 로고·앱 아이콘에 올린 그림(없으면 앱 기본 그림)
+  const brand = await loadBrand(await getDb());
+  const [lw, lh] = brandSize(brand, "logo-light");
   return (
     <div className="mx-auto max-w-sm">
-      {/* 가로형 공식 로고: 확정 원본에서 심벌·글자를 그대로 오려 씀. 밝은 화면은 남색 판 위, 어두운 화면은 투명 바탕 */}
+      {/* 가로형 공식 로고: 밝은 화면용·어두운 화면용 두 장 */}
       <picture className="mb-5 block">
-        <source media="(prefers-color-scheme: dark)" srcSet="/brand/logo-dark.png" />
+        <source media="(prefers-color-scheme: dark)" srcSet={brandUrl(brand, "logo-dark")} />
         {/* eslint-disable-next-line @next/next/no-img-element -- 정적 로고 그림 */}
-        <img src="/brand/logo-light.png" alt={APP_NAME} title={APP_NAME} width={1400} height={309} className="h-auto w-full" />
+        <img src={brandUrl(brand, "logo-light")} alt={APP_NAME} title={APP_NAME} width={lw} height={lh} className="h-auto w-full" />
       </picture>
       <PageTitle help="login" sub="대표·공장장·상담원·기술자·품질·안전환경·회계">
         직원 로그인
