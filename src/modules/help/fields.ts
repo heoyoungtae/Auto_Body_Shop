@@ -5368,6 +5368,31 @@ export const FIELD_HELP = {
     hint: "받는 이메일 주소, 등기 번호, 받은 사람 등",
     example: "env@○○.go.kr 로 보냄",
   },
+  // ── 기록 보관함·문서 목록 보강 ──
+  "records.q": {
+    label: "찾을 말",
+    hint: "번호(일부도 됨)·고객이나 업체 이름·차량번호·제목. 띄어쓰기와 대소문자는 가리지 않습니다.",
+    example: "2611-0012 또는 12가3456 또는 가나페인트",
+    maxLength: 60,
+  },
+  "records.period": {
+    label: "기간",
+    hint: "기록 날짜(대장마다 첫째 날짜: 상담일·입고일·발주일 등)로 거릅니다. 찾을 말 없이 기간만 고르면 그 기간의 대장별 기록 수가 나옵니다.",
+  },
+  "records.area": {
+    label: "묶음",
+    hint: "수리·고객, 구매·자재, 돈, 품질·안전, 문서·업무 가운데 한 묶음만 찾습니다.",
+  },
+  "docs.files": {
+    label: "문서 파일",
+    hint: "PDF나 사진, 한 개에 8MB까지. 지금 판(현행)으로 붙고, 새 판을 받으면 이전 판 파일로 남습니다.",
+    detail: "제조사 수리 매뉴얼·도료 TDS·MSDS·작업 지침서를 올려 두면 직원 누구나 문서 목록에서 바로 엽니다. 새 판을 받으면 먼저 '고치기'에서 판을 바꾼 뒤 새 파일을 올리세요(이전 파일은 이전 판으로 보관).",
+  },
+  "docs.reviewNote": {
+    label: "검토 결과",
+    hint: "바꿀 것이 없으면 '바꿀 것 없음'. 바꿀 것이 있으면 위 '개정 요청'을 함께 누릅니다.",
+    example: "바꿀 것 없음",
+  },
 } satisfies Record<string, FieldHelp>;
 
 export type FieldHelpKey = keyof typeof FIELD_HELP;

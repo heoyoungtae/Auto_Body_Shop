@@ -1,6 +1,7 @@
 "use server";
 // 품질경영(Q장) 화면의 서버 동작: 조직 상황·품질목표·문서 목록·경영검토
 import { redirect } from "next/navigation";
+import { addDocFile, DocFileError, recordDocReview, removeDocFile } from "@/modules/quality/doc-files";
 import { getDb } from "@/db/runtime";
 import { setTarget, signQuarter, snapshotMonth } from "@/modules/quality/goals";
 import {
@@ -130,6 +131,18 @@ export async function docAction(form: FormData) {
     const intent = s("intent");
     if (intent === "seed")
       msg = `표준서·양식 ${await seedDocs(db, user)}건을 목록에 넣었습니다`;
+    else if (intent === "file") {
+      const files = form.getAll("docFiles").filter((f): f is File => f instanceof File && f.size > 0);
+      if (!files.length) throw new DocFileError("파일을 골라 주세요");
+      for (const f of files) await addDocFile(db, user, id, new Uint8Array(await f.arrayBuffer()), f.name);
+      msg = `${files.length}개를 현행 판 파일로 올렸습니다`;
+    } else if (intent === "removeFile") {
+      await removeDocFile(db, user, id, s("path"));
+      msg = "파일을 뗐습니다";
+    } else if (intent === "review") {
+      await recordDocReview(db, user, id, s("reviewNote"));
+      msg = "정기 검토를 기록했습니다. 바꿀 것이 있으면 '개정 요청'을 누르세요";
+    }
     else if (intent === "retire") {
       await retireDoc(db, user, id, s("reason"));
       msg = "폐지했습니다(폐기 표시로 보관)";

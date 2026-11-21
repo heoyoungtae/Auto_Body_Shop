@@ -422,6 +422,11 @@ export const docRegister = pgTable(
       >()
       .notNull()
       .default([]),
+    /** 문서 파일(작업 지침서·외부 문서 PDF·사진). rev = 올릴 때의 판(새 판을 받으면 이전 판 파일은 '이전 판'으로 남는다) */
+    files: jsonb("files").$type<(CorrFile & { rev: string })[]>().notNull().default([]),
+    /** 정기 검토(STD-Q 7절 7항): 매년 1회. 바꿀 것이 없어도 검토일을 남긴다 */
+    reviewedOn: text("reviewed_on"),
+    reviewNote: text("review_note"),
     updatedBy: uuid("updated_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true })

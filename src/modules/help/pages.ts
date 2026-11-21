@@ -3139,6 +3139,18 @@ export const PAGE_HELP = {
     who: "기안자·대표·품질 담당",
     steps: ["'인쇄'를 누르고 프린터나 'PDF로 저장'을 고릅니다.", "보낸 뒤 공문 화면에서 발송을 기록합니다."],
   },
+  records: {
+    title: "기록 보관함",
+    purpose: "모든 대장·전표(상담·수리·견적·발주·지출·부적합·법규·문서·수발신 등)를 한 번에 찾고 바로 엽니다(STD-Q 8절).",
+    who: "모든 직원(각자 볼 수 있는 대장만) · 변경 이력: 대표·품질 담당",
+    steps: ["번호·이름·차량번호·제목 가운데 아는 것을 넣고 '찾기'를 누릅니다.", "대장별로 나온 기록의 번호를 눌러 엽니다.", "더 보려면 '대장에서 모두 보기', 누가 바꿨는지는 '이력'을 누릅니다."],
+  },
+  "records.history": {
+    title: "변경 이력",
+    purpose: "기록 한 건을 누가 언제 만들고 고치고 결재했는지 봅니다.",
+    who: "대표·품질 담당",
+    steps: ["기록 보관함에서 기록 옆 '이력'을 누르면 열립니다.", "바뀐 칸은 '전 → 후'로 보입니다."],
+  },
 } satisfies Record<string, PageHelp>;
 
 export type PageHelpKey = keyof typeof PAGE_HELP;
@@ -3200,6 +3212,8 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/outsource/[id]": "outsource.detail",
   "/legal": "legal",
   "/corr": "corr",
+  "/records": "records",
+  "/records/history": "records.history",
   "/corr/receive": "corr.receive",
   "/corr/new": "corr.new",
   "/corr/[id]": "corr.detail",

@@ -1,6 +1,6 @@
 // 사내 표준서 본문(2026-11-19 대표 결정 '제안대로 전부'): 앱이 원본이다.
 // 보기는 전 직원(제한 걸린 절은 그 역할·대표만), 본문 변경은 문서 개정 요청서(F-Q-05) 결재로만, 열람 제한은 품질 담당·대표가 정한다.
-import { and, asc, count, eq, gte } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { docRegister, stdSection, training } from "@/db/schema";
 import type { DocRow } from "@/modules/approval/service";
@@ -308,3 +308,21 @@ export async function revisionsNeedingTraining(db: Db) {
 }
 
 export { chOf };
+
+/** 문서 목록 미리 보기: 양식은 양식 본문, 절차서는 절 차례(번호·제목·바로가기). 열람 제한 절은 제목만 */
+export async function docPreviews(db: Db, actor: Actor, docNos: string[]) {
+  const out = new Map<string, { form?: string; sections?: { no: string; title: string; href: string }[] }>();
+  if (!docNos.length) return out;
+  const rows = await db.select().from(stdSection).where(inArray(stdSection.docNo, docNos)).orderBy(asc(stdSection.sort), asc(stdSection.key));
+  for (const s of rows) {
+    if (s.part === "form") {
+      if (canSee(actor, s)) out.set(s.docNo, { form: s.body });
+      continue;
+    }
+    if (s.part !== "procedure" || s.chapter) continue;
+    const e = out.get(s.docNo) ?? { sections: [] };
+    e.sections = [...(e.sections ?? []), { no: s.no, title: s.title, href: stdKeyHref(s.key) }];
+    out.set(s.docNo, e);
+  }
+  return out;
+}

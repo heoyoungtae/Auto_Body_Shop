@@ -371,6 +371,13 @@ export const PERMS = {
     std: "STD-Q 7절",
     roles: ["owner", "quality"],
   },
+  "records.history": {
+    area: "품질",
+    label: "기록의 변경 이력(누가·언제·무엇을 바꿨나) 보기",
+    std: "STD-Q 8절",
+    roles: ["owner", "quality"],
+    note: "기록 보관함 찾기는 누구나(각 대장의 보기 권한대로), 변경 이력은 대표·품질 담당만 봅니다",
+  },
   "qms.review": {
     area: "품질",
     label: "경영검토(F-Q-09)",

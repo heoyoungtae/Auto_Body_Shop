@@ -7,6 +7,8 @@ import { DOC_KINDS } from "@/modules/quality/qms-rules";
 import { listLogs } from "@/modules/messaging/service";
 import { listDocs } from "@/modules/quality/qms";
 import { listCorr } from "@/modules/quality/corr";
+import { reviewDue } from "@/modules/quality/doc-files";
+import { addDays, seoulDate } from "@/modules/platform/time";
 import { CORR_STATUS, CORR_TABS, CORR_VIA, PARTY_KINDS, type CorrTab } from "@/modules/quality/corr-rules";
 import { can } from "@/modules/auth/permissions";
 import { listInstructions } from "@/modules/task/service";
@@ -136,10 +138,16 @@ export const docsList: ListDef<QDoc> = {
   href: "/qms/docs",
   allowed: () => true,
   load: async (db, _u, q) => {
-    const all = await listDocs(db, pick(q.f, ["current", "retired", "all"] as const, "current"));
+    const f = pick(q.f, ["current", "review", "retired", "all"] as const, "current");
+    let all = await listDocs(db, f === "review" ? "current" : f);
+    // 정기 검토 대상: 절차서·지침서 중 검토 기한이 30일 안이거나 지난 것
+    if (f === "review") {
+      const soon = addDays(seoulDate(), 30);
+      all = all.filter((d) => (d.kind === "std" || d.kind === "wi") && reviewDue(d) <= soon);
+    }
     return q.k ? all.filter((d) => d.kind === q.k) : all;
   },
-  tabs: { param: "f", options: [{ v: "current", label: "현행" }, { v: "retired", label: "폐지" }, { v: "all", label: "전체" }] },
+  tabs: { param: "f", options: [{ v: "current", label: "현행" }, { v: "review", label: "정기 검토 대상" }, { v: "retired", label: "폐지" }, { v: "all", label: "전체" }] },
   keep: ["k"],
   dates: [
     { key: "effective", label: "시행일", get: (r) => r.effectiveOn },
@@ -155,6 +163,9 @@ export const docsList: ListDef<QDoc> = {
     { label: "관리자", get: (r) => r.owner },
     { label: "보관", get: (r) => r.location },
     { label: "상태", get: (r) => (r.status === "retired" ? "폐지" : "현행") },
+    { label: "파일", get: (r) => r.files.filter((f) => f.rev === r.rev).length, unit: "개" },
+    { label: "마지막 검토", get: (r) => r.reviewedOn },
+    { label: "다음 검토", get: (r) => (r.kind === "std" || r.kind === "wi" ? reviewDue(r) : null) },
   ],
 };
 

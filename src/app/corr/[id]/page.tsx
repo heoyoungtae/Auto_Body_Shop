@@ -12,6 +12,7 @@ import { requireUser, userMessage } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, ErrorBox, fmtTime, Notice, PageTitle, StatusBadge } from "../../_ui";
 import { EvidenceFiles } from "../../money/evidence-files";
+import { HistoryCard } from "../../_history-card";
 import { corrAction } from "../actions";
 import { PartyFields } from "../party-fields";
 
@@ -279,6 +280,7 @@ export default async function CorrDocPage({ params, searchParams }: { params: Pr
           </Card>
         )}
       </div>
+      <HistoryCard db={db} user={user} keys={[r.no, r.id]} />
     </>
   );
 }
