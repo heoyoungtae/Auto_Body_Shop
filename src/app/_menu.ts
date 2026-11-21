@@ -463,6 +463,11 @@ export const MENU: MenuGroup[] = [
         roles: ["owner"],
         href: "/settings/server",
       },
+      {
+        label: "도메인(앱 주소)",
+        roles: ["owner"],
+        href: "/settings/domain",
+      },
     ],
   },
   {

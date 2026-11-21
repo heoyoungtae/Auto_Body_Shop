@@ -139,6 +139,9 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
               <Link href="/settings/server/errors" className={buttonClass("secondary")}>
                 오류 기록{errToday > 0 ? ` (오늘 ${errToday.toLocaleString("ko-KR")})` : ""}
               </Link>
+              <Link href="/settings/domain" className={buttonClass("secondary")}>
+                도메인
+              </Link>
               <Link href="/help/server-guide" className={buttonClass("secondary")}>
                 서버 설명서
               </Link>
