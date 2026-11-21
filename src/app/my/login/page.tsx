@@ -11,7 +11,7 @@ import { requestCodeAction, verifyCodeAction } from "../actions";
 import { mySession } from "../_session";
 import { ShopFooter } from "../_parts";
 
-export default async function MyLogin({ searchParams }: { searchParams: Promise<{ step?: string; error?: string; demo?: string; more?: string; next?: string; bye?: string }> }) {
+export default async function MyLogin({ searchParams }: { searchParams: Promise<{ step?: string; error?: string; demo?: string; more?: string; next?: string; bye?: string; left?: string }> }) {
   const q = await searchParams;
   const shop = await shopCard(await getDb());
   const s = await mySession();
@@ -26,8 +26,9 @@ export default async function MyLogin({ searchParams }: { searchParams: Promise<
       ) : (
         <div className="space-y-4">
           {q.bye && <Notice>나갔습니다. 다음에는 문자 인증을 다시 하시면 됩니다.</Notice>}
+          {q.left && <Notice>내 차 수첩을 그만 쓰도록 하고, 직접 적으신 기록을 모두 지웠습니다. 수리 기록과 서류는 정비소에 법정 기간 동안 남습니다. 다시 쓰시려면 문자 인증을 하시면 됩니다.</Notice>}
           {q.more && s?.scope === "link" && <Notice>지금은 알림톡 링크의 수리 한 건만 보입니다. 휴대폰 문자 인증을 한 번 하시면 모든 수리 기록과 서류가 보입니다.</Notice>}
-          {!codeStep && !q.bye && !q.more && (
+          {!codeStep && !q.bye && !q.left && !q.more && (
             <p className="text-sm text-[var(--muted)]">우리 정비소에서 고친 내 차의 수리 기록·사진·견적서·명세서·보증 기간을 모아 보는 곳입니다. 아이디·비밀번호 없이 휴대폰 문자로 들어옵니다.</p>
           )}
           <ErrorBox message={q.error} />

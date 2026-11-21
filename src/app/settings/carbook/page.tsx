@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { carbookConfig, carbookStats, shopCard } from "@/modules/carbook/service";
+import { carbookLogStats } from "@/modules/carbook/records";
 import { appUrl } from "@/modules/customer/service";
 import { requireUser } from "../../_lib/session";
 import { AssistForm } from "../../_assist";
@@ -14,7 +15,7 @@ export default async function CarbookSettingsPage({ searchParams }: { searchPara
   const { error, notice } = await searchParams;
   await requireUser(["owner"]);
   const db = await getDb();
-  const [cfg, stats, shop] = await Promise.all([carbookConfig(db), carbookStats(db), shopCard(db)]);
+  const [cfg, stats, shop, logs] = await Promise.all([carbookConfig(db), carbookStats(db), shopCard(db), carbookLogStats(db)]);
   return (
     <>
       <PageTitle
@@ -53,6 +54,10 @@ export default async function CarbookSettingsPage({ searchParams }: { searchPara
             <dd>{stats.users}명</dd>
             <dt className="text-[var(--muted)]">최근 30일 들어온 고객</dt>
             <dd>{stats.recent}명</dd>
+            <dt className="text-[var(--muted)]">내 기록을 적는 고객</dt>
+            <dd>
+              {logs.writers}명 · 기록 {logs.entries.toLocaleString("ko-KR")}줄 <span className="text-xs text-[var(--muted)]">(내용은 고객만 봄)</span>
+            </dd>
             <dt className="text-[var(--muted)]">고객 주소</dt>
             <dd className="break-all font-mono text-xs">{appUrl()}/my</dd>
           </dl>

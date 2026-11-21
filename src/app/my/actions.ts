@@ -1,10 +1,11 @@
 "use server";
-// 내 차 수첩 손님 동작: 들어가기(문자 인증)·나가기·견적 승인·보증 신청·차 판 기록
+// 내 차 수첩 손님 동작: 들어가기(문자 인증)·나가기·견적 승인·보증 신청·차 판 기록, 2단계: 이용 동의·내 기록·알림 설정·그만 쓰기
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { claimWarranty, endAllSessions, endSession, markSold, myEstimateDoc, requestCode, sessionOf, verifyCode } from "@/modules/carbook/service";
 import { PHONE_COOKIE } from "@/modules/carbook/rules";
+import { addEntry, deleteEntry, leaveCarbook, saveInsurance, savePrefs, setConsent } from "@/modules/carbook/records";
 import { approveByCarbook } from "@/modules/repair/estimate-approval";
 import { errorUrl, requestMeta, userMessage } from "../_lib/session";
 import { clearMyCookie, myToken, requireMy, setMyCookie } from "./_session";
@@ -91,4 +92,88 @@ export async function markSoldAction(form: FormData) {
     redirect(errorUrl("/my/more", userMessage(e)));
   }
   redirect("/my/more?sold=1");
+}
+
+// ── 2단계 ──
+const num = (v: FormDataEntryValue | null) => {
+  const t = String(v ?? "").replace(/,/g, "").trim();
+  return t === "" ? null : Number(t);
+};
+const safeBack = (v: FormDataEntryValue | null, dflt: string) => {
+  const b = String(v ?? "");
+  return b.startsWith("/my") && !b.startsWith("//") ? b : dflt;
+};
+
+export async function consentAction(form: FormData) {
+  const s = await requireMy(true);
+  const agreed = form.get("agree") === "yes";
+  const back = safeBack(form.get("back"), "/my/log");
+  try {
+    await setConsent(await getDb(), s, agreed, { ip: (await requestMeta()).ip });
+  } catch (e) {
+    redirect(errorUrl(back, userMessage(e)));
+  }
+  redirect(agreed ? back : "/my/more?withdrawn=1");
+}
+
+export async function addEntryAction(form: FormData) {
+  const s = await requireMy(true);
+  const vehicleId = String(form.get("vehicleId") ?? "");
+  const again = form.get("again") === "1";
+  const kind = String(form.get("kind") ?? "");
+  try {
+    await addEntry(await getDb(), s, {
+      vehicleId,
+      kind,
+      sub: String(form.get("sub") ?? "") || null,
+      on: String(form.get("on") ?? ""),
+      mileage: num(form.get("mileage")),
+      amount: num(form.get("amount")),
+      qty: num(form.get("qty")),
+      unitPrice: num(form.get("unitPrice")),
+      place: String(form.get("place") ?? ""),
+      memo: String(form.get("memo") ?? ""),
+      intervalKm: num(form.get("intervalKm")),
+      intervalMonths: num(form.get("intervalMonths")),
+      insuranceUntil: String(form.get("insuranceUntil") ?? "") || null,
+    });
+  } catch (e) {
+    redirect(errorUrl(`/my/log/new?kind=${encodeURIComponent(kind)}&car=${encodeURIComponent(vehicleId)}`, userMessage(e)));
+  }
+  redirect(again ? `/my/log/new?kind=${encodeURIComponent(kind)}&car=${encodeURIComponent(vehicleId)}&saved=1` : `/my/log?car=${encodeURIComponent(vehicleId)}&saved=1`);
+}
+
+export async function deleteEntryAction(form: FormData) {
+  const s = await requireMy(true);
+  const car = String(form.get("car") ?? "");
+  try {
+    await deleteEntry(await getDb(), s, String(form.get("id") ?? ""));
+  } catch (e) {
+    redirect(errorUrl(`/my/log?car=${encodeURIComponent(car)}`, userMessage(e)));
+  }
+  redirect(`/my/log?car=${encodeURIComponent(car)}&deleted=1`);
+}
+
+/** 더보기 › 알림: 받을 알림과 차마다 보험 만기일을 한 번에 */
+export async function savePrefsAction(form: FormData) {
+  const s = await requireMy(true);
+  try {
+    const db = await getDb();
+    await savePrefs(db, s, form.getAll("alerts").map(String));
+    for (const [k, v] of form.entries()) if (k.startsWith("ins_")) await saveInsurance(db, s, k.slice(4), String(v) || null);
+  } catch (e) {
+    redirect(errorUrl("/my/more", userMessage(e)));
+  }
+  redirect("/my/more?prefs=1");
+}
+
+export async function leaveAction() {
+  const s = await requireMy(true);
+  try {
+    await leaveCarbook(await getDb(), s, { ip: (await requestMeta()).ip });
+  } catch (e) {
+    redirect(errorUrl("/my/more", userMessage(e)));
+  }
+  await clearMyCookie();
+  redirect("/my/login?left=1");
 }

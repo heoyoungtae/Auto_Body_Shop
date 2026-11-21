@@ -1,7 +1,8 @@
-// 내 차 수첩 홈: 할 일(견적 승인), 수리 중인 차(단계·출고 예정), 내 차, 남은 보증. 값은 모두 정비소 전표에서 불러온다
+// 내 차 수첩 홈: 할 일(견적 승인), 수리 중인 차(단계·출고 예정), 다가오는 일(검사·보증·소모품·보험), 내 차, 남은 보증. 값은 모두 정비소 전표에서 불러온다
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { myHome, shopCard } from "@/modules/carbook/service";
+import { myUpcoming } from "@/modules/carbook/records";
 import { daysLeft } from "@/modules/carbook/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { Card, Empty, PageTitle } from "../_ui";
@@ -11,7 +12,7 @@ import { LinkOnlyNote, MySteps, ShopFooter } from "./_parts";
 export default async function MyHome() {
   const s = await requireMy();
   const db = await getDb();
-  const [h, shop] = await Promise.all([myHome(db, s), shopCard(db)]);
+  const [h, shop, up] = await Promise.all([myHome(db, s), shopCard(db), myUpcoming(db, s)]);
   const today = seoulDate();
   return (
     <div className="space-y-4 pt-2">
@@ -57,6 +58,39 @@ export default async function MyHome() {
           </ul>
         </Card>
       )}
+
+      {s.scope === "full" &&
+        (up.consent ? (
+          <Card title="다가오는 일" help={{ kind: "panel", id: "my.upcoming" }}>
+            {up.list.length === 0 ? (
+              <p className="text-sm text-[var(--muted)]">
+                60일 안에는 없습니다.
+                {up.next && ` 다음은 ${up.next.plateNo} ${up.next.title}(${up.next.date})입니다.`}
+              </p>
+            ) : (
+              <ul className="divide-y divide-[var(--line)] text-sm">
+                {up.list.map((u) => (
+                  <li key={u.key}>
+                    <Link href={u.href} className="flex items-center justify-between gap-2 py-2 hover:underline">
+                      <span>
+                        <span className="font-medium">
+                          {u.plateNo} {u.title}
+                        </span>
+                        <span className="block text-xs text-[var(--muted)]">{u.line.replace(`${u.plateNo} `, "")}</span>
+                      </span>
+                      <span className={`shrink-0 text-xs ${u.left <= 14 ? "font-semibold text-[var(--warn)]" : "text-[var(--muted)]"}`}>{u.left < 0 ? `${-u.left}일 지남` : u.left === 0 ? "오늘" : `${u.left}일 뒤`}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        ) : (
+          <Link href="/my/log" className="block rounded-md border border-dashed border-[var(--line-strong)] px-3 py-3 text-sm hover:bg-[var(--surface-2)]">
+            <span className="font-semibold">내 기록 시작하기</span>
+            <span className="block text-xs text-[var(--muted)]">주유·소모품·비용을 적고 정기검사·보증·소모품·보험 만기 알림을 받으세요</span>
+          </Link>
+        ))}
 
       {s.scope === "full" && (
         <Card title="내 차" help={{ kind: "panel", id: "my.cars" }}>
