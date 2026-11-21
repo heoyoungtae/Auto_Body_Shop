@@ -48,6 +48,12 @@ export const MENU: MenuGroup[] = [
         std: "STD-01",
       },
       {
+        label: "홈페이지 요청함",
+        perm: ["consult.write"],
+        href: "/consults?f=online",
+        std: "STD-01",
+      },
+      {
         label: "업체 주문 앱(테크베이)",
         perm: ["portal.order"],
         href: "/portal-orders",
@@ -457,6 +463,11 @@ export const MENU: MenuGroup[] = [
         label: "내 차 수첩(고객용)",
         roles: ["owner"],
         href: "/settings/carbook",
+      },
+      {
+        label: "홈페이지",
+        roles: ["owner"],
+        href: "/settings/site",
       },
       {
         label: "서버·새 버전 올리기",

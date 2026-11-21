@@ -18,6 +18,8 @@ export const carbookOtp = pgTable(
     tries: integer("tries").notNull().default(0),
     usedAt: timestamp("used_at", { withTimezone: true }),
     ip: text("ip"),
+    /** login 내 차 수첩 들어가기 · web 홈페이지 견적 요청 본인 확인(처음 오는 손님에게도 보낸다) */
+    purpose: text("purpose").notNull().default("login"),
     createdAt: createdAt(),
   },
   (t) => [index("carbook_otp_phone_idx").on(t.phoneHash, t.createdAt)],

@@ -6,3 +6,6 @@ next-env.d.ts
 deploy/.env
 .env*
 !.env.example
+
+# 미니 PC 에서 만드는 홈페이지 주소 Caddy 설정
+deploy/caddy-sites/*.caddy

@@ -2,6 +2,8 @@
 // 보내면 정비소 상담 일지에 '고객용 화면' 경로로 들어가고 상담원이 회신 기한 안에 연락한다
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { shopCard } from "@/modules/carbook/service";
+import { ShopFooter } from "../_parts";
 import { consultCars, INSURANCE_PICK, myConsults, REQUEST_LIMIT } from "@/modules/carbook/requests";
 import { carOf } from "@/modules/repair/body-map";
 import { seoulDate } from "@/modules/platform/time";
@@ -21,12 +23,12 @@ export default async function MyConsultPage({ searchParams }: { searchParams: Pr
   const q = await searchParams;
   const s = await requireMy(true);
   const db = await getDb();
-  const [cars, list] = await Promise.all([consultCars(db, s), myConsults(db, s)]);
+  const [cars, list, shop] = await Promise.all([consultCars(db, s), myConsults(db, s), shopCard(db)]);
   return (
     <div className="space-y-4 pt-2">
       <PageTitle help="my.consult">사진으로 상담 요청</PageTitle>
       <ErrorBox message={q.error} />
-      {q.sent && <Notice>보냈습니다. {q.due ? `${q.due}까지` : "곧"} 정비소에서 연락드립니다.</Notice>}
+      {q.sent && <Notice>보냈습니다. {q.due ? `${q.due}까지` : "곧"} 정비소에서 답을 드립니다. 답이 오면 알림톡(또는 문자)으로 알려 드리고, 이 화면 아래 '보낸 상담 요청'에서 보실 수 있습니다.</Notice>}
       {!cars.length ? (
         <Empty>등록된 차가 없습니다. 새 차는 정비소로 전화해 주세요.</Empty>
       ) : (
@@ -49,11 +51,24 @@ export default async function MyConsultPage({ searchParams }: { searchParams: Pr
         <Card title="보낸 상담 요청" help={{ kind: "panel", id: "my.consultList" }}>
           <ul className="divide-y divide-[var(--line)] text-sm">
             {list.map((r) => (
-              <li key={r.id} className="flex items-baseline justify-between gap-2 py-2">
-                <span>
-                  <span className="text-xs text-[var(--muted)]">{seoulDate(r.at)}</span> {r.plateNo} <span className="text-[var(--muted)]">{(r.parts ?? "").split("\n")[0].slice(0, 30)}</span>
-                </span>
-                <span className="shrink-0 text-xs">{STATE(r)}</span>
+              <li key={r.id} id={r.docNo} className="py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span>
+                    <span className="text-xs text-[var(--muted)]">{seoulDate(r.at)}</span> {r.plateNo} <span className="text-[var(--muted)]">{(r.parts ?? "").split("\n")[0].slice(0, 30)}</span>
+                    {r.source === "web" && <span className="ml-1 text-xs text-[var(--muted)]">· 홈페이지</span>}
+                  </span>
+                  <span className="shrink-0 text-xs">{r.reply ? "답변 왔음" : STATE(r)}</span>
+                </div>
+                {/* 정비소 답변(비밀): 문자 인증으로 들어온 이 손님에게만 보인다 */}
+                {r.reply && (
+                  <div className="mt-2 rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2">
+                    <p className="mb-1 text-xs font-semibold text-[var(--accent)]">정비소 답변 · {r.replyAt ? seoulDate(r.replyAt) : ""}</p>
+                    <p className="whitespace-pre-line">{r.reply}</p>
+                    {r.result === "open" && (
+                      <p className="mt-2 text-xs text-[var(--muted)]">예약하시려면 아래 정비소 전화로 연락해 주세요.</p>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -64,6 +79,7 @@ export default async function MyConsultPage({ searchParams }: { searchParams: Pr
           더보기로 돌아가기
         </Link>
       </p>
+      <ShopFooter shop={shop} />
     </div>
   );
 }

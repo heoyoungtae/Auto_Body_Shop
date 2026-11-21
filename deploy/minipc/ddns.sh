@@ -12,6 +12,13 @@ ip=$(public_ip) || { log "공인 IP 확인 실패(인터넷?)"; exit 1; }
 ZONE_ID=$(cf_zone_id) || { log "클라우드플레어 연결 실패"; exit 1; }
 rec=$(cf_record)
 [ -n "$rec" ] || { log "DNS 기록 없음: $SITE_HOST"; exit 1; }
+# 홈페이지 주소(homepage.sh, 회색 구름 A 기록)도 같은 주소로 따라가게 한다
+for h in ${HOMEPAGE_HOST//,/ }; do
+  hr=$(cf GET "/zones/$ZONE_ID/dns_records?name=$h" | jq -c '.result[0] // empty')
+  [ -n "$hr" ] && [ "$(jq -r .type <<<"$hr")" = A ] && [ "$(jq -r .content <<<"$hr")" != "$ip" ] || continue
+  cf PATCH "/zones/$ZONE_ID/dns_records/$(jq -r .id <<<"$hr")" "$(jq -nc --arg ip "$ip" '{content:$ip}')" >/dev/null \
+    && log "홈페이지 주소 고침: $h → $ip" || log "홈페이지 DNS 고치기 실패: $h"
+done
 cur=$(jq -r .content <<<"$rec"); type=$(jq -r .type <<<"$rec")
 [ "$type" = A ] && [ "$cur" = "$ip" ] && exit 0
 [ "$type" = A ] || { log "DNS 기록이 A 가 아님($type): 직접 접속이 꺼진 것으로 보고 손대지 않음"; exit 0; }

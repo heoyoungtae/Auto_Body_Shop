@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { getDb } from "@/db/runtime";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { unreadCount } from "@/modules/platform/notify";
@@ -43,6 +44,15 @@ const Icon = ({ d }: { d: string }) => (
 );
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // 홈페이지 화면(jmotors.co.kr, /site)은 자기 머리줄·바닥줄을 쓴다(app/site/layout.tsx). 직원 머리줄·메뉴는 그리지 않는다
+  if ((await headers()).get("x-site") === "1")
+    return (
+      <html lang="ko">
+        <body className="min-h-screen">
+          <HelpProvider>{children}</HelpProvider>
+        </body>
+      </html>
+    );
   const me = await currentUser();
   // 새 비밀번호를 정하기 전(임시 비밀번호로 들어옴)에는 메뉴·알림을 보이지 않는다
   const user = me?.mustChangePassword ? null : me;

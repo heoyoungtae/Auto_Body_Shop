@@ -106,7 +106,7 @@ export async function requestConsult(db: Db, s: MySession, input: ConsultRequest
 export async function myConsults(db: Db, s: MySession) {
   if (s.scope !== "full") return [];
   const rows = await db
-    .select({ id: consultation.id, at: consultation.at, plateNo: vehicle.plateNo, parts: consultation.damageParts, result: consultation.result, repliedAt: consultation.repliedAt, reservedAt: consultation.reservedAt, replyDue: consultation.replyDue, photos: consultation.photoCount })
+    .select({ id: consultation.id, docNo: consultation.docNo, at: consultation.at, plateNo: vehicle.plateNo, parts: consultation.damageParts, result: consultation.result, repliedAt: consultation.repliedAt, reservedAt: consultation.reservedAt, replyDue: consultation.replyDue, photos: consultation.photoCount, source: consultation.source, reply: consultation.webReply, replyAt: consultation.webReplyAt })
     .from(consultation)
     .leftJoin(vehicle, eq(vehicle.id, consultation.vehicleId))
     .where(and(eq(consultation.customerId, s.customerId), eq(consultation.channel, "online")))

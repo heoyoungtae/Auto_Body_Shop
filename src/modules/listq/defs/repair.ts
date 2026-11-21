@@ -12,6 +12,7 @@ export const CONSULT_TABS = [
   { v: "active", label: "진행 중" },
   { v: "due", label: "오늘 챙길 것" },
   { v: "reservations", label: "입고 예약" },
+  { v: "online", label: "견적 요청함" },
   { v: "all", label: "전체" },
 ] as const;
 export const consultsList: ListDef<Consult> = {
@@ -39,7 +40,7 @@ export const consultsList: ListDef<Consult> = {
   cols: [
     { label: "번호", get: (r) => r.docNo },
     { label: "상담일", get: (r) => isoOf(r.at) },
-    { label: "경로", get: (r) => CHANNEL_LABEL[r.channel] },
+    { label: "경로", get: (r) => (r.source === "web" ? "홈페이지" : CHANNEL_LABEL[r.channel]) },
     { label: "고객", get: (r) => r.customerName },
     { label: "연락처", get: (r) => r.phone },
     { label: "차량번호", get: (r) => r.plateNo },

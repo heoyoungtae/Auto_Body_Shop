@@ -53,7 +53,7 @@ describe("카카오 알림톡 문구 검수", () => {
     const owner = { id: ids.owner, roles: ["owner" as const] };
     const t0 = (await myTodos(db, owner)).find((t) => t.key === "kakao-review");
     expect(t0?.what).toBe(`카카오 알림톡 문구 검수 받기 ${KAKAO_KEYS.length}건`);
-    expect(t0?.detail).toMatch(/새로 만들거나 고친 문구: 수리 완료·출고 안내, 내 차 수첩 알림 · 그 밖에 검수 전 \d+건/);
+    expect(t0?.detail).toMatch(/새로 만들거나 고친 문구: 수리 완료·출고 안내, 내 차 수첩 알림, 견적 요청 답변 · 그 밖에 검수 전 \d+건/);
     await saveKakao(db, ids.owner, { enabled: false, pfId: "", codes: {}, reviewed: ["ready_notice"] });
     expect((await kakaoOverview(db)).templates.find((t) => t.key === "ready_notice")?.review).toBe("ok");
     await saveKakao(db, ids.owner, { enabled: false, pfId: "", codes: {}, reviewed: [...KAKAO_KEYS] });

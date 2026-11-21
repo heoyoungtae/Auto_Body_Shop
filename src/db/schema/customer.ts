@@ -163,6 +163,12 @@ export const consultation = pgTable(
     reminderSentAt: timestamp("reminder_sent_at", { withTimezone: true }),
     /** 어느 상담에서 불러와 만들었는지 */
     fromId: uuid("from_id"),
+    /** 홈페이지(jmotors.co.kr) 견적 요청이면 'web'. 내 차 수첩 사진 상담은 비어 있다(경로는 둘 다 online) */
+    source: text("source"),
+    /** 손님에게 보이는 답(비밀 답변): 요청한 손님만 내 차 수첩에서 본다 */
+    webReply: text("web_reply"),
+    webReplyAt: timestamp("web_reply_at", { withTimezone: true }),
+    webReplyBy: uuid("web_reply_by").references(() => appUser.id),
     advisorId: uuid("advisor_id").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

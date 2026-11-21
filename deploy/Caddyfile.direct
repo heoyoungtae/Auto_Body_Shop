@@ -1,5 +1,6 @@
 # 사업장 미니 PC '국내 직접 접속'(minipc/direct.sh on)용. 공유기는 443 하나만 열기 때문에 80번 확인(HTTP-01)은 끄고 443번 확인(TLS-ALPN-01)으로 인증서를 받는다.
-{$SITE_HOST} {
+# 앱 주소와 홈페이지 주소(minipc/homepage.sh 가 sites/homepage.caddy 를 만든다)가 같은 설정을 쓴다
+(app) {
 	tls {
 		issuer acme {
 			disable_http_challenge
@@ -33,3 +34,10 @@
 		}
 	}
 }
+
+{$SITE_HOST} {
+	import app
+}
+
+# 홈페이지 주소(jmotors.co.kr, www). 파일이 없으면 아무것도 하지 않는다
+import /etc/caddy/sites/*.caddy
