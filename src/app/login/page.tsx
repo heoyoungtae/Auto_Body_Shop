@@ -16,11 +16,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const demo = process.env.DEMO_SEED === "1" || !process.env.DATABASE_URL;
   return (
     <div className="mx-auto max-w-sm">
-      <div className="mb-4 flex items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element -- 작은 SVG 아이콘 */}
-        <img src="/icon.svg" alt="" width={48} height={48} className="size-12 rounded-xl" />
-        <p className="text-lg font-semibold">{APP_NAME}</p>
-      </div>
+      {/* 가로형 공식 로고(투명 바탕) — 어두운 화면에서는 흰 글자판 */}
+      <picture className="mb-5 block">
+        <source media="(prefers-color-scheme: dark)" srcSet="/brand/logo-dark.png" />
+        {/* eslint-disable-next-line @next/next/no-img-element -- 정적 로고 그림 */}
+        <img src="/brand/logo-light.png" alt={APP_NAME} title={APP_NAME} width={1730} height={420} className="h-auto w-full" />
+      </picture>
       <PageTitle help="login" sub="대표·공장장·상담원·기술자·품질·안전환경·회계">
         직원 로그인
       </PageTitle>

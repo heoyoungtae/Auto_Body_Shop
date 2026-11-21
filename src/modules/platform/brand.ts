@@ -7,6 +7,6 @@ export const APP_NAME = "제이모터스 자동차 정비소";
 export const APP_SHORT_NAME = "제이모터스";
 /** 운영 주소(도메인) */
 export const APP_DOMAIN = "app.jmotors.co.kr";
-/** 아이콘 바탕색(시안 A: J + 광택선). 설치된 앱의 상태줄·첫 화면 색 */
-export const APP_THEME_COLOR = "#1f6feb";
+/** 설치된 앱의 상태줄·첫 화면 색(아이콘 바탕 남색). 아이콘·로고 원본은 scripts/app-icon, public/brand */
+export const APP_THEME_COLOR = "#0a3e96";
 export const APP_BG_COLOR = "#ffffff";
