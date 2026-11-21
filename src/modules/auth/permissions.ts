@@ -358,6 +358,33 @@ export const PERMS = {
     std: "STD-Q Q.5",
     roles: ["owner", "quality"],
   },
+  "corr.write": {
+    area: "품질",
+    label: "받은 문서 접수, 회사 공문 쓰기(F-Q-11·F-Q-12)",
+    std: "STD-Q 7절",
+    roles: ["owner", "plant_manager", "advisor", "quality", "safety", "accounting"],
+    note: "자기가 접수·기안했거나 담당으로 지정된 문서만 봅니다. 공문은 대표 승인 뒤 직인을 찍어 보냅니다",
+  },
+  "corr.manage": {
+    area: "품질",
+    label: "문서 수발신 대장 전체 보기·담당 바꾸기",
+    std: "STD-Q 7절",
+    roles: ["owner", "quality"],
+  },
+  "records.purge": {
+    area: "품질",
+    label: "보존 기간 지난 기록 보기·파기 결재 올리기",
+    std: "STD-Q 8절",
+    roles: ["owner", "quality"],
+    note: "파기는 대표 승인 뒤에만 지워집니다",
+  },
+  "records.history": {
+    area: "품질",
+    label: "기록의 변경 이력(누가·언제·무엇을 바꿨나) 보기",
+    std: "STD-Q 8절",
+    roles: ["owner", "quality"],
+    note: "기록 보관함 찾기는 누구나(각 대장의 보기 권한대로), 변경 이력은 대표·품질 담당만 봅니다",
+  },
   "qms.review": {
     area: "품질",
     label: "경영검토(F-Q-09)",

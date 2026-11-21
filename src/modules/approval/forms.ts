@@ -65,6 +65,26 @@ export const FORMS = {
       { kind: "approve", label: "승인", assignees: ["owner"] },
     ],
   },
+  // 회사 공문(F-Q-12, STD-Q 7절): 회사 이름으로 밖에 보내는 문서는 대표가 승인해야 직인을 찍어 보낸다. 결재 문서 번호가 곧 공문 문서번호
+  "F-Q-12": {
+    code: "F-Q-12",
+    name: "공문서(발신)",
+    prefix: "OL",
+    steps: [
+      { kind: "draft", label: "기안", assignees: ["drafter"] },
+      { kind: "approve", label: "승인", assignees: ["owner"] },
+    ],
+  },
+  // 보존 기간 지난 기록 파기(STD-Q 8절): 대표·품질 담당이 올리고 대표가 승인하면 지운다
+  "REC-PURGE": {
+    code: "REC-PURGE",
+    name: "기록 파기 결재",
+    prefix: "PG",
+    steps: [
+      { kind: "draft", label: "기안", assignees: ["drafter"] },
+      { kind: "approve", label: "승인", assignees: ["owner"] },
+    ],
+  },
 } satisfies Record<string, FormDef>;
 
 export type FormCode = keyof typeof FORMS;

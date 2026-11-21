@@ -3,7 +3,7 @@ import { getDb } from "@/db/runtime";
 import { runList, type Q } from "@/modules/listq/core";
 import { legalList } from "@/modules/listq/defs/quality";
 import { can } from "@/modules/auth/permissions";
-import { listLegal, type LegalFilter } from "@/modules/quality/legal";
+import { listLegal, missingAppendixC, type LegalFilter } from "@/modules/quality/legal";
 import {
   APPLIES,
   CYCLES,
@@ -52,6 +52,7 @@ export default async function LegalPage({
   const [{ names, stage, list: allList }, lr] = await Promise.all([listLegal(db, user, f), runList(db, legalList, user, q)]);
   const list = lr.rows;
   const empty = f === "all" && !allList.length;
+  const missing = manage ? await missingAppendixC(db) : [];
   return (
     <>
       <PageTitle
@@ -79,7 +80,7 @@ export default async function LegalPage({
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
-      {manage && empty && (
+      {manage && missing.length > 0 && (
         <AssistForm
           id="legal-import"
           action={importAppendixAction}
@@ -87,10 +88,11 @@ export default async function LegalPage({
           className="mb-4 flex flex-wrap items-center gap-3 rounded-md bg-[var(--accent-soft)] p-3"
         >
           <p className="text-sm">
-            대장이 비어 있습니다. 표준서 부록 C의 법규 대장 초안(21건)을 불러와
-            하나씩 대상 여부를 확인하면 됩니다.
+            {empty
+              ? `대장이 비어 있습니다. 표준서 부록 C의 법규 대장 초안(${missing.length}건)을 불러와 하나씩 대상 여부를 확인하면 됩니다.`
+              : `부록 C에 새로 더한 법규 ${missing.length}건(${missing.map((m) => m.lawName).join(", ")})이 대장에 없습니다. 불러와 대상 여부를 확인하세요.`}
           </p>
-          <SubmitButton>부록 C 초안 불러오기</SubmitButton>
+          <SubmitButton>{empty ? "부록 C 초안 불러오기" : "새 법규 불러오기"}</SubmitButton>
         </AssistForm>
       )}
       <Card

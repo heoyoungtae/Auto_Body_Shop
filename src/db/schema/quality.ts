@@ -156,6 +156,8 @@ export const legalItem = pgTable(
     permitNo: text("permit_no"),
     validUntil: text("valid_until"),
     revCheckedOn: text("rev_checked_on"),
+    /** 인허가증·신고증 사본, 이행 증빙(측정 결과서·교육 수료증 등) 파일 */
+    files: jsonb("files").$type<CorrFile[]>().notNull().default([]),
     active: boolean("active").notNull().default(true),
     note: text("note"),
     createdBy: uuid("created_by").references(() => appUser.id),
@@ -422,6 +424,11 @@ export const docRegister = pgTable(
       >()
       .notNull()
       .default([]),
+    /** 문서 파일(작업 지침서·외부 문서 PDF·사진). rev = 올릴 때의 판(새 판을 받으면 이전 판 파일은 '이전 판'으로 남는다) */
+    files: jsonb("files").$type<(CorrFile & { rev: string })[]>().notNull().default([]),
+    /** 정기 검토(STD-Q 7절 7항): 매년 1회. 바꿀 것이 없어도 검토일을 남긴다 */
+    reviewedOn: text("reviewed_on"),
+    reviewNote: text("review_note"),
     updatedBy: uuid("updated_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -509,4 +516,55 @@ export const stdSection = pgTable(
       .defaultNow(),
   },
   (t) => [index("std_section_ch_idx").on(t.ch, t.sort)],
+);
+
+/** 붙인 파일 한 개(보관 폴더 상대 경로·원래 이름·형식·크기) */
+export type CorrFile = { path: string; name: string; mime: string; size: number; at: string; by: string };
+
+/**
+ * 문서 수발신 대장(F-Q-11)과 회사 공문(F-Q-12). dir: in 받은 문서 · out 보낸 공문.
+ * 받은 문서: no=접수 번호(RC-연월-순번), receivedOn·from(보낸 곳)·theirNo(상대 문서번호)·ownerId(담당)·dueOn(처리 기한)·needReply.
+ *   status: open 처리 중 → done 처리 끝(doneNote, 회신 공문이 발송되면 저절로)
+ * 보낸 공문: no=문서번호(결재 문서 번호 OL-연월-순번), approvalId(F-Q-12 결재), replyToId(회신하는 받은 문서).
+ *   status: writing 결재 중(작성·반려 포함) → approved 승인(발송 전) → sent 발송(sentOn·via) · void 버림
+ */
+export const corrDoc = pgTable(
+  "corr_doc",
+  {
+    id: id(),
+    dir: text("dir").notNull(),
+    no: text("no").notNull(),
+    status: text("status").notNull(),
+    /** 상대: 이름·구분(insurer 보험사 · agency 관청 · supplier 협력업체 · client 업체 고객 · customer 개인 · other) */
+    party: text("party").notNull(),
+    partyKind: text("party_kind").notNull().default("other"),
+    /** 보낸 공문의 받는 곳 주소·참조(받는 부서·담당) */
+    partyAddr: text("party_addr"),
+    cc: text("cc"),
+    theirNo: text("their_no"),
+    theirDate: text("their_date"),
+    title: text("title").notNull(),
+    /** 받은 문서: 요지 · 보낸 공문: 본문 */
+    body: text("body"),
+    /** 보낸 공문 '붙임' 목록(한 줄에 하나) */
+    enclosures: text("enclosures"),
+    files: jsonb("files").$type<CorrFile[]>().notNull().default([]),
+    /** 받은 날·보낸 날(발송일) */
+    receivedOn: text("received_on"),
+    sentOn: text("sent_on"),
+    /** 받은·보낸 방법(CORR_VIA) */
+    via: text("via"),
+    ownerId: uuid("owner_id").references(() => appUser.id),
+    dueOn: text("due_on"),
+    needReply: boolean("need_reply").notNull().default(false),
+    doneOn: text("done_on"),
+    doneNote: text("done_note"),
+    replyToId: uuid("reply_to_id"),
+    approvalId: uuid("approval_id"),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => appUser.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("corr_doc_no_uq").on(t.no), index("corr_doc_dir_idx").on(t.dir, t.status), index("corr_doc_reply_idx").on(t.replyToId)],
 );

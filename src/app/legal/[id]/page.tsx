@@ -21,6 +21,7 @@ import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
 import { legalAction } from "../actions";
+import { EvidenceFiles } from "../../money/evidence-files";
 import { LegalFields } from "../_form";
 
 const EVENT: Record<string, string> = {
@@ -108,6 +109,45 @@ export default async function LegalItemPage({
         >
           국가법령정보센터에서 조문 보기 ↗
         </a>
+      </Card>
+
+      <Card title={`첨부 파일 ${x.files.length}개`} help={{ kind: "panel", id: "legal.files" }}>
+        {x.files.length ? (
+          <ul className="divide-y divide-[var(--line)] text-sm">
+            {x.files.map((f, i) => (
+              <li key={f.path} className="py-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <a href={`/api/legal-file/${x.id}/${i}`} target="_blank" rel="noreferrer" className="font-medium text-[var(--accent)] underline">
+                    {f.name}
+                  </a>
+                  <span className="text-xs text-[var(--muted)]">{fmtTime(f.at)}</span>
+                </div>
+                {manage && (
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-xs text-[var(--danger)]">떼기</summary>
+                    <AssistForm id={`legal-rmf-${i}-${x.id}`} action={legalAction} className="mt-1 flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="id" value={id} />
+                      <input type="hidden" name="intent" value="removeFile" />
+                      <input type="hidden" name="path" value={f.path} />
+                      <TextField help="legal.fileRemoveReason" name="reason" required suggestions={[{ value: "잘못 올림" }, { value: "새 허가증으로 바꿈" }]} />
+                      <SubmitButton variant="danger">떼기</SubmitButton>
+                    </AssistForm>
+                  </details>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">{x.permitNo ? "인허가증·신고증 사본을 올려 두세요(STD-Q 6절)." : "측정 결과서·교육 수료증 같은 이행 증빙을 올려 둘 수 있습니다."}</p>
+        )}
+        {mayDo && (
+          <AssistForm id={`legal-files-${id}`} action={legalAction} className="mt-3 space-y-2" guard={false}>
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="intent" value="files" />
+            <EvidenceFiles help="legal.files" name="legalFiles" pickLabel="+ 사본·증빙 PDF·사진 고르기" />
+            <SubmitButton variant="secondary">올리기</SubmitButton>
+          </AssistForm>
+        )}
       </Card>
 
       {mayDo && x.applies !== "no" && (

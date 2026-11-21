@@ -15,8 +15,13 @@ import {
   ErrorBox,
   Notice,
   PageTitle,
+  fmtTime,
   StatusBadge,
 } from "../../../_ui";
+import { HistoryCard } from "../../../_history-card";
+import { EvidenceFiles } from "../../../money/evidence-files";
+import { reviewDue } from "@/modules/quality/doc-files";
+import { seoulDate } from "@/modules/platform/time";
 import { docAction } from "../../actions";
 
 /** 문서 한 건: 현행 판·판 이력·개정 요청서 */
@@ -30,14 +35,21 @@ export default async function DocPage({
   const { id } = await params;
   const q = await searchParams;
   const user = await requireUser();
+  const db = await getDb();
   let g: Awaited<ReturnType<typeof getDocEntry>>;
   try {
-    g = await getDocEntry(await getDb(), id);
+    g = await getDocEntry(db, id);
   } catch (e) {
     return <ErrorBox message={userMessage(e)} />;
   }
   const { d, reqs } = g;
   const mgr = can(user, "qms.docs") && d.status === "current";
+  const files = d.files.map((f, i) => ({ f, i }));
+  const cur = files.filter((x) => x.f.rev === d.rev);
+  const old = files.filter((x) => x.f.rev !== d.rev);
+  const reviewable = d.kind === "std" || d.kind === "wi";
+  const due = reviewable ? reviewDue(d) : null;
+  const today = seoulDate();
   return (
     <>
       <PageTitle
@@ -93,6 +105,73 @@ export default async function DocPage({
           </ul>
         )}
       </Card>
+      <Card title={`문서 파일 · 현행 ${d.rev}`} help={{ kind: "panel", id: "docs.files" }}>
+        {cur.length ? (
+          <ul className="divide-y divide-[var(--line)] text-sm">
+            {cur.map(({ f, i }) => (
+              <li key={f.path} className="flex flex-wrap items-center gap-2 py-1.5">
+                <a href={`/api/doc-file/${d.id}/${i}`} target="_blank" rel="noreferrer" className="font-medium text-[var(--accent)] underline">
+                  {f.name}
+                </a>
+                <span className="text-xs text-[var(--muted)]">{fmtTime(f.at)}</span>
+                {mgr && (
+                  <form action={docAction} className="ml-auto">
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="intent" value="removeFile" />
+                    <input type="hidden" name="path" value={f.path} />
+                    <SubmitButton variant="secondary">떼기</SubmitButton>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            {d.kind === "std" || d.kind === "form" ? "본문은 앱 안 사내 표준서에 있습니다(위 '본문 보기'). 서명본 스캔 등이 있으면 올립니다." : "현행 판 파일이 없습니다. 지침서·매뉴얼·TDS·MSDS PDF를 올려 두면 현장에서 바로 엽니다."}
+          </p>
+        )}
+        {old.length > 0 && (
+          <details className="mt-2 text-sm">
+            <summary className="cursor-pointer text-xs text-[var(--muted)]">이전 판 파일 {old.length}개</summary>
+            <ul className="mt-1 space-y-1">
+              {old.map(({ f, i }) => (
+                <li key={f.path}>
+                  <Badge tone="neutral">{f.rev}</Badge>{" "}
+                  <a href={`/api/doc-file/${d.id}/${i}`} target="_blank" rel="noreferrer" className="text-[var(--accent)] underline">
+                    {f.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {mgr && (
+          <AssistForm id={`doc-files-${id}`} action={docAction} className="mt-3 space-y-2" guard={false}>
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="intent" value="file" />
+            <EvidenceFiles help="docs.files" name="docFiles" pickLabel="+ PDF·사진 고르기" />
+            <SubmitButton variant="secondary">현행 판 파일로 올리기</SubmitButton>
+          </AssistForm>
+        )}
+      </Card>
+      {reviewable && d.status === "current" && (
+        <Card title="정기 검토(연 1회)" help={{ kind: "panel", id: "docs.review" }}>
+          <p className="text-sm">
+            마지막 검토 {d.reviewedOn ?? "없음"}
+            {d.reviewNote ? ` · ${d.reviewNote}` : ""} · 다음 검토 <span className={due && due < today ? "font-semibold text-[var(--danger)]" : ""}>{due}</span>까지
+          </p>
+          {mgr && (
+            <AssistForm id={`doc-review-${id}`} action={docAction} className="mt-2 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="intent" value="review" />
+              <div className="min-w-64 flex-1">
+                <TextField help="docs.reviewNote" name="reviewNote" required suggestions={[{ value: "바꿀 것 없음" }, { value: "개정 요청함(F-Q-05)" }, { value: "법령 개정 반영 필요" }]} />
+              </div>
+              <SubmitButton>검토 기록</SubmitButton>
+            </AssistForm>
+          )}
+        </Card>
+      )}
       {mgr && (
         <Card title="고치기" help={{ kind: "panel", id: "docs.edit" }}>
           <AssistForm
@@ -179,6 +258,7 @@ export default async function DocPage({
           </AssistForm>
         </Card>
       )}
+      <HistoryCard db={db} user={user} keys={[d.no, d.id]} />
     </>
   );
 }

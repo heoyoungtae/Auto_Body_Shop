@@ -20,6 +20,7 @@ export const TOP: MenuItem[] = [
   { label: "TV 현황판", href: "/tv" },
   { label: "TV 현황판(테크베이)", href: "/tv/techbay" },
   { label: "사내 표준서", href: "/std", std: "STD-00" },
+  { label: "기록 보관함", href: "/records", std: "STD-Q.5" },
   { label: "통계·보고서", href: "/reports", perm: ["report.mgmt", "report.acct", "report.quality", "report.stock", "report.people", "report.safety"] },
 ];
 
@@ -184,6 +185,12 @@ export const MENU: MenuGroup[] = [
       },
       { label: "부적합·시정 조치", href: "/nc", std: "STD-Q.9" },
       { label: "문서 목록", href: "/qms/docs", std: "STD-Q.5" },
+      {
+        label: "문서 수발신·공문",
+        perm: ["corr.write"],
+        href: "/corr",
+        std: "STD-Q.5",
+      },
       { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
       {
         label: "법규 대장",

@@ -1,6 +1,7 @@
 "use server";
 // 문서 개정 요청서(F-Q-05) 승인 때 문서 목록 판을 올리는 후처리 등록
 import "@/modules/quality/qms";
+import "@/modules/quality/corr";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import {

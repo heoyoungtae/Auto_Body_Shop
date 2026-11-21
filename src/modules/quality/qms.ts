@@ -314,6 +314,18 @@ export async function seedDocs(db: Db, actor: Actor, now = new Date()) {
   return add.length;
 }
 
+/** 이미 문서 목록을 넣은 서버에 새로 생긴 표준 양식(초안 단계에 추가된 것)을 더한다. 목록이 비어 있으면 손대지 않는다 */
+export async function addNewSeedDocs(db: Db, now = new Date()) {
+  const have = new Set((await db.select({ no: docRegister.no }).from(docRegister)).map((r) => r.no));
+  if (!have.size) return 0;
+  const add = SEED_DOCS.filter((d) => !have.has(d.no));
+  if (add.length)
+    await db.insert(docRegister).values(
+      add.map((d) => ({ no: d.no, name: d.name, kind: d.kind, rev: "v0.2", owner: d.owner, location: d.kind === "std" ? "메뉴 › 사내 표준서" : `앱 화면(${d.clause})`, createdAt: now, updatedAt: now })),
+    );
+  return add.length;
+}
+
 export type DocInput = {
   no: string;
   name: string;

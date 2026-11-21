@@ -6,6 +6,11 @@ import { TOOL_STATUS } from "@/modules/equipment/rules";
 import { DOC_KINDS } from "@/modules/quality/qms-rules";
 import { listLogs } from "@/modules/messaging/service";
 import { listDocs } from "@/modules/quality/qms";
+import { listCorr } from "@/modules/quality/corr";
+import { reviewDue } from "@/modules/quality/doc-files";
+import { addDays, seoulDate } from "@/modules/platform/time";
+import { CORR_STATUS, CORR_TABS, CORR_VIA, PARTY_KINDS, type CorrTab } from "@/modules/quality/corr-rules";
+import { can } from "@/modules/auth/permissions";
 import { listInstructions } from "@/modules/task/service";
 import type { ListDef } from "../core";
 import { isoOf } from "../core";
@@ -133,10 +138,16 @@ export const docsList: ListDef<QDoc> = {
   href: "/qms/docs",
   allowed: () => true,
   load: async (db, _u, q) => {
-    const all = await listDocs(db, pick(q.f, ["current", "retired", "all"] as const, "current"));
+    const f = pick(q.f, ["current", "review", "retired", "all"] as const, "current");
+    let all = await listDocs(db, f === "review" ? "current" : f);
+    // 정기 검토 대상: 절차서·지침서 중 검토 기한이 30일 안이거나 지난 것
+    if (f === "review") {
+      const soon = addDays(seoulDate(), 30);
+      all = all.filter((d) => (d.kind === "std" || d.kind === "wi") && reviewDue(d) <= soon);
+    }
     return q.k ? all.filter((d) => d.kind === q.k) : all;
   },
-  tabs: { param: "f", options: [{ v: "current", label: "현행" }, { v: "retired", label: "폐지" }, { v: "all", label: "전체" }] },
+  tabs: { param: "f", options: [{ v: "current", label: "현행" }, { v: "review", label: "정기 검토 대상" }, { v: "retired", label: "폐지" }, { v: "all", label: "전체" }] },
   keep: ["k"],
   dates: [
     { key: "effective", label: "시행일", get: (r) => r.effectiveOn },
@@ -152,5 +163,40 @@ export const docsList: ListDef<QDoc> = {
     { label: "관리자", get: (r) => r.owner },
     { label: "보관", get: (r) => r.location },
     { label: "상태", get: (r) => (r.status === "retired" ? "폐지" : "현행") },
+    { label: "파일", get: (r) => r.files.filter((f) => f.rev === r.rev).length, unit: "개" },
+    { label: "마지막 검토", get: (r) => r.reviewedOn },
+    { label: "다음 검토", get: (r) => (r.kind === "std" || r.kind === "wi" ? reviewDue(r) : null) },
+  ],
+};
+
+// ── 문서 수발신 대장(F-Q-11) ──
+type Corr = Awaited<ReturnType<typeof listCorr>>[number];
+export const corrList: ListDef<Corr> = {
+  key: "corr",
+  title: "문서 수발신 대장",
+  href: "/corr",
+  allowed: (u) => can(u, "corr.write"),
+  load: (db, u, q) => listCorr(db, u, pick(q.f, CORR_TABS.map((t) => t.v), "todo") as CorrTab),
+  tabs: { param: "f", options: CORR_TABS },
+  dates: [
+    { key: "on", label: "받은 날·보낸 날", get: (x) => (x.r.dir === "in" ? x.r.receivedOn : (x.r.sentOn ?? x.r.createdAt)) },
+    { key: "due", label: "처리 기한", get: (x) => x.r.dueOn },
+    { key: "created", label: "등록일", get: (x) => x.r.createdAt },
+  ],
+  text: (x) => [x.r.no, x.r.party, x.r.title, x.r.theirNo, x.r.body, x.owner],
+  searchHint: "번호·상대·제목·상대 문서번호",
+  cols: [
+    { label: "구분", get: (x) => (x.r.dir === "in" ? "받음" : "보냄") },
+    { label: "번호", get: (x) => x.r.no },
+    { label: "날짜", get: (x) => (x.r.dir === "in" ? x.r.receivedOn : (x.r.sentOn ?? isoOf(x.r.createdAt))) },
+    { label: "상대", get: (x) => x.r.party },
+    { label: "상대 구분", get: (x) => PARTY_KINDS[x.r.partyKind as keyof typeof PARTY_KINDS] ?? x.r.partyKind },
+    { label: "상대 문서번호", get: (x) => x.r.theirNo },
+    { label: "제목", get: (x) => x.r.title },
+    { label: "방법", get: (x) => (x.r.via ? (CORR_VIA[x.r.via as keyof typeof CORR_VIA] ?? x.r.via) : null) },
+    { label: "담당", get: (x) => x.owner },
+    { label: "처리 기한", get: (x) => x.r.dueOn },
+    { label: "상태", get: (x) => CORR_STATUS[x.r.status as keyof typeof CORR_STATUS] ?? x.r.status },
+    { label: "처리 결과", get: (x) => x.r.doneNote },
   ],
 };

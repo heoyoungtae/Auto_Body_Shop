@@ -17,11 +17,15 @@ import {
   CYCLES,
   dueStage,
   EVAL_RESULTS,
+  lawKey,
   nextDueAfter,
+  officialLawNames,
   type Cycle,
   type EvalResult,
 } from "./legal-rules";
 import { openNc } from "./nc";
+import { lawWatchStatus } from "@/modules/money/law-watch";
+import { DOC_TYPES, MAX_DOC_BYTES, readStored, removeStored, sniffDoc, storeFile } from "@/modules/platform/storage";
 
 export class LegalError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -577,7 +581,7 @@ export async function legalDailyAlerts(db: Db, now = new Date()) {
 export async function legalTodos(db: Db, actor: Actor, today: string) {
   const out: {
     key: string;
-    when: "late" | "today" | "soon";
+    when: "late" | "today" | "soon" | "setup";
     what: string;
     detail?: string;
     href: string;
@@ -585,6 +589,7 @@ export async function legalTodos(db: Db, actor: Actor, today: string) {
   }[] = [];
   const now = new Date(`${today}T03:00:00Z`);
   const manage = can(actor, "legal.manage");
+  out.push(...(await legalSetupTodos(db, actor)));
   if (
     !manage &&
     !(
@@ -670,3 +675,61 @@ export async function legalTodos(db: Db, actor: Actor, today: string) {
 }
 
 export { APPLIES, CYCLES, EVAL_RESULTS };
+
+// ── 첨부 파일(인허가증·신고증 사본, 이행 증빙) · 부록 C 새 법규 · 자동 개정 감지(2026-11-21) ──
+
+const canSeeLegal = (a: Actor, x: { ownerId: string | null }) => can(a, "legal.manage") || can(a, "legal.confirm") || x.ownerId === a.id;
+
+export async function addLegalFile(db: Db, actor: Actor, id: string, bytes: Uint8Array, name: string, now = new Date()) {
+  const x = await row(db, id);
+  if (!can(actor, "legal.manage") && x.ownerId !== actor.id) throw new LegalError("안전환경 담당·대표나 그 항목 담당이 올립니다");
+  if (!bytes.length || bytes.length > MAX_DOC_BYTES) throw new LegalError("파일이 비었거나 너무 큽니다(8MB까지)");
+  const type = sniffDoc(bytes);
+  if (!type) throw new LegalError("PDF나 사진(JPG·PNG·WEBP)만 올립니다");
+  const path = await storeFile(`legal/${id}`, bytes, DOC_TYPES[type]);
+  const f = { path, name: name.slice(0, 120) || `증빙.${DOC_TYPES[type]}`, mime: type, size: bytes.length, at: now.toISOString(), by: actor.id };
+  await db.update(legalItem).set({ files: [...x.files, f], updatedAt: now }).where(eq(legalItem.id, id));
+  await event(db, id, { kind: "edit", detail: `파일 올림: ${f.name}` }, actor.id, now);
+}
+
+export async function removeLegalFile(db: Db, actor: Actor, id: string, path: string, reason: string, now = new Date()) {
+  must(actor);
+  const x = await row(db, id);
+  const f = x.files.find((v) => v.path === path);
+  if (!f) throw new LegalError("없는 파일입니다");
+  if (!reason.trim()) throw new LegalError("떼는 까닭을 적어 주세요(예: 잘못 올림, 새 허가증으로 바꿈)");
+  await db.update(legalItem).set({ files: x.files.filter((v) => v.path !== path), updatedAt: now }).where(eq(legalItem.id, id));
+  await removeStored(path);
+  await event(db, id, { kind: "edit", detail: `파일 뗌: ${f.name} (${reason.trim()})` }, actor.id, now);
+}
+
+export async function openLegalFile(db: Db, actor: Actor, id: string, n: number) {
+  const x = await row(db, id);
+  if (!canSeeLegal(actor, x)) throw new LegalError("이 법규 항목을 볼 권한이 없습니다");
+  const f = x.files[n];
+  if (!f) throw new LegalError("없는 파일입니다");
+  return { bytes: await readStored(f.path), mime: f.mime, name: f.name };
+}
+
+/** 부록 C 초안 가운데 아직 대장에 없는 것(새로 더한 법규 포함) */
+export async function missingAppendixC(db: Db) {
+  const have = new Set((await db.select({ n: legalItem.lawName }).from(legalItem)).map((r) => r.n));
+  return APPENDIX_C.filter((c) => !have.has(c.lawName));
+}
+
+/** 할 일 보탬: 부록 C 새 법규 불러오기, 자동으로 감지한 법령 개정(감지일 뒤에 개정 확인을 안 한 줄) */
+export async function legalSetupTodos(db: Db, actor: Actor) {
+  const out: { key: string; when: "today" | "soon" | "setup"; what: string; detail?: string; href: string; action: string }[] = [];
+  if (!can(actor, "legal.manage")) return out;
+  const miss = await missingAppendixC(db);
+  if (miss.length)
+    out.push({ key: "legal-appendix", when: "setup", what: `법규 대장에 없는 부록 C 법규 ${miss.length}건 불러오기`, detail: miss.slice(0, 3).map((m) => m.lawName).join(", "), href: "/legal", action: "불러오기" });
+  const { legalPending } = await lawWatchStatus(db);
+  if (legalPending.length) {
+    const items = await db.select({ n: legalItem.lawName, r: legalItem.revCheckedOn, a: legalItem.applies }).from(legalItem).where(eq(legalItem.active, true));
+    const left = legalPending.filter((p) => items.some((i) => i.a !== "no" && officialLawNames(i.n).some((o) => lawKey(o) === lawKey(p.name)) && (!i.r || i.r < p.on)));
+    if (left.length)
+      out.push({ key: "legal-law-changed", when: "today", what: `법령 개정 감지 ${left.length}건 — 영향 보고 개정 확인 기록`, detail: left.map((p) => `${p.name}(${p.effective} 시행)`).join(", "), href: "/legal/revcheck", action: "확인하기" });
+  }
+  return out;
+}

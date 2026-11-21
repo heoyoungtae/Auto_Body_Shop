@@ -1,6 +1,6 @@
 // 사내 표준서 본문(2026-11-19 대표 결정 '제안대로 전부'): 앱이 원본이다.
 // 보기는 전 직원(제한 걸린 절은 그 역할·대표만), 본문 변경은 문서 개정 요청서(F-Q-05) 결재로만, 열람 제한은 품질 담당·대표가 정한다.
-import { and, asc, count, eq, gte } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { docRegister, stdSection, training } from "@/db/schema";
 import type { DocRow } from "@/modules/approval/service";
@@ -81,11 +81,33 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "p:STD-13:7": ["c98e9d04"],
   "p:STD-13:10": ["b79b1a82"],
   "f:F-13-01": ["88a9d01e"],
+  // 문서·기록관리 개선(공문·수발신 대장 F-Q-11·F-Q-12) 2026-11-21
+  "o:Q.5": ["dee70768"],
+  "p:STD-Q:7": ["9eb0bfb4"],
+  "a:A": ["e9096a0d"],
+  "f:intro": ["5b05e7c5"],
+  // 법규 대장 보강(새 법규 4개·자동 개정 감지·사본 첨부), 보존·파기 2026-11-21
+  "a:C": ["5c35e13d"],
+  "p:STD-Q:6": ["4f1045f"],
+  "p:STD-Q:8": ["c4776d9c"],
 };
+
+/** 초안에 새로 생긴 절: 이미 들어간 서버에 없으면 std-seed.json 에서 넣는다 */
+export const DRAFT_ADDS: string[] = ["f:F-Q-11", "f:F-Q-12"];
 
 export async function patchDraftStd(db: Db) {
   const seed = new Map((SEED as SeedRow[]).map((s) => [s.key, s.body]));
   let n = 0;
+  for (const key of DRAFT_ADDS) {
+    const s = (SEED as SeedRow[]).find((x) => x.key === key);
+    if (!s) continue;
+    const r = await db
+      .insert(stdSection)
+      .values({ key: s.key, part: s.part, ch: s.ch, docNo: s.docNo, no: s.no, title: s.title, body: s.body, grp: s.grp ?? null, chapter: !!s.chapter, sort: s.sort, roles: [] })
+      .onConflictDoNothing()
+      .returning({ key: stdSection.key });
+    n += r.length;
+  }
   for (const [key, olds] of Object.entries(DRAFT_PATCHES)) {
     const body = seed.get(key);
     if (body == null) continue;
@@ -118,7 +140,7 @@ export async function stdToc(db: Db) {
       roles: stdSection.roles,
     })
     .from(stdSection)
-    .orderBy(asc(stdSection.sort));
+    .orderBy(asc(stdSection.sort), asc(stdSection.key));
   const chapters = STD_CHAPTERS.map((ch) => {
     const o = rows.find((r) => r.part === "overview" && r.chapter && r.ch === ch);
     const p = rows.find((r) => r.part === "procedure" && r.chapter && r.ch === ch);
@@ -142,7 +164,7 @@ export async function stdToc(db: Db) {
 
 /** 장 한 개(총람 절 + 절차서 절 + 관련 양식 목록). 볼 수 없는 절은 제목만 남기고 본문을 비운다 */
 export async function getStdChapter(db: Db, actor: Actor, ch: string) {
-  const rows = await db.select().from(stdSection).where(eq(stdSection.ch, ch)).orderBy(asc(stdSection.sort));
+  const rows = await db.select().from(stdSection).where(eq(stdSection.ch, ch)).orderBy(asc(stdSection.sort), asc(stdSection.key));
   if (!rows.length) throw new StdError("없는 장입니다");
   const mask = (r: StdRow) => (canSee(actor, r) ? { ...r, hidden: false } : { ...r, body: "", history: [], hidden: true });
   return {
@@ -197,7 +219,7 @@ export type StdHit = { key: string; label: string; href: string; snippet: string
 export async function searchStd(db: Db, actor: Actor, q: string, limit = 60): Promise<StdHit[]> {
   const query = q.trim();
   if (!query) return [];
-  const rows = await db.select().from(stdSection).orderBy(asc(stdSection.sort));
+  const rows = await db.select().from(stdSection).orderBy(asc(stdSection.sort), asc(stdSection.key));
   const nq = norm(query);
   const cho = isCho(query);
   const hits: StdHit[] = [];
@@ -290,3 +312,21 @@ export async function revisionsNeedingTraining(db: Db) {
 }
 
 export { chOf };
+
+/** 문서 목록 미리 보기: 양식은 양식 본문, 절차서는 절 차례(번호·제목·바로가기). 열람 제한 절은 제목만 */
+export async function docPreviews(db: Db, actor: Actor, docNos: string[]) {
+  const out = new Map<string, { form?: string; sections?: { no: string; title: string; href: string }[] }>();
+  if (!docNos.length) return out;
+  const rows = await db.select().from(stdSection).where(inArray(stdSection.docNo, docNos)).orderBy(asc(stdSection.sort), asc(stdSection.key));
+  for (const s of rows) {
+    if (s.part === "form") {
+      if (canSee(actor, s)) out.set(s.docNo, { form: s.body });
+      continue;
+    }
+    if (s.part !== "procedure" || s.chapter) continue;
+    const e = out.get(s.docNo) ?? { sections: [] };
+    e.sections = [...(e.sections ?? []), { no: s.no, title: s.title, href: stdKeyHref(s.key) }];
+    out.set(s.docNo, e);
+  }
+  return out;
+}

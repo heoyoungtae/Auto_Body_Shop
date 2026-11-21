@@ -214,6 +214,35 @@ export const APPENDIX_C: {
     stdRef: "11.5, 11.7",
     authority: "4대 보험 공단",
   },
+  // 2026-11-21 문서·기록관리 점검 때 더함(대상 여부 확인 필요)
+  {
+    area: "인사",
+    lawName: "장애인고용촉진 및 직업재활법",
+    duty: "직장 내 장애인 인식개선 교육(연 1회, 모든 사업주)",
+    stdRef: "11.2",
+    authority: "고용노동부(한국장애인고용공단)",
+  },
+  {
+    area: "인사",
+    lawName: "근로기준법(직장 내 괴롭힘)",
+    duty: "직장 내 괴롭힘 금지, 신고 시 조사·조치, 취업규칙 반영(상시 10인 이상)",
+    stdRef: "11.1, 11.2",
+    authority: "고용노동부",
+  },
+  {
+    area: "환경",
+    lawName: "소음·진동관리법",
+    duty: "공기압축기 등 소음·진동 배출시설 신고 대상 여부, 생활소음 규제 기준",
+    stdRef: "10장, 8.1",
+    authority: "시·군·구",
+  },
+  {
+    area: "안전",
+    lawName: "전기안전관리법",
+    duty: "전기안전관리자 선임(또는 대행) 대상 여부, 정기 전기안전 점검",
+    stdRef: "8.1, 9.4",
+    authority: "한국전기안전공사·시·도",
+  },
   {
     area: "세무",
     lawName: "부가가치세법·소득세법·국세기본법",
@@ -231,3 +260,26 @@ export const lawSearchUrl = (name: string) =>
       .split("·")[0]
       .trim(),
   )}`;
+
+/** 법규 대장의 줄임 이름 → 국가법령정보센터의 정식 법령명 */
+const LAW_ALIAS: Record<string, string[]> = {
+  소방시설법: ["소방시설 설치 및 관리에 관한 법률"],
+  화재예방법: ["화재의 예방 및 안전관리에 관한 법률"],
+  정보통신망법: ["정보통신망 이용촉진 및 정보보호 등에 관한 법률"],
+  남녀고용평등법: ["남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률"],
+  자동차손해배상보장법: ["자동차손해배상 보장법"],
+};
+
+/** 법규 대장 '법령명' 칸 → 자동 개정 확인에 쓸 정식 법령명들(괄호·'시행규칙'은 떼고, '·'로 묶인 여러 법은 나눈다) */
+export function officialLawNames(lawName: string): string[] {
+  const base = lawName
+    .replace(/\(.*?\)/g, "")
+    .replace(/·(시행령|시행규칙)/g, "")
+    .trim();
+  const parts = base.split("·").map((x) => x.trim());
+  const pieces = parts.every((x) => /법$|법률$/.test(x)) ? parts : [base.replaceAll("·", "ㆍ")];
+  return [...new Set(pieces.flatMap((p) => LAW_ALIAS[p] ?? [p]))].filter((p) => p.length >= 3);
+}
+
+/** 법령명 비교용(띄어쓰기·가운뎃점 차이 무시) */
+export const lawKey = (s: string) => s.replace(/[\s·ㆍ]/g, "");
