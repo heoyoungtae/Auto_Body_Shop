@@ -16,7 +16,7 @@ import { dayLabel, koMoney } from "../../_format";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
-import { confirmAction, repliedAction, webReplyAction } from "../actions";
+import { confirmAction, faqDraftAction, repliedAction, webReplyAction } from "../actions";
 import { startRepairAction } from "../../repairs/actions";
 import { repairsOfConsults } from "@/modules/repair/service";
 import { ConsultZonesView } from "../consult-zones";
@@ -222,6 +222,14 @@ export default async function ConsultDetail({ params, searchParams }: { params: 
                   </AssistForm>
                 ) : (
                   <p className="whitespace-pre-line">{c.webReply ?? "아직 답이 없습니다."}</p>
+                )}
+                {canWrite && c.webReplyAt && (
+                  <form action={faqDraftAction} className="border-t border-[var(--line)] pt-2">
+                    <input type="hidden" name="id" value={c.id} />
+                    <button className="text-sm text-[var(--accent)] underline" title="이 요청과 답으로 '자주 묻는 질문' 초안을 만듭니다(이름·번호는 가리고 공개 안 함으로)">
+                      자주 묻는 질문 초안으로 만들기
+                    </button>
+                  </form>
                 )}
               </div>
             </Card>

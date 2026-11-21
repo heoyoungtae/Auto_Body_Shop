@@ -54,6 +54,12 @@ export const MENU: MenuGroup[] = [
         std: "STD-01",
       },
       {
+        label: "홈페이지 글(질문·공지·사례)",
+        perm: ["consult.write"],
+        href: "/homepage/faq",
+        std: "STD-01",
+      },
+      {
         label: "업체 주문 앱(테크베이)",
         perm: ["portal.order"],
         href: "/portal-orders",

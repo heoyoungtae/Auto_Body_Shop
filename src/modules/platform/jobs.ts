@@ -25,6 +25,7 @@ import { envDailyAlerts } from "@/modules/safety/environment";
 import { goalDailyJob } from "@/modules/quality/goals";
 import { trainingDailyAlerts } from "@/modules/staff/elearning";
 import { carbookAlertsJob, carbookIdleJob } from "@/modules/carbook/records";
+import { noticeNotifyJob } from "@/modules/site/content";
 
 export type JobResult = {
   job: string;
@@ -61,8 +62,8 @@ export const JOBS: Record<string, JobFn> = {
     const corr = await corrDailyAlerts(db, now);
     return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal} · ${tr} · ${law.message} · ${nts} · ${cbIdle} · ${corr}`;
   },
-  /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계), 내 차 수첩 알림(정기검사·보증·소모품·보험) */
-  reminders: async (db, _today, now) => `${await sendReminders(db, now)} · ${await carbookAlertsJob(db, now)}`,
+  /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계), 내 차 수첩 알림(정기검사·보증·소모품·보험), 오늘부터 게시하는 홈페이지 공지 알림 */
+  reminders: async (db, _today, now) => `${await sendReminders(db, now)} · ${await carbookAlertsJob(db, now)} · ${await noticeNotifyJob(db, now)}`,
 };
 
 export async function runJob(

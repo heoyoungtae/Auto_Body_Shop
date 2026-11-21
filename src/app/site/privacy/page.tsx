@@ -24,7 +24,7 @@ export default async function PrivacyPage() {
   const name = shop.name;
   return (
     <article className="mx-auto max-w-3xl leading-relaxed">
-      <SiteTitle help="site.privacy" sub={`${name}은(는) 고객의 개인정보를 소중히 다루며 개인정보 보호법에 따라 아래와 같이 처리합니다.`}>
+      <SiteTitle eyebrow="PRIVACY POLICY" help="site.privacy" sub={`${name}은(는) 고객의 개인정보를 소중히 다루며 개인정보 보호법에 따라 아래와 같이 처리합니다.`}>
         개인정보 처리방침
       </SiteTitle>
 
