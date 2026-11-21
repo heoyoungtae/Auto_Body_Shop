@@ -54,7 +54,31 @@ export async function articleStarterRows(db: Db, have: Set<string | null>, slugs
   });
 }
 
-export async function ensureFaqStarters(db: Db, now = new Date()) {
+/**
+ * 한 화면이 질문 목록을 두 번 함께 읽을 때(전체·찾은 것) 둘 다 채워진 뒤의 목록을 보게 한다.
+ * 고치기 전에는 표시를 먼저 세운 쪽이 글을 넣는 동안 다른 쪽이 빈 목록을 읽어, 처음 연 화면이 비어 보였다(2026-11-22).
+ * 표시 세우기와 글 넣기를 한 묶음(트랜잭션)으로 하고, 같은 서버 안에서는 진행 중인 넣기를 함께 기다린다.
+ */
+const running = new WeakMap<object, Map<string, Promise<void>>>();
+function once(db: Db, key: string, run: () => Promise<void>) {
+  let m = running.get(db);
+  if (!m) running.set(db, (m = new Map()));
+  const cur = m.get(key);
+  if (cur) return cur;
+  const p = run().finally(() => m!.delete(key));
+  m.set(key, p);
+  return p;
+}
+
+export function ensureFaqStarters(db: Db, now = new Date()) {
+  return once(db, "faq", () => db.transaction((tx) => seedFaq(tx as unknown as Db, now)));
+}
+
+export function ensureArticleStarters(db: Db, now = new Date()) {
+  return once(db, "articles", () => db.transaction((tx) => seedArticles(tx as unknown as Db, now)));
+}
+
+async function seedFaq(db: Db, now: Date) {
   const { fresh, add } = await claimNew(db, "site_seed_faq", FAQ_STARTERS.map((x) => x.key), now);
   if (!fresh && !add.size) return;
   const rows = await db.select({ k: siteFaq.starterKey, pub: siteFaq.published }).from(siteFaq);
@@ -64,7 +88,7 @@ export async function ensureFaqStarters(db: Db, now = new Date()) {
   if (ins.length) await db.insert(siteFaq).values(ins);
 }
 
-export async function ensureArticleStarters(db: Db, now = new Date()) {
+async function seedArticles(db: Db, now: Date) {
   const { fresh, add } = await claimNew(db, "site_seed_articles", ARTICLE_STARTERS.map((x) => x.key), now);
   if (!fresh && !add.size) return;
   const rows = await db.select({ k: siteArticle.starterKey, slug: siteArticle.slug, pub: siteArticle.published }).from(siteArticle);
