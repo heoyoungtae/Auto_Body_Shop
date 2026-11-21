@@ -10,14 +10,19 @@ import { BranchPicker } from "./_branch/picker";
 import { HelpProvider } from "./_help-drawer";
 import { TableCards } from "./_table-cards";
 import { MenuButton, NavProvider, Sidebar, TabBar } from "./_sidebar";
+import { APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "외관수리 정비소 관리",
-  description: "사내 표준서에 따라 상담부터 출고, 설비·품질까지 관리하는 정비소 업무 앱",
+  // 화면마다 제목을 주면 탭에 '화면 제목 · 제이모터스'로 보인다
+  title: { default: APP_NAME, template: `%s · ${APP_SHORT_NAME}` },
+  applicationName: APP_NAME,
+  description: "사내 표준서에 따라 상담부터 출고, 설비·품질까지 관리하는 차체 외관 수리(찌그러짐·긁힘·도색) 정비소 업무 앱",
+  // 아이폰 '홈 화면에 추가' 때 아이콘 밑 이름(파비콘·아이콘 파일은 app/favicon.ico·icon.svg·apple-icon.png, 설치 정보는 app/manifest.ts)
+  appleWebApp: { capable: true, title: APP_SHORT_NAME, statusBarStyle: "default" },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: APP_THEME_COLOR };
 
 /** 화면은 브라우저 폭을 다 쓴다(대표 지시 2026-11-08). 메뉴는 왼쪽, 도움말 창은 오른쪽 */
 /** 머리줄 아이콘(선 그림 하나) */
@@ -40,8 +45,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <header id="site-header" className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]">
               <div className="flex min-h-14 items-center gap-2 px-2 sm:px-4">
                 {user && <MenuButton />}
-                <Link href={user ? "/home" : "/login"} className="truncate font-semibold">
-                  외관수리 정비소
+                <Link href={user ? "/home" : "/login"} className="flex min-w-0 items-center gap-2 font-semibold" title={APP_NAME}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- 작은 SVG 아이콘이라 그대로 쓴다 */}
+                  <img src="/icon.svg" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
+                  {/* 좁은 화면은 짧은 이름, 넓은 화면은 전체 이름 */}
+                  <span className="truncate sm:hidden">{APP_SHORT_NAME}</span>
+                  <span className="hidden truncate sm:inline">{APP_NAME}</span>
                 </Link>
                 {user && (user.branches?.length ?? 0) > 1 && (
                   <Suspense>
