@@ -101,6 +101,14 @@ if [ ! -f "$STATE/slow" ] || [ -n "$(find "$STATE/slow" -mmin +9 2>/dev/null)" ]
     ssdtemp=$(jq -r '.temperature.current // -1' <<<"$smart" 2>/dev/null || echo -1)
     ssdok=$(jq -r 'if .smart_status.passed == false then false else true end' <<<"$smart" 2>/dev/null || echo true)
   fi
+  # 도메인(대표 2026-11-21): 앱 주소가 가리키는 IP 와 보안 접속 인증서가 끝나는 날(국내 직접 접속일 때)
+  dnsip=""; certuntil=""
+  if [ "${DIRECT:-}" = 1 ] && [ -n "${SITE_HOST:-}" ]; then
+    dnsip=$(timeout 10 getent ahostsv4 "$SITE_HOST" 2>/dev/null | awk 'NR == 1 { print $1 }')
+    certend=$(echo | timeout 10 openssl s_client -connect 127.0.0.1:443 -servername "$SITE_HOST" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | sed -n 's/^notAfter=//p')
+    [ -n "$certend" ] && certuntil=$(date -u -d "$certend" +%Y-%m-%dT%H:%MZ 2>/dev/null)
+  fi
+  printf 'dnsip=%s\ncertuntil=%s\n' "$dnsip" "$certuntil" > "$STATE/slow.domain"
   latestlabel=""; [ -n "$latest" ] && latestlabel=$(verlabel FETCH_HEAD)
   printf 'latestlabel=%s\n' "$latestlabel" > "$STATE/slow.label"
   printf 'latest=%s\nbehind=%s\npub=%s\nssdlife=%s\nssdtemp=%s\nssdok=%s\n' "$latest" "$behind" "$pub" "${ssdlife:--1}" "${ssdtemp:--1}" "${ssdok:-true}" > "$STATE/slow"
@@ -151,6 +159,7 @@ if [ -n "$iface" ] && [ -r "/sys/class/net/$iface/statistics/rx_bytes" ]; then
 fi
 # 3) 실제 접속(국내 직접 접속일 때): Caddy 접속 기록(/data/access.log)의 최근 1분. 그림·스크립트 파일은 속도 계산에서 뺀다
 web='{"reqs":-1,"errors":-1,"avgMs":-1,"p95Ms":-1}'
+hot='[]'   # 공격 대책(대표 2026-11-21): 1분에 요청이 많거나 취약점 찾기를 한 주소. 앱이 기준을 넘으면 막는다
 if [ "$mode" = direct ]; then
   cid=$(docker compose ps -q caddy 2>/dev/null | head -n 1)
   src=""; [ -n "$cid" ] && src=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' "$cid" 2>/dev/null)
@@ -160,8 +169,13 @@ if [ "$mode" = direct ]; then
       ($a | map(select((.request.uri // "") | test("^/_next/|^/favicon|\\.(png|jpe?g|webp|gif|svg|ico|css|js|map|woff2?)(\\?|$)"; "i") | not) | (.duration // 0) * 1000) | sort) as $p |
       {reqs: ($a | length), errors: ($a | map(select((.status // 0) >= 500)) | length),
        avgMs: (if ($p | length) > 0 then (($p | add) / ($p | length) | round) else -1 end),
-       p95Ms: (if ($p | length) > 0 then ($p[([($p | length) * 0.95 | floor, ($p | length) - 1] | min)] | round) else -1 end)}' 2>/dev/null)
-    jq -e 'type == "object" and (.reqs | type) == "number"' <<<"$w" >/dev/null 2>&1 && web=$w
+       p95Ms: (if ($p | length) > 0 then ($p[([($p | length) * 0.95 | floor, ($p | length) - 1] | min)] | round) else -1 end),
+       hot: ($a | group_by(.request.client_ip // .request.remote_ip // "") | map({ip: (.[0].request.client_ip // .[0].request.remote_ip // ""),
+         reqs: length, scan: (map(select((.request.uri // "") | test("wp-|\\.php|\\.env|/\\.git|phpmyadmin|/cgi-bin|/actuator|/vendor/|\\.aspx?(\\?|$)|/boaform|/HNAP|/\\.aws|/server-status"; "i"))) | length)})
+         | map(select(.ip != "" and (.reqs >= 120 or .scan >= 5))) | sort_by(-.reqs) | .[:50])}' 2>/dev/null)
+    if jq -e 'type == "object" and (.reqs | type) == "number"' <<<"$w" >/dev/null 2>&1; then
+      hot=$(jq -c '.hot // []' <<<"$w"); web=$(jq -c 'del(.hot)' <<<"$w")
+    fi
   fi
 fi
 
@@ -179,7 +193,8 @@ status=$(jq -nc \
 
 status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" --argjson w "$web" \
   --argjson appMs "$(num "$appms")" --argjson rxBytes "$(num "$rxb")" --argjson txBytes "$(num "$txb")" --argjson netSec "$(num "$netsec")" \
-  '. + {pending: $p} + $w + {appMs: $appMs, rxBytes: $rxBytes, txBytes: $txBytes, netSec: $netSec}' <<<"$status")
+  --arg siteHost "${SITE_HOST:-}" --arg dnsIp "$(sed -n 's/^dnsip=//p' "$STATE/slow.domain" 2>/dev/null)" --arg certUntil "$(sed -n 's/^certuntil=//p' "$STATE/slow.domain" 2>/dev/null)" \
+  '. + {pending: $p} + $w + {appMs: $appMs, rxBytes: $rxBytes, txBytes: $txBytes, netSec: $netSec, siteHost: $siteHost, dnsIp: $dnsIp, certUntil: $certUntil}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }
 events=$(history_events)
 # 오류 줄 모으기(대표 2026-11-20 '오류 기록'): 지난번 뒤로 새로 생긴 줄 중 오류만 골라 50줄까지 보낸다.
@@ -203,8 +218,32 @@ errs=$(printf '%s\n' "$raw" | jq -Rsc 'split("\n") | map(select(length > 0) | sp
   | if .kind == "db" then .message |= sub("^[0-9-]+ [0-9:.]+ [A-Z]+ \\[[0-9]+\\] "; "") else . end
   | if .kind == "caddy" then ((.message | fromjson?) // null) as $j | if $j then .message = ((($j.logger // "") + " " + ($j.msg // "") + (if $j.error then ": " + ($j.error | tostring) else "" end)) | ltrimstr(" ")) else . end else . end)' 2>/dev/null)
 [ -n "$errs" ] || errs='[]'
-res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" --argjson x "$errs" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end) + (if ($x | length) > 0 then {serverErrors:$x} else {} end)')") || res=""
-if [ -n "$res" ]; then mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null; echo "$until_s" > "$STATE/err_since"; fi
+# 앱 주소 자동 고치기(DDNS) 기록의 새 줄(대표 2026-11-21: 주소가 바뀌거나 고치기에 실패하면 알림). 처음에는 옛 기록을 건너뛴다
+dlog="$HOME/ddns.log"; dsize=$(stat -c %s "$dlog" 2>/dev/null || echo 0)
+doff=$(cat "$STATE/ddns_off" 2>/dev/null); [[ "$doff" =~ ^[0-9]+$ ]] || { doff=$dsize; echo "$dsize" > "$STATE/ddns_off"; }
+[ "$dsize" -lt "$doff" ] && doff=0
+ddns=$(tail -c +$((doff + 1)) "$dlog" 2>/dev/null | tail -n 50 | jq -Rsc 'split("\n") | map(select(length > 0) | {line: .})' 2>/dev/null); [ -n "$ddns" ] || ddns='[]'
+res=$(post "$(jq -nc --argjson s "$status" --argjson e "${events:-[]}" --argjson x "$errs" --argjson h "${hot:-[]}" --argjson d "$ddns" '{status:$s} + (if ($e | length) > 0 then {events:$e} else {} end) + (if ($x | length) > 0 then {serverErrors:$x} else {} end) + (if ($h | length) > 0 then {hot:$h} else {} end) + (if ($d | length) > 0 then {ddns:$d} else {} end)')") || res=""
+if [ -n "$res" ]; then mv -f "$STATE/log_off.next" "$STATE/log_off" 2>/dev/null; mv -f "$STATE/last_version.next" "$STATE/last_version" 2>/dev/null; echo "$until_s" > "$STATE/err_since"; echo "$dsize" > "$STATE/ddns_off"; fi
+
+# 공격 대책(대표 2026-11-21): 앱이 막은 주소를 방화벽에서도 버린다(국내 직접 접속일 때). 앱과 연결될 때만 고친다(연결 안 되면 그대로 둠)
+if [ -n "$res" ] && [ "${DIRECT:-}" = 1 ] && command -v iptables >/dev/null && iptables -n -L DOCKER-USER >/dev/null 2>&1; then
+  blocked=$(jq -r '.blocked // [] | .[]' <<<"$res" 2>/dev/null | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | grep -vE '^(10|127|0)\.|^192\.168\.|^172\.(1[6-9]|2[0-9]|3[01])\.|^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.' | sort -u | head -n 500)
+  fwh=$(printf '%s' "$blocked" | md5sum | cut -c1-32)
+  if [ "$fwh" != "$(cat "$STATE/fw_hash" 2>/dev/null)" ] || ! iptables -C DOCKER-USER -j ABS-BLOCK 2>/dev/null; then
+    iptables -N ABS-BLOCK 2>/dev/null; iptables -F ABS-BLOCK
+    while read -r bip; do [ -n "$bip" ] && iptables -A ABS-BLOCK -s "$bip" -j DROP; done <<<"$blocked"
+    iptables -C DOCKER-USER -j ABS-BLOCK 2>/dev/null || iptables -I DOCKER-USER 1 -j ABS-BLOCK
+    echo "$fwh" > "$STATE/fw_hash"
+  fi
+fi
+# 외국 접속 막기용 국내 주소 목록: 앱이 달라고 하면(없거나 8일 지남) APNIC 공개 배정표에서 KR IPv4 만 뽑아 보낸다. 실패하면 1시간 뒤 다시
+if [ "$(jq -r '.needKr // false' <<<"${res:-null}" 2>/dev/null)" = true ] && [ -z "$(find "$STATE/kr_tried" -mmin -60 2>/dev/null)" ]; then
+  touch "$STATE/kr_tried"
+  kr=$(curl -4 -fsS -m 120 https://ftp.apnic.net/stats/apnic/delegated-apnic-latest 2>/dev/null | awk -F'|' '$2 == "KR" && $3 == "ipv4" { print $4 " " $5 }' |
+    jq -Rsc 'split("\n") | map(select(length > 0) | split(" ") | [.[0], (.[1] | tonumber)])' 2>/dev/null)
+  [ "$(jq 'length' <<<"${kr:-[]}" 2>/dev/null || echo 0)" -gt 100 ] && post "$(jq -nc --argjson k "$kr" '{krRanges:$k}')" >/dev/null
+fi
 # 예전 이력에 날짜 버전을 채워 달라는 기록 번호가 있으면 계산해 보낸다
 need=$(jq -r '.labelsFor // [] | .[]' <<<"${res:-null}" 2>/dev/null | grep -E '^[0-9a-f]{7,12}$' | head -50)
 if [ -n "$need" ]; then

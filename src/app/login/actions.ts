@@ -2,13 +2,17 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { getCurrentUser, loginWithPassword, logout } from "@/modules/auth/service";
+import { noteLoginFail } from "@/modules/platform/security";
 import { clearSessionCookie, errorUrl, requestMeta, sessionToken, setSessionCookie, userMessage } from "../_lib/session";
 
 export async function loginAction(form: FormData) {
   let token: string;
+  const meta = await requestMeta();
   try {
-    token = await loginWithPassword(await getDb(), String(form.get("loginId") ?? ""), String(form.get("password") ?? ""), await requestMeta());
+    token = await loginWithPassword(await getDb(), String(form.get("loginId") ?? ""), String(form.get("password") ?? ""), meta);
   } catch (e) {
+    // 한 주소에서 실패가 몰리면(여러 계정 번갈아 시도 포함) 그 주소를 잠시 막는다(대표 2026-11-21)
+    await noteLoginFail(await getDb(), meta.ip ?? null).catch(() => {});
     redirect(errorUrl("/login", userMessage(e)));
   }
   await setSessionCookie(token);

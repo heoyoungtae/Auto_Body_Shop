@@ -9,6 +9,7 @@ import { writeAudit } from "./audit";
 import { UserError } from "./errors";
 import { notifyRole } from "./notify";
 import { recordErrorSafe } from "./error-log";
+import { blockedIps, needKr, noteHotIps, refreshSecurity, saveKrRanges, setSelfIp } from "./security";
 
 const KEY = "server_ops";
 type Actor = { id: string; roles: readonly Role[] };
@@ -53,7 +54,18 @@ export type ServerStatus = {
   rxBytes: number; // 지난 알림 뒤 받은 양
   txBytes: number; // 보낸 양
   netSec: number; // 그 사이 초
+  // 도메인(대표 2026-11-21). 국내 직접 접속일 때만 채운다
+  siteHost: string; // 앱 주소(app.jmotors.co.kr)
+  dnsIp: string; // 앱 주소가 가리키는 IP
+  certUntil: string; // 보안 접속 인증서가 끝나는 때(ISO)
 };
+/** 인증서 남은 날(모르면 null) */
+export function certDays(st: { certUntil?: string } | null, now = Date.now()) {
+  const t = st?.certUntil ? Date.parse(st.certUntil) : NaN;
+  return Number.isFinite(t) ? Math.floor((t - now) / 86400_000) : null;
+}
+/** 인터넷 주소 자동 고치기(DDNS, 대표 2026-11-21): ddns.log 한 줄. kind: changed 바뀜·고침 · fail 실패 */
+export type DdnsEvent = { at: string; kind: "changed" | "fail"; message: string };
 /** 24시간 흐름(5분 칸). 미니 PC 가 1분마다 알려 온 값을 칸마다 모은다 */
 export type Sample = { t: string; reqs: number; errors: number; msSum: number; msN: number; p95: number; rx: number; tx: number; sec: number; cpu: number; mem: number; app: number };
 const SLOT_MS = 5 * 60_000;
@@ -118,6 +130,11 @@ export function serverHealth(st: (ServerStatus & { at?: string }) | null, silent
   if (app != null && app >= 3000) warn.push(`앱 응답 느림(${(app / 1000).toFixed(1)}초)`);
   const er = n(st.errors), rq = n(st.reqs);
   if (er != null && rq != null && er >= 5 && er * 20 >= rq) warn.push(`서버 오류 잦음(최근 1분 ${er}건)`);
+  // 도메인: 앱 주소가 옛 인터넷 주소를 가리키거나, 인증서가 곧 끝나는데 갱신이 안 됨
+  if (st.dnsIp && st.publicIp && st.dnsIp !== st.publicIp) warn.push(`앱 주소가 옛 인터넷 주소(${st.dnsIp})를 가리킴: 밖에서 안 열릴 수 있음`);
+  const cd = certDays(st);
+  if (cd != null && cd < 3) danger.push(`보안 접속 인증서 ${cd < 0 ? "만료됨" : `${cd}일 남음`}`);
+  else if (cd != null && cd < 14) warn.push(`보안 접속 인증서 ${cd}일 남음(저절로 갱신되지 않음)`);
   if (st.rebootNeeded) warn.push("보안 업데이트 뒤 다시 켜야 합니다(새벽 4시에 저절로)");
   if (danger.length) return { level: "danger", reasons: [...danger, ...warn] };
   if (warn.length) return { level: "warn", reasons: warn };
@@ -152,6 +169,7 @@ export function progressPct(stage: number, stageSec: number, lastBuildSec?: numb
 type Data = {
   progress?: Progress | null;
   series?: Sample[];
+  ddns?: DdnsEvent[];
   lastBuildSec?: number | null;
   auto?: AutoUpdate; status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
 
@@ -183,7 +201,7 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   const series = d.series ?? [];
   // 새 버전이 없으면 올릴 것이 없다(대표 2026-11-20). 미니 PC 가 1분마다 GitHub 끝 번호를 보므로 최신인지 바로 안다
   const upToDate = !!d.status?.latest && d.status.behind === 0;
-  return { upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  return { ddns: d.ddns ?? [], upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: d.history ?? [], status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -251,6 +269,9 @@ function cleanStatus(b: Record<string, unknown>): ServerStatus {
     rxBytes: num(b.rxBytes, 1e13),
     txBytes: num(b.txBytes, 1e13),
     netSec: num(b.netSec, 3600),
+    siteHost: s(b.siteHost, 120),
+    dnsIp: /^[0-9.]{7,15}$/.test(String(b.dnsIp ?? "")) ? String(b.dnsIp) : "",
+    certUntil: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/.test(String(b.certUntil ?? "")) ? String(b.certUntil) : "",
   };
 }
 function num(x: unknown, max: number) {
@@ -275,7 +296,7 @@ function cleanEvent(x: unknown): UpdateEvent | null {
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
 export async function agentReport(
   db: Db,
-  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[] },
+  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[]; hot?: unknown; krRanges?: unknown; ddns?: unknown[] },
   now = new Date(),
 ) {
   // 짧은 확인(대표 2026-11-20 "1분 기다림이 왜 필요한가"): 미니 PC 가 1분 사이사이 5초마다 올리기 요청만 묻는다.
@@ -293,8 +314,35 @@ export async function agentReport(
       const at = Date.parse(String(o.at ?? ""));
       await recordErrorSafe(db, { kind: ["server", "db", "caddy", "system"].includes(String(o.kind)) ? String(o.kind) : "system", message: String(o.message ?? ""), detail: String(o.detail ?? "") }, Number.isFinite(at) && Math.abs(at - now.getTime()) < 86400_000 ? new Date(at) : now);
     }
+  // 공격 대책(대표 2026-11-21): 주소별 폭주·취약점 찾기, 국내 주소 목록
+  if (body.hot) await noteHotIps(db, body.hot, now);
+  if (body.krRanges) await saveKrRanges(db, body.krRanges, now);
   const d = await load(db);
   const next: Data = { ...d };
+  // 인터넷 주소 자동 고치기 기록: 바뀌면 알리고, 실패하면 알리고 오류 기록에도 남긴다(같은 일은 하루 한 번 알림)
+  if (Array.isArray(body.ddns) && body.ddns.length) {
+    const fresh: DdnsEvent[] = [];
+    for (const x of body.ddns.slice(0, 50)) {
+      const o = (x ?? {}) as Record<string, unknown>;
+      const line = s(o.line, 300);
+      const m = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (.+)$/.exec(line);
+      if (!m) continue;
+      const kind = /바뀜/.test(m[2]) && !/실패/.test(m[2]) ? "changed" : /실패|없음/.test(m[2]) ? "fail" : null;
+      if (!kind) continue;
+      fresh.push({ at: m[1], kind, message: m[2] });
+    }
+    const seen = new Set((d.ddns ?? []).map((e) => `${e.at}|${e.message}`));
+    const add = fresh.filter((e) => !seen.has(`${e.at}|${e.message}`));
+    for (const e of add) {
+      const day = e.at.slice(0, 10);
+      if (e.kind === "changed") await notifyRole(db, "owner", `서버 인터넷 주소가 바뀌었습니다: ${e.message.replace(/^정비소 주소 바뀜:\s*/, "")}. 앱 주소는 저절로 새 주소를 가리킵니다`, `ddns-changed:${e.at}`, "/settings/server");
+      else {
+        await notifyRole(db, "owner", `앱 주소 자동 고치기 실패: ${e.message}. 계속되면 밖에서 앱이 안 열릴 수 있습니다`, `ddns-fail:${day}:${e.message.slice(0, 40)}`, "/settings/server");
+        await recordErrorSafe(db, { kind: "system", message: `앱 주소 자동 고치기(DDNS) 실패: ${e.message}` }, now);
+      }
+    }
+    if (add.length) next.ddns = [...add.reverse(), ...(d.ddns ?? [])].slice(0, 30);
+  }
   if (Array.isArray(body.events) && body.events.length) {
     // 같은 때·같은 결과는 한 번만(미니 PC 가 처음에 기록 파일 전체를 보내거나 다시 보내도 겹치지 않게). 최근 것이 앞
     const key = (e: UpdateEvent) => `${e.at}|${e.how}|${e.ok}|${e.to}|${e.message}`;
@@ -311,6 +359,11 @@ export async function agentReport(
   if (body.status) {
     next.status = { ...cleanStatus(body.status), at: now.toISOString() };
     next.series = addSample(d.series ?? [], next.status, now);
+    if (next.status.publicIp) await setSelfIp(db, next.status.publicIp);
+    // 인증서는 30일 남았을 때 저절로 갱신된다. 14일 안으로 들어왔으면 갱신이 안 되는 것이라 하루 한 번 알린다
+    const cd = certDays(next.status, now.getTime());
+    if (cd != null && cd < 14)
+      await notifyRole(db, "owner", `앱 보안 접속 인증서가 ${cd < 0 ? "만료되었습니다" : `${cd}일 뒤 끝납니다`}. 저절로 갱신되지 않고 있으니 Claude에게 알려 주세요`, `cert:${now.toISOString().slice(0, 10)}`, "/settings/server");
     // 위험이 되면 대표에게 알린다(같은 이유는 하루 한 번)
     const h = serverHealth(next.status, 0);
     if (h.level === "danger" && d.status && serverHealth(d.status, 0).level !== "danger")
@@ -373,5 +426,8 @@ export async function agentReport(
   await save(db, next);
   // 아직 날짜 버전이 없는 이력의 기록 번호(미니 PC 가 계산해 보낸다)
   const labelsFor = [...new Set((next.history ?? []).flatMap((e) => [!e.fromLabel && e.from, !e.toLabel && e.to]).filter((x): x is string => !!x && /^[0-9a-f]{7,12}$/.test(x)))].slice(0, 50);
-  return { update, auto: d.auto ?? AUTO_DEFAULT, ...(labelsFor.length && !body.labels ? { labelsFor } : {}) };
+  // 막을 주소(미니 PC 방화벽용)·국내 주소 목록 필요 여부. 앱 메모리 상태도 이때 새로 채운다
+  await refreshSecurity(db);
+  const blocked = await blockedIps(db, now.getTime());
+  return { update, auto: d.auto ?? AUTO_DEFAULT, blocked, ...((await needKr(db, now)) ? { needKr: true } : {}), ...(labelsFor.length && !body.labels ? { labelsFor } : {}) };
 }
