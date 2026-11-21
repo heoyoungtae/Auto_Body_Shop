@@ -1,4 +1,4 @@
-// 문서 목록(F-Q-04) 첫 등록분: 사내 표준서 장(STD-00~13·Q)과 부록 A 양식 45종. 판은 v0.2(개업 전 초안)
+// 문서 목록(F-Q-04) 첫 등록분: 사내 표준서 장(STD-00~13·Q)과 부록 A 양식 47종. 판은 v0.2(개업 전 초안)
 export const SEED_DOCS: {
   no: string;
   name: string;
@@ -180,6 +180,20 @@ export const SEED_DOCS: {
     kind: "form",
     clause: "Q.9",
     owner: "발견자 → 공장장 → 대표(중대 건)",
+  },
+  {
+    no: "F-Q-11",
+    name: "문서 수발신 대장",
+    kind: "form",
+    clause: "Q.5",
+    owner: "접수자 → 담당",
+  },
+  {
+    no: "F-Q-12",
+    name: "공문서(발신)",
+    kind: "form",
+    clause: "Q.5",
+    owner: "기안자 → 대표",
   },
   {
     no: "F-01-01",

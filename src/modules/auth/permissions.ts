@@ -358,6 +358,19 @@ export const PERMS = {
     std: "STD-Q Q.5",
     roles: ["owner", "quality"],
   },
+  "corr.write": {
+    area: "품질",
+    label: "받은 문서 접수, 회사 공문 쓰기(F-Q-11·F-Q-12)",
+    std: "STD-Q 7절",
+    roles: ["owner", "plant_manager", "advisor", "quality", "safety", "accounting"],
+    note: "자기가 접수·기안했거나 담당으로 지정된 문서만 봅니다. 공문은 대표 승인 뒤 직인을 찍어 보냅니다",
+  },
+  "corr.manage": {
+    area: "품질",
+    label: "문서 수발신 대장 전체 보기·담당 바꾸기",
+    std: "STD-Q 7절",
+    roles: ["owner", "quality"],
+  },
   "qms.review": {
     area: "품질",
     label: "경영검토(F-Q-09)",

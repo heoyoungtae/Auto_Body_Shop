@@ -120,6 +120,8 @@ export const FORM_SCREEN: Record<string, string> = {
   "F-Q-05": "/approvals/new",
   "F-Q-06": "/legal",
   "F-Q-07": "/legal",
+  "F-Q-11": "/corr",
+  "F-Q-12": "/corr/new",
   "F-Q-08": "/audits",
   "F-Q-09": "/qms/review",
   "F-Q-10": "/nc",

@@ -3102,6 +3102,43 @@ export const PAGE_HELP = {
     ],
     refs: ["사내 표준서 STD-01 1.4", "사내 표준서 STD-13"],
   },
+  corr: {
+    title: "문서 수발신 대장",
+    purpose:
+      "관청·보험사·거래처와 주고받은 문서를 한 대장(F-Q-11)에 남깁니다. 받은 문서는 접수 번호·담당·처리 기한으로 관리하고, 회사 이름으로 보내는 공문(F-Q-12)은 대표 승인 뒤 직인을 찍어 보냅니다(STD-Q 7절).",
+    who: "접수·공문 쓰기: 대표·공장장·상담원·품질·안전환경·회계 담당 · 전체 보기·담당 바꾸기: 대표·품질 담당",
+    steps: [
+      "문서를 받으면 '받은 문서 접수'로 사진·PDF를 붙이고 담당을 정합니다.",
+      "담당은 내 할 일에 뜬 문서를 열어 '처리 끝'을 적거나 '회신 쓰기'로 답장 공문을 씁니다.",
+      "공문은 대표가 승인하면 '인쇄·PDF'로 보내고 '발송 기록'을 남깁니다.",
+    ],
+    terms: ["결재"],
+  },
+  "corr.receive": {
+    title: "받은 문서 접수",
+    purpose: "받은 공문·통지서·요청서를 접수 번호를 매겨 대장에 올립니다.",
+    who: "대표·공장장·상담원·품질·안전환경·회계 담당",
+    steps: ["받은 날과 방법을 고릅니다.", "보낸 곳(목록에서 고르기)·상대 문서번호·제목·요지를 적습니다.", "문서를 찍거나 PDF를 붙이고 담당·기한을 정해 접수합니다."],
+  },
+  "corr.new": {
+    title: "공문 쓰기",
+    purpose: "회사 이름으로 밖에 보내는 공문을 써서 대표 승인을 받습니다. 문서번호·날짜·직인은 앱이 넣습니다.",
+    who: "대표·공장장·상담원·품질·안전환경·회계 담당(대표가 쓰면 바로 승인)",
+    steps: ["받는 곳을 고르면 주소·구분이 채워집니다.", "제목과 본문을 1. 2. 3. 항목으로 씁니다.", "같이 보낼 서류는 붙임에 한 줄씩 적고 '대표에게 올리기'를 누릅니다."],
+    terms: ["결재"],
+  },
+  "corr.detail": {
+    title: "수발신 문서",
+    purpose: "받은 문서 한 건(담당·기한·처리)이나 보낸 공문 한 건(결재·인쇄·발송)을 봅니다.",
+    who: "대표·품질 담당과 접수·기안한 사람, 담당",
+    steps: ["받은 문서: 처리 결과를 적어 끝내거나 '회신 쓰기'로 답합니다.", "보낸 공문: 승인되면 '인쇄·PDF'로 보내고 발송을 기록합니다.", "문서 파일은 오른쪽에서 열고 붙입니다."],
+  },
+  "corr.print": {
+    title: "공문 인쇄",
+    purpose: "행정 공문 배치(수신·제목·본문·붙임·발신 명의와 직인·시행 번호)로 인쇄하거나 PDF로 저장합니다.",
+    who: "기안자·대표·품질 담당",
+    steps: ["'인쇄'를 누르고 프린터나 'PDF로 저장'을 고릅니다.", "보낸 뒤 공문 화면에서 발송을 기록합니다."],
+  },
 } satisfies Record<string, PageHelp>;
 
 export type PageHelpKey = keyof typeof PAGE_HELP;
@@ -3162,6 +3199,11 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/outsource/new": "outsource.new",
   "/outsource/[id]": "outsource.detail",
   "/legal": "legal",
+  "/corr": "corr",
+  "/corr/receive": "corr.receive",
+  "/corr/new": "corr.new",
+  "/corr/[id]": "corr.detail",
+  "/corr/[id]/print": "corr.print",
   "/legal/new": "legal.new",
   "/legal/[id]": "legal.detail",
   "/legal/revcheck": "legal.revcheck",

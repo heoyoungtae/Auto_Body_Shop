@@ -184,6 +184,12 @@ export const MENU: MenuGroup[] = [
       },
       { label: "부적합·시정 조치", href: "/nc", std: "STD-Q.9" },
       { label: "문서 목록", href: "/qms/docs", std: "STD-Q.5" },
+      {
+        label: "문서 수발신·공문",
+        perm: ["corr.write"],
+        href: "/corr",
+        std: "STD-Q.5",
+      },
       { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
       {
         label: "법규 대장",

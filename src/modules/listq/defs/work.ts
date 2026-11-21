@@ -6,6 +6,9 @@ import { TOOL_STATUS } from "@/modules/equipment/rules";
 import { DOC_KINDS } from "@/modules/quality/qms-rules";
 import { listLogs } from "@/modules/messaging/service";
 import { listDocs } from "@/modules/quality/qms";
+import { listCorr } from "@/modules/quality/corr";
+import { CORR_STATUS, CORR_TABS, CORR_VIA, PARTY_KINDS, type CorrTab } from "@/modules/quality/corr-rules";
+import { can } from "@/modules/auth/permissions";
 import { listInstructions } from "@/modules/task/service";
 import type { ListDef } from "../core";
 import { isoOf } from "../core";
@@ -152,5 +155,37 @@ export const docsList: ListDef<QDoc> = {
     { label: "관리자", get: (r) => r.owner },
     { label: "보관", get: (r) => r.location },
     { label: "상태", get: (r) => (r.status === "retired" ? "폐지" : "현행") },
+  ],
+};
+
+// ── 문서 수발신 대장(F-Q-11) ──
+type Corr = Awaited<ReturnType<typeof listCorr>>[number];
+export const corrList: ListDef<Corr> = {
+  key: "corr",
+  title: "문서 수발신 대장",
+  href: "/corr",
+  allowed: (u) => can(u, "corr.write"),
+  load: (db, u, q) => listCorr(db, u, pick(q.f, CORR_TABS.map((t) => t.v), "todo") as CorrTab),
+  tabs: { param: "f", options: CORR_TABS },
+  dates: [
+    { key: "on", label: "받은 날·보낸 날", get: (x) => (x.r.dir === "in" ? x.r.receivedOn : (x.r.sentOn ?? x.r.createdAt)) },
+    { key: "due", label: "처리 기한", get: (x) => x.r.dueOn },
+    { key: "created", label: "등록일", get: (x) => x.r.createdAt },
+  ],
+  text: (x) => [x.r.no, x.r.party, x.r.title, x.r.theirNo, x.r.body, x.owner],
+  searchHint: "번호·상대·제목·상대 문서번호",
+  cols: [
+    { label: "구분", get: (x) => (x.r.dir === "in" ? "받음" : "보냄") },
+    { label: "번호", get: (x) => x.r.no },
+    { label: "날짜", get: (x) => (x.r.dir === "in" ? x.r.receivedOn : (x.r.sentOn ?? isoOf(x.r.createdAt))) },
+    { label: "상대", get: (x) => x.r.party },
+    { label: "상대 구분", get: (x) => PARTY_KINDS[x.r.partyKind as keyof typeof PARTY_KINDS] ?? x.r.partyKind },
+    { label: "상대 문서번호", get: (x) => x.r.theirNo },
+    { label: "제목", get: (x) => x.r.title },
+    { label: "방법", get: (x) => (x.r.via ? (CORR_VIA[x.r.via as keyof typeof CORR_VIA] ?? x.r.via) : null) },
+    { label: "담당", get: (x) => x.owner },
+    { label: "처리 기한", get: (x) => x.r.dueOn },
+    { label: "상태", get: (x) => CORR_STATUS[x.r.status as keyof typeof CORR_STATUS] ?? x.r.status },
+    { label: "처리 결과", get: (x) => x.r.doneNote },
   ],
 };

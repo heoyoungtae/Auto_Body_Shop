@@ -6,6 +6,7 @@ import type { Db } from "./client";
 import { createUser } from "@/modules/auth/service";
 import type { Role } from "@/modules/auth/roles";
 import { patchDraftStd, seedStd } from "@/modules/quality/std";
+import { addNewSeedDocs } from "@/modules/quality/qms";
 
 export const DEMO_PASSWORD = "demo1234";
 
@@ -25,6 +26,7 @@ export async function seed(db: Db, env: Record<string, string | undefined> = pro
   await seedStd(db);
   // 확정판 전 초안은 바로 고친다: 예전 초안 그대로인 절만 새 본문으로
   await patchDraftStd(db);
+  await addNewSeedDocs(db);
   const [{ n }] = await db.select({ n: count() }).from(appUser);
   if (n > 0) return;
   if (env.DEMO_SEED === "1" || !env.DATABASE_URL) {

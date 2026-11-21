@@ -32,6 +32,11 @@ import { actAction, cancelAction, resubmitAction } from "../actions";
 
 const FIELD_LABEL: Record<string, string> = {
   ym: "달",
+  party: "수신",
+  partyAddr: "받는 곳 주소",
+  cc: "참조",
+  enclosures: "붙임",
+  replyToNo: "회신하는 문서(접수 번호)",
   comment: "의견",
   report: "핵심 숫자",
   target: "대상",
@@ -234,7 +239,7 @@ export default async function ApprovalDetail({
           <Card title="내용" help={{ kind: "panel", id: "doc.content" }}>
             <dl className="space-y-3 text-sm">
               {Object.entries(data)
-                .filter(([k]) => !(secKey && (k === "current" || k === "proposed")))
+                .filter(([k]) => k !== "corrId" && !(secKey && (k === "current" || k === "proposed")))
                 .sort(([a], [b]) => order(a) - order(b))
                 .map(([k, v]) => (
                   <div key={k}>
@@ -325,6 +330,12 @@ export default async function ApprovalDetail({
           {doc.formCode === "MGMT-M" && typeof data.ym === "string" && (
             <Link href={`/reports/monthly?ym=${data.ym}`} className={buttonClass()}>
               월간 경영보고서 화면으로
+            </Link>
+          )}
+
+          {doc.formCode === "F-Q-12" && typeof data.corrId === "string" && (
+            <Link href={`/corr/${data.corrId}`} className={buttonClass()}>
+              공문 화면(미리 보기·인쇄·발송)
             </Link>
           )}
 

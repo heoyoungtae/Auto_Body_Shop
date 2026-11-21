@@ -3,7 +3,7 @@ import type { ListDef } from "./core";
 import { cashbookList, expensesList, paymentsList } from "./defs/money";
 import { fixturesList, ordersList, outsourceList, stockList, suppliersList } from "./defs/purchase";
 import { chemicalsList, incidentsList, legalList, ncList, risksList, suggestionsList } from "./defs/quality";
-import { approvalsList, docsList, messageLogList, tasksList, toolsList } from "./defs/work";
+import { approvalsList, corrList, docsList, messageLogList, tasksList, toolsList } from "./defs/work";
 import { claimsList, complaintsList, consultsList, customersList, estimatesList, repairsList } from "./defs/repair";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +30,7 @@ const ALL: ListDef<any>[] = [
   suggestionsList,
   toolsList,
   docsList,
+  corrList,
   approvalsList,
   tasksList,
   messageLogList,

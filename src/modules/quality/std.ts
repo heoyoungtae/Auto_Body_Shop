@@ -81,11 +81,29 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "p:STD-13:7": ["c98e9d04"],
   "p:STD-13:10": ["b79b1a82"],
   "f:F-13-01": ["88a9d01e"],
+  // 문서·기록관리 개선(공문·수발신 대장 F-Q-11·F-Q-12) 2026-11-21
+  "o:Q.5": ["dee70768"],
+  "p:STD-Q:7": ["9eb0bfb4"],
+  "a:A": ["e9096a0d"],
+  "f:intro": ["5b05e7c5"],
 };
+
+/** 초안에 새로 생긴 절: 이미 들어간 서버에 없으면 std-seed.json 에서 넣는다 */
+export const DRAFT_ADDS: string[] = ["f:F-Q-11", "f:F-Q-12"];
 
 export async function patchDraftStd(db: Db) {
   const seed = new Map((SEED as SeedRow[]).map((s) => [s.key, s.body]));
   let n = 0;
+  for (const key of DRAFT_ADDS) {
+    const s = (SEED as SeedRow[]).find((x) => x.key === key);
+    if (!s) continue;
+    const r = await db
+      .insert(stdSection)
+      .values({ key: s.key, part: s.part, ch: s.ch, docNo: s.docNo, no: s.no, title: s.title, body: s.body, grp: s.grp ?? null, chapter: !!s.chapter, sort: s.sort, roles: [] })
+      .onConflictDoNothing()
+      .returning({ key: stdSection.key });
+    n += r.length;
+  }
   for (const [key, olds] of Object.entries(DRAFT_PATCHES)) {
     const body = seed.get(key);
     if (body == null) continue;
@@ -118,7 +136,7 @@ export async function stdToc(db: Db) {
       roles: stdSection.roles,
     })
     .from(stdSection)
-    .orderBy(asc(stdSection.sort));
+    .orderBy(asc(stdSection.sort), asc(stdSection.key));
   const chapters = STD_CHAPTERS.map((ch) => {
     const o = rows.find((r) => r.part === "overview" && r.chapter && r.ch === ch);
     const p = rows.find((r) => r.part === "procedure" && r.chapter && r.ch === ch);
@@ -142,7 +160,7 @@ export async function stdToc(db: Db) {
 
 /** 장 한 개(총람 절 + 절차서 절 + 관련 양식 목록). 볼 수 없는 절은 제목만 남기고 본문을 비운다 */
 export async function getStdChapter(db: Db, actor: Actor, ch: string) {
-  const rows = await db.select().from(stdSection).where(eq(stdSection.ch, ch)).orderBy(asc(stdSection.sort));
+  const rows = await db.select().from(stdSection).where(eq(stdSection.ch, ch)).orderBy(asc(stdSection.sort), asc(stdSection.key));
   if (!rows.length) throw new StdError("없는 장입니다");
   const mask = (r: StdRow) => (canSee(actor, r) ? { ...r, hidden: false } : { ...r, body: "", history: [], hidden: true });
   return {
@@ -197,7 +215,7 @@ export type StdHit = { key: string; label: string; href: string; snippet: string
 export async function searchStd(db: Db, actor: Actor, q: string, limit = 60): Promise<StdHit[]> {
   const query = q.trim();
   if (!query) return [];
-  const rows = await db.select().from(stdSection).orderBy(asc(stdSection.sort));
+  const rows = await db.select().from(stdSection).orderBy(asc(stdSection.sort), asc(stdSection.key));
   const nq = norm(query);
   const cho = isCho(query);
   const hits: StdHit[] = [];
