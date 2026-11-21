@@ -23,6 +23,7 @@ import { legalDailyAlerts } from "@/modules/quality/legal";
 import { envDailyAlerts } from "@/modules/safety/environment";
 import { goalDailyJob } from "@/modules/quality/goals";
 import { trainingDailyAlerts } from "@/modules/staff/elearning";
+import { carbookAlertsJob, carbookIdleJob } from "@/modules/carbook/records";
 
 export type JobResult = {
   job: string;
@@ -55,10 +56,11 @@ export const JOBS: Record<string, JobFn> = {
     const tr = await trainingDailyAlerts(db, now);
     const law = await checkLaws(db, now);
     const nts = await ntsMonthly(db, now);
-    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal} · ${tr} · ${law.message} · ${nts}`;
+    const cbIdle = await carbookIdleJob(db, now);
+    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal} · ${tr} · ${law.message} · ${nts} · ${cbIdle}`;
   },
-  /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계) */
-  reminders: async (db, _today, now) => sendReminders(db, now),
+  /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계), 내 차 수첩 알림(정기검사·보증·소모품·보험) */
+  reminders: async (db, _today, now) => `${await sendReminders(db, now)} · ${await carbookAlertsJob(db, now)}`,
 };
 
 export async function runJob(

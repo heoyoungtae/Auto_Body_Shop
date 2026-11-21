@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/my", label: "홈", d: "M3 11.5 12 4l9 7.5M5 10v10h14V10" },
   { href: "/my/repairs", label: "수리 이력", d: "M4 6h16M4 12h16M4 18h10" },
+  { href: "/my/log", label: "내 기록", d: "M5 4h11l3 3v13H5zM9 12h6M9 16h6M9 8h3" },
   { href: "/my/docs", label: "서류", d: "M7 3h7l5 5v13H7zM14 3v5h5" },
   { href: "/my/more", label: "더보기", d: "M5 12h.01M12 12h.01M19 12h.01" },
 ];
@@ -15,7 +16,7 @@ export function MyNav() {
   const on = (h: string) => (h === "/my" ? path === "/my" : path.startsWith(h));
   return (
     <nav aria-label="내 차 수첩 메뉴" className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--surface)] pb-[env(safe-area-inset-bottom)]">
-      <ul className="mx-auto grid max-w-xl grid-cols-4">
+      <ul className="mx-auto grid max-w-xl grid-cols-5">
         {TABS.map((t) => (
           <li key={t.href}>
             <Link href={t.href} aria-current={on(t.href) ? "page" : undefined} className={`flex h-16 flex-col items-center justify-center gap-0.5 text-xs ${on(t.href) ? "font-semibold text-[var(--accent)]" : "text-[var(--muted)]"}`}>

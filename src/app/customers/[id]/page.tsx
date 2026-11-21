@@ -20,6 +20,7 @@ import { RadioRow } from "../../_input";
 import { ShowWhen } from "../../consults/show-when";
 import { creditCheck } from "@/modules/money/credit";
 import { carbookStatus } from "@/modules/carbook/service";
+import { carbookMileage, consentState } from "@/modules/carbook/records";
 import { inviteCarbookAction } from "../../settings/carbook/actions";
 import { portalOrders } from "@/modules/partner/service";
 import { CUSTOMER_KINDS, INVOICE_MODES, PORTALS, PORTAL_STEPS } from "@/modules/money/credit-rules";
@@ -40,7 +41,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
   const credit = biz ? await creditCheck(db, c.id, 0) : null;
   const orders = biz?.portal ? (await portalOrders(db, 300)).filter((o) => o.o.customerId === c.id).slice(0, 20) : [];
   const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
-  const cb = await carbookStatus(db, c.id);
+  const [cb, cbKm, cbConsent] = await Promise.all([carbookStatus(db, c.id), carbookMileage(db, c.id), consentState(db, c.id)]);
 
   return (
     <div>
@@ -271,6 +272,12 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               ) : (
                 <p className="text-[var(--muted)]">아직 문자 인증으로 들어온 적이 없습니다{cb.seen ? `(링크로 마지막 ${fmtTime(cb.seen)})` : ""}.</p>
               )}
+              {cb.since && <p className="text-[var(--muted)]">내 기록(손님 차계부): {cbConsent.agreed ? "이용 동의함" : "동의 안 함"} · 금액·장소 같은 손님 기록은 정비소에 보이지 않습니다</p>}
+              {cbKm.map((x) => (
+                <p key={x.vehicleId}>
+                  {x.plateNo} 손님이 적은 주행거리 <b className="tabular-nums">{x.km.toLocaleString("ko-KR")}km</b> ({x.on}) <span className="text-xs text-[var(--muted)]">참고용, 입고 때 계기판으로 확인</span>
+                </p>
+              ))}
               {cb.sold.map((x) => (
                 <p key={x.plateNo}>
                   <Badge tone="warn">판 차</Badge> {x.plateNo} · {x.soldOn} 고객이 알림 — 다음 입고 때 소유자를 바꾸세요

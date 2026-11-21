@@ -388,6 +388,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "carbook.invite": "내 차 수첩 초대 문자 보냄",
   "carbook.hide_photos": "고객에게 보일 사진 고름",
   "carbook.sold": "고객이 차 판 것을 알림(내 차 수첩)",
+  "carbook.consent": "고객이 내 차 수첩 기록 이용에 동의·철회함",
+  "carbook.purge": "내 차 수첩 손님 기록 지움(미접속·연락처 파기)",
   "branch.staff": "직원 지점 정함",
   "transfer.send": "재고 이동 보냄",
   "transfer.receive": "재고 이동 받음 확인",

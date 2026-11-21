@@ -1,6 +1,6 @@
-// 고객용 '내 차 수첩'(차계부) 1단계: 문자 인증 로그인·링크 로그인·차 판 기록.
+// 고객용 '내 차 수첩'(차계부) 1단계: 문자 인증 로그인·링크 로그인·차 판 기록. 2단계: 이용 동의·손님 기록·알림.
 // 손님은 비밀번호가 없다. 휴대폰 번호(해시)로 고객을 찾고, 문자로 받은 6자리 번호로 들어온다.
-import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { customer, vehicle } from "./customer";
 import { createdAt, id } from "./platform";
 import { repairOrder } from "./repair";
@@ -73,4 +73,98 @@ export const carbookSold = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("carbook_sold_customer_idx").on(t.customerId)],
+);
+
+// ── 2단계: 내 기록·알림 ──
+
+/** 내 차 수첩 이용 동의(F-13-01 차계부 항목). 받을 때마다·철회할 때마다 한 줄. 지금 상태는 가장 최근 줄이다.
+ *  동의가 없으면 '내 기록'만 잠긴다(수리 이력·서류는 볼 수 있음). 철회하면 손님 기록을 바로 지운다 */
+export const carbookConsent = pgTable(
+  "carbook_consent",
+  {
+    id: id(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    version: text("version").notNull(),
+    agreed: boolean("agreed").notNull(),
+    ip: text("ip"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("carbook_consent_customer_idx").on(t.customerId, t.at)],
+);
+
+export const CARBOOK_ENTRY_KINDS = ["fuel", "item", "wash", "fee", "other"] as const;
+
+/** 손님이 적은 기록(주유·충전, 소모품·정비, 세차, 보험·세금·검사, 기타 비용). 정비소는 주행거리만 참고로 본다 */
+export const carbookEntry = pgTable(
+  "carbook_entry",
+  {
+    id: id(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => vehicle.id),
+    kind: text("kind", { enum: CARBOOK_ENTRY_KINDS }).notNull(),
+    /** 세부: 주유=연료(gasoline·diesel·lpg·ev·h2), 소모품=품목(oil·tire…), 보험·세금=종류(insurance·tax·inspection·parking) */
+    sub: text("sub"),
+    on: date("on").notNull(),
+    mileage: integer("mileage"),
+    amountWon: integer("amount_won"),
+    /** 넣은 양(L·kWh·kg)×100. 소수 둘째 자리까지 */
+    qtyX100: integer("qty_x100"),
+    /** 단가(원/L·원/kWh·원/kg) */
+    unitPrice: integer("unit_price"),
+    /** 주유소·정비소·세차장 이름(위치는 받지 않는다) */
+    place: text("place"),
+    memo: text("memo"),
+    /** 소모품 다음 교체 주기(이 기록 기준). 비우면 알림 없음 */
+    intervalKm: integer("interval_km"),
+    intervalMonths: integer("interval_months"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("carbook_entry_customer_idx").on(t.customerId, t.vehicleId, t.on)],
+);
+
+/** 손님이 차마다 넣는 값: 보험 만기일(매년 같은 날로 넘긴다) */
+export const carbookCar = pgTable(
+  "carbook_car",
+  {
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => vehicle.id),
+    insuranceUntil: date("insurance_until"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.customerId, t.vehicleId] })],
+);
+
+/** 알림 켜기·끄기(손님마다). 줄이 없으면 모두 켬 */
+export const carbookPref = pgTable("carbook_pref", {
+  customerId: uuid("customer_id")
+    .primaryKey()
+    .references(() => customer.id),
+  alerts: jsonb("alerts").$type<Record<string, boolean>>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** 보낸 알림(같은 알림을 두 번 보내지 않게). key 예: insp:<차>:<만료일>, warr:<수리 건>:<종류>:<끝날> */
+export const carbookAlertLog = pgTable(
+  "carbook_alert_log",
+  {
+    id: id(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    key: text("key").notNull(),
+    kind: text("kind").notNull(),
+    ok: boolean("ok").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("carbook_alert_log_uq").on(t.customerId, t.key)],
 );
