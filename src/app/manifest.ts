@@ -1,5 +1,5 @@
 // 홈 화면 바로가기(PWA) 설치 정보 — /manifest.webmanifest 로 나간다.
-// 아이콘 원본은 scripts/app-icon/app-icon.svg, 크기별 파일은 node scripts/app-icon/make.mjs 로 다시 만든다.
+// 아이콘 원본은 scripts/app-icon(symbol.png·icon-small.svg), 크기별 파일은 node scripts/app-icon/make.mjs 로 다시 만든다.
 import type { MetadataRoute } from "next";
 import { APP_BG_COLOR, APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
 
@@ -19,7 +19,6 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-      { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
     ],
   };
 }

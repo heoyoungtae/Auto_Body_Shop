@@ -1,11 +1,11 @@
 // 앱 아이콘 만들기 (2026-11-21 대표 시안: 톱니·스패너·차·빨간 선 심벌)
 //   큰 아이콘(홈 화면·설치 앱) = symbol.png(원본 그림에서 오린 심벌, 투명) + 파란 바탕
-//   작은 아이콘(브라우저 탭 16·32·48) = icon-small.svg(같은 구성을 단순하게 다시 그린 것)
+//   작은 아이콘(48px 이하: 브라우저 탭·머리줄) = icon-small.svg(로고의 빨간 J, 2026-11-21 '가' 시안)
 // 실행: node scripts/app-icon/make.mjs  (playwright 크로미움 필요 — 클라우드 작업 환경에 있음)
-// 결과: src/app/favicon.ico·icon.svg·apple-icon.png(180), public/icons/icon-192·512·maskable-512.png
+// 결과: src/app/favicon.ico(16·32·48)·icon.png(48)·apple-icon.png(180), public/icons/icon-small-96.png, public/icons/icon-192·512·maskable-512.png
 // original-with-text.png 는 글자 들어간 원본(문구 '제이모터스'), 가로 로고는 public/brand/logo-*.png
 import { createRequire } from "node:module";
-import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -59,6 +59,6 @@ sizes.forEach((s, i) => {
   offset += imgs[i].length;
 });
 out("src/app/favicon.ico", Buffer.concat([head, ...imgs]));
-copyFileSync(join(here, "icon-small.svg"), join(root, "src/app/icon.svg"));
-console.log("만듦 src/app/icon.svg");
+out("src/app/icon.png", await tiny(48));
+out("public/icons/icon-small-96.png", await tiny(96)); // 머리줄 로고 자리(28px, 고해상도 화면 대비 96)
 await browser.close();

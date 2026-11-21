@@ -20,7 +20,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <picture className="mb-5 block">
         <source media="(prefers-color-scheme: dark)" srcSet="/brand/logo-dark.png" />
         {/* eslint-disable-next-line @next/next/no-img-element -- 정적 로고 그림 */}
-        <img src="/brand/logo-light.png" alt={APP_NAME} title={APP_NAME} width={1730} height={420} className="h-auto w-full" />
+        <img src="/brand/logo-light.png" alt={APP_NAME} title={APP_NAME} width={1400} height={303} className="h-auto w-full" />
       </picture>
       <PageTitle help="login" sub="대표·공장장·상담원·기술자·품질·안전환경·회계">
         직원 로그인

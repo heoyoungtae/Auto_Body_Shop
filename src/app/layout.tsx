@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title: { default: APP_NAME, template: `%s · ${APP_SHORT_NAME}` },
   applicationName: APP_NAME,
   description: "사내 표준서에 따라 상담부터 출고, 설비·품질까지 관리하는 차체 외관 수리(찌그러짐·긁힘·도색) 정비소 업무 앱",
-  // 아이폰 '홈 화면에 추가' 때 아이콘 밑 이름(파비콘·아이콘 파일은 app/favicon.ico·icon.svg·apple-icon.png, 설치 정보는 app/manifest.ts)
+  // 아이폰 '홈 화면에 추가' 때 아이콘 밑 이름(파비콘·아이콘 파일은 app/favicon.ico·icon.png·apple-icon.png, 설치 정보는 app/manifest.ts)
   appleWebApp: { capable: true, title: APP_SHORT_NAME, statusBarStyle: "default" },
 };
 
@@ -46,8 +46,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <div className="flex min-h-14 items-center gap-2 px-2 sm:px-4">
                 {user && <MenuButton />}
                 <Link href={user ? "/home" : "/login"} className="flex min-w-0 items-center gap-2 font-semibold" title={APP_NAME}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- 작은 SVG 아이콘이라 그대로 쓴다 */}
-                  <img src="/icon.svg" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
+                  {/* eslint-disable-next-line @next/next/no-img-element -- 작은 아이콘이라 그대로 쓴다 */}
+                  <img src="/icons/icon-small-96.png" alt="" width={28} height={28} className="size-7 shrink-0 rounded-md" />
                   {/* 좁은 화면은 짧은 이름, 넓은 화면은 전체 이름 */}
                   <span className="truncate sm:hidden">{APP_SHORT_NAME}</span>
                   <span className="hidden truncate sm:inline">{APP_NAME}</span>
