@@ -10,6 +10,7 @@ import { sendNotice, sendSecretSms } from "@/modules/messaging/service";
 import { writeAudit } from "@/modules/platform/audit";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { carbookConfig, CarbookError, endAllSessions, makeLink, type MySession } from "./service";
+import { sendPush } from "./push";
 import {
   addMonths,
   ALERTS,
@@ -374,7 +375,7 @@ export async function carbookMileage(db: Db, customerId: string) {
 // ── 주기 작업 ──
 /**
  * 매일 16:00: 동의한 손님에게 다가오는 일 알림(정기검사·보증·소모품·보험). 손님마다 한 통으로 묶고,
- * 같은 알림은 한 번만(carbook_alert_log). 알림톡 템플릿 'carbook_reminder' 가 준비 안 됐으면 문자로 간다.
+ * 같은 알림은 한 번만(carbook_alert_log). 푸시를 켠 손님은 푸시, 아니면 알림톡 'carbook_reminder'(준비 안 됐으면 문자).
  */
 export async function carbookAlertsJob(db: Db, now = new Date(), f: typeof fetch = fetch) {
   if (!(await carbookConfig(db)).enabled) return "내 차 수첩 알림: 꺼짐";
@@ -395,6 +396,16 @@ export async function carbookAlertsJob(db: Db, now = new Date(), f: typeof fetch
     );
     const fresh = due.filter((d) => !done.has(d.key));
     if (!fresh.length) continue;
+    // 홈 화면 앱에서 푸시를 켠 손님은 푸시로(받은 기기가 없으면 알림톡·문자)
+    const pushed = await sendPush(db, u.id, { title: "내 차 수첩 알림", body: fresh.map((d) => d.line).join("\n"), url: "/my" }, now, f);
+    if (pushed.ok) {
+      await db
+        .insert(carbookAlertLog)
+        .values(fresh.map((d) => ({ customerId: u.id, key: d.key, kind: d.kind, ok: true, sentAt: now })))
+        .onConflictDoNothing();
+      sent++;
+      continue;
+    }
     const p = await phoneForNotice(db, u.id).catch(() => null);
     if (!p) continue;
     const { url, token } = await makeLink(db, u.id, null, now);

@@ -1,4 +1,4 @@
-// 고객용 '내 차 수첩'(차계부) 1단계: 문자 인증 로그인·링크 로그인·차 판 기록. 2단계: 이용 동의·손님 기록·알림.
+// 고객용 '내 차 수첩'(차계부) 1단계: 문자 인증 로그인·링크 로그인·차 판 기록. 2단계: 이용 동의·손님 기록·알림. 3단계: 푸시·수리 이력 확인서.
 // 손님은 비밀번호가 없다. 휴대폰 번호(해시)로 고객을 찾고, 문자로 받은 6자리 번호로 들어온다.
 import { boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { customer, vehicle } from "./customer";
@@ -167,4 +167,61 @@ export const carbookAlertLog = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("carbook_alert_log_uq").on(t.customerId, t.key)],
+);
+
+// ── 3단계: 푸시·수리 이력 확인서 ──
+
+/** 홈 화면에 둔 내 차 수첩의 푸시 받기(기기마다). 보낼 곳이 없어졌다고(404·410) 하면 지운다 */
+export const carbookPush = pgTable(
+  "carbook_push",
+  {
+    id: id(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    endpoint: text("endpoint").notNull(),
+    userAgent: text("user_agent"),
+    lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("carbook_push_endpoint_uq").on(t.endpoint), index("carbook_push_customer_idx").on(t.customerId)],
+);
+
+/** 푸시로 알릴 글. 푸시는 내용 없이 깨우기만 하고, 휴대폰이 로그인한 채로 이 글을 받아 보여 준다(암호화 없이 안전하게) */
+export const carbookInbox = pgTable(
+  "carbook_inbox",
+  {
+    id: id(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    url: text("url").notNull(),
+    shownAt: timestamp("shown_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("carbook_inbox_customer_idx").on(t.customerId, t.createdAt)],
+);
+
+/** 수리 이력 확인서: 차 팔 때 건네는 우리 정비소 수리 내역 한 장. 확인 번호로 누구나 진위를 본다(발급 때 내용 그대로) */
+export const carbookCert = pgTable(
+  "carbook_cert",
+  {
+    id: id(),
+    docNo: text("doc_no").notNull(),
+    /** 확인 번호(영문 대문자·숫자 10자, 헷갈리는 글자 뺌) */
+    code: text("code").notNull(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customer.id),
+    vehicleId: uuid("vehicle_id")
+      .notNull()
+      .references(() => vehicle.id),
+    withAmount: boolean("with_amount").notNull().default(false),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("carbook_cert_code_uq").on(t.code), uniqueIndex("carbook_cert_no_uq").on(t.docNo)],
 );

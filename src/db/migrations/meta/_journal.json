@@ -449,6 +449,13 @@
       "when": 1795221554399,
       "tag": "0063_carbook_log",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795225633534,
+      "tag": "0064_carbook_push",
+      "breakpoints": true
     }
   ]
 }
