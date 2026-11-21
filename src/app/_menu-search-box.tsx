@@ -179,7 +179,7 @@ export function MenuSearch({
               onBlur={() => setTimeout(() => setFocus(false), 150)}
               placeholder="메뉴·차량번호 찾기 (/)"
               title={`메뉴 이름이나 차량번호로 찾기. 단축키: / 또는 ${mac ? "⌘K" : "Ctrl+K"}`}
-              className="h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] pl-7 pr-2 text-sm placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
+              className="h-10 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] pl-7 pr-2 text-base sm:text-sm placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-none"
             />
           </div>
           <HelpButton topic={{ kind: "panel", id: "menu.search" }} name="메뉴 찾기" />

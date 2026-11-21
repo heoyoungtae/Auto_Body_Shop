@@ -3,6 +3,7 @@ import type { Role } from "../auth/roles";
 import { usersWithRole } from "../approval/line";
 import type { Db } from "@/db/client";
 import { notification } from "@/db/schema";
+import { schedulePush } from "./staff-push";
 
 export async function unreadCount(db: Db, userId: string): Promise<number> {
   const [r] = await db.select({ n: count() }).from(notification).where(and(eq(notification.userId, userId), isNull(notification.readAt)));
@@ -25,9 +26,12 @@ export async function notifyRole(db: Db, role: Role, title: string, dedupeKey?: 
     .insert(notification)
     .values(ids.map((userId) => ({ userId, title, link: link ?? null, dedupeKey: dedupeKey ?? null })))
     .onConflictDoNothing();
+  schedulePush();
 }
 
 /** 한 사람에게 알림(작업 배정 등) */
 export async function notifyUser(db: Db, userId: string, title: string, dedupeKey?: string, link?: string) {
   await db.insert(notification).values({ userId, title, link: link ?? null, dedupeKey: dedupeKey ?? null }).onConflictDoNothing();
+  // 홈 화면에 둔 직원 앱으로 푸시(켠 사람만)
+  schedulePush();
 }

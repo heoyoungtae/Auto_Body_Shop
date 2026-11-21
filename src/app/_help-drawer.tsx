@@ -112,7 +112,7 @@ export function HelpButton({ topic, name }: { topic: HelpTopic; name: string }) 
       aria-pressed={on}
       aria-label={`${name} 도움말`}
       title={`${name} 도움말`}
-      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-[var(--line-strong)] align-middle text-xs font-semibold text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-[var(--accent-fg)]"
+      className="relative inline-flex size-6 shrink-0 items-center before:absolute before:-inset-2.5 before:content-[''] pointer-coarse:size-7 justify-center rounded-full border border-[var(--line-strong)] align-middle text-xs font-semibold text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)] aria-pressed:text-[var(--accent-fg)]"
     >
       ?
     </button>

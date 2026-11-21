@@ -11,6 +11,7 @@ import { requestCodeAction, verifyCodeAction } from "../actions";
 import { mySession } from "../_session";
 import { ShopFooter } from "../_parts";
 import { brandUrl, loadBrand } from "@/modules/platform/brand-assets";
+import { InstallHint } from "../../_install-hint";
 
 export default async function MyLogin({ searchParams }: { searchParams: Promise<{ step?: string; error?: string; demo?: string; more?: string; next?: string; bye?: string; left?: string }> }) {
   const q = await searchParams;
@@ -26,6 +27,8 @@ export default async function MyLogin({ searchParams }: { searchParams: Promise<
       <PageTitle help="my.login" sub={shop.name}>
         내 차 수첩
       </PageTitle>
+      {/* 홈 화면 앱으로 연 게 아니면 '홈 화면에 추가' 안내(대표 지시 2026-11-21) */}
+      {shop.enabled && <InstallHint appName="내 차 수첩" what="수리 진행·견적 승인·보증" />}
       {!shop.enabled ? (
         <Notice>내 차 수첩을 잠시 쉬고 있습니다. 수리 문의는 정비소로 전화해 주세요.</Notice>
       ) : (

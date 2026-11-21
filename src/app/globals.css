@@ -124,6 +124,13 @@
   :where(summary) {
     cursor: pointer;
   }
+
+  /* 열 수를 정하지 않은 grid 는 한 열이 화면 폭 안에서 줄어들게 한다.
+     그대로 두면 안쪽 칸(체크 상자 줄·긴 입력칸)의 폭만큼 열이 늘어나 휴대폰에서 화면이 옆으로 밀린다(휴대폰 점검 2026-11-21).
+     grid-cols-* 를 준 곳은 유틸리티가 이긴다. */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media print {
@@ -159,21 +166,6 @@
   }
 }
 
-/* 휴대폰 아래 탭 막대(_sidebar.tsx TabBar)가 있으면 그만큼 본문 아래를 비우고, 아래 고정 저장줄(_form-bar.tsx)은 그 위에 붙는다 */
-html:has(#tab-bar) {
-  --tabbar-h: calc(3.75rem + env(safe-area-inset-bottom));
-}
-html:has(#tab-bar) main {
-  padding-bottom: calc(var(--tabbar-h) + 1.5rem);
-}
-@media (min-width: 1024px) {
-  html:has(#tab-bar) {
-    --tabbar-h: 0px;
-  }
-  html:has(#tab-bar) main {
-    padding-bottom: 1.5rem;
-  }
-}
 /* 도움말 창이 열려 있으면 아래 고정 저장줄도 그만큼 비킨다 */
 @media (min-width: 1100px) {
   html[data-help="open"] .form-bar {
@@ -181,7 +173,6 @@ html:has(#tab-bar) main {
   }
 }
 @media print {
-  #tab-bar,
   .form-bar {
     display: none !important;
   }
@@ -205,16 +196,25 @@ html:has(#tab-bar) main {
     border-bottom: 1px solid var(--line);
     padding: 0.5rem 0.25rem;
   }
+  /* 칸 안의 글·링크가 한 줄로 이어 흐르도록 block 으로 두고, 이름표(data-label)는 왼쪽에 띄운다.
+     flex 로 두면 글과 링크가 따로 떨어져 '( 8.5 )'처럼 세로로 쪼개진다(휴대폰 점검 2026-11-21) */
   table.table-cards td {
-    display: flex;
-    gap: 0.75rem;
+    display: block;
+    position: relative;
     padding: 0.2rem 0.5rem !important;
     border: 0 !important;
     text-align: left !important;
   }
+  table.table-cards td[data-label] {
+    padding-left: 6.75rem !important;
+    min-height: 1.75rem;
+  }
   table.table-cards td[data-label]::before {
     content: attr(data-label);
-    flex: 0 0 5.5rem;
+    position: absolute;
+    left: 0.5rem;
+    top: 0.2rem;
+    width: 5.5rem;
     color: var(--muted);
     font-size: 0.75rem;
     line-height: 1.5rem;
@@ -349,3 +349,42 @@ html:has(#tab-bar) main {
 .car-map .cm-label { font-size: 13px; font-weight: 600; fill: var(--fg); }
 .car-map .cm-hint { font-size: 11px; font-weight: 400; fill: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .car-map .cm-part { transition: none; } }
+
+/* ── 휴대폰 화면 점검(대표 지시 2026-11-21) ── */
+/* 긴 영문·주소·명령어가 화면 밖으로 밀어내지 않게 */
+main {
+  overflow-wrap: break-word;
+}
+main :not(pre) > code {
+  overflow-wrap: anywhere;
+}
+main pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+@media (max-width: 767px) {
+  /* 줄바꿈 줄(flex-wrap)에서 글 상자(flex-1 min-w-0)가 0 폭에서 시작하면 옆 단추에 밀려 한 글자씩 세로로 쌓인다.
+     최소 12rem 을 잡아 두면 자리가 모자랄 때 옆 단추가 아래 줄로 내려간다 */
+  .flex-wrap > .flex-1.min-w-0 {
+    flex-basis: min(12rem, 100%);
+  }
+}
+/* 손가락으로 누르는 화면: 작은 글 링크·접기 줄도 누르기 쉽게 높이를 44px 가까이 */
+@media (pointer: coarse) {
+  :where(main summary) {
+    padding-block: 0.625rem;
+  }
+  :where(.page-actions) > a:not([class*="h-"]):not([class*="py-"]) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+}
+/* 휴대폰에서 입력칸 글자가 16px 보다 작으면 아이폰이 칸을 누를 때 화면을 확대해 버린다. 휴대폰 폭에서는 16px 아래로 두지 않는다 */
+@media (max-width: 639px) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
