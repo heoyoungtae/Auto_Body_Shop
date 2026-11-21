@@ -8,6 +8,7 @@ export type Area = (typeof AREAS)[number];
 export const ENTITY: Record<string, { noun: string; area: Area; href: string }> = {
   repair_order: { noun: "수리 건", area: "수리", href: "/repairs" },
   estimate: { noun: "견적", area: "수리", href: "/estimates" },
+  repair_statement: { noun: "정비명세서", area: "수리", href: "/repairs" },
   work_order: { noun: "작업 지시서", area: "수리", href: "/work" },
   insurance_claim: { noun: "보험 청구", area: "수리", href: "/claims" },
   customer: { noun: "고객", area: "고객·상담", href: "/customers" },
@@ -94,6 +95,10 @@ export const ENTITY: Record<string, { noun: string; area: Area; href: string }> 
  * 일지가 원본 표에서 더 자세히 가져오는 기록(공정 시작·끝, 설비 점검)은 겹치지 않게 뺀다.
  */
 export const SKIP_ACTIONS = new Set([
+  // 내 차 수첩: 고객이 스스로 들어오고 보는 기록(직원 업무가 아님)
+  "carbook.login",
+  "carbook.link",
+  "carbook.view",
   "auth.login",
   "auth.login_failed",
   "auth.locked",
@@ -379,6 +384,10 @@ export const ACTION_LABEL: Record<string, string> = {
   "bank.account_remove": "통장·카드 지움",
   "bank.token_issue": "문자 받는 주소 새로 만듦",
   "tv.token_issue": "TV 현황판 링크 새로 만듦",
+  "carbook.config": "내 차 수첩 설정 바꿈",
+  "carbook.invite": "내 차 수첩 초대 문자 보냄",
+  "carbook.hide_photos": "고객에게 보일 사진 고름",
+  "carbook.sold": "고객이 차 판 것을 알림(내 차 수첩)",
   "branch.staff": "직원 지점 정함",
   "transfer.send": "재고 이동 보냄",
   "transfer.receive": "재고 이동 받음 확인",

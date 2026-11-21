@@ -443,6 +443,11 @@ export const MENU: MenuGroup[] = [
         href: "/settings/tv",
       },
       {
+        label: "내 차 수첩(고객용)",
+        roles: ["owner"],
+        href: "/settings/carbook",
+      },
+      {
         label: "서버·새 버전 올리기",
         roles: ["owner"],
         href: "/settings/server",

@@ -52,6 +52,8 @@ import { CarMap } from "../car-map";
 import { progressFills, progressPins, ProgressLegend } from "../damage-map";
 import { createWorkOrderAction } from "../../work/actions";
 import { PhotoSlots } from "../photo-slots";
+import { CustomerPhotos } from "../customer-photos";
+import { photoChoices } from "@/modules/carbook/service";
 import { SignaturePad } from "../signature-pad";
 import { claimOf } from "@/modules/repair/claims";
 import { roSteps } from "@/modules/repair/steps";
@@ -120,6 +122,8 @@ export default async function RepairDetail({
   // 업체 주문 앱(테크베이 등)으로 들어온 주문: 그쪽 앱에 등록할 진행 상태
   const portal = await portalOrderView(db, { consultationId: r.consultationId });
   const canWrite = can(user, "repair.write");
+  // 내 차 수첩(고객용)에서 보일 사진
+  const custPhotos = await photoChoices(db, r.id);
   const canDiagnose = can(user, "diag.write");
   const canConfirm = can(user, "diag.confirm");
   const open = r.status === "intake" && canWrite;
@@ -819,6 +823,9 @@ export default async function RepairDetail({
             </Card>
             <Card title="차체 도면" help={{ kind: "panel", id: "ro.diagram" }}>
               <BodyDiagram initial={r.marks} readOnly car={carOf(v)} />
+            </Card>
+            <Card title="고객에게 보일 사진" help={{ kind: "panel", id: "carbook.photos" }}>
+              <CustomerPhotos roId={r.id} photos={custPhotos} editable={can(user, "customer.write")} />
             </Card>
           </div>
           <div className="space-y-4">
