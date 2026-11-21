@@ -49,6 +49,15 @@ export async function siteConfig(db: Db): Promise<SiteConfig> {
 const cut = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
 const dateOrEmpty = (s: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s ?? "")) ? String(s) : "");
 
+/** 검색 등록 확인 값: '<meta name=... content="값">' 을 통째로 붙여도 값만 꺼낸다 */
+function verifyCode(raw: unknown, who: string) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const v = (/content=["']([^"']+)["']/.exec(s)?.[1] ?? s).trim();
+  if (!/^[\w-]{10,100}$/.test(v)) throw new SiteError(`${who} 확인 값이 이상합니다. 'HTML 태그' 방식의 content="…" 안 값을 붙여 주세요`);
+  return v;
+}
+
 export async function saveSiteConfig(db: Db, actor: Actor, input: Partial<SiteConfig>, now = new Date()) {
   if (!actor.roles.includes("owner")) throw new SiteError("홈페이지 설정은 대표만 바꿉니다");
   const kakao = cut(input.kakao, 200);
@@ -64,6 +73,9 @@ export async function saveSiteConfig(db: Db, actor: Actor, input: Partial<SiteCo
     privacyOfficer: cut(input.privacyOfficer, 40),
     privacyContact: cut(input.privacyContact, 80),
     privacyFrom: dateOrEmpty(input.privacyFrom),
+    insurers: cut(input.insurers, 300),
+    verifyNaver: verifyCode(input.verifyNaver, "네이버"),
+    verifyGoogle: verifyCode(input.verifyGoogle, "구글"),
   };
   await db.insert(appConfig).values({ key: KEY, data, updatedBy: actor.id, updatedAt: now }).onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: now } });
   await writeAudit(db, { actorId: actor.id, action: "site.config", entityType: "app_config", entityId: KEY, after: data });

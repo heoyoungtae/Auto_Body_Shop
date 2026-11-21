@@ -7,6 +7,7 @@ import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
 import { noticeTitle, publicCases, publicFaqs, publicNotices } from "@/modules/site/content";
 import { SERVICES } from "@/modules/site/rules";
+import { PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
 import { SectionHead, siteBtn, siteData, SiteTitle } from "./_parts";
 
 const STEPS = [
@@ -27,7 +28,12 @@ const ICONS: Record<string, ReactNode> = {
 
 export default async function SiteHome() {
   const db = await getDb();
-  const [{ shop, cfg, mapUrl }, p, cases, notices, faqs] = await Promise.all([siteData(), loadPolicy(db), publicCases(db, "", 3), publicNotices(db), publicFaqs(db)]);
+  const [{ shop, cfg, mapUrl }, p, cases, notices, faqs, trust] = await Promise.all([siteData(), loadPolicy(db), publicCases(db, "", 3), publicNotices(db), publicFaqs(db), siteTrust(db)]);
+  const reviewLinks = [
+    ["네이버 후기", trust.links.naver],
+    ["카카오맵 후기", trust.links.kakao],
+    ["구글 후기", trust.links.google],
+  ].filter(([, u]) => u);
   const warrantyTop = Math.max(p["warranty.paint_months"], p["warranty.dent_months"]);
   const TRUST = [
     { n: "6", u: "단계", d: "표준 공정" },
@@ -118,7 +124,41 @@ export default async function SiteHome() {
             ))}
           </dl>
         </div>
+        {trust.certs.length > 0 && (
+          <ul className="mx-auto mt-10 grid max-w-6xl gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="자격·인증">
+            {trust.certs.map((c) => (
+              <li key={c.id} className="flex gap-3 rounded-xl bg-[var(--surface)] p-4">
+                <svg aria-hidden viewBox="0 0 24 24" className="mt-0.5 size-6 shrink-0 text-[var(--red)]" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z" />
+                  <path d="m8.5 12 2.5 2.5 4.5-5" />
+                </svg>
+                <div>
+                  <p className="font-bold">{c.name}</p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-[var(--muted)]">{c.desc}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
+
+      {/* 정비소 사진 */}
+      {trust.photos.length > 0 && (
+        <section aria-labelledby="shop">
+          <SectionHead eyebrow="OUR SHOP" id="shop" title="정비소를 미리 둘러보세요" more={{ href: "/about", label: "정비소 소개" }} />
+          <ul className="grid auto-rows-[11rem] grid-cols-2 gap-3 sm:auto-rows-[14rem] md:grid-cols-4">
+            {trust.photos.slice(0, 6).map((ph, i) => (
+              <li key={ph.id} className={`group relative overflow-hidden rounded-2xl bg-[var(--surface-2)] ${i === 0 ? "col-span-2 row-span-2" : ""}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- 정비소 사진 그대로 */}
+                <img src={`/api/site-file/${ph.path}`} alt={ph.caption || PHOTO_KINDS[ph.kind]} className="size-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" />
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-8 text-sm font-medium text-white">
+                  {ph.caption || PHOTO_KINDS[ph.kind]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 진행 순서 */}
       <section aria-labelledby="flow">
@@ -162,15 +202,72 @@ export default async function SiteHome() {
         </section>
       )}
 
+      {/* 손님 후기 */}
+      {(trust.reviews.length > 0 || trust.rating.score) && (
+        <section aria-labelledby="reviews">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="eyebrow mb-2">REVIEWS</p>
+              <h2 id="reviews" className="text-2xl font-bold sm:text-[2rem]">
+                고객님이 남긴 말
+              </h2>
+            </div>
+            {trust.rating.score && (
+              <p className="flex items-baseline gap-2">
+                <span className="text-4xl font-bold tabular-nums">{trust.rating.score.toFixed(1)}</span>
+                <span className="text-lg text-[#e0a100]" aria-label={`5점 만점에 ${trust.rating.score}점`}>
+                  ★★★★★
+                </span>
+                <span className="text-sm text-[var(--muted)]">
+                  {trust.rating.source}
+                  {trust.rating.count ? ` 후기 ${trust.rating.count.toLocaleString("ko-KR")}개` : ""}
+                </span>
+              </p>
+            )}
+          </div>
+          {trust.reviews.length > 0 && (
+            <ul className="grid gap-5 md:grid-cols-3">
+              {trust.reviews.slice(0, 3).map((r) => (
+                <li key={r.id} className="flex flex-col rounded-2xl border border-[var(--line)] p-7">
+                  <p className="text-[#e0a100]" aria-label={`${r.rating}점`}>
+                    {"★".repeat(r.rating)}
+                    <span className="text-[var(--line-strong)]">{"★".repeat(5 - r.rating)}</span>
+                  </p>
+                  <blockquote className="mt-4 flex-1 text-[17px] leading-relaxed">&ldquo;{r.text}&rdquo;</blockquote>
+                  <p className="mt-5 text-sm text-[var(--muted)]">
+                    <b className="text-[var(--fg)]">{r.name}</b> 고객님 · {r.source}
+                    {r.date ? ` · ${r.date.slice(0, 7).replace("-", ".")}` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {reviewLinks.length > 0 && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {reviewLinks.map(([label, url]) => (
+                <a key={label} href={url} target="_blank" rel="noopener" className={siteBtn("line")}>
+                  {label} 모두 보기
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* 보험·보증 */}
       <section aria-label="보험 수리와 보증" className="grid gap-5 md:grid-cols-2">
         <div className="rounded-2xl border border-[var(--line)] p-8">
           <p className="eyebrow mb-2">INSURANCE</p>
           <h2 className="text-2xl font-bold">보험 수리, 맡겨 주세요</h2>
           <p className="mt-3 leading-relaxed text-[var(--muted)]">내 보험(자차)·상대 보험(대물) 모두 됩니다. 사고 접수번호와 보험사만 알려 주시면 보험사 협의는 정비소가 진행합니다. 견적 금액을 보고 자비 수리와 비교해 고르셔도 됩니다.</p>
-          <Link href="/faq?c=%EB%B3%B4%ED%97%98%20%EC%88%98%EB%A6%AC" className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-[var(--red)]">
-            보험 수리 질문 보기 <span aria-hidden>→</span>
-          </Link>
+          <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+            <Link href="/insurance" className="inline-flex items-center gap-1.5 text-sm font-semibold hover:text-[var(--red)]">
+              보험 수리 안내 <span aria-hidden>→</span>
+            </Link>
+            <Link href="/guide" className="inline-flex items-center gap-1.5 text-sm font-semibold hover:text-[var(--red)]">
+              맡기기 전 준비·출고 뒤 관리 <span aria-hidden>→</span>
+            </Link>
+          </div>
         </div>
         <div className="rounded-2xl bg-[var(--ink)] p-8 text-white">
           <p className="eyebrow mb-2 !text-white/50">WARRANTY</p>

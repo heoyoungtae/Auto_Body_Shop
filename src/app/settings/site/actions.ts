@@ -20,6 +20,9 @@ export async function saveSiteAction(form: FormData) {
       privacyOfficer: g("privacyOfficer"),
       privacyContact: g("privacyContact"),
       privacyFrom: g("privacyFrom"),
+      insurers: g("insurers"),
+      verifyNaver: g("verifyNaver"),
+      verifyGoogle: g("verifyGoogle"),
     });
   } catch (e) {
     redirect(errorUrl("/settings/site", userMessage(e)));
