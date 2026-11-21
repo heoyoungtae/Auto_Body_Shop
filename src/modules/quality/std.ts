@@ -59,6 +59,44 @@ export async function seedStd(db: Db) {
   return rows.length;
 }
 
+/** 본문 표시값(손대지 않은 초안인지 볼 때 쓴다) */
+export function bodyMark(t: string) {
+  let h = 5381;
+  for (const ch of t) h = ((h * 33) ^ ch.codePointAt(0)!) >>> 0;
+  return h.toString(16);
+}
+
+/**
+ * 확정판 공표 전(초안 v0.x)에는 개정 결재 없이 본문을 바로 고친다(대표 지시 2026-11-21).
+ * 이미 들어간 서버는 여기 적은 절이 예전 초안 그대로(표시값 같음)일 때만 std-seed.json 새 본문으로 바꾼다. 앱에서 고친 절은 건드리지 않는다.
+ */
+export const DRAFT_PATCHES: Record<string, string[]> = {
+  // 내 차 수첩(고객용 차계부) 반영 2026-11-21
+  "o:13.1": ["df0b9024"],
+  "o:13.2": ["5a1a34e"],
+  "o:13.4": ["8ea2fb1d"],
+  "p:STD-13:4": ["89a79ab8"],
+  "p:STD-13:5": ["f199ddaa"],
+  "p:STD-13:6": ["974bb978"],
+  "p:STD-13:7": ["c98e9d04"],
+  "p:STD-13:10": ["b79b1a82"],
+  "f:F-13-01": ["88a9d01e"],
+};
+
+export async function patchDraftStd(db: Db) {
+  const seed = new Map((SEED as SeedRow[]).map((s) => [s.key, s.body]));
+  let n = 0;
+  for (const [key, olds] of Object.entries(DRAFT_PATCHES)) {
+    const body = seed.get(key);
+    if (body == null) continue;
+    const [row] = await db.select({ body: stdSection.body }).from(stdSection).where(eq(stdSection.key, key));
+    if (!row || row.body === body || !olds.includes(bodyMark(row.body))) continue;
+    await db.update(stdSection).set({ body, updatedAt: new Date() }).where(eq(stdSection.key, key));
+    n++;
+  }
+  return n;
+}
+
 /** 이 사람이 이 절을 볼 수 있나(대표는 늘 봄) */
 export const canSee = (a: { roles: readonly Role[] }, s: { roles: string[] }) =>
   !s.roles.length || a.roles.includes("owner") || s.roles.some((r) => a.roles.includes(r as Role));

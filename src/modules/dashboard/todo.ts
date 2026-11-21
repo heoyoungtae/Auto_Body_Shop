@@ -722,6 +722,20 @@ export async function myTodos(
         href: "/settings/kakao",
         action: "설정 보기",
       });
+    // 카카오 알림톡 문구 검수(사용자 지시 2026-11-21): 검수 전이거나 앱에서 문구가 바뀐 것
+    const unreviewed = kakao.templates.filter((t) => t.review !== "ok");
+    if (unreviewed.length) {
+      const first = unreviewed.filter((t) => t.review === "changed" || ("changedOn" in t && t.changedOn));
+      const rest = unreviewed.length - first.length;
+      out.push({
+        key: "kakao-review",
+        when: "setup",
+        what: `카카오 알림톡 문구 검수 받기 ${unreviewed.length}건`,
+        detail: first.length ? `새로 만들거나 고친 문구: ${first.map((t) => t.title).join(", ")}${rest ? ` · 그 밖에 검수 전 ${rest}건` : ""}` : `${unreviewed.slice(0, 3).map((t) => t.title).join(", ")}${unreviewed.length > 3 ? " 등" : ""}`,
+        href: "/settings/kakao",
+        action: "검수 표시",
+      });
+    }
     const missing = shopMissing(await loadShopInfo(db));
     if (missing.length)
       out.push({

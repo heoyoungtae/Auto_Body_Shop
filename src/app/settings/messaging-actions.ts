@@ -61,6 +61,7 @@ export async function saveKakaoAction(form: FormData) {
       enabled: form.getAll("enabled").includes("1"),
       pfId: s(form, "pfId"),
       codes: Object.fromEntries(KAKAO_KEYS.map((k) => [k, s(form, `code.${k}`)])),
+      reviewed: form.getAll("reviewed").map(String),
     });
   } catch (e) {
     redirect(errorUrl("/settings/kakao", userMessage(e)));

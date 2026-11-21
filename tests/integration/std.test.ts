@@ -5,7 +5,7 @@ import type { Db } from "@/db/client";
 import { approvalDoc, docRegister, stdSection } from "@/db/schema";
 import { act, createDraft, submit } from "@/modules/approval/service";
 import { seedDocs } from "@/modules/quality/qms";
-import { getStdChapter, revisionPrefill, revisionsNeedingTraining, searchStd, seedStd, setSectionRoles } from "@/modules/quality/std";
+import { bodyMark, DRAFT_PATCHES, getStdChapter, patchDraftStd, revisionPrefill, revisionsNeedingTraining, searchStd, seedStd, setSectionRoles } from "@/modules/quality/std";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -71,5 +71,25 @@ describe("사내 표준서", () => {
     expect(reg.rev).toBe("v0.3");
     const need = await revisionsNeedingTraining(db);
     expect(need).toMatchObject([{ docNo: "STD-02", rev: "v0.3" }]);
+  });
+
+  it("확정판 전 초안 바로 고치기: 예전 초안 그대로인 절만 새 본문으로, 앱에서 고친 절은 그대로", async () => {
+    await seedStd(db);
+    expect(await patchDraftStd(db)).toBe(0);
+    const [seeded] = await db.select().from(stdSection).where(eq(stdSection.key, "f:F-13-01"));
+    expect(seeded.body).toMatch(/내 차 수첩 '내 기록'/);
+    // 예전 초안을 흉내: 표시값만 맞으면 되므로 표시값 목록에 지금 본문 표시값을 잠깐 더해 본다
+    DRAFT_PATCHES["o:13.1"].push(bodyMark("예전 초안"));
+    try {
+      await db.update(stdSection).set({ body: "예전 초안" }).where(eq(stdSection.key, "o:13.1"));
+      await db.update(stdSection).set({ body: "앱에서 고친 본문" }).where(eq(stdSection.key, "o:13.2"));
+      expect(await patchDraftStd(db)).toBe(1);
+      const rows = await db.select().from(stdSection);
+      expect(rows.find((r) => r.key === "o:13.1")!.body).toMatch(/내 차 수첩/);
+      expect(rows.find((r) => r.key === "o:13.2")!.body).toBe("앱에서 고친 본문");
+      expect(rows.find((r) => r.key === "o:13.1")!.history).toEqual([]);
+    } finally {
+      DRAFT_PATCHES["o:13.1"].pop();
+    }
   });
 });

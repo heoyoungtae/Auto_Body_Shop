@@ -50,10 +50,12 @@ export default async function KakaoSettingsPage({ searchParams }: { searchParams
                     <b>{t.title}</b>
                     <span className="text-xs text-[var(--muted)]">{t.std}</span>
                     {t.ready ? <Badge tone="ok">준비됨</Badge> : <Badge>문자로 발송</Badge>}
+                    {t.review === "ok" ? <Badge tone="ok">검수 받음</Badge> : t.review === "changed" ? <Badge tone="warn">문구 바뀜 · 다시 검수</Badge> : <Badge tone="warn">검수 전</Badge>}
                   </div>
                   <p className="mb-2 text-xs text-[var(--muted)]">쓰는 곳: {t.usage}</p>
                   <pre className="mb-2 whitespace-pre-wrap rounded bg-[var(--surface-2)] p-2 font-sans text-xs">{t.text}</pre>
                   {owner && <TextField help="kakao.code" name={`code.${t.key}`} label={`${t.title} 템플릿 코드`} defaultValue={t.code} spellCheck={false} />}
+                  {owner && <CheckGroup help="kakao.reviewed" name="reviewed" options={[{ value: t.key, label: "이 문구로 카카오 검수 받음" }]} defaultChecked={t.review === "ok" ? [t.key] : []} />}
                 </li>
               ))}
             </ul>

@@ -14,6 +14,7 @@ import {
 } from "./gift";
 import {
   KAKAO_KEYS,
+  kakaoTextMark,
   KAKAO_TEMPLATES,
   renderKakao,
   SAMPLE_VARS,
@@ -44,6 +45,8 @@ export type KakaoData = {
   enabled: boolean;
   pfId: string;
   codes: Partial<Record<KakaoKey, string>>;
+  /** 대표가 '이 문구로 카카오 검수 받음'이라 표시한 문구의 표시값(kakaoTextMark). 문구가 바뀌면 다시 검수 */
+  reviewed?: Partial<Record<KakaoKey, string>>;
 };
 export type GiftData = {
   provider: GiftProviderId;
@@ -378,6 +381,7 @@ export async function kakaoOverview(db: Db) {
       ...KAKAO_TEMPLATES[key],
       code: data.codes[key] ?? "",
       ready: ready(key),
+      review: (data.reviewed?.[key] === kakaoTextMark(key) ? "ok" : data.reviewed?.[key] ? "changed" : "none") as "ok" | "changed" | "none",
     })),
   };
 }
@@ -385,7 +389,7 @@ export async function kakaoOverview(db: Db) {
 export async function saveKakao(
   db: Db,
   actorId: string,
-  input: { enabled: boolean; pfId: string; codes: Record<string, string> },
+  input: { enabled: boolean; pfId: string; codes: Record<string, string>; reviewed?: string[] },
 ) {
   const codes: Partial<Record<KakaoKey, string>> = {};
   for (const k of KAKAO_KEYS) {
@@ -400,6 +404,7 @@ export async function saveKakao(
     enabled: input.enabled,
     pfId: input.pfId.trim(),
     codes,
+    reviewed: Object.fromEntries(KAKAO_KEYS.filter((k) => input.reviewed?.includes(k)).map((k) => [k, kakaoTextMark(k)])),
   };
   if (data.enabled) {
     const sms = await load(db, "sms");

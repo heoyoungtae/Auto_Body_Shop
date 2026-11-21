@@ -8,6 +8,8 @@ export type KakaoTemplate = {
   std: string;
   vars: string[];
   text: string;
+  /** 문구를 새로 만들거나 고친 날(대표 할 일에서 먼저 보인다) */
+  changedOn?: string;
 };
 
 export const KAKAO_TEMPLATES = {
@@ -68,6 +70,7 @@ export const KAKAO_TEMPLATES = {
     usage: "최종 검사 합격 뒤 출고 대기로 바뀔 때",
     std: "STD-05",
     vars: ["고객명", "업체명", "차량번호", "작업내용", "수첩링크", "업체전화"],
+    changedOn: "2026-11-21",
     text: "#{고객명} 고객님, #{업체명}입니다.\n차량 수리가 완료되어 안내드립니다.\n\n■ 차량번호: #{차량번호}\n■ 작업내용: #{작업내용}\n\n편하신 시간에 방문하여 차량을 인수해 주세요.\n수리 사진·명세서·보증 기간은 '내 차 수첩'에서 보실 수 있습니다.\n#{수첩링크}\n문의: #{업체전화}",
   },
   carbook_reminder: {
@@ -75,6 +78,7 @@ export const KAKAO_TEMPLATES = {
     usage: "고객이 내 차 수첩에서 켜 둔 알림(정기검사·보증 만료·소모품 교체·보험 만기). 매일 16시, 고객마다 한 통으로 묶음",
     std: "STD-06",
     vars: ["고객명", "업체명", "안내내용", "수첩링크", "업체전화"],
+    changedOn: "2026-11-21",
     text: "#{고객명} 고객님, #{업체명} '내 차 수첩' 알림입니다.\n\n#{안내내용}\n\n자세한 내용은 내 차 수첩에서 보실 수 있습니다.\n#{수첩링크}\n알림은 내 차 수첩 › 더보기 › 알림에서 끌 수 있습니다.\n문의: #{업체전화}",
   },
   survey: {
@@ -88,6 +92,13 @@ export const KAKAO_TEMPLATES = {
 
 export type KakaoKey = keyof typeof KAKAO_TEMPLATES;
 export const KAKAO_KEYS = Object.keys(KAKAO_TEMPLATES) as KakaoKey[];
+
+/** 문구 표시값: 카카오 검수를 받은 문구와 지금 문구가 같은지 볼 때 쓴다(문구를 고치면 값이 바뀌어 '다시 검수'가 된다) */
+export function kakaoTextMark(key: KakaoKey) {
+  let h = 5381;
+  for (const ch of KAKAO_TEMPLATES[key].text) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+  return h.toString(36);
+}
 
 export const renderKakao = (key: KakaoKey, v: Record<string, string>) =>
   KAKAO_TEMPLATES[key].text.replace(
