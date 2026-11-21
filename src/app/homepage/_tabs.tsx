@@ -5,6 +5,7 @@ const TABS = [
   { href: "/homepage/faq", label: "자주 묻는 질문" },
   { href: "/homepage/notice", label: "공지사항" },
   { href: "/homepage/cases", label: "작업 사례" },
+  { href: "/homepage/trust", label: "후기·사진·인증" },
   { href: "/consults?f=online", label: "견적 요청함" },
 ] as const;
 

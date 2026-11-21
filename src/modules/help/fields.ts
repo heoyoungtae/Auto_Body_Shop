@@ -5228,6 +5228,76 @@ export const FIELD_HELP = {
     label: "처리방침 시행일",
     detail: "처리방침·이용약관을 언제부터 적용하는지입니다. 내용을 바꾸면 7일 뒤 날짜로 고치고 공지합니다.",
   },
+  "site.cfg.insurers": {
+    label: "거래 보험사",
+    detail: "보험 수리 안내 화면에 보일 보험사 이름을 쉼표로 적습니다. 비우면 목록이 보이지 않습니다.",
+  },
+  "site.cfg.verifyNaver": {
+    label: "네이버 확인 값",
+    detail: "네이버 서치어드바이저 › 사이트 등록 › 'HTML 태그' 방식의 content=\"…\" 안 값입니다. 태그를 통째로 붙여도 값만 꺼내 저장합니다.",
+  },
+  "site.cfg.verifyGoogle": {
+    label: "구글 확인 값",
+    detail: "구글 서치 콘솔 › URL 접두어 › 'HTML 태그' 방식의 content=\"…\" 안 값입니다. 태그를 통째로 붙여도 됩니다.",
+  },
+  "homepage.linkNaver": {
+    label: "네이버 지도 주소",
+    detail: "네이버 지도에서 우리 정비소를 열고 '공유 › URL 복사'로 붙입니다(naver.me 로 시작). 비우면 단추가 안 보입니다.",
+  },
+  "homepage.linkKakao": {
+    label: "카카오맵 주소",
+    detail: "카카오맵에서 우리 정비소를 열고 '공유 › 링크 복사'로 붙입니다(place.map.kakao.com 또는 kko.to).",
+  },
+  "homepage.linkGoogle": {
+    label: "구글 지도 주소",
+    detail: "구글 지도에서 우리 정비소를 열고 '공유 › 링크 복사'로 붙입니다(maps.app.goo.gl).",
+  },
+  "homepage.ratingScore": {
+    label: "별점",
+    hint: "바깥 사이트에 보이는 숫자 그대로(1~5)",
+    example: "4.9",
+    maxLength: 3,
+  },
+  "homepage.ratingCount": {
+    label: "후기 수",
+    detail: "바깥 사이트에 보이는 후기 개수입니다. 비우면 숫자 없이 별점만 보입니다.",
+  },
+  "homepage.ratingSource": {
+    label: "별점 출처",
+    detail: "별점을 어디서 가져왔는지입니다. 별점 옆에 '네이버 후기 128개'처럼 보입니다.",
+  },
+  "homepage.reviewText": {
+    label: "후기 내용",
+    detail: "손님이 쓴 그대로 옮깁니다(400자까지). 휴대폰 번호·차량번호가 있으면 넣을 수 없습니다.",
+  },
+  "homepage.reviewRating": {
+    label: "별점",
+    detail: "그 후기의 별점입니다.",
+  },
+  "homepage.reviewName": {
+    label: "손님 이름",
+    detail: "적으면 첫 글자만 남기고 가립니다(김민수 → 김**). 비우면 '고객'으로 보입니다.",
+  },
+  "homepage.reviewSource": {
+    label: "출처",
+    detail: "후기를 가져온 곳입니다. 직접 받은 후기는 손님에게 실어도 되는지 먼저 물어봅니다.",
+  },
+  "homepage.reviewDate": {
+    label: "쓴 날",
+    detail: "후기를 쓴 날입니다. 홈페이지에는 연·월만 보입니다.",
+  },
+  "homepage.certName": {
+    label: "자격·인증 이름",
+    hint: "40자까지",
+    example: "자동차 종합정비업 등록",
+    maxLength: 40,
+  },
+  "homepage.certDesc": {
+    label: "한 줄 설명",
+    hint: "손님이 알아듣는 말로(120자까지)",
+    example: "관할 구청에 등록한 정식 자동차 정비업체입니다.",
+    maxLength: 120,
+  },
   "homepage.faqCategory": {
     label: "분야",
     detail: "홈페이지에서 이 분야 묶음 아래에 보입니다. 수리·작업, 견적·비용, 보험 수리, 기간·맡기기, 보증·출고 뒤, 내 차 수첩·개인정보.",

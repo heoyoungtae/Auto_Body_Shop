@@ -2,6 +2,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SERVICES } from "@/modules/site/rules";
+import { getDb } from "@/db/runtime";
+import { PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
 import { siteBtn, siteData, SiteTitle } from "../_parts";
 
 export const metadata: Metadata = { title: "정비소 소개" };
@@ -15,7 +17,7 @@ const RULES = [
 ];
 
 export default async function AboutPage() {
-  const { shop, cfg, mapUrl } = await siteData();
+  const [{ shop, cfg, mapUrl }, trust] = await Promise.all([siteData(), siteTrust(await getDb())]);
   return (
     <div className="mx-auto max-w-4xl space-y-20">
       <SiteTitle eyebrow="ABOUT US" help="site.about" sub={shop.name}>
@@ -43,6 +45,44 @@ export default async function AboutPage() {
           ))}
         </ul>
       </section>
+      {trust.photos.length > 0 && (
+        <section aria-labelledby="shop">
+          <p className="eyebrow mb-2">OUR SHOP</p>
+          <h2 id="shop" className="mb-6 text-2xl font-bold sm:text-[2rem]">
+            정비소 둘러보기
+          </h2>
+          <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {trust.photos.map((ph) => (
+              <li key={ph.id}>
+                <figure className="overflow-hidden rounded-2xl bg-[var(--surface-2)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- 정비소 사진 그대로 */}
+                  <img src={`/api/site-file/${ph.path}`} alt={ph.caption || PHOTO_KINDS[ph.kind]} width={ph.width} height={ph.height} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                  <figcaption className="px-4 py-2.5 text-sm">
+                    <b>{PHOTO_KINDS[ph.kind]}</b>
+                    {ph.caption && <span className="text-[var(--muted)]"> · {ph.caption}</span>}
+                  </figcaption>
+                </figure>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {trust.certs.length > 0 && (
+        <section aria-labelledby="certs">
+          <p className="eyebrow mb-2">CERTIFICATIONS</p>
+          <h2 id="certs" className="mb-6 text-2xl font-bold sm:text-[2rem]">
+            자격·인증
+          </h2>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {trust.certs.map((c) => (
+              <li key={c.id} className="rounded-2xl border border-[var(--line)] p-6">
+                <p className="text-lg font-bold">{c.name}</p>
+                <p className="mt-1.5 leading-relaxed text-[var(--muted)]">{c.desc}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="-mx-5 bg-[var(--paper)] px-5 py-14 sm:rounded-3xl sm:px-10">
         <p className="eyebrow mb-2">OUR STANDARD</p>
         <h2 className="text-2xl font-bold sm:text-[2rem]">작업 기준</h2>

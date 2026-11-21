@@ -19,6 +19,8 @@ export const SITE_PATHS: Record<string, string> = {
   "/faq": "/site/faq",
   "/notice": "/site/notice",
   "/cases": "/site/cases",
+  "/insurance": "/site/insurance",
+  "/guide": "/site/guide",
 };
 
 /** 글 한 건 주소(/notice/글번호, /cases/글번호)도 홈페이지 화면으로 */
@@ -60,6 +62,11 @@ export type SiteConfig = {
   privacyContact: string;
   /** 처리방침 시행일 */
   privacyFrom: string;
+  /** 거래하는 보험사(쉼표로). 보험 수리 안내 화면에 보인다 */
+  insurers: string;
+  /** 검색 등록 확인 값: 네이버 서치어드바이저·구글 서치 콘솔의 'HTML 태그' content 값 */
+  verifyNaver: string;
+  verifyGoogle: string;
 };
 
 export const DEFAULT_SITE: SiteConfig = {
@@ -74,6 +81,9 @@ export const DEFAULT_SITE: SiteConfig = {
   privacyOfficer: "",
   privacyContact: "",
   privacyFrom: "",
+  insurers: "",
+  verifyNaver: "",
+  verifyGoogle: "",
 };
 
 /** 수리 분야(홈·소개에 보이는 세 칸) */

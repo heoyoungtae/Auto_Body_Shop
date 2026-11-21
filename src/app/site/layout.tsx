@@ -7,14 +7,20 @@ import { getDb } from "@/db/runtime";
 import { brandSize, brandUrl, loadBrand } from "@/modules/platform/brand-assets";
 import { APP_NAME } from "@/modules/platform/brand";
 import { seoulDate } from "@/modules/platform/time";
-import { daysToOpen } from "@/modules/site/rules";
+import { daysToOpen, homepageHosts } from "@/modules/site/rules";
+import { siteUrl } from "@/modules/site/service";
 import { bannerNotice, noticeTitle } from "@/modules/site/content";
+import { siteTrust } from "@/modules/site/trust";
 import { homeHref, siteBtn, siteData } from "./_parts";
 import "./site.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { cfg } = await siteData();
+  const base = homepageHosts().length ? siteUrl() : undefined;
   return {
+    metadataBase: base ? new URL(base) : undefined,
+    alternates: base ? { canonical: "./" } : undefined,
+    verification: { google: cfg.verifyGoogle || undefined, other: cfg.verifyNaver ? { "naver-site-verification": cfg.verifyNaver } : undefined },
     title: { default: `${APP_NAME} — 찌그러짐·긁힘·도색`, template: `%s · ${APP_NAME}` },
     description: cfg.lead || "차체 외관 수리(찌그러짐·긁힘·도색) 전문 정비소",
     openGraph: { title: APP_NAME, description: cfg.lead, type: "website", locale: "ko_KR" },
@@ -24,6 +30,8 @@ export async function generateMetadata(): Promise<Metadata> {
 const NAV = [
   { href: "/about", label: "정비소 소개" },
   { href: "/cases", label: "작업 사례" },
+  { href: "/insurance", label: "보험 수리" },
+  { href: "/guide", label: "이용 안내" },
   { href: "/faq", label: "자주 묻는 질문" },
   { href: "/notice", label: "공지사항" },
   { href: "/my", label: "내 차 수첩" },
@@ -31,7 +39,7 @@ const NAV = [
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const db = await getDb();
-  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner] = await Promise.all([siteData(), loadBrand(db), homeHref(), bannerNotice(db)]);
+  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner, trust] = await Promise.all([siteData(), loadBrand(db), homeHref(), bannerNotice(db), siteTrust(db)]);
   const [w, h] = brandSize(brand, "logo-light");
   const [dw, dh] = brandSize(brand, "logo-dark");
   const dday = daysToOpen(cfg.openOn, seoulDate());
@@ -40,6 +48,24 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     <div className="site flex min-h-screen flex-col bg-[var(--bg)] pb-20 text-[16px] lg:pb-0">
       {/* eslint-disable-next-line @next/next/no-css-tags -- 프리텐다드 글꼴(이 서버에 둔 파일) */}
       <link rel="stylesheet" href="/fonts/pretendard/pretendard.css" precedence="default" />
+      {/* 검색 엔진용 사업장 정보(이름·전화·주소·영업시간). 사업장 정보와 같은 값이라 지도 정보와 어긋나지 않는다 */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "AutoBodyShop",
+            name: shop.name,
+            telephone: shop.phone || undefined,
+            address: shop.address ? { "@type": "PostalAddress", streetAddress: shop.address, addressCountry: "KR" } : undefined,
+            url: homepageHosts().length ? siteUrl() : undefined,
+            logo: homepageHosts().length ? `${siteUrl()}${brandUrl(brand, "logo-light")}` : undefined,
+            description: cfg.lead || undefined,
+            openingHours: cfg.hours || undefined,
+            sameAs: [trust.links.naver, trust.links.kakao, trust.links.google].filter(Boolean),
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
       {dday != null && (
         <p className="bg-[var(--ink)] px-4 py-2 text-center text-[13px] text-white/85">
           <span className="mr-2 font-semibold text-white">GRAND OPENING</span>
@@ -57,12 +83,12 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           </Link>
           <nav aria-label="홈페이지 메뉴" className="ml-auto hidden items-center gap-1 lg:flex">
             {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="rounded-full px-3.5 py-2 text-[15px] font-medium text-[var(--fg)]/80 transition hover:bg-[var(--surface-2)] hover:text-[var(--fg)]">
+              <Link key={n.href} href={n.href} className="rounded-full px-3 py-2 text-[15px] font-medium text-[var(--fg)]/80 transition hover:bg-[var(--surface-2)] hover:text-[var(--fg)]">
                 {n.label}
               </Link>
             ))}
             {shop.phone && (
-              <a href={`tel:${shop.tel}`} className="ml-3 border-l border-[var(--line)] pl-4 text-[15px] font-semibold tabular-nums">
+              <a href={`tel:${shop.tel}`} className="ml-3 hidden border-l border-[var(--line)] pl-4 text-[15px] font-semibold tabular-nums xl:inline">
                 {shop.phone}
               </a>
             )}
@@ -149,6 +175,16 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             <p>
               <Link href="/terms" className="hover:text-white">
                 이용약관
+              </Link>
+            </p>
+            <p>
+              <Link href="/insurance" className="hover:text-white">
+                보험 수리 안내
+              </Link>
+            </p>
+            <p>
+              <Link href="/guide" className="hover:text-white">
+                이용 안내
               </Link>
             </p>
             {app && (

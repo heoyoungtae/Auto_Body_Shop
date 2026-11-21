@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { rolesFor } from "@/modules/auth/permissions";
 import { addCasePhoto, createCase, deleteCase, deleteFaq, deleteNotice, loadFaqStarters, removeCasePhoto, saveCase, saveFaq, saveNotice } from "@/modules/site/content";
+import { addCert, addReview, addShopPhoto, removeCert, removeReview, removeShopPhoto, saveTrustLinks } from "@/modules/site/trust";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
 const STAFF = rolesFor("consult.write");
@@ -114,4 +115,51 @@ export async function removeCasePhotoAction(form: FormData) {
   const id = g(form, "id");
   await removeCasePhoto(await getDb(), user, id, g(form, "path"));
   redirect(noticeUrl(`/homepage/cases/${id}`, "사진을 뺐습니다"));
+}
+
+// ── 후기·사진·인증 ──
+async function trustDo(fn: () => Promise<unknown>, ok: string) {
+  try {
+    await fn();
+  } catch (e) {
+    redirect(errorUrl("/homepage/trust", userMessage(e)));
+  }
+  redirect(noticeUrl("/homepage/trust", ok));
+}
+
+export async function saveTrustLinksAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  await trustDo(async () => saveTrustLinks(await getDb(), user, { naver: g(form, "naver"), kakao: g(form, "kakao"), google: g(form, "google"), score: g(form, "score"), count: g(form, "count"), source: g(form, "source") }), "저장했습니다");
+}
+export async function addReviewAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  await trustDo(async () => addReview(await getDb(), user, { name: g(form, "name"), rating: Number(g(form, "rating")), text: g(form, "text"), source: g(form, "source"), date: g(form, "date") }), "후기를 넣었습니다. 홈페이지에 바로 보입니다");
+}
+export async function removeReviewAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  await trustDo(async () => removeReview(await getDb(), user, g(form, "id")), "후기를 지웠습니다");
+}
+export async function addCertAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  await trustDo(async () => addCert(await getDb(), user, { name: g(form, "name"), desc: g(form, "desc") }), "자격·인증을 넣었습니다");
+}
+export async function removeCertAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  await trustDo(async () => removeCert(await getDb(), user, g(form, "id")), "지웠습니다");
+}
+export async function removeShopPhotoAction(form: FormData) {
+  const user = await requireUser([...STAFF]);
+  await trustDo(async () => removeShopPhoto(await getDb(), user, g(form, "id")), "사진을 뺐습니다");
+}
+/** 정비소 사진 올리기(화면에서 줄여 새로 그린 그림). 결과만 돌려준다 */
+export async function uploadShopPhotoAction(form: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = await requireUser([...STAFF]);
+  const file = form.get("file");
+  if (!(file instanceof Blob)) return { ok: false, error: "사진이 없습니다" };
+  try {
+    await addShopPhoto(await getDb(), user, new Uint8Array(await file.arrayBuffer()), { caption: g(form, "caption"), kind: g(form, "kind"), width: Number(g(form, "width")), height: Number(g(form, "height")) });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: userMessage(e) };
+  }
 }
