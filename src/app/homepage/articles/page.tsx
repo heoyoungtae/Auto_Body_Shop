@@ -1,4 +1,4 @@
-// 홈페이지 › 기술자료 관리: 분야별 목록(공개·초안·본 횟수), 고치기·새로 쓰기, 처음 초안 17편 불러오기.
+// 홈페이지 › 기술자료 관리: 분야별 목록(공개·초안·본 횟수), 고치기·새로 쓰기, 빠진 처음 글 다시 넣기(처음 17편은 홈페이지를 처음 열 때 저절로 공개).
 // 손님은 홈페이지 '기술자료'에서 읽기만 한다. 공개 글 앞 세 편은 홈 첫 화면에도 보인다.
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
@@ -52,13 +52,13 @@ export default async function ArticlesAdminPage({ searchParams }: { searchParams
           actions={
             starterLeft > 0 ? (
               <form action={articleStartersAction}>
-                <button className={buttonClass("secondary")}>처음 초안 {starterLeft}편 불러오기</button>
+                <button className={buttonClass("secondary")}>빠진 처음 글 {starterLeft}편 다시 넣기</button>
               </form>
             ) : undefined
           }
         >
           {!rows.length ? (
-            <Empty>아직 글이 없습니다. 위의 &lsquo;처음 초안 불러오기&rsquo;로 표준서 기반 초안 {ARTICLE_STARTERS.length}편을 넣고 고쳐 공개하세요.</Empty>
+            <Empty>아직 글이 없습니다. 홈페이지를 처음 열면 표준서 기반 글 {ARTICLE_STARTERS.length}편이 저절로 공개로 들어갑니다. 지금 넣으려면 위 단추를 누르세요.</Empty>
           ) : (
             <div className="space-y-4">
               {cats.map((c) => {

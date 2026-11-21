@@ -19,19 +19,19 @@ const advisor = () => ({ id: ids.advisor, roles: ["advisor"] as const });
 const tech = () => ({ id: ids.tech1, roles: ["technician"] as const });
 
 describe("기술자료", () => {
-  it("처음 초안은 정책값을 넣어 공개 안 함으로, 두 번 눌러도 한 번만", async () => {
-    expect(await loadArticleStarters(db, advisor())).toBe(ARTICLE_STARTERS.length);
-    expect(await loadArticleStarters(db, advisor())).toBe(0);
+  it("처음 글은 홈페이지를 처음 열 때 정책값을 넣어 저절로 공개, 지우면 단추로 되살린다", async () => {
+    expect(await publicArticles(db)).toHaveLength(ARTICLE_STARTERS.length);
     const rows = await listArticles(db);
-    expect(rows.every((r) => !r.published)).toBe(true);
+    expect(rows.every((r) => r.published)).toBe(true);
     expect(rows.find((r) => r.slug === "paint-process")!.body).toMatch(/\d+~\d+μm/);
-    expect(await publicArticles(db)).toEqual([]);
+    expect(await loadArticleStarters(db, advisor())).toBe(0);
+    const rust = rows.find((r) => r.slug === "rust-stages")!;
+    await saveArticle(db, advisor(), { ...rust, published: false });
+    expect(await publicArticles(db)).toHaveLength(ARTICLE_STARTERS.length - 1); // 내린 글은 다시 올리지 않는다
     await expect(loadArticleStarters(db, tech())).rejects.toThrow(/상담을 쓸 수 있는/);
   });
 
   it("공개한 글만 보이고, 낱말로 찾고, 분야마다 하나씩 홈에 띄운다", async () => {
-    await loadArticleStarters(db, advisor());
-    for (const r of await listArticles(db)) await saveArticle(db, advisor(), { ...r, published: true });
     expect((await publicArticles(db)).length).toBe(ARTICLE_STARTERS.length);
     expect((await publicArticles(db, "염화 칼슘")).map((a) => a.slug)).toEqual(["winter-salt"]);
     expect((await publicArticles(db, "", "부식 예방")).every((a) => a.category === "부식 예방")).toBe(true);

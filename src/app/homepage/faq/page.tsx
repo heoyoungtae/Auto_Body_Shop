@@ -52,13 +52,13 @@ export default async function FaqAdminPage({ searchParams }: { searchParams: Pro
           actions={
             starterLeft > 0 ? (
               <form action={faqStartersAction}>
-                <button className={buttonClass("secondary")}>처음 초안 {starterLeft}개 불러오기</button>
+                <button className={buttonClass("secondary")}>빠진 처음 글 {starterLeft}개 다시 넣기</button>
               </form>
             ) : undefined
           }
         >
           {!rows.length ? (
-            <Empty>아직 질문이 없습니다. 위의 &lsquo;처음 초안 불러오기&rsquo;로 표준서 기반 초안 20개를 넣고 고쳐 공개하세요.</Empty>
+            <Empty>아직 질문이 없습니다. 홈페이지를 처음 열면 표준서 기반 질문 20개가 저절로 공개로 들어갑니다. 지금 넣으려면 위 단추를 누르세요.</Empty>
           ) : (
             <div className="space-y-4">
               {cats.map((c) => {
