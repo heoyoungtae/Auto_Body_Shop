@@ -5393,6 +5393,21 @@ export const FIELD_HELP = {
     hint: "바꿀 것이 없으면 '바꿀 것 없음'. 바꿀 것이 있으면 위 '개정 요청'을 함께 누릅니다.",
     example: "바꿀 것 없음",
   },
+  "records.purgeReason": {
+    label: "파기 사유",
+    hint: "비워 두면 '보존 기간이 지남(부록 A)'으로 올라갑니다.",
+    example: "보존 기간이 지남(부록 A)",
+  },
+  "legal.files": {
+    label: "첨부 파일",
+    hint: "법령 사본(PDF)·허가증·신고필증·점검 결과서 사진. 한 개에 8MB까지.",
+    detail: "국가법령정보센터에서 그 법령을 'PDF 저장'해 올리면 개정 전 내용과 비교할 수 있습니다. 허가·신고 대상이면 허가증·신고필증도 함께 올려 두세요.",
+  },
+  "legal.fileRemoveReason": {
+    label: "떼는 까닭",
+    hint: "떼는 까닭은 법규 대장 기록(이력)에 남습니다.",
+    example: "잘못 올림",
+  },
 } satisfies Record<string, FieldHelp>;
 
 export type FieldHelpKey = keyof typeof FIELD_HELP;

@@ -71,6 +71,7 @@ const FIELD_LABEL: Record<string, string> = {
   payMethod: "지급 방법",
   dueOn: "지급 예정일",
   docId: "문서 목록",
+  purgeList: "파기할 기록",
 };
 /** 저장된 키·숫자를 사람이 읽는 말로 */
 function show(k: string, v: unknown): string {
@@ -239,7 +240,7 @@ export default async function ApprovalDetail({
           <Card title="내용" help={{ kind: "panel", id: "doc.content" }}>
             <dl className="space-y-3 text-sm">
               {Object.entries(data)
-                .filter(([k]) => k !== "corrId" && !(secKey && (k === "current" || k === "proposed")))
+                .filter(([k]) => k !== "corrId" && k !== "purge" && !(secKey && (k === "current" || k === "proposed")))
                 .sort(([a], [b]) => order(a) - order(b))
                 .map(([k, v]) => (
                   <div key={k}>
@@ -330,6 +331,12 @@ export default async function ApprovalDetail({
           {doc.formCode === "MGMT-M" && typeof data.ym === "string" && (
             <Link href={`/reports/monthly?ym=${data.ym}`} className={buttonClass()}>
               월간 경영보고서 화면으로
+            </Link>
+          )}
+
+          {doc.formCode === "REC-PURGE" && (
+            <Link href="/records/purge" className={buttonClass()}>
+              보존·파기 화면으로
             </Link>
           )}
 

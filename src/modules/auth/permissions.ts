@@ -371,6 +371,13 @@ export const PERMS = {
     std: "STD-Q 7절",
     roles: ["owner", "quality"],
   },
+  "records.purge": {
+    area: "품질",
+    label: "보존 기간 지난 기록 보기·파기 결재 올리기",
+    std: "STD-Q 8절",
+    roles: ["owner", "quality"],
+    note: "파기는 대표 승인 뒤에만 지워집니다",
+  },
   "records.history": {
     area: "품질",
     label: "기록의 변경 이력(누가·언제·무엇을 바꿨나) 보기",

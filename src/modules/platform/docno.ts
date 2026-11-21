@@ -43,6 +43,7 @@ export const DOC_PREFIXES = [
   "HC",
   "RC",
   "OL",
+  "PG",
 ] as const;
 export type DocPrefix = (typeof DOC_PREFIXES)[number];
 

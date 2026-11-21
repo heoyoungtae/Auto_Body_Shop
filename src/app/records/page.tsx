@@ -8,7 +8,7 @@ import { AssistForm } from "../_assist";
 import { SelectField, TextField } from "../_input";
 import { requireUser } from "../_lib/session";
 import { SubmitButton } from "../_submit";
-import { Badge, Card, Empty, PageTitle } from "../_ui";
+import { Badge, buttonClass, Card, Empty, PageTitle } from "../_ui";
 
 const AREAS = ["수리·고객", "구매·자재", "돈", "품질·안전", "문서·업무"] as const;
 const SHOW = 5;
@@ -46,7 +46,15 @@ export default async function RecordsPage({ searchParams }: { searchParams: Prom
   const qsOf = (href: string, qq: Q) => `${href}?${new URLSearchParams(Object.entries(qq).filter(([, v]) => v && v !== "all") as [string, string][]).toString()}`;
   return (
     <>
-      <PageTitle help="records" std="STD-Q 8절" sub="상담·수리·견적·발주·지출·부적합·법규·문서·수발신 등 모든 대장을 한 번에 찾습니다. 번호(RO-2611-0001), 고객·업체 이름, 차량번호, 제목 무엇이든 넣으세요. 볼 권한이 있는 대장만 찾습니다.">
+      <PageTitle help="records" std="STD-Q 8절" sub="상담·수리·견적·발주·지출·부적합·법규·문서·수발신 등 모든 대장을 한 번에 찾습니다. 번호(RO-2611-0001), 고객·업체 이름, 차량번호, 제목 무엇이든 넣으세요. 볼 권한이 있는 대장만 찾습니다."
+        actions={
+          can(user, "records.purge") ? (
+            <Link href="/records/purge" className={buttonClass("secondary")}>
+              보존·파기
+            </Link>
+          ) : undefined
+        }
+      >
         기록 보관함
       </PageTitle>
       <Card title="찾기" help={{ kind: "panel", id: "records.search" }}>

@@ -75,6 +75,16 @@ export const FORMS = {
       { kind: "approve", label: "승인", assignees: ["owner"] },
     ],
   },
+  // 보존 기간 지난 기록 파기(STD-Q 8절): 대표·품질 담당이 올리고 대표가 승인하면 지운다
+  "REC-PURGE": {
+    code: "REC-PURGE",
+    name: "기록 파기 결재",
+    prefix: "PG",
+    steps: [
+      { kind: "draft", label: "기안", assignees: ["drafter"] },
+      { kind: "approve", label: "승인", assignees: ["owner"] },
+    ],
+  },
 } satisfies Record<string, FormDef>;
 
 export type FormCode = keyof typeof FORMS;

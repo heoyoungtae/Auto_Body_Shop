@@ -6,7 +6,9 @@ import {
   confirmLegalYear,
   createLegal,
   evaluateLegal,
+  addLegalFile,
   importAppendixC,
+  removeLegalFile,
   recordDone,
   recordInspection,
   recordRevCheck,
@@ -77,6 +79,15 @@ export async function legalAction(form: FormData) {
     const db = await getDb();
     const intent = s("intent");
     if (intent === "update") await updateLegal(db, user, id, input(form));
+    else if (intent === "files") {
+      const files = form.getAll("legalFiles").filter((f): f is File => f instanceof File && f.size > 0);
+      if (!files.length) throw new UserError("파일을 골라 주세요");
+      for (const f of files) await addLegalFile(db, user, id, new Uint8Array(await f.arrayBuffer()), f.name);
+      msg = `${files.length}개를 올렸습니다`;
+    } else if (intent === "removeFile") {
+      await removeLegalFile(db, user, id, s("path"), s("reason"));
+      msg = "파일을 뗐습니다(뗀 기록은 이력에 남음)";
+    }
     else if (intent === "done") {
       const next = await recordDone(db, user, id, {
         doneOn: s("doneOn"),

@@ -33,6 +33,7 @@ import { toolTodos } from "@/modules/equipment/tools";
 import { suggestionTodos } from "@/modules/equipment/suggestion";
 import { corrTodos } from "@/modules/quality/corr";
 import { docReviewTodos } from "@/modules/quality/doc-files";
+import { purgeTodos } from "@/modules/quality/retention";
 import { legalTodos } from "@/modules/quality/legal";
 import { riskTodos } from "@/modules/quality/risk";
 import { auditTodos } from "@/modules/quality/audit";
@@ -650,6 +651,7 @@ export async function myTodos(
     ...(await legalTodos(db, user, today)),
     ...(await corrTodos(db, user, today)),
     ...(await docReviewTodos(db, user, today)),
+    ...(await purgeTodos(db, user, today)),
     ...(await riskTodos(db, user, today)),
     ...(await auditTodos(db, user, today)),
     ...(await incidentTodos(db, user, now)),

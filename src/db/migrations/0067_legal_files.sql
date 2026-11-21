@@ -1,0 +1,1 @@
+ALTER TABLE "legal_item" ADD COLUMN "files" jsonb DEFAULT '[]'::jsonb NOT NULL;

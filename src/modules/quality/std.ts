@@ -86,6 +86,10 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "p:STD-Q:7": ["9eb0bfb4"],
   "a:A": ["e9096a0d"],
   "f:intro": ["5b05e7c5"],
+  // 법규 대장 보강(새 법규 4개·자동 개정 감지·사본 첨부), 보존·파기 2026-11-21
+  "a:C": ["5c35e13d"],
+  "p:STD-Q:6": ["4f1045f"],
+  "p:STD-Q:8": ["c4776d9c"],
 };
 
 /** 초안에 새로 생긴 절: 이미 들어간 서버에 없으면 std-seed.json 에서 넣는다 */

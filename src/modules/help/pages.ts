@@ -3151,6 +3151,12 @@ export const PAGE_HELP = {
     who: "대표·품질 담당",
     steps: ["기록 보관함에서 기록 옆 '이력'을 누르면 열립니다.", "바뀐 칸은 '전 → 후'로 보입니다."],
   },
+  "records.purge": {
+    title: "보존·파기",
+    purpose: "양식별 보존 기간(부록 A)이 지난 기록을 대장마다 세어 보이고, 지울 수 있는 기록은 대표 승인을 받아 지웁니다(STD-Q 8절).",
+    who: "대표·품질 담당(승인은 대표)",
+    steps: ["표에서 대장별로 보존 기간이 지난 건수를 봅니다. 숫자를 누르면 그 기록들이 나옵니다.", "지울 수 있는 기록이 있으면 '파기 결재 올리기'를 누릅니다.", "대표가 승인하면 그 기록과 붙은 파일이 지워지고, 무엇을 지웠는지는 결재 문서에 남습니다."],
+  },
 } satisfies Record<string, PageHelp>;
 
 export type PageHelpKey = keyof typeof PAGE_HELP;
@@ -3214,6 +3220,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/corr": "corr",
   "/records": "records",
   "/records/history": "records.history",
+  "/records/purge": "records.purge",
   "/corr/receive": "corr.receive",
   "/corr/new": "corr.new",
   "/corr/[id]": "corr.detail",

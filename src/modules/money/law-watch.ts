@@ -5,7 +5,8 @@
 // API 사용자 ID(OC)는 대표가 세금·절세 화면에서 넣고 암호화해 둔다. 응답 형식은 개발 환경에서 접속이 막혀 실제로 시험하지 못했다 [확인 필요].
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appConfig } from "@/db/schema";
+import { appConfig, legalItem } from "@/db/schema";
+import { officialLawNames } from "@/modules/quality/legal-rules";
 import { decrypt, encrypt } from "@/modules/auth/crypto";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
@@ -30,7 +31,18 @@ export const WATCHED_LAWS: { name: string; keys: string[] }[] = [
 ];
 
 export type LawStamp = { promulgated: string; effective: string };
+/** 법규 대장 법령 개정 감지(2026-11-21): 바뀐 법령과 감지한 날. 대장의 그 법령 줄을 감지일 이후에 '개정 확인'하면 할 일에서 빠진다 */
+/** 법규 대장(대상·확인 필요 줄)의 정식 법령명 */
+export async function legalLawNames(db: Db) {
+  const rows = await db.select({ n: legalItem.lawName, a: legalItem.applies }).from(legalItem).where(eq(legalItem.active, true));
+  return [...new Set(rows.filter((r) => r.a !== "no").flatMap((r) => officialLawNames(r.n)))];
+}
+
+export type LegalLawChange = { name: string; promulgated: string; effective: string; on: string };
+
 type Cfg = {
+  legalSeen?: Record<string, LawStamp>;
+  legalPending?: LegalLawChange[];
   keyEnc?: string | null;
   seen?: Record<string, LawStamp>;
   pending?: { name: string; promulgated: string; effective: string }[];
@@ -59,6 +71,7 @@ export async function lawWatchStatus(db: Db) {
     lastMessage: c.lastMessage ?? null,
     seen: c.seen ?? {},
     pending: c.pending ?? [],
+    legalPending: c.legalPending ?? [],
   };
 }
 
@@ -85,13 +98,14 @@ const d8 = (s: unknown) => {
 };
 
 /** lawSearch.do JSON 에서 이름이 꼭 맞는 법령의 가장 최근 공포일·시행일. 형식이 다르면 null */
-export function parseLawSearch(body: unknown, name: string): LawStamp | null {
+export function parseLawSearch(body: unknown, name: string, loose = false): LawStamp | null {
+  const k = (s: string) => (loose ? s.replace(/[\s·ㆍ]/g, "") : s);
   const root = (body as { LawSearch?: { law?: unknown } })?.LawSearch;
   if (!root) return null;
   const list = (Array.isArray(root.law) ? root.law : root.law ? [root.law] : []) as Record<string, unknown>[];
   let best: LawStamp | null = null;
   for (const l of list) {
-    if (String(l["법령명한글"] ?? "").trim() !== name) continue;
+    if (k(String(l["법령명한글"] ?? "").trim()) !== k(name)) continue;
     const s = { promulgated: d8(l["공포일자"]), effective: d8(l["시행일자"]) };
     if (!s.promulgated) continue;
     if (!best || s.promulgated > best.promulgated || (s.promulgated === best.promulgated && s.effective > best.effective)) best = s;
@@ -105,7 +119,7 @@ export type LawWatchResult = { status: "skipped" | "nokey" | "done" | "failed"; 
 export async function checkLaws(
   db: Db,
   now = new Date(),
-  opts: { force?: boolean; actorId?: string | null; f?: typeof fetch } = {},
+  opts: { force?: boolean; actorId?: string | null; f?: typeof fetch; /** 법규 대장 법령의 정식 이름들 */ legalNames?: string[] } = {},
 ): Promise<LawWatchResult> {
   const today = seoulDate(now);
   if (!opts.force && today.slice(8) !== "01") return { status: "skipped", message: "법령 확인 시기 아님" };
@@ -138,6 +152,29 @@ export async function checkLaws(
     if (!s) return finish({ status: "failed", message: `${law.name}을 찾지 못함(OC 값·신청 승인 확인)` });
     found[law.name] = s;
   }
+  // 법규 대장(F-Q-06) 법령도 같이 본다. 못 찾은 이름(줄임말 등)은 건너뛰고, 처음 본 법령은 기준만 저장한다
+  const legalFound: Record<string, LawStamp> = { ...(cfg.legalSeen ?? {}) };
+  const legalChanged: LegalLawChange[] = [];
+  for (const name of opts.legalNames ?? (await legalLawNames(db))) {
+    const qs = new URLSearchParams({ OC: oc, target: "law", type: "JSON", query: name, display: "20" });
+    try {
+      const res = await f(`${LAW_API}?${qs}`, { signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) continue;
+      const st = parseLawSearch(JSON.parse(await res.text()), name, true);
+      if (!st) continue;
+      const before = cfg.legalSeen?.[name];
+      if (before && (before.promulgated !== st.promulgated || before.effective !== st.effective)) legalChanged.push({ name, ...st, on: today });
+      legalFound[name] = st;
+    } catch {
+      continue;
+    }
+  }
+  const legalPending = [...(cfg.legalPending ?? []).filter((p) => !legalChanged.some((c) => c.name === p.name)), ...legalChanged];
+  if (legalChanged.length) {
+    await writeAudit(db, { actorId: opts.actorId ?? null, action: "law.legalChanged", entityType: "config", entityId: CFG, after: { changed: legalChanged.map((c) => c.name) } });
+    for (const role of ["safety", "owner"] as const)
+      await notifyRole(db, role, `법규 대장 법령이 바뀌었습니다: ${legalChanged.map((c) => c.name).join(", ")}. 영향을 보고 개정 확인을 기록하세요`, `legal-law-${today}-${role}`, "/legal/revcheck");
+  }
   const first = !cfg.seen || !Object.keys(cfg.seen).length;
   const changed = first
     ? []
@@ -154,7 +191,7 @@ export async function checkLaws(
   }
   return finish(
     { status: "done", changed, message: first ? `기준 저장(${WATCHED_LAWS.length}개 법령)` : changed.length ? `바뀐 법령: ${changed.join(", ")}` : "바뀐 법령 없음" },
-    { seen: found, pending },
+    { seen: found, pending, legalSeen: legalFound, legalPending },
   );
 }
 

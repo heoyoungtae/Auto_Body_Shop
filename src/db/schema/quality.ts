@@ -156,6 +156,8 @@ export const legalItem = pgTable(
     permitNo: text("permit_no"),
     validUntil: text("valid_until"),
     revCheckedOn: text("rev_checked_on"),
+    /** 인허가증·신고증 사본, 이행 증빙(측정 결과서·교육 수료증 등) 파일 */
+    files: jsonb("files").$type<CorrFile[]>().notNull().default([]),
     active: boolean("active").notNull().default(true),
     note: text("note"),
     createdBy: uuid("created_by").references(() => appUser.id),
