@@ -54,9 +54,9 @@ export function ListBar<R>({ r, unitLabel = "건", bare = false }: { r: ListResu
             </Link>
           ))}
         {lq.preset === "custom" && <span className={buttonClass("primary")}>직접 지정</span>}
-        <form method="get" action={base} className="ml-auto flex items-center gap-1" role="search">
+        <form method="get" action={base} className="flex w-full items-center gap-1 sm:ml-auto sm:w-auto" role="search">
           <Hidden qs={r.qs()} omit={["s"]} />
-          <input type="search" name="s" defaultValue={lq.s} placeholder={def.searchHint ?? "번호·이름·차량번호·업체 일부"} aria-label={`${def.title} 찾기`} className="h-11 w-56 max-w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm" />
+          <input type="search" name="s" defaultValue={lq.s} placeholder={def.searchHint ?? "번호·이름·차량번호·업체 일부"} aria-label={`${def.title} 찾기`} className="h-11 min-w-0 flex-1 sm:w-56 sm:flex-none rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm" />
           <Button type="submit" variant="secondary">
             찾기
           </Button>

@@ -20,7 +20,7 @@ export function PolicyTable({ rows, owner }: { rows: Row[]; owner: boolean }) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="찾기: 이름·조항·설명 (예: 견적, 8.4, 알림)"
-          className="h-11 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3"
+          className="h-11 w-full rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-base"
         />
       </label>
       {shown.length === 0 && <p className="text-sm text-[var(--muted)]">&lsquo;{q}&rsquo;에 맞는 정책값이 없습니다.</p>}
@@ -28,9 +28,9 @@ export function PolicyTable({ rows, owner }: { rows: Row[]; owner: boolean }) {
         {shown.map((r) => (
           <li key={r.key} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-2.5">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 font-medium">
+              <div className="flex flex-wrap items-center gap-x-1.5 font-medium">
                 {r.label} <HelpButton topic={{ kind: "policy", id: r.key as PolicyKey, title: r.label, note: `부록 D ${r.clause} · 표준서 제안 ${r.defaultValue.toLocaleString("ko-KR")} ${r.unit}` }} name={r.label} />
-                <span className="text-xs font-normal text-[var(--muted)]">부록 D {r.clause}</span>
+                <span className="text-xs font-normal whitespace-nowrap text-[var(--muted)]">부록 D {r.clause}</span>
               </div>
               <p className="text-xs text-[var(--muted)]">{r.help}</p>
             </div>

@@ -4,7 +4,8 @@ import { getDb } from "@/db/runtime";
 import { listNotifications, markAllRead } from "@/modules/platform/notify";
 import { SubmitButton } from "../_submit";
 import { requireUser } from "../_lib/session";
-import { Empty, fmtTime, PageTitle } from "../_ui";
+import { Card, Empty, fmtTime, PageTitle } from "../_ui";
+import { DeviceAlerts } from "../_app-alerts";
 
 async function readAll() {
   "use server";
@@ -19,6 +20,11 @@ export default async function NotificationsPage() {
   return (
     <>
       <PageTitle help="notifications" actions={<form action={readAll}><SubmitButton variant="secondary">모두 읽음</SubmitButton></form>}>알림</PageTitle>
+      <div className="mb-5">
+        <Card title="이 기기 알림" help={{ kind: "panel", id: "notifications.device" }}>
+          <DeviceAlerts />
+        </Card>
+      </div>
       {notes.length === 0 ? (
         <Empty>알림이 없습니다. 결재 차례가 오거나 내 문서가 반려·확정되면 여기에 쌓입니다.</Empty>
       ) : (

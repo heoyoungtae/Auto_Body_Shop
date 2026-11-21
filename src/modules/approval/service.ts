@@ -1,4 +1,5 @@
 // 결재 서비스: 문서 만들기·상신·처리·취소. 상태 계산은 machine.ts, 사람 정하기는 line.ts.
+import { schedulePush } from "@/modules/platform/staff-push";
 import { UserError } from "@/modules/platform/errors";
 import { and, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -368,6 +369,7 @@ async function notify(tx: Db, userIds: string[], title: string, link: string) {
   await tx
     .insert(notification)
     .values(userIds.map((userId) => ({ userId, title, link })));
+  schedulePush();
 }
 
 /** 결재함: 지금 내가(또는 내가 대리하는 사람이) 처리할 문서 */

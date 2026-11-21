@@ -37,9 +37,10 @@ export function Button({ variant = "primary", className = "", ...props }: Compon
 export function PageTitle({ children, sub, actions, help, std }: { children: ReactNode; sub?: ReactNode; actions?: ReactNode; help: PageHelpKey; /** 양식·표준서 번호. 설명 문장 뒤에 작게 붙인다(UI 개선 5) */ std?: string }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2" data-page-help={help}>
-      <div className="min-w-0 flex-1">
+      {/* 제목 칸은 최소 16rem 을 차지한다. 자리가 모자라면 단추 묶음이 아래 줄로 내려가고, 제목이 한 글자씩 세로로 쌓이지 않는다(휴대폰 점검 2026-11-21) */}
+      <div className="min-w-0 flex-[1_1_16rem]">
         <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
-          <span className="min-w-0">{children}</span>
+          <span className="min-w-0 break-keep">{children}</span>
           <HelpButton topic={{ kind: "page", id: help }} name={PAGE_HELP[help].title} />
         </h1>
         {(sub || std) && (
@@ -49,7 +50,7 @@ export function PageTitle({ children, sub, actions, help, std }: { children: Rea
           </p>
         )}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="page-actions flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }

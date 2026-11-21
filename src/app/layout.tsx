@@ -9,7 +9,8 @@ import { Suspense } from "react";
 import { BranchPicker } from "./_branch/picker";
 import { HelpProvider } from "./_help-drawer";
 import { TableCards } from "./_table-cards";
-import { MenuButton, NavProvider, Sidebar, TabBar } from "./_sidebar";
+import { AppAlerts } from "./_app-alerts";
+import { MenuButton, NavProvider, Sidebar } from "./_sidebar";
 import { APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
 import { brandSize, brandUrl, loadBrand } from "@/modules/platform/brand-assets";
 import "./globals.css";
@@ -111,7 +112,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {user && <Sidebar roles={user.roles} unread={unread} />}
               <main className="min-w-0 flex-1 px-4 py-6 lg:px-6">{children}</main>
             </div>
-            {user && <TabBar roles={user.roles} unread={unread} />}
+            {/* 새 알림: 홈 화면 앱 첫 실행 때 알림 받기 묻기, 열려 있을 때 클랙슨 소리(대표 지시 2026-11-21) */}
+            {user && <AppAlerts unread={unread} />}
             <TableCards />
           </NavProvider>
         </HelpProvider>

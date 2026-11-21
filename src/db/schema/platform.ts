@@ -159,9 +159,29 @@ export const notification = pgTable(
     /** 같은 알림을 두 번 만들지 않기 위한 키(예: lube:EQ-001:2026-11-08) */
     dedupeKey: text("dedupe_key"),
     readAt: timestamp("read_at", { withTimezone: true }),
+    /** 직원 휴대폰에 푸시(깨우기)를 보낸 때. 보냈으면 다시 깨우지 않는다(modules/platform/staff-push.ts) */
+    pushedAt: timestamp("pushed_at", { withTimezone: true }),
+    /** 휴대폰 서비스 워커가 가져가 알림으로 띄운 때 */
+    pushShownAt: timestamp("push_shown_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("notification_user_idx").on(t.userId, t.readAt), uniqueIndex("notification_dedupe_uq").on(t.userId, t.dedupeKey)],
+);
+
+/** 직원 휴대폰 푸시 받을 곳(홈 화면에 둔 직원 앱, 2026-11-21). 기기마다 한 줄 */
+export const staffPush = pgTable(
+  "staff_push",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    endpoint: text("endpoint").notNull(),
+    userAgent: text("user_agent"),
+    lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("staff_push_endpoint_uq").on(t.endpoint), index("staff_push_user_idx").on(t.userId)],
 );
 
 /** 주기 작업 실행 기록(8.6). 같은 작업·같은 날은 한 번만 */
