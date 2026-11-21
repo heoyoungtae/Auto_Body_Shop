@@ -1,0 +1,104 @@
+// 직원 앱 푸시 알림(대표 지시 2026-11-21: 홈 화면에 추가한 직원 앱도 알림을 받게).
+// 내 차 수첩 푸시(modules/carbook/push.ts)와 같은 방식이다. 푸시는 내용 없이 '깨우기'만 보내고,
+// 휴대폰의 서비스 워커(public/sw.js)가 로그인 쿠키로 /api/staff/inbox 에서 알림 글을 받아 띄운다.
+// 그래서 푸시 업체(구글·애플)는 알림 내용을 보지 못한다. 열쇠(VAPID)는 내 차 수첩과 같은 것을 쓴다.
+import { and, asc, eq, gte, inArray, isNull } from "drizzle-orm";
+import type { Db } from "@/db/client";
+import { notification, staffPush } from "@/db/schema";
+import { vapidAuth, vapidKeys } from "@/modules/carbook/push";
+import { UserError } from "./errors";
+
+/** 이만큼 지난 알림은 휴대폰으로 깨우지 않는다(처음 켰을 때 옛 알림이 쏟아지지 않게) */
+const FRESH_MS = 30 * 60_000;
+
+const pushHostOk = (endpoint: string) => {
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === "https:" && u.hostname.length > 3;
+  } catch {
+    return false;
+  }
+};
+
+/** 이 휴대폰으로 알림 받기. 같은 기기는 한 줄(다른 직원이 같은 기기로 켜면 그 사람 것으로 바뀜) */
+export async function subscribeStaffPush(db: Db, userId: string, endpoint: string, userAgent: string | null, now = new Date()) {
+  if (!pushHostOk(endpoint) || endpoint.length > 1000) throw new UserError("이 기기는 푸시 알림을 받을 수 없습니다");
+  const ua = userAgent?.slice(0, 300) ?? null;
+  await db
+    .insert(staffPush)
+    .values({ userId, endpoint, userAgent: ua, createdAt: now })
+    .onConflictDoUpdate({ target: staffPush.endpoint, set: { userId, userAgent: ua } });
+}
+
+export async function unsubscribeStaffPush(db: Db, userId: string, endpoint: string) {
+  await db.delete(staffPush).where(and(eq(staffPush.endpoint, endpoint), eq(staffPush.userId, userId)));
+}
+
+/**
+ * 아직 깨우지 않은 새 알림이 있는 직원의 기기마다 깨우기를 보낸다.
+ * 받을 기기가 없는 사람의 알림은 깨운 것으로만 적는다(다음에 기기를 켜도 옛 알림을 보내지 않게).
+ */
+export async function pushPending(db: Db, now = new Date(), f: typeof fetch = fetch) {
+  const rows = await db
+    .select({ id: notification.id, userId: notification.userId })
+    .from(notification)
+    .where(and(isNull(notification.pushedAt), isNull(notification.readAt), gte(notification.createdAt, new Date(now.getTime() - FRESH_MS))));
+  if (!rows.length) return { users: 0, sent: 0 };
+  await db
+    .update(notification)
+    .set({ pushedAt: now })
+    .where(inArray(notification.id, rows.map((r) => r.id)));
+  const users = [...new Set(rows.map((r) => r.userId))];
+  const subs = await db.select().from(staffPush).where(inArray(staffPush.userId, users));
+  if (!subs.length) return { users: users.length, sent: 0 };
+  const v = await vapidKeys(db);
+  let sent = 0;
+  for (const sub of subs) {
+    try {
+      const r = await f(sub.endpoint, { method: "POST", headers: { TTL: String(12 * 3600), Urgency: "high", Authorization: vapidAuth(v, sub.endpoint, now), "Content-Length": "0" } });
+      if (r.status === 404 || r.status === 410) await db.delete(staffPush).where(eq(staffPush.id, sub.id));
+      else if (r.ok) {
+        sent++;
+        await db.update(staffPush).set({ lastOkAt: now }).where(eq(staffPush.id, sub.id));
+      }
+    } catch {
+      /* 이 기기는 건너뛴다 */
+    }
+  }
+  return { users: users.length, sent };
+}
+
+/** 서비스 워커가 깨어나 가져가는 알림(아직 휴대폰에 띄우지 않은 것, 최근 것만). 가져가면 띄운 것으로 적는다 */
+export async function takeStaffInbox(db: Db, userId: string, now = new Date()) {
+  const rows = await db
+    .select({ id: notification.id, title: notification.title, body: notification.body, link: notification.link })
+    .from(notification)
+    .where(and(eq(notification.userId, userId), isNull(notification.pushShownAt), isNull(notification.readAt), gte(notification.createdAt, new Date(now.getTime() - FRESH_MS))))
+    .orderBy(asc(notification.createdAt))
+    .limit(5);
+  if (rows.length)
+    await db
+      .update(notification)
+      .set({ pushShownAt: now })
+      .where(inArray(notification.id, rows.map((r) => r.id)));
+  return rows.map((r) => ({ id: r.id, title: r.title, body: r.body ?? "", url: r.link?.startsWith("/") ? r.link : "/notifications" }));
+}
+
+/**
+ * 알림을 만든 뒤 부른다. 트랜잭션 안에서 만든 알림도 저장이 끝난 뒤 보이도록 잠깐 기다렸다가 앱 DB 로 보낸다.
+ * 테스트에서는 보내지 않는다.
+ */
+export function schedulePush() {
+  if (process.env.VITEST || process.env.NODE_ENV === "test") return;
+  const g = globalThis as unknown as { __staffPushTimer?: ReturnType<typeof setTimeout> };
+  if (g.__staffPushTimer) return;
+  g.__staffPushTimer = setTimeout(async () => {
+    g.__staffPushTimer = undefined;
+    try {
+      const { getDb } = await import("@/db/runtime");
+      await pushPending(await getDb());
+    } catch {
+      /* 다음 알림 때 다시 보낸다 */
+    }
+  }, 1500);
+}

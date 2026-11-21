@@ -65,9 +65,9 @@ export default async function CompetencyPage({ searchParams }: { searchParams: P
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-[var(--muted)]">
                 <tr>
-                  <th className="py-1.5 pr-2">이름</th>
+                  <th className="py-1.5 pr-2 whitespace-nowrap">이름</th>
                   {SKILL_KEYS.map((k) => (
-                    <th key={k} className="py-1.5 pr-2 text-center">
+                    <th key={k} className="py-1.5 pr-2 text-center whitespace-nowrap">
                       {SKILLS[k]}
                     </th>
                   ))}
@@ -76,7 +76,7 @@ export default async function CompetencyPage({ searchParams }: { searchParams: P
               <tbody className="divide-y divide-[var(--line)]">
                 {people.map((r) => (
                   <tr key={r.id}>
-                    <td className="py-1.5 pr-2 font-medium">{r.name}</td>
+                    <td className="sticky left-0 bg-[var(--surface)] py-1.5 pr-2 font-medium whitespace-nowrap">{r.name}</td>
                     {SKILL_KEYS.map((k) => {
                       const lv = r.levels[k];
                       return (

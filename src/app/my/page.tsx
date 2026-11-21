@@ -8,11 +8,13 @@ import { seoulDate } from "@/modules/platform/time";
 import { Card, Empty, PageTitle } from "../_ui";
 import { requireMy } from "./_session";
 import { LinkOnlyNote, MySteps, ShopFooter } from "./_parts";
+import { vapidKeys } from "@/modules/carbook/push";
+import { MyPushAsk } from "./push-ask";
 
 export default async function MyHome() {
   const s = await requireMy();
   const db = await getDb();
-  const [h, shop, up] = await Promise.all([myHome(db, s), shopCard(db), myUpcoming(db, s)]);
+  const [h, shop, up, vapid] = await Promise.all([myHome(db, s), shopCard(db), myUpcoming(db, s), vapidKeys(db)]);
   const today = seoulDate();
   return (
     <div className="space-y-4 pt-2">
@@ -21,6 +23,8 @@ export default async function MyHome() {
       </PageTitle>
       {shop.notice && <p className="rounded-md border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm">{shop.notice}</p>}
       {s.scope === "link" && <LinkOnlyNote />}
+      {/* 홈 화면 앱으로 처음 열면 알림 받기를 묻는다(문자 인증으로 들어온 경우만 켤 수 있음) */}
+      {s.scope === "full" && <MyPushAsk vapid={vapid.publicKey} />}
 
       {h.todos.length > 0 && (
         <Card title={`할 일 ${h.todos.length}`} help={{ kind: "panel", id: "my.todo" }}>

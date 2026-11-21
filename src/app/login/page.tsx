@@ -8,9 +8,10 @@ import { ErrorBox, PageTitle } from "../_ui";
 import { currentUser } from "../_lib/session";
 import { loginAction } from "./actions";
 import { DemoPick } from "./demo-pick";
-import { APP_NAME } from "@/modules/platform/brand";
+import { APP_NAME, APP_SHORT_NAME } from "@/modules/platform/brand";
 import { brandSize, brandUrl, loadBrand } from "@/modules/platform/brand-assets";
 import { getDb } from "@/db/runtime";
+import { InstallHint } from "../_install-hint";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -30,6 +31,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <PageTitle help="login" sub="대표·공장장·상담원·기술자·품질·안전환경·회계">
         직원 로그인
       </PageTitle>
+      {/* 홈 화면 앱으로 연 게 아니면 '홈 화면에 추가' 안내(대표 지시 2026-11-21) */}
+      <InstallHint appName={APP_SHORT_NAME} what="결재·업무지시·작업 배정" />
       <AssistForm id="login" action={loginAction} guard={false} className="space-y-4">
         <ErrorBox message={error} />
         <TextField help="login.loginId" name="loginId" autoComplete="username" autoCapitalize="none" spellCheck={false} lower required />

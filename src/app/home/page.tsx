@@ -1,4 +1,5 @@
 // 대시보드 — 로그인하면 처음 보는 화면. 역할에 따라 패널이 달라진다(src/modules/dashboard/service.ts PANELS).
+import { PROCESSES, type Process } from "@/modules/repair/work-rules";
 import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -206,7 +207,7 @@ export default async function HomePage({
                 >
                   {b.plateNo} {b.customerName} ·{" "}
                   {b.current
-                    ? `${b.current.process}${b.current.started ? " 작업 중" : " 대기"}${b.current.assignee ? `(${b.current.assignee})` : ""}`
+                    ? `${PROCESSES[b.current.process as Process]?.label ?? b.current.process}${b.current.started ? " 작업 중" : " 대기"}${b.current.assignee ? `(${b.current.assignee})` : ""}`
                     : "공정 끝"}
                 </Link>
                 <span className="shrink-0 whitespace-nowrap">
