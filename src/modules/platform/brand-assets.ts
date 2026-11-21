@@ -32,7 +32,7 @@ export const BRAND_RULES: Record<BrandKind, Rule> = {
     shape: "square",
     minSide: 256,
     advice: "정사각형, 1024×1024 권장",
-    defaultSize: [1254, 1254],
+    defaultSize: [1024, 1024],
   },
   "logo-light": {
     label: "가로 로고 · 밝은 화면용",
@@ -40,7 +40,7 @@ export const BRAND_RULES: Record<BrandKind, Rule> = {
     shape: "wide",
     minSide: 120,
     advice: "가로가 세로의 3배 이상, 가로 1400px 정도, 투명 바탕",
-    defaultSize: [1400, 309],
+    defaultSize: [1400, 322],
   },
   "logo-dark": {
     label: "가로 로고 · 어두운 화면용",
