@@ -1,5 +1,5 @@
 // 홈페이지 2단계: 자주 묻는 질문 · 공지사항 · 작업 사례. 손님은 읽기만 하고, 상담을 쓸 수 있는 직원(consult.write)이 앱에서 쓴다.
-// - 자주 묻는 질문: 처음 글 20개(표준서·정책값으로 만듦)는 홈페이지를 처음 열 때 저절로 공개로 들어간다(starters.ts). 직원이 고치고 내린다. 상담 답변에서 단추로 초안을 만든다.
+// - 자주 묻는 질문: 처음 글 23개(표준서·정책값으로 만듦)는 홈페이지를 처음 열 때 저절로 공개로 들어간다(starters.ts). 직원이 고치고 내린다. 상담 답변에서 단추로 초안을 만든다.
 // - 공지사항: 게시 기간 안에서만 보이고 끝나면 저절로 내려간다. 맨 위 고정·첫 화면 띠·내 차 수첩 알림(푸시)을 고른다.
 // - 작업 사례: 출고한 수리 건 가운데 손님이 '사진 홍보 사용'에 동의한 건만. 번호판을 가려 새로 만든 사진만 올리고, 동의를 거두면 저절로 빠진다.
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, gte, sql } from "drizzle-orm";
@@ -82,7 +82,7 @@ export async function deleteFaq(db: Db, actor: Actor, id: string) {
   if (r) await writeAudit(db, { actorId: actor.id, action: "site.faq_delete", entityType: "site_faq", entityId: id, before: { question: r.q } });
 }
 
-/** 처음 글 20개 가운데 빠진 것 넣기(이미 넣은 것은 건너뜀). 지금 정책값(회신 기한·보증 기간 등)을 넣고 바로 공개한다 */
+/** 처음 글 23개 가운데 빠진 것 넣기(이미 넣은 것은 건너뜀). 지금 정책값(회신 기한·보증 기간 등)을 넣고 바로 공개한다 */
 export async function loadFaqStarters(db: Db, actor: Actor, now = new Date()) {
   mustWrite(actor);
   const have = new Set((await db.select({ k: siteFaq.starterKey }).from(siteFaq).where(isNotNull(siteFaq.starterKey))).map((r) => r.k));

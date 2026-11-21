@@ -5,6 +5,8 @@ import { ARTICLE_STARTERS } from "@/modules/site/article-starters";
 import { featuredArticles, listArticles, loadArticleStarters, parseBody, publicArticles, readArticle, saveArticle } from "@/modules/site/articles";
 import { routeFor } from "@/modules/site/rules";
 import { SERVICE_PAGES } from "@/modules/site/service-pages";
+import { CASE_SAMPLES, caseSamples } from "@/modules/site/case-samples";
+import { existsSync } from "node:fs";
 import { addShopPhoto, DEFAULT_HERO, heroImage, removeShopPhoto, setHeroPhoto, siteTrust } from "@/modules/site/trust";
 import { seedShop, testDb } from "./db";
 import { WEBP } from "./flow";
@@ -68,6 +70,14 @@ describe("첫 화면 배경·새 화면 주소", () => {
     await removeShopPhoto(db, advisor(), p.id);
     expect((await siteTrust(db)).hero).toBe("");
     expect(heroImage(await siteTrust(db))).toBe(DEFAULT_HERO);
+  });
+
+  it("작업 사례 예시는 실제 공개 사례가 없을 때만, 그림 파일이 있다", () => {
+    expect(caseSamples(0)).toHaveLength(CASE_SAMPLES.length);
+    expect(caseSamples(0, "긁힘").every((x) => x.category === "긁힘")).toBe(true);
+    expect(caseSamples(1)).toEqual([]);
+    for (const x of CASE_SAMPLES) for (const side of ["before", "after"]) expect(existsSync(`public/site-art/cases/${x.key}-${side}.svg`)).toBe(true);
+    for (const x of CASE_SAMPLES) expect(SERVICE_PAGES.some((s) => s.slug === x.service)).toBe(true);
   });
 
   it("수리 안내·기술자료·수첩 설명서는 홈페이지 화면으로", () => {
