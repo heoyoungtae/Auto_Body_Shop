@@ -103,7 +103,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
             <li>
               후기·공업사 사진·자격 인증은{" "}
               <Link href="/homepage/trust" className="text-[var(--accent)] underline">
-                홈페이지 글 › 후기·사진·인증
+                홈페이지 › 후기·사진·인증
               </Link>
               에서 넣습니다.
             </li>

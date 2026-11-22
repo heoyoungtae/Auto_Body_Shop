@@ -48,18 +48,6 @@ export const MENU: MenuGroup[] = [
         std: "STD-01",
       },
       {
-        label: "홈페이지 요청함",
-        perm: ["consult.write"],
-        href: "/consults?f=online",
-        std: "STD-01",
-      },
-      {
-        label: "홈페이지 글(질문·공지·사례)",
-        perm: ["consult.write"],
-        href: "/homepage/faq",
-        std: "STD-01",
-      },
-      {
         label: "업체 주문 앱(테크베이)",
         perm: ["portal.order"],
         href: "/portal-orders",
@@ -139,6 +127,25 @@ export const MENU: MenuGroup[] = [
         std: "STD-06",
       },
       { label: "기프티콘 이력", perm: ["gift.view"], href: "/gifts" },
+    ],
+  },
+  // 공개 홈페이지(jmotors.co.kr) 글·요청 — 처음엔 '수리 업무'에 두 줄로 끼어 있었으나 수리 공정이 아니라서
+  // 따로 묶음으로 뺐다(사용자 지적 2026-11-22 "홈페이지 글이 왜 수리업무에 있는가"). 홈페이지 꾸미기(대표)는 설정 › 홈페이지.
+  {
+    id: "site",
+    label: "홈페이지",
+    items: [
+      {
+        label: "견적 요청함",
+        perm: ["consult.write"],
+        href: "/consults?f=online",
+        std: "STD-01",
+      },
+      { label: "자주 묻는 질문", perm: ["consult.write"], href: "/homepage/faq", std: "STD-01" },
+      { label: "공지사항", perm: ["consult.write"], href: "/homepage/notice", std: "STD-13" },
+      { label: "작업 사례", perm: ["consult.write"], href: "/homepage/cases", std: "STD-13" },
+      { label: "기술자료", perm: ["consult.write"], href: "/homepage/articles", std: "STD-13" },
+      { label: "후기·사진·인증", perm: ["consult.write"], href: "/homepage/trust", std: "STD-13" },
     ],
   },
   {
@@ -471,7 +478,7 @@ export const MENU: MenuGroup[] = [
         href: "/settings/carbook",
       },
       {
-        label: "홈페이지",
+        label: "홈페이지 꾸미기",
         roles: ["owner"],
         href: "/settings/site",
       },
