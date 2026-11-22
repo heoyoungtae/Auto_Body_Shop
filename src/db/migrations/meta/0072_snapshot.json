@@ -1,5 +1,5 @@
 {
-  "id": "ea3e9a8c-e779-476a-b123-b67caa6150c9",
+  "id": "701807b7-72a1-409f-9aef-4a2af22b8e31",
   "prevId": "03c49e56-3977-41df-ab30-474aa0868046",
   "version": "7",
   "dialect": "postgresql",
@@ -3417,12 +3417,6 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
-        "checked": {
-          "name": "checked",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_by": {
           "name": "created_by",
           "type": "uuid",
@@ -5475,6 +5469,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "from_intake": {
+          "name": "from_intake",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_by": {
           "name": "created_by",

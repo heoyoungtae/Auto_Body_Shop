@@ -192,6 +192,8 @@ export async function signIntake(db: Db, actorId: string, id: string, input: Int
   }
   const path = await storeFile(`ro/${r.docNo}`, png, "png");
   await db.update(repairOrder).set({ status: "checked", signaturePath: path, signedAt: now, updatedAt: now }).where(eq(repairOrder.id, id));
+  // 다시 점검으로 도면을 고쳤으면 있던 진단 줄을 새 도면에 맞추고, 처음이면 도면에서 줄을 만든다
+  await syncDiagnosis(db, actorId, id, now);
   await seedDiagnosis(db, actorId, id);
   await notifyRole(db, "technician", `손상 진단 대기: ${r.docNo}`, `diag-${r.docNo}`, `/repairs/${id}#diagnosis`);
   await writeAudit(db, { actorId, action: "repair.intake_signed", entityType: "repair_order", entityId: r.docNo, after: { signer: r.signerName, mileage: r.mileage, photos: photos.length, mileageNow: v?.mileage } });
@@ -352,8 +354,6 @@ export type DamageInput = {
   crease: boolean;
   broken: boolean;
   structural: boolean;
-  filmPanel: number[];
-  filmAdjacent: number[];
   /** 비우면 기준표 제안을 쓴다 */
   method?: string;
   methodReason?: string;
@@ -366,55 +366,109 @@ function mustDiagnose(r: { status: string; docNo: string }) {
   if (r.status !== "checked") throw new RepairError(r.status === "intake" ? "입고 점검(고객 서명)을 마친 뒤에 진단합니다" : `${r.docNo}는 진단을 확인해 견적으로 넘겼습니다. 고치려면 공장장이 '진단 다시 열기'를 누릅니다`);
 }
 
+/** 입고 도면 O 표시를 부위별로 묶는다: 부위 → 처음 찍은 면과 그 면의 칸들 */
+function markedParts(marks: unknown) {
+  const o = cleanMarks(marks).filter((m) => m.kind === "O");
+  const out = new Map<string, { view: string; cells: number[] }>();
+  for (const part of new Set(o.map((m) => m.part))) {
+    const view = o.find((m) => m.part === part)!.view;
+    out.set(part, { view, cells: cleanCells(o.filter((m) => m.part === part && m.view === view).map((m) => m.cell)) });
+  }
+  return out;
+}
+
+/** 도면에서 새 진단 줄 만들기(상담에서 찍은 손상 종류·차량 사양으로 첫 값을 채운다) */
+async function insertMarkedLines(db: Db, actorId: string, r: { id: string; consultationId: string; vehicleId: string }, parts: [string, { view: string; cells: number[] }][], startSeq: number) {
+  if (!parts.length) return 0;
+  const [c] = await db.select({ damageTypes: consultation.damageTypes, zones: consultation.damageZones }).from(consultation).where(eq(consultation.id, r.consultationId));
+  const [v] = await db.select({ options: vehicle.options }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
+  const kind = c?.damageTypes.includes("찌그러짐") || !c?.damageTypes.includes("긁힘") ? "D" : "S";
+  let seq = startSeq;
+  for (const [part, { view, cells }] of parts) {
+    // 상담에서 그 부위에 찍은 손상 종류가 있으면 그것(휠 긁힘은 긁힘), 없으면 상담 손상 유형으로
+    const z = cleanMarks(c?.zones ?? []).find((m) => m.part === part);
+    const k = z ? (z.kind === "W" ? "S" : z.kind) : kind;
+    const s = suggestMethod({ kind: k, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
+    await db.insert(roDamage).values({ repairOrderId: r.id, seq: ++seq, part, view, cells, kind: k, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상 범위를 보고 고치세요", fromIntake: true, createdBy: actorId });
+  }
+  return parts.length;
+}
+
 /** 입고 도면의 수리 대상(O) 표시를 진단 줄로 옮긴다(다시 적지 않게). 이미 줄이 있으면 하지 않는다 */
 export async function seedDiagnosis(db: Db, actorId: string, id: string) {
   const r = await roRow(db, id);
   const [has] = await db.select({ id: roDamage.id }).from(roDamage).where(eq(roDamage.repairOrderId, id)).limit(1);
   if (has) return 0;
-  const [c] = await db.select({ damageTypes: consultation.damageTypes, zones: consultation.damageZones }).from(consultation).where(eq(consultation.id, r.consultationId));
-  const [v] = await db.select({ options: vehicle.options, bodyType: vehicle.bodyType, model: vehicle.model }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
-  const marks = cleanMarks(r.marks).filter((m) => m.kind === "O");
-  const kind = c?.damageTypes.includes("찌그러짐") || !c?.damageTypes.includes("긁힘") ? "D" : "S";
-  // 테크베이 주문을 입고 전에 확인했으면 요청 한 줄마다 진단 줄을 따로 만든다(같은 부위에 요청이 둘이면 줄도 둘)
+  // 테크베이 주문을 입고 전에 확인했으면 요청 한 줄마다 진단 줄을 따로 만든다(같은 부위에 요청이 둘이면 줄도 둘).
+  // 업체 요청이라 '다시 점검'으로 도면을 고쳐도 지우지 않는다(fromIntake 아님)
+  const marked = markedParts(r.marks);
   const tb = await checkedLines(db, r.consultationId);
   let seq = 0;
   const done = new Set<string>();
-  for (const l of tb ?? [])
-    for (const it of l.skip ? [] : l.items) {
-      const k = it.kind === "W" ? "S" : it.kind;
-      const s = suggestMethod({ kind: k, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
-      const method = l.method ?? s.method;
-      done.add(it.part);
-      // 입고 도면에서 그 부위를 옮겨 찍었으면 그 자리, 아니면 대표 면 가운데
-      const mv = marks.find((m) => m.part === it.part)?.view ?? null;
-      const at = mv ? { view: mv, cells: cleanCells(marks.filter((m) => m.part === it.part && m.view === mv).map((m) => m.cell)) } : { view: viewsOf(it.part, bodyOf(v))[0] ?? null, cells: [4] };
-      await db.insert(roDamage).values({
-        repairOrderId: id,
-        seq: ++seq,
-        part: it.part,
-        view: at.view,
-        cells: at.view ? at.cells : [],
-        kind: k,
-        method,
-        suggested: s.method,
-        methodReason: method !== s.method ? "업체(테크베이) 요청 방법" : null,
-        calibrate: !!needsCalibration(it.part, v?.options ?? []),
-        note: `테크베이 요청 ${l.no}번: ${l.text} — 실제 손상을 보고 크기·도장 손상을 고치세요`,
-        createdBy: actorId,
-      });
-    }
-  // 같은 부위에 찍은 O 표시들은 한 줄로 묶고, 처음 찍은 면의 칸들을 위치로 옮긴다
-  const parts = [...new Set(marks.map((m) => m.part))].filter((p) => !done.has(p));
-  for (const part of parts) {
-    const view = marks.find((m) => m.part === part)!.view;
-    const cells = cleanCells(marks.filter((m) => m.part === part && m.view === view).map((m) => m.cell));
-    // 상담에서 그 부위에 찍은 손상 종류가 있으면 그것(휠 긁힘은 긁힘), 없으면 상담 손상 유형으로
-    const z = cleanMarks(c?.zones ?? []).find((m) => m.part === part);
-    const k = z ? (z.kind === "W" ? "S" : z.kind) : kind;
-    const s = suggestMethod({ kind: k, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
-    await db.insert(roDamage).values({ repairOrderId: id, seq: ++seq, part, view, cells, kind: k, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상·도막 두께를 재어 고치세요", createdBy: actorId });
+  if (tb?.length) {
+    const [v] = await db.select({ options: vehicle.options, bodyType: vehicle.bodyType, model: vehicle.model }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
+    for (const l of tb)
+      for (const it of l.skip ? [] : l.items) {
+        const k = it.kind === "W" ? "S" : it.kind;
+        const s = suggestMethod({ kind: k, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
+        const method = l.method ?? s.method;
+        done.add(it.part);
+        // 입고 도면에서 그 부위를 옮겨 찍었으면 그 자리, 아니면 대표 면 가운데
+        const at = marked.get(it.part) ?? { view: viewsOf(it.part, bodyOf(v))[0] ?? null, cells: [4] };
+        await db.insert(roDamage).values({
+          repairOrderId: id,
+          seq: ++seq,
+          part: it.part,
+          view: at.view,
+          cells: at.view ? at.cells : [],
+          kind: k,
+          method,
+          suggested: s.method,
+          methodReason: method !== s.method ? "업체(테크베이) 요청 방법" : null,
+          calibrate: !!needsCalibration(it.part, v?.options ?? []),
+          note: `테크베이 요청 ${l.no}번: ${l.text} — 실제 손상을 보고 크기·도장 손상을 고치세요`,
+          createdBy: actorId,
+        });
+      }
   }
-  return seq;
+  // 같은 부위에 찍은 O 표시들은 한 줄로 묶고, 처음 찍은 면의 칸들을 위치로 옮긴다
+  return seq + (await insertMarkedLines(db, actorId, r, [...marked].filter(([p]) => !done.has(p)), seq));
+}
+
+/**
+ * '다시 점검'으로 도면을 고친 뒤 다시 서명할 때, 이미 있는 진단 줄을 새 도면에 맞춘다.
+ * 도면에서 불러온 줄: 도면에서 뺀 부위는 지우고(붙인 사진도), 남은 부위는 새로 찍은 면·칸으로 바꾼다(잰 값은 둔다).
+ * 새로 찍은 부위는 줄을 더한다. 기술자가 진단에서 직접 더한 줄은 그대로 둔다.
+ */
+export async function syncDiagnosis(db: Db, actorId: string, id: string, now = new Date()) {
+  const r = await roRow(db, id);
+  const lines = await listDamage(db, id);
+  if (!lines.length) return { removed: [] as string[], moved: [] as string[], added: 0 };
+  const marked = markedParts(r.marks);
+  const removed: string[] = [];
+  const moved: string[] = [];
+  for (const d of lines.filter((l) => l.fromIntake)) {
+    const m = marked.get(d.part);
+    if (!m) {
+      for (const p of await db.select().from(roPhoto).where(eq(roPhoto.damageId, d.id))) {
+        await db.delete(roPhoto).where(eq(roPhoto.id, p.id));
+        await removeStored(p.path);
+      }
+      await db.delete(roDamage).where(eq(roDamage.id, d.id));
+      removed.push(d.part);
+    } else if (m.view !== d.view || m.cells.join() !== d.cells.join()) {
+      await db.update(roDamage).set({ view: m.view, cells: m.cells, updatedAt: now }).where(eq(roDamage.id, d.id));
+      moved.push(d.part);
+    }
+  }
+  const have = new Set(lines.filter((l) => !removed.includes(l.part) || !l.fromIntake).map((l) => l.part));
+  const fresh = [...marked].filter(([part]) => !have.has(part));
+  const kept = lines.filter((l) => !(l.fromIntake && removed.includes(l.part)));
+  // 남은 줄 번호를 1부터 다시 매기고 새 줄을 뒤에 붙인다
+  for (const [i, l] of kept.entries()) if (l.seq !== i + 1) await db.update(roDamage).set({ seq: i + 1 }).where(eq(roDamage.id, l.id));
+  const added = await insertMarkedLines(db, actorId, r, fresh, kept.length);
+  if (removed.length || moved.length || added) await writeAudit(db, { actorId, action: "repair.diagnosis_sync", entityType: "repair_order", entityId: r.docNo, after: { removed, moved, added: fresh.map(([p]) => p) } });
+  return { removed, moved, added };
 }
 
 export async function saveDamage(db: Db, actor: { id: string; roles: Role[] }, roId: string, input: DamageInput, now = new Date()) {
@@ -445,8 +499,6 @@ export async function saveDamage(db: Db, actor: { id: string; roles: Role[] }, r
     crease: input.crease,
     broken: input.broken,
     structural: input.structural,
-    filmPanel: input.filmPanel.slice(0, 12),
-    filmAdjacent: input.filmAdjacent.slice(0, 12),
     method,
     suggested: s.method,
     methodReason: method === s.method ? null : reason,

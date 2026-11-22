@@ -95,7 +95,7 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "o:0.2": ["d92c91c4"],
   "o:0.3": ["73c2bc20"],
   "o:0.5": ["959d7ff0"],
-  "o:2.2": ["fb23a5c0"],
+  "o:2.2": ["fb23a5c0", "2fc34ebf"],
   "o:4.2": ["93b49b1c"],
   "o:6.1": ["83c90784"],
   "o:8.7": ["79cfd28d"],
@@ -104,7 +104,7 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "p:STD-00:2": ["23f8cf4c"],
   "p:STD-Q:2": ["a6ad0636"],
   "p:STD-01:4": ["36087479"],
-  "p:STD-02:5": ["d9f25568"],
+  "p:STD-02:5": ["d9f25568", "a61ba0af"],
   "p:STD-03:4": ["fb8860fd"],
   "p:STD-04:2": ["c7b717fb"],
   "p:STD-04:5": ["91555ae"],
@@ -126,6 +126,8 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "f:F-11-02": ["883a7f11"],
   "f:F-13-02": ["e498eeef"],
   "f:F-13-03": ["4e74e776"],
+  // 입고 손상 진단에서 도막 두께 측정 뺌(출고 품질 검사 5점은 그대로, 대표 2026-11-22)
+  "p:STD-02:3": ["e2e6c4b9"],
 };
 
 /** 초안에서 바뀐 절 제목: 예전 제목 그대로일 때만 std-seed.json 새 제목으로 바꾼다 */

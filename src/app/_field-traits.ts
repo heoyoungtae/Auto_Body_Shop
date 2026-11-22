@@ -88,7 +88,7 @@ const CODE_KEEP = new Set([
   "cal.apiKey",
 ]);
 /** 쉼표로 구분한 숫자 여러 개(도막 두께 등) */
-const NUM_LIST = new Set(["dmg.filmPanel", "dmg.filmAdjacent", "qc.filmUm"]);
+const NUM_LIST = new Set(["qc.filmUm"]);
 /** 소수점이 있는 짧은 숫자 */
 const DECIMAL = new Set(["my.qty", "qc.gapMm", "env.wasteKg", "waste.qty", "tr.hours", "tr.plannedHours", "goal.target"]);
 /** 짧은 정수(연도·인원·금액을 글자 칸으로 받는 곳) */

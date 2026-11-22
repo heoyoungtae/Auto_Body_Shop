@@ -1,7 +1,7 @@
 // 손상 진단(STD-02 5절) — 수리 건 화면 안의 부분. 줄마다 따로 저장하고, 공장장이 확인하면 견적 대기로 넘어간다.
 import type { roDamage } from "@/db/schema";
 import { type CarLook, cellsLabel } from "@/modules/repair/body-map";
-import { damageSeverity, DAMAGE_KINDS, diagnosisIssues, METHODS, PAINT_LAYERS, partName, repainted, SEVERITY_LABEL } from "@/modules/repair/rules";
+import { damageSeverity, DAMAGE_KINDS, diagnosisIssues, METHODS, PAINT_LAYERS, partName, SEVERITY_LABEL } from "@/modules/repair/rules";
 import { AssistForm } from "../_assist";
 import { CheckGroup, NumberField, SelectField, TextAreaField, TextField } from "../_input";
 import { SubmitButton } from "../_submit";
@@ -16,7 +16,7 @@ import { PartPicker } from "./part-picker";
 type Damage = typeof roDamage.$inferSelect;
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
-function DamageFields({ d, repaintUm, options, others, extra, car }: { d?: Damage; repaintUm: number; options: string[]; others: Damage[]; extra?: Record<string, string[]>; car?: CarLook }) {
+function DamageFields({ d, options, others, extra, car }: { d?: Damage; options: string[]; others: Damage[]; extra?: Record<string, string[]>; car?: CarLook }) {
   return (
     <div className="space-y-4">
       <PartPicker initial={d ? { part: d.part, view: viewOf(d), cells: d.cells } : undefined} subPart={d?.subPart} others={damageFills(others, true)} from={d?.note?.startsWith("입고 도면에서 불러옴") ? "입고 도면" : undefined} extra={extra} car={car} />
@@ -38,11 +38,7 @@ function DamageFields({ d, repaintUm, options, others, extra, car }: { d?: Damag
           defaultChecked={[...(d?.crease ? ["crease"] : []), ...(d?.broken ? ["broken"] : []), ...(d?.structural ? ["structural"] : [])]}
         />
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <TextField help="dmg.filmPanel" name="filmPanel" defaultValue={d?.filmPanel.join(", ") ?? ""} />
-        <TextField help="dmg.filmAdjacent" name="filmAdjacent" defaultValue={d?.filmAdjacent.join(", ") ?? ""} />
-      </div>
-      <MethodHint repaintUm={repaintUm} options={options} />
+      <MethodHint options={options} />
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField help="dmg.method" name="method" defaultValue={d && d.method !== d.suggested ? d.method : ""} placeholder="기준표 제안대로" options={opts(METHODS)} />
         <TextField help="dmg.methodReason" name="methodReason" defaultValue={d?.methodReason ?? ""} />
@@ -62,8 +58,7 @@ function DamageFields({ d, repaintUm, options, others, extra, car }: { d?: Damag
   );
 }
 
-function Summary({ d, repaintUm }: { d: Damage; repaintUm: number }) {
-  const film = [...d.filmPanel, ...d.filmAdjacent];
+function Summary({ d }: { d: Damage }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
       <b>
@@ -80,13 +75,11 @@ function Summary({ d, repaintUm }: { d: Damage; repaintUm: number }) {
       </span>
       {d.method !== d.suggested && <Badge tone="warn">제안과 다름</Badge>}
       {d.calibrate && <Badge tone="warn">센서 보정</Badge>}
-      {repainted(film, repaintUm) && <Badge tone="danger">재도장 이력</Badge>}
-      {d.method !== "none" && d.method !== "outsource" && (d.filmPanel.length < 3 || d.filmAdjacent.length < 3) && <Badge tone="warn">도막 측정 부족</Badge>}
     </span>
   );
 }
 
-export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repaintUm, options, diagNote, photos = [], canPhoto = false, subExtras, car, fresh = {} }: { /** 진단 줄마다 동시 수정 확인 표(id → 표) */ fresh?: Record<string, string>; roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; repaintUm: number; options: string[]; diagNote: string | null; photos?: { damageId: string; path: string }[]; canPhoto?: boolean; subExtras?: Record<string, string[]>; car?: CarLook }) {
+export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, options, diagNote, photos = [], canPhoto = false, subExtras, car, fresh = {} }: { /** 진단 줄마다 동시 수정 확인 표(id → 표) */ fresh?: Record<string, string>; roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; options: string[]; diagNote: string | null; photos?: { damageId: string; path: string }[]; canPhoto?: boolean; subExtras?: Record<string, string[]>; car?: CarLook }) {
   const editable = status === "checked" && canDiagnose;
   // 손상 줄 사진(가까이 찍은 것): 진단부터 검사까지 붙이고 뺄 수 있다. 견적·손님 설명에 같이 쓴다
   const photoEditable = canPhoto && ["checked", "estimating", "working", "inspecting"].includes(status);
@@ -116,12 +109,12 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
                 {editable ? (
                   <details>
                     <summary className="cursor-pointer">
-                      <Summary d={d} repaintUm={repaintUm} />
+                      <Summary d={d} />
                     </summary>
                     <AssistForm id={`dmg-${d.id}`} action={damageAction} fresh={fresh[d.id]} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
                       <input type="hidden" name="id" value={roId} />
                       <input type="hidden" name="damageId" value={d.id} />
-                      <DamageFields d={d} repaintUm={repaintUm} options={options} others={damages.filter((x) => x.id !== d.id)} extra={subExtras} car={car} />
+                      <DamageFields d={d} options={options} others={damages.filter((x) => x.id !== d.id)} extra={subExtras} car={car} />
                       <div className="flex flex-wrap gap-2">
                         <SubmitButton name="intent" value="save">
                           이 줄 저장
@@ -134,7 +127,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
                   </details>
                 ) : (
                   <>
-                    <Summary d={d} repaintUm={repaintUm} />
+                    <Summary d={d} />
                     {(d.methodReason || d.note) && <p className="mt-0.5 text-xs text-[var(--muted)]">{[d.methodReason && `다른 방법 사유: ${d.methodReason}`, d.note].filter(Boolean).join(" · ")}</p>}
                   </>
                 )}
@@ -150,7 +143,7 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, repa
             <summary className="cursor-pointer text-sm font-semibold text-[var(--accent)]">+ 손상 부위 넣기</summary>
             <AssistForm id={`dmg-new-${roId}`} action={damageAction} className="mt-3 space-y-3 rounded-md border border-[var(--line)] p-3">
               <input type="hidden" name="id" value={roId} />
-              <DamageFields repaintUm={repaintUm} options={options} others={damages} extra={subExtras} car={car} />
+              <DamageFields options={options} others={damages} extra={subExtras} car={car} />
               <SubmitButton name="intent" value="save">
                 넣기
               </SubmitButton>

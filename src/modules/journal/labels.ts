@@ -132,6 +132,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "repair.intake_save": "입고 점검 기록",
   "repair.intake_signed": "입고 확인 서명 받음",
   "repair.intake_reopen": "입고 점검 다시 열기",
+  "repair.diagnosis_sync": "다시 점검한 도면에 맞춰 진단 줄 고침",
   "repair.photo_add": "수리 건 사진 올림",
   "repair.photo_remove": "수리 건 사진 지움",
   "repair.damage_save": "손상 진단 기록",
