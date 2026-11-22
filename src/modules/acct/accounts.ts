@@ -62,6 +62,8 @@ export const ACCOUNTS: Account[] = [
   // 판매비와관리비
   A("801", "급여", "expense", "sga", "operating", { manual: false }),
   A("811", "복리후생비", "expense", "sga", "operating", { note: "식대·작업복·회사 몫 4대보험" }),
+  A("812", "여비교통비", "expense", "sga", "operating", { note: "출장 숙박·대중교통·택시" }),
+  A("813", "기업업무추진비", "expense", "sga", "operating", { note: "옛 접대비. 세금 계산 때 한도가 있고 부가세 공제가 안 됨" }),
   A("815", "수도광열비·통신비", "expense", "sga", "operating"),
   A("817", "세금과공과", "expense", "sga", "operating"),
   A("818", "감가상각비", "expense", "sga", "operating", { manual: false }),
@@ -69,6 +71,9 @@ export const ACCOUNTS: Account[] = [
   A("820", "수선비", "expense", "sga", "operating"),
   A("821", "보험료", "expense", "sga", "operating"),
   A("822", "차량유지비", "expense", "sga", "operating"),
+  A("824", "운반비", "expense", "sga", "operating", { note: "택배·화물 운송" }),
+  A("825", "교육훈련비", "expense", "sga", "operating"),
+  A("829", "사무용품비", "expense", "sga", "operating", { note: "복사지·문구·잉크(작업에 쓰는 소모품은 매출원가)" }),
   A("831", "지급수수료", "expense", "sga", "operating", { note: "카드·은행·용역 수수료" }),
   A("833", "광고선전비", "expense", "sga", "operating"),
   A("848", "잡비", "expense", "sga", "operating"),
@@ -116,6 +121,11 @@ export const EXP_ACCOUNT: Record<string, string> = {
   welfare: "811",
   vehicle: "822",
   ad: "833",
+  office: "829",
+  entertain: "813",
+  training: "825",
+  travel: "812",
+  freight: "824",
   other: "848",
 };
 export const expAccount = (category: string) => EXP_ACCOUNT[category] ?? "848";

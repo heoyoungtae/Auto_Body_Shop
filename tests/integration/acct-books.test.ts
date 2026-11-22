@@ -45,6 +45,22 @@ describe("계정과목표", () => {
   });
 });
 
+describe("접대비(기업업무추진비)", () => {
+  it("부가세까지 813 비용으로 잡고 부가세대급금·부가세 집계 매입세액에 넣지 않는다", async () => {
+    const x = await createExpense(db, acct(), { category: "entertain", supplierId: "", payeeName: "○○식당", sourceKind: "none", sourceId: "", purpose: "보험사 담당자 식사", supplyWon: 100_000, vatWon: 10_000, evidenceKind: "card", evidenceNo: "C-1", evidenceOn: "2026-11-05", dueOn: "", payMethod: "transfer", files: [] }, at("2026-11-05"));
+    const [doc] = await db.select().from(approvalDoc).where(eq(approvalDoc.id, x.approvalDocId));
+    for (const st of doc.steps as { kind: string; candidates: string[] }[]) if (st.kind === "approve") await act(db, x.approvalDocId, st.candidates[0], "approve", null, at("2026-11-06"));
+    await payExpense(db, acct(), x.id, { paidOn: "2026-11-10", note: "식당 국민 ***-2" }, at("2026-11-10"));
+    const js = await buildJournal(db, "2026-11-30", now);
+    expect(unbalanced(js)).toEqual([]);
+    const lines = js.filter((e) => e.no === x.docNo).flatMap((e) => e.lines);
+    expect(lines.filter((l) => l.code === "813").reduce((a, l) => a + l.dr, 0)).toBe(110_000);
+    expect(lines.some((l) => l.code === "135")).toBe(false);
+    const v = await runReport(db, owner(), "vat", customPeriod("2026-10-01", "2026-12-31"), "prev", now);
+    expect(kpi(v).in).toBe(0);
+  });
+});
+
 describe("자동 분개·재무제표", () => {
   it("기초 잔액·매출·수납·지출·재고·자금 전표가 분개되고 손익계산서·재무상태표·현금흐름이 맞는다", async () => {
     // 개업일 11/1 기초 잔액: 통장 1,000만, 장기차입금 300만 → 자본금 700만

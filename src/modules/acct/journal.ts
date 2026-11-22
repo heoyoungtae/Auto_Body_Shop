@@ -16,7 +16,7 @@ import { acctOpening, fundSlip, insuranceClaim, outsourceJob, payment, payrollRu
 import { depreciationByMonth } from "@/modules/asset/service";
 import { listExpenses } from "@/modules/money/expense";
 import { listPayables, prepayReceipts, syncPayables } from "@/modules/money/payable";
-import { cardDueOn, splitByShare } from "@/modules/money/rules";
+import { cardDueOn, noVatCredit, splitByShare } from "@/modules/money/rules";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { itemExpCategory, VAT } from "@/modules/purchase/rules";
@@ -144,7 +144,8 @@ export async function buildJournal(db: Db, to: string, now = new Date()): Promis
     if (e.status !== "approved" && e.status !== "paid") continue;
     if (e.sourceKind === "settle") continue;
     const cash = e.payMethod === "cash" ? "101" : "103";
-    const cost = [...costLines(e.split ?? [], e.category, e.supplyWon), dr("135", e.vatWon)];
+    // 접대비(기업업무추진비)는 매입세액 불공제: 부가세도 비용으로
+    const cost = !e.split?.length && noVatCredit(e.category) ? costLines([], e.category, e.amountWon) : [...costLines(e.split ?? [], e.category, e.supplyWon), dr("135", e.vatWon)];
     const href = `/money/expenses/${e.id}`;
     if (e.sourceKind === "none") {
       push({ b: e.branchId, on: e.evidenceOn ?? seoulDate(e.createdAt), src: "expense", no: e.docNo, memo: `${e.payeeName} · ${e.purpose}`, href, lines: [...cost, cr("253", e.amountWon)] });

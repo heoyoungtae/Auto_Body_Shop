@@ -49,7 +49,7 @@ export function receiptProblem(
 export const EXP_CATEGORIES = {
   parts: "부품",
   paint: "도료",
-  consumable: "소모품",
+  consumable: "작업 소모품(사포·마스킹 등)",
   outsource: "외주 가공",
   equipment: "설비·공구",
   repair: "설비 수리·유지",
@@ -61,9 +61,17 @@ export const EXP_CATEGORIES = {
   welfare: "복리후생(식대·작업복)",
   vehicle: "차량 유지(유류·통행료)",
   ad: "광고·판촉",
+  office: "사무용품(복사지·문구·잉크)",
+  entertain: "접대비(거래처 식사·선물)",
+  training: "교육훈련(교육비·자격 시험)",
+  travel: "출장·교통비(숙박·대중교통)",
+  freight: "택배·운반비",
   other: "기타",
 } as const;
 export type ExpCategory = keyof typeof EXP_CATEGORIES;
+/** 부가세 매입세액을 공제받지 못하는 지출 계정(부가가치세법 제39조 제1항 제6호: 기업업무추진비). 부가세도 비용으로 잡는다 */
+export const NO_VAT_CREDIT_CATEGORIES = ["entertain"] as const;
+export const noVatCredit = (category: string) => (NO_VAT_CREDIT_CATEGORIES as readonly string[]).includes(category);
 export const isExpCategory = (s: string): s is ExpCategory =>
   s in EXP_CATEGORIES;
 
