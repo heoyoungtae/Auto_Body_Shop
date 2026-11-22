@@ -75,7 +75,7 @@ export const CARBOOK_CONSENT_TEXT = {
   items: [
     "보관하는 것: 내가 적은 주유·충전, 소모품·정비, 세차, 보험·세금·검사, 기타 비용 기록과 주행거리, 보험 만기일",
     "목적: 내 차 비용·연비 보기, 검사·보증·소모품·보험 만기 알림",
-    "정비소가 보는 것: 주행거리만(상담·입고 때 참고). 금액·주유소 같은 나머지 기록은 보지 않습니다",
+    "공업사가 보는 것: 주행거리만(상담·입고 때 참고). 금액·주유소 같은 나머지 기록은 보지 않습니다",
     "보관 기간: 동의를 철회하거나 그만 쓰면 바로 지웁니다. 3년 동안 들어오지 않으면 미리 문자로 알린 뒤 지웁니다",
     "동의하지 않아도 수리 이력·서류·보증은 그대로 보실 수 있습니다. '내 기록'과 알림만 잠깁니다",
   ],
@@ -118,7 +118,7 @@ export const subLabel = (kind: string, sub: string | null) =>
 /** 알림 종류(더보기 › 알림에서 켜고 끈다. 줄이 없으면 켬) */
 export const ALERTS = {
   inspection: { label: "자동차 정기검사", hint: "최초 등록일로 계산한 검사 기간이 시작될 때" },
-  warranty: { label: "보증 끝나기 30일 전", hint: "우리 정비소 수리의 보증이 곧 끝날 때" },
+  warranty: { label: "보증 끝나기 30일 전", hint: "우리 공업사 수리의 보증이 곧 끝날 때" },
   items: { label: "소모품 교체", hint: "엔진오일·타이어 같은 기록의 다음 교체 때가 2주 안일 때" },
   insurance: { label: "자동차 보험 만기 30일 전", hint: "보험 만기일을 넣어 두셨을 때" },
 } as const;
@@ -163,7 +163,7 @@ export function nextYearly(date: string | null, today: string) {
 export const DEFAULT_KM_PER_DAY = 40;
 
 /**
- * 주행거리 도우미: 정비소가 확인한 값과 손님 기록을 날짜순으로 이어 하루 평균을 내고, 오늘 값을 짐작한다.
+ * 주행거리 도우미: 공업사가 확인한 값과 손님 기록을 날짜순으로 이어 하루 평균을 내고, 오늘 값을 짐작한다.
  * 30일보다 짧은 기간이면 기본값(하루 40km)을 쓴다.
  */
 export function mileageGuess(points: { on: string; km: number }[], today: string) {

@@ -69,7 +69,7 @@ export const JOBS: Record<JobKey, Job> = {
     title: "대표",
     role: "owner",
     notHired: true,
-    purpose: "사내 표준서에 따라 정비소를 운영하고, 돈·사람·품질의 최종 책임을 진다",
+    purpose: "사내 표준서에 따라 공업사를 운영하고, 돈·사람·품질의 최종 책임을 진다",
     duties: [
       "전결 금액을 넘는 견적·발주 승인",
       "급여 지급·월 마감 승인",
@@ -137,7 +137,7 @@ export const JOBS: Record<JobKey, Job> = {
     ],
     required: ["운전면허(고객 차 이동)", "고객 응대 경험 1년 이상"],
     competencies: ["역량표 '상담·견적' 2단계 이상(입사 3개월 안)", "손상 부위를 사진과 용어로 설명", "자동차보험 처리 흐름(사고접수번호·과실·자기부담금)", "개인정보 다루는 규칙", "불만 고객 응대"],
-    preferred: ["정비소·보험사·손해사정 업무 경험", "자동차 보험 견적 프로그램 경험", "외국어 고객 응대 가능"],
+    preferred: ["공업사·보험사·손해사정 업무 경험", "자동차 보험 견적 프로그램 경험", "외국어 고객 응대 가능"],
     checks: ["견적 승인은 공장장·대표", "보험금 입금 확인은 회계", "불만 판정·보상은 품질·대표"],
     reportsTo: "공장장",
     deputy: "공장장",
@@ -148,14 +148,14 @@ export const JOBS: Record<JobKey, Job> = {
   },
   tech_sheet: {
     ...TECH_COMMON,
-    title: "기술자(판금·덴트)",
-    required: ["경력직: 판금 또는 덴트 실무 2년 이상 / 신입: 없음(지도자 배정)"],
+    title: "기술자(판금)",
+    required: ["경력직: 판금 실무 2년 이상 / 신입: 없음(지도자 배정)"],
     competencies: TECH_COMPETENCY,
-    preferred: ["자동차차체수리기능사", "특수용접기능사(CO2·스폿)", "PDR(무도장 덴트) 경험", "알루미늄 차체 경험"],
-    skills: ["sheet", "dent", "weld"],
+    preferred: ["자동차차체수리기능사", "특수용접기능사(CO2·스폿)", "알루미늄 차체 경험"],
+    skills: ["sheet", "weld"],
     sideSkills: ["equip"],
     entryLevel: { career: 2, newbie: 1 },
-    manuals: [...TECH_MANUALS, "판금·덴트 작업 표준", "프레임 수정기·용접기 운전"],
+    manuals: [...TECH_MANUALS, "판금 작업 표준", "프레임 수정기·용접기 운전"],
   },
   tech_paint: {
     ...TECH_COMMON,
@@ -170,14 +170,14 @@ export const JOBS: Record<JobKey, Job> = {
   },
   tech_prep: {
     ...TECH_COMMON,
-    title: "기술자(준비·광택)",
+    title: "기술자(도장 준비)",
     required: ["없음(신입 가능)"],
     competencies: TECH_COMPETENCY,
-    preferred: ["광택·디테일링 경험", "자동차보수도장기능사 준비 중"],
+    preferred: ["샌딩·마스킹 경험", "자동차보수도장기능사 준비 중"],
     skills: ["putty", "polish"],
     sideSkills: [],
     entryLevel: { career: 1, newbie: 1 },
-    manuals: [...TECH_MANUALS, "퍼티·샌딩·마스킹 작업 표준", "광택 작업 표준"],
+    manuals: [...TECH_MANUALS, "퍼티·샌딩·마스킹 작업 표준", "도장 마무리(연마) 작업 표준"],
   },
   quality: {
     title: "품질 담당",
@@ -292,7 +292,7 @@ export function contractDuties(title: string): string {
 export function jobPosting(key: JobKey, shopName: string): string {
   const j = JOBS[key];
   const lines = [
-    `[${shopName || "정비소"}] ${j.title} 채용`,
+    `[${shopName || "공업사"}] ${j.title} 채용`,
     "",
     "■ 하는 일",
     j.purpose,

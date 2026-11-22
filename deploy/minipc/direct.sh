@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 9단계: '국내 직접 접속' 켜기/끄기. 클라우드플레어 무료 요금제는 한국 접속을 미국(PDX·LAX 등)으로 돌려 메뉴마다 0.3~0.5초 늦다.
-# 켜면: 공유기 443 → 이 PC, Caddy 가 HTTPS 인증서를 받고, 클라우드플레어 DNS 의 앱 주소를 정비소 공인 IP 로 바꾼다(회색 구름).
+# 켜면: 공유기 443 → 이 PC, Caddy 가 HTTPS 인증서를 받고, 클라우드플레어 DNS 의 앱 주소를 공업사 공인 IP 로 바꾼다(회색 구름).
 #       주소가 바뀌면 ddns.sh 가 5분마다 고친다. 안 되면 저절로 터널로 되돌린다.
 # 사용(관리자 abs 계정 터미널):
 #   bash ~/auto-body-shop/deploy/minipc/direct.sh        켜기
@@ -72,7 +72,7 @@ net=$(python3 -c "import ipaddress,sys;print(ipaddress.ip_interface(sys.argv[1])
 [ -n "$pub" ] && [ -n "$lan" ] || { bad "주소를 알아내지 못했습니다(인터넷 연결 확인)"; exit 1; }
 case "$lan" in 10.*|172.1[6-9].*|172.2?.*|172.3[01].*|192.168.*) ;; *)
   bad "이 PC 가 공유기를 거치지 않고 인터넷에 바로 꽂혀 있습니다(주소 $lan). 랜선을 KT 기가 와이파이 공유기의 노란 LAN 포트로 옮기고 다시 실행하세요(설명서 9-1)."; exit 1;; esac
-ok "정비소 공인 IP $pub, 이 PC 내부 주소 $lan (내부망 $net)"
+ok "공업사 공인 IP $pub, 이 PC 내부 주소 $lan (내부망 $net)"
 # 이 PC 의 DNS 를 클라우드플레어·구글로 고정(공유기 DNS 가 멈춰도 인증서·주소 갱신이 되게). 내부 주소는 공유기 'DHCP 고정 할당'으로 고정한다(9-1)
 con=$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v d="$dev" '$2==d{print $1; exit}')
 if [ -n "$con" ]; then
@@ -87,7 +87,7 @@ echo "     외부 포트 443 → 내부 IP $lan, 내부 포트 443, TCP"
 read -r -p "  해 두었으면 yes: " a
 [ "$a" = yes ] || { echo "  공유기 설정을 먼저 하고 다시 실행하세요."; exit 1; }
 
-say "3/6 클라우드플레어 DNS 를 정비소 주소로 바꾸기"
+say "3/6 클라우드플레어 DNS 를 공업사 주소로 바꾸기"
 rec=$(cf_record)
 if [ -n "$rec" ] && [ "$(jq -r .type <<<"$rec")" != A ]; then printf '%s\n' "$rec" > "$BEFORE"; fi
 [ -n "$rec" ] && cf DELETE "/zones/$ZONE_ID/dns_records/$(jq -r .id <<<"$rec")" >/dev/null
@@ -114,15 +114,15 @@ if [ "$cert" != 1 ]; then
 fi
 ok "인증서 받음(밖에서 443 으로 들어오는 길이 열려 있음)"
 hair=$(curl -s -o /dev/null -m 10 -w '%{http_code}' --resolve "$SITE_HOST:443:$pub" "https://$SITE_HOST/login" || true)
-if [ "$hair" = 200 ]; then ok "정비소 안(와이파이)에서도 같은 주소로 열림"; else
-  bad "정비소 안에서 바깥 주소로 다시 들어오는 기능(NAT 루프백)이 공유기에서 막혀 있습니다. 와이파이에 연결한 휴대폰은 열리지 않습니다."
+if [ "$hair" = 200 ]; then ok "공업사 안(와이파이)에서도 같은 주소로 열림"; else
+  bad "공업사 안에서 바깥 주소로 다시 들어오는 기능(NAT 루프백)이 공유기에서 막혀 있습니다. 와이파이에 연결한 휴대폰은 열리지 않습니다."
   read -r -p "  그래도 계속할까요? 아니면 터널로 되돌릴까요? (계속=yes, 되돌리기=Enter): " a
   [ "$a" = yes ] || { back_to_tunnel; exit 1; }
 fi
 
 say "6/6 주소 자동 갱신 등록"
 sudo tee /etc/cron.d/auto-body-shop-ddns >/dev/null <<CRON
-# 정비소 공인 IP 가 바뀌면 클라우드플레어 DNS 고치기(minipc/direct.sh 가 만듦)
+# 공업사 공인 IP 가 바뀌면 클라우드플레어 DNS 고치기(minipc/direct.sh 가 만듦)
 */5 * * * * root bash $DEPLOY/minipc/ddns.sh >> $HOME/ddns.log 2>&1
 CRON
 sudo chmod 644 /etc/cron.d/auto-body-shop-ddns

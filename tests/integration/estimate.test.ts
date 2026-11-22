@@ -49,7 +49,7 @@ async function estimating() {
 describe("견적(STD-03)", () => {
   it("공임 기준표로 항목을 만들고 합계·부가세를 계산한다", () => {
     const t = defaultLaborTable();
-    const lines = buildLines([{ id: "a", part: "f_bumper", sizeCm: 30, method: "replace", calibrate: true }, { id: "b", part: "l_f_door", sizeCm: 8, method: "pdr", calibrate: false }], t, "pearl", "general", "품질인증 대체부품");
+    const lines = buildLines([{ id: "a", part: "f_bumper", sizeCm: 30, method: "replace", calibrate: true }, { id: "b", part: "l_f_door", sizeCm: 8, method: "none", calibrate: false }], t, "pearl", "general", "품질인증 대체부품");
     expect(lines.map((l) => [l.category, l.laborCode])).toEqual([
       ["detach", "RR-bumper"],
       ["part", null],
@@ -58,18 +58,13 @@ describe("견적(STD-03)", () => {
       ["paint", "MAT-bumper"],
       ["paint", "MAT-blend"],
       ["etc", "CAL"],
-      ["dent", "PDR-10"],
-    ]);
+    ]); // 수리 안 함(none)은 줄이 없다
     expect(lines[4].laborWon).toBe(108_000); // 재료비 90,000 × 펄 120%
-    // 꺾임(라인) 덴트는 시간 × 라인 가산 130%
     // 세부 부위를 적으면 줄 이름에 붙고, 램프는 도장하지 않는다
     const sub = buildLines([{ id: "s", part: "f_bumper", subPart: "하단 스포일러(립)", sizeCm: 10, method: "partial", calibrate: false }], t, "solid", "general");
     expect(sub[0].name).toBe("앞범퍼(하단 스포일러(립)) 판금");
     const lamp = buildLines([{ id: "l", part: "l_headlamp", sizeCm: 5, method: "replace", calibrate: false }], t, "solid", "general");
     expect(lamp.map((l) => l.category)).toEqual(["detach", "part"]);
-    const [crease] = buildLines([{ id: "c", part: "hood", sizeCm: 15, method: "pdr", calibrate: false, crease: true }], t, "solid", "general");
-    expect(crease.laborMinutes).toBe(156); // 120분 × 1.3
-    expect(crease.name).toContain("라인 가산");
     expect(lines[1].partCode).toBe("D");
     expect(lines[0].laborWon).toBe(38_000); // 60분 × 38,000
     expect(lines[2].laborWon).toBe(264_000); // 220,000 × 120%

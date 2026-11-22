@@ -16,7 +16,7 @@ export const CONSENT_PICK = { phone: CONSENT_METHOD_LABEL.phone, visit: CONSENT_
 
 export const DAMAGE_TYPES = ["찌그러짐", "긁힘", "도장 박리", "부식", "기타"] as const;
 export const CAUSES = ["사고", "긁힘·주차", "노후", "기타"] as const;
-export const METHODS = ["덴트", "판금·도장", "교환", "광택"] as const;
+export const METHODS = ["판금·도장", "교환", "외주 진단"] as const;
 export const PARTS_PREF = ["순정(OEM)", "품질인증 대체부품", "친환경(중고·재제조·재생)", "상관없음"] as const;
 
 /** 상담 시간 고르기(30분 단위, 영업시간 08:00~19:00) */
@@ -40,7 +40,7 @@ export const CONSENT_TEXT = {
     title: "[선택] 할인·이벤트·기프티콘 안내(광고 문자) 받기",
     body: "할인·이벤트 소식과 이벤트 경품·감사 기프티콘은 이 항목에 동의한 고객에게만 보냅니다. 동의하지 않으면 이벤트 참여와 기프티콘 수신이 어렵습니다. 광고 문자는 오후 9시~오전 8시를 피해 보내고, 언제든 무료수신거부로 끊을 수 있습니다. 동의하지 않아도 예약·견적·출고 안내는 받습니다.",
   },
-  notice: "보관·위탁 고지: 기록은 정비소가 직접 관리하는 국내 서버에 보관하고(국외 이전 없음), 문자·알림톡 발송 대행사에 연락처가 전달됩니다. 자세한 내용은 홈페이지의 개인정보 처리방침에 있습니다.",
+  notice: "보관·위탁 고지: 기록은 공업사가 직접 관리하는 국내 서버에 보관하고(국외 이전 없음), 문자·알림톡 발송 대행사에 연락처가 전달됩니다. 자세한 내용은 홈페이지의 개인정보 처리방침에 있습니다.",
 } as const;
 
 /** 영업일 더하기 — 설정 › 영업일·휴무일을 따른다(platform/business-days.ts) */

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-  <!-- 홈페이지 첫 화면 기본 배경(정비소 사진을 올리기 전): 작업등 아래 차체 곡면과 도장 반사광을 가까이서 본 모습 -->
+  <!-- 홈페이지 첫 화면 기본 배경(공업사 사진을 올리기 전): 작업등 아래 차체 곡면과 도장 반사광을 가까이서 본 모습 -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0b0d10"/>

@@ -51,7 +51,7 @@ export default async function ShopSettingsPage({ searchParams }: { searchParams:
             </div>
             <AddressField help={{ zip: "shop.zip", address: "shop.address", detail: "shop.addressDetail" }} defaults={{ zip: shop.zip, address: shop.address, detail: shop.addressDetail }} />
             <RegMoreFields reg={reg} />
-            <p className="text-sm font-medium">정비소</p>
+            <p className="text-sm font-medium">공업사</p>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <TextField help="shop.phone" name="phone" inputMode="tel" defaultValue={shop.phone} />
               <TextField help="shop.repairRegNo" name="repairRegNo" defaultValue={shop.repairRegNo} />

@@ -33,7 +33,7 @@ export async function requestCertificateAction(form: FormData) {
   redirect(noticeUrl("/certificates", `${docNo} 신청했습니다. 대표가 승인하면 여기서 인쇄합니다`));
 }
 
-// ── 출퇴근(정비소 와이파이에서만), 연장근무 지시·답, 정비소 인터넷 주소 ─────────────
+// ── 출퇴근(공업사 와이파이에서만), 연장근무 지시·답, 공업사 인터넷 주소 ─────────────
 
 const hmNow = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(11, 16);
 
@@ -98,6 +98,6 @@ export async function savePunchConfigAction(form: FormData) {
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }
-  const where = [saved.sameAsTv ? "정비소 TV 현황판과 같은 인터넷" : "", saved.sameAsServer ? "서버와 같은 정비소 인터넷" : "", saved.ips.join(", ")].filter(Boolean).join(", ");
+  const where = [saved.sameAsTv ? "공업사 TV 현황판과 같은 인터넷" : "", saved.sameAsServer ? "서버와 같은 공업사 인터넷" : "", saved.ips.join(", ")].filter(Boolean).join(", ");
   redirect(noticeUrl(back, where ? `저장했습니다. 이제 ${where} 에서만 출퇴근을 누를 수 있습니다` : "저장했습니다. 주소가 비어 있어 어디서나 누를 수 있습니다"));
 }

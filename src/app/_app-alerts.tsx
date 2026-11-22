@@ -221,7 +221,7 @@ export function DeviceAlerts() {
             <Button onClick={on} disabled={busy}>
               이 기기로 알림 받기
             </Button>
-            <p className="text-xs text-[var(--muted)]">결재 차례·업무지시·작업 배정 알림이 앱을 닫아 두어도 뜹니다. 알림 내용은 정비소 서버에서만 가져옵니다.</p>
+            <p className="text-xs text-[var(--muted)]">결재 차례·업무지시·작업 배정 알림이 앱을 닫아 두어도 뜹니다. 알림 내용은 공업사 서버에서만 가져옵니다.</p>
           </div>
         )}
       </div>

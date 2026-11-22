@@ -1,4 +1,4 @@
-// 수리 이력 확인서(3단계): 차를 팔 때 우리 정비소에서 고친 내역을 한 장으로. 확인 번호로 사는 사람이 진위를 본다
+// 수리 이력 확인서(3단계): 차를 팔 때 우리 공업사에서 고친 내역을 한 장으로. 확인 번호로 사는 사람이 진위를 본다
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { consultCars, fmtCertCode, myCerts } from "@/modules/carbook/requests";
@@ -24,7 +24,7 @@ export default async function MyCertListPage({ searchParams }: { searchParams: P
           <Empty>내 차가 없습니다.</Empty>
         ) : (
           <AssistForm id="my-cert" action={issueCertAction} className="space-y-4">
-            <p className="text-sm text-[var(--muted)]">우리 정비소에서 출고한 수리(날짜·작업·보증)를 한 장으로 만듭니다. 확인 번호가 붙어 사는 분이 진짜인지 볼 수 있습니다.</p>
+            <p className="text-sm text-[var(--muted)]">우리 공업사에서 출고한 수리(날짜·작업·보증)를 한 장으로 만듭니다. 확인 번호가 붙어 사는 분이 진짜인지 볼 수 있습니다.</p>
             {cars.length > 1 ? <SelectField help="my.vehicle" name="vehicleId" required options={cars.map((c) => ({ value: c.id, label: c.label }))} defaultValue={cars[0].id} /> : <input type="hidden" name="vehicleId" value={cars[0].id} />}
             <CheckGroup help="my.certAmount" name="withAmount" options={[{ value: "yes", label: "수리 금액도 넣기" }]} />
             <SubmitButton full>확인서 만들기</SubmitButton>

@@ -68,7 +68,7 @@ describe("기술자료", () => {
 });
 
 describe("첫 화면 배경·새 화면 주소", () => {
-  it("고른 정비소 사진이 배경, 사진을 빼면 기본 그림으로", async () => {
+  it("고른 공업사 사진이 배경, 사진을 빼면 기본 그림으로", async () => {
     expect(heroImage(await siteTrust(db))).toBe(DEFAULT_HERO);
     await addShopPhoto(db, advisor(), WEBP, { caption: "외관", kind: "outside" });
     const p = (await siteTrust(db)).photos[0];

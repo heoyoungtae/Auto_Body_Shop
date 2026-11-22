@@ -6,7 +6,7 @@ import { SubmitButton } from "../../_submit";
 import { EvidenceFiles } from "../../money/evidence-files";
 import { manualAction } from "../actions";
 
-/** 새 교재의 뼈대(우리 정비소만의 내용을 이 순서로 채운다) */
+/** 새 교재의 뼈대(우리 공업사만의 내용을 이 순서로 채운다) */
 export const MANUAL_TEMPLATE = `1. 목적
 이 교재로 무엇을 할 수 있게 되는지 한 줄로.
 

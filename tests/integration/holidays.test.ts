@@ -39,7 +39,7 @@ describe("공휴일 자동 갱신", () => {
     expect((await db.select().from(notification).where(eq(notification.userId, ids.owner))).some((n) => n.title.includes("2028년 공휴일"))).toBe(true);
 
     await saveHolidayKey(db, ids.owner, "abcdefghijklmnopqrstuvwxyz0123456789");
-    await db.insert(shopDay).values({ date: "2028-05-02", kind: "closed", name: "정비소 창립일", createdBy: ids.owner });
+    await db.insert(shopDay).values({ date: "2028-05-02", kind: "closed", name: "공업사 창립일", createdBy: ids.owner });
     const f = fake({
       "2027": { item: [{ locdate: 20270101, dateName: "1월1일", isHoliday: "Y" }, { locdate: 20270603, dateName: "임시공휴일", isHoliday: "Y" }] },
       "2028": { item: [{ locdate: 20280101, dateName: "1월1일", isHoliday: "Y" }, { locdate: 20280502, dateName: "어린이날 대체", isHoliday: "Y" }, { locdate: 20280405, dateName: "식목일", isHoliday: "N" }] },

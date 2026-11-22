@@ -253,7 +253,7 @@ export async function smsTempPassword(db: Db, actor: Actor, userId: string, appU
   const p = await getProfile(db, actor, userId);
   if (!p?.phone) throw new StaffError("근로자 명부에 휴대폰 번호가 없습니다. 명부에 먼저 적어 주세요");
   const until = t.until ? seoulDate(t.until) : "";
-  const text = `[정비소 앱] ${u.name}님 계정입니다.\n주소: ${appUrl}\n아이디: ${u.loginId}\n임시 비밀번호: ${t.password}\n${until ? `${until}까지 ` : ""}처음 로그인할 때 새 비밀번호를 정해 주세요.`;
+  const text = `[공업사 앱] ${u.name}님 계정입니다.\n주소: ${appUrl}\n아이디: ${u.loginId}\n임시 비밀번호: ${t.password}\n${until ? `${until}까지 ` : ""}처음 로그인할 때 새 비밀번호를 정해 주세요.`;
   const r = await sendSmsBatch(db, actor.id, "임시 비밀번호", [{ to: p.phone, text, customerName: u.name }], fetch, t.password);
   if (!r.ok) throw new StaffError(`문자를 보내지 못했습니다: ${r.errors.join(", ")}`);
   await writeAudit(db, { actorId: actor.id, action: "user.temp_sms", entityType: "user", entityId: userId });

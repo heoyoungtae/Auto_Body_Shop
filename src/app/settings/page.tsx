@@ -5,7 +5,7 @@ import { Card, PageTitle } from "../_ui";
 
 const ITEMS: { href: string; title: string; body: string; help: PageHelpKey }[] = [
   { help: "settings.shop", href: "/settings/shop", title: "사업장 정보", body: "업체명·대표자·사업자등록번호·정비업 등록번호·주소. 법정 견적서·정비명세서에 찍힙니다." },
-  { help: "settings.brand", href: "/settings/brand", title: "로고·앱 아이콘", body: "정비소 로고와 앱 아이콘 PNG. 로그인 화면·브라우저 탭·휴대폰 홈 화면 아이콘에 쓰입니다." },
+  { help: "settings.brand", href: "/settings/brand", title: "로고·앱 아이콘", body: "공업사 로고와 앱 아이콘 PNG. 로그인 화면·브라우저 탭·휴대폰 홈 화면 아이콘에 쓰입니다." },
   { help: "settings.labor", href: "/settings/labor", title: "공임 기준표(F-03-01)", body: "시간당 공임, 작업별 표준 시간, 패널당 도장 단가와 도장 등급 계수. 견적이 이 표로 계산됩니다." },
   { help: "settings.bodyParts", href: "/settings/body-parts", title: "차 부위·세부 부위", body: "차 그림의 부위 안에서 쓰는 세부 부품 이름. 기본 목록에 없는 부품을 더하면 진단 화면 목록에 나옵니다." },
   { help: "settings.branches", href: "/settings/branches", title: "본점·지점", body: "본점과 지점 목록, 직원의 소속 지점과 지점별 역할. 지점이 하나뿐이면 다른 화면은 그대로입니다." },
@@ -17,7 +17,7 @@ const ITEMS: { href: string; title: string; body: string; help: PageHelpKey }[] 
   { help: "settings.messaging", href: "/settings/messaging", title: "문자 발송 서비스", body: "문자 대행사, 발신번호, 080 수신거부 번호, 준비 순서와 연결 시험." },
   { help: "settings.kakao", href: "/settings/kakao", title: "카카오 알림톡", body: "예약·견적·출고·설문 안내 템플릿과 카카오 승인 코드." },
   { help: "settings.calendar", href: "/settings/calendar", title: "영업일·휴무일", body: "문 여는 요일, 공휴일에 쉬는지, 가게 휴무·특별 영업일. 영업일 기한과 예약 달력이 따릅니다." },
-  { help: "settings.punch", href: "/settings/punch", title: "출퇴근 장소(와이파이)", body: "정비소 와이파이의 인터넷 주소. 여기서 접속한 기기만 출근·퇴근을 누를 수 있습니다." },
+  { help: "settings.punch", href: "/settings/punch", title: "출퇴근 장소(와이파이)", body: "공업사 와이파이의 인터넷 주소. 여기서 접속한 기기만 출근·퇴근을 누를 수 있습니다." },
   { help: "settings.tv", href: "/settings/tv", title: "TV 현황판 연결", body: "공장 TV에 정비 현황판을 띄우는 링크(로그인 없이 읽기 전용)와 띄우는 방법. 테크베이용 현황판 링크도 여기서." },
   { help: "settings.server", href: "/settings/server", title: "서버", body: "서버(미니 PC) 위치·버전·디스크·백업 상태와 '지금 새 버전 올리기'. 서버가 멀리 있어도 여기서 합니다." },
   { help: "settings.gift", href: "/settings/gift", title: "기프티콘 공급사", body: "기프티쇼 비즈 연결, 월 예산·건당 상한·중복 방지 기간." },

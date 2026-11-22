@@ -69,7 +69,7 @@ COMPOSE_FILE=compose.minipc.yml
 SITE_HOST=localhost
 APP_URL=http://localhost:3000
 APP_INTERNAL_URL=http://127.0.0.1:3000
-# 서버가 정비소 안에 있음: 출퇴근 '서버와 같은 인터넷' 허용, 접속 주소는 클라우드플레어가 알려 준 값 사용
+# 서버가 공업사 안에 있음: 출퇴근 '서버와 같은 인터넷' 허용, 접속 주소는 클라우드플레어가 알려 준 값 사용
 SERVER_ON_SITE=1
 TRUST_CF_IP=1
 DB_PASSWORD=$(openssl rand -hex 24)
@@ -123,11 +123,11 @@ mkdir -p "$HOME/.local/share/applications"
 cat > "$HOME/.local/share/applications/auto-body-shop.desktop" <<DESK
 [Desktop Entry]
 Type=Application
-Name=정비소 앱(이 PC)
+Name=공업사 앱(이 PC)
 Exec=xdg-open http://localhost:3000
 Icon=applications-internet
 DESK
-ok "프로그램 목록에서 '정비소 앱' 검색"
+ok "프로그램 목록에서 '공업사 앱' 검색"
 
 cat <<DONE
 

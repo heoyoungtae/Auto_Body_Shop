@@ -275,7 +275,7 @@ export async function sendMessages(
     throw new BulkError(
       `그사이 받는 사람이 ${input.expected}명에서 ${list.length}명으로 바뀌었습니다. 미리보기를 다시 확인해 주세요`,
     );
-  const phone = info.sender ? formatPhone(info.sender) : "정비소";
+  const phone = info.sender ? formatPhone(info.sender) : "제이모터스";
   const items = list.map((r) => ({
     to: r.phone,
     customerName: r.name,

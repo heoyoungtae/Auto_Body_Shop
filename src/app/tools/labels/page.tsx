@@ -43,7 +43,7 @@ export default async function ToolLabelsPage({ searchParams }: { searchParams: P
               <div className="min-w-0 text-xs leading-tight">
                 <p className="font-mono text-base font-bold">{t.no}</p>
                 <p className="truncate">{t.name}</p>
-                <p className="text-[10px]">{shop.name || "정비소"} 치공구{t.special ? " · 반출 기록" : ""}</p>
+                <p className="text-[10px]">{shop.name || "공업사"} 치공구{t.special ? " · 반출 기록" : ""}</p>
               </div>
             </div>
           ))}

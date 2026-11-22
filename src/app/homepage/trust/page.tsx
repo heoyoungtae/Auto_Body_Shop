@@ -1,4 +1,4 @@
-// 홈페이지 › 후기·사진·인증: 바깥 후기 바로 가기·별점 요약, 손님 후기, 정비소 실제 사진(외관·작업장·장비·사람들), 자격·인증.
+// 홈페이지 › 후기·사진·인증: 바깥 후기 바로 가기·별점 요약, 손님 후기, 공업사 실제 사진(외관·작업장·장비·사람들), 자격·인증.
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { rolesFor } from "@/modules/auth/permissions";
@@ -27,7 +27,7 @@ export default async function TrustAdminPage({ searchParams }: { searchParams: P
     <>
       <PageTitle
         help="homepage.trust"
-        sub="손님이 믿고 맡길 수 있게 하는 자료입니다. 바깥 후기, 정비소 실제 사진, 자격·인증을 홈페이지 첫 화면과 소개에 보입니다."
+        sub="손님이 믿고 맡길 수 있게 하는 자료입니다. 바깥 후기, 공업사 실제 사진, 자격·인증을 홈페이지 첫 화면과 소개에 보입니다."
         actions={
           <Link href={site} target="_blank" className={buttonClass("secondary")}>
             홈페이지에서 보기
@@ -85,7 +85,7 @@ export default async function TrustAdminPage({ searchParams }: { searchParams: P
           </AssistForm>
         </Card>
 
-        <Card title={`정비소 사진 ${t.photos.length}/${TRUST_LIMIT.photos}`} help={{ kind: "panel", id: "homepage.shopPhotos" }}>
+        <Card title={`공업사 사진 ${t.photos.length}/${TRUST_LIMIT.photos}`} help={{ kind: "panel", id: "homepage.shopPhotos" }}>
           {t.photos.length > 0 && (
             <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {t.photos.map((p) => (
@@ -115,7 +115,7 @@ export default async function TrustAdminPage({ searchParams }: { searchParams: P
             {/* eslint-disable-next-line @next/next/no-img-element -- 첫 화면 배경 미리 보기 */}
             <img src={hero.startsWith("/api/site-file/") ? hero.replace("/api/site-file/", "/api/files/") : hero} alt="" className="h-12 w-20 shrink-0 rounded object-cover" />
             <p className="min-w-0 flex-1">
-              <b>첫 화면 배경</b>: {t.hero ? "고른 정비소 사진" : "기본 그림(차체 곡면)"}. 가로로 넓고 밝지 않은 외관·작업장 사진이 잘 어울립니다.
+              <b>첫 화면 배경</b>: {t.hero ? "고른 공업사 사진" : "기본 그림(차체 곡면)"}. 가로로 넓고 밝지 않은 외관·작업장 사진이 잘 어울립니다.
             </p>
             {t.hero && (
               <form action={setHeroAction}>

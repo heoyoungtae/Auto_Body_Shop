@@ -53,7 +53,7 @@ describe("본점·지점 1단계", () => {
   });
 
   it("본점은 지울 수 없게 다른 기록이 가리킨다(외래 키)", async () => {
-    await db.insert(workplace).values({ name: "광택장", kind: "polish" });
+    await db.insert(workplace).values({ name: "세차장", kind: "wash" });
     await expect(db.delete(branch).where(eq(branch.id, MAIN_BRANCH_ID))).rejects.toThrow();
   });
 });
@@ -88,11 +88,11 @@ describe("작업장 연결", () => {
     expect((await getWorkOrder(db, id)).steps[0].workplaceId).toBeTruthy();
     // 작업장 TV: 그 작업장에 안 끝난 공정이 있는 차만
     const { tvBoard, tvScope } = await import("@/modules/dashboard/tv");
-    const polish = await createWorkplace(db, manager(), { name: "광택장", kind: "polish", bays: 1, managerId: null, note: "" });
+    const wash = await createWorkplace(db, manager(), { name: "세차장", kind: "wash", bays: 1, managerId: null, note: "" });
     expect((await tvBoard(db, now, await tvScope(db, { w: b2 }))).cars).toHaveLength(1);
-    const empty = await tvBoard(db, now, await tvScope(db, { w: polish }));
+    const empty = await tvBoard(db, now, await tvScope(db, { w: wash }));
     expect(empty.cars).toHaveLength(0);
-    expect(empty.scope).toBe("광택장");
+    expect(empty.scope).toBe("세차장");
     expect((await tvBoard(db, now, await tvScope(db, { w: "nope" }))).scope).toBeNull();
   });
 });

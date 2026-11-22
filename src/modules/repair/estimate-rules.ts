@@ -1,5 +1,5 @@
 // 견적 규칙(STD-03 4절, 법정 서식 별지 제89호의3). 화면과 서버가 같이 쓴다(DB 없음).
-import { gradeWon, GROUP_LABEL, laborWon, paintWon, partGroup, pdrCode, type LaborTable, type PaintGrade } from "./labor";
+import { gradeWon, GROUP_LABEL, laborWon, paintWon, partGroup, type LaborTable, type PaintGrade } from "./labor";
 import { partName, type Issue } from "./rules";
 
 /** 법정 서식 부품 코드(서식 하단 7번) */
@@ -15,8 +15,8 @@ export function partCodeFromPref(pref: string | null | undefined): PartCode {
   return "A";
 }
 
-/** 견적 항목 구분(STD-03 4절: 탈부착·판금·덴트·도장·광택·부품·외주·기타) */
-export const LINE_CATEGORIES = { detach: "탈부착", sheet: "판금", dent: "덴트", paint: "도장", polish: "광택", part: "부품", outsource: "외주", etc: "기타(보정·청소)" } as const;
+/** 견적 항목 구분(STD-03 4절: 탈부착·판금·도장·부품·외주·기타). 덴트·광택은 하지 않는다(대표 2026-11-22) */
+export const LINE_CATEGORIES = { detach: "탈부착", sheet: "판금", paint: "도장", part: "부품", outsource: "외주", etc: "기타(보정·청소)" } as const;
 export type LineCategory = keyof typeof LINE_CATEGORIES;
 export const isLineCategory = (s: string): s is LineCategory => s in LINE_CATEGORIES;
 
@@ -66,18 +66,8 @@ export function buildLines(damages: Damage[], t: LaborTable, grade: PaintGrade, 
     const g = partGroup(d.part);
     const name = partName(d.part, d.subPart);
     const push = (x: LineDraft | null | LineDraft[]) => (Array.isArray(x) ? out.push(...x) : x && out.push(x));
-    if (d.method === "pdr") {
-      const x = labor(d, "dent", pdrCode(d.sizeCm), `${name} 덴트(PDR)`);
-      // 프레스 라인·모서리에 걸친 덴트는 시간 × 가산 계수
-      if (x && d.crease && t["PDR-LINE"]) {
-        x.laborMinutes = Math.round((x.laborMinutes * t["PDR-LINE"]) / 100);
-        x.laborWon = laborWon(x.laborMinutes, t);
-        x.name += " · 라인 가산";
-      }
-      push(x);
-    }
-    else if (d.method === "polish") push(labor(d, "polish", "POL", `${name} 광택`));
-    else if (d.method === "partial") {
+    // 'none'(수리 안 함)은 견적 줄을 만들지 않는다
+    if (d.method === "partial") {
       push(labor(d, "sheet", `SHT-${g}`, `${name} 판금`));
       if (!NO_PAINT.has(g)) push(paint(d));
     } else if (d.method === "replace") {

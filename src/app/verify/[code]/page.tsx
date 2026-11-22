@@ -21,7 +21,7 @@ export default async function VerifyCodePage({ params }: { params: Promise<{ cod
         </Notice>
       ) : (
         <>
-          <Notice>{c.revokedAt ? "이 확인서는 차 주인이 무효로 했습니다(더 쓰지 않음). 아래 내용은 발급 때 그대로입니다." : `정비소가 발급한 진짜 확인서입니다. 아래는 ${c.snap.issuedOn} 발급 때 내용 그대로입니다.`}</Notice>
+          <Notice>{c.revokedAt ? "이 확인서는 차 주인이 무효로 했습니다(더 쓰지 않음). 아래 내용은 발급 때 그대로입니다." : `공업사가 발급한 진짜 확인서입니다. 아래는 ${c.snap.issuedOn} 발급 때 내용 그대로입니다.`}</Notice>
           <CertSheet snap={c.snap} docNo={c.docNo} code={cleanCertCode(decodeURIComponent(code))} url={`${appUrl()}/verify`} revoked={!!c.revokedAt} maskPlate={maskPlate} />
         </>
       )}

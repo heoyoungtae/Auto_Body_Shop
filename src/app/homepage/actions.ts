@@ -157,7 +157,7 @@ export async function removeShopPhotoAction(form: FormData) {
   const user = await requireUser([...STAFF]);
   await trustDo(async () => removeShopPhoto(await getDb(), user, g(form, "id")), "사진을 뺐습니다");
 }
-/** 정비소 사진 올리기(화면에서 줄여 새로 그린 그림). 결과만 돌려준다 */
+/** 공업사 사진 올리기(화면에서 줄여 새로 그린 그림). 결과만 돌려준다 */
 export async function uploadShopPhotoAction(form: FormData): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = await requireUser([...STAFF]);
   const file = form.get("file");

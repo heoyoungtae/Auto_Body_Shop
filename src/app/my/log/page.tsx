@@ -1,5 +1,5 @@
 // 내 기록(손님이 적는 차계부): 차 고르기, 오늘 주행거리 짐작·연비·1년 비용, 빠른 기록 단추, 소모품 교체 때, 달마다 비용, 기록 목록(복사·지우기).
-// 이 화면의 값은 손님 것이다. 정비소는 주행거리만 참고로 본다
+// 이 화면의 값은 손님 것이다. 공업사는 주행거리만 참고로 본다
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { myLog } from "@/modules/carbook/records";
@@ -48,7 +48,7 @@ export default async function MyLogPage({ searchParams }: { searchParams: Promis
       )}
 
       {!d.car ? (
-        <Empty>내 차가 없습니다. 정비소에 등록된 차가 있어야 기록할 수 있습니다.</Empty>
+        <Empty>내 차가 없습니다. 공업사에 등록된 차가 있어야 기록할 수 있습니다.</Empty>
       ) : !d.consent.agreed ? (
         <ConsentCard back={`/my/log?car=${d.car.id}`} />
       ) : (

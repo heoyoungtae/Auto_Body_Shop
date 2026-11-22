@@ -1,4 +1,4 @@
-// 출퇴근 화면 조각(사용자 결정 2026-11-11): 오늘 출퇴근, 받은 연장 지시, 출퇴근 정정, 오늘 팀 현황, 연장 지시, 정비소 인터넷 주소.
+// 출퇴근 화면 조각(사용자 결정 2026-11-11): 오늘 출퇴근, 받은 연장 지시, 출퇴근 정정, 오늘 팀 현황, 연장 지시, 공업사 인터넷 주소.
 // 신고서·신청서는 출퇴근 기록과 근로계약서 시각으로 미리 채워 다시 입력하지 않게 한다.
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -244,7 +244,7 @@ export function OrderCard({ users, today, defaultFrom }: { users: { id: string; 
   );
 }
 
-/** onSite: 서버가 정비소 미니 PC 일 때 '서버와 같은 인터넷' 칸을 보인다. serverIp 는 서버가 지금 쓰는 정비소 공인 IP */
+/** onSite: 서버가 공업사 미니 PC 일 때 '서버와 같은 인터넷' 칸을 보인다. serverIp 는 서버가 지금 쓰는 공업사 공인 IP */
 export function PlaceCard({
   branchId,
   branchName,
@@ -271,18 +271,18 @@ export function PlaceCard({
   const none = !ips.length && !sameAsServer && !(sameAsTv && tvIp);
   const prefill = ips.length ? ips.join("\n") : onSite || sameAsTv ? "" : myIp;
   return (
-    <Card title={branchName ? `${branchName} 인터넷 주소` : "정비소 인터넷 주소"} help={{ kind: "panel", id: "punch.config" }}>
+    <Card title={branchName ? `${branchName} 인터넷 주소` : "공업사 인터넷 주소"} help={{ kind: "panel", id: "punch.config" }}>
       <AssistForm id={`punch-config${branchId ? `-${branchId}` : ""}`} action={savePunchConfigAction} className="space-y-3">
         {branchId && <input type="hidden" name="branchId" value={branchId} />}
-        <CheckGroup help="punch.sameAsTv" name="sameAsTv" options={[{ value: "1", label: "정비소 TV 현황판과 같은 인터넷이면 허용" }]} defaultChecked={sameAsTv || (none && !onSite) ? ["1"] : []} />
+        <CheckGroup help="punch.sameAsTv" name="sameAsTv" options={[{ value: "1", label: "공업사 TV 현황판과 같은 인터넷이면 허용" }]} defaultChecked={sameAsTv || (none && !onSite) ? ["1"] : []} />
         <p className="text-xs text-[var(--muted)]">
-          현황판이 접속해 온 정비소 주소: <b>{tvIp || "아직 없음(TV 링크로 띄운 현황판이 10분쯤 켜져 있으면 잡힙니다)"}</b>
+          현황판이 접속해 온 공업사 주소: <b>{tvIp || "아직 없음(TV 링크로 띄운 현황판이 10분쯤 켜져 있으면 잡힙니다)"}</b>
           {tv.at ? ` · ${new Date(tv.at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} 확인` : ""}
           {tvIp && myIp ? ([tv.v4, tv.v6].includes(myIp) ? " · 이 기기도 같은 인터넷입니다" : " · 이 기기는 다른 인터넷입니다") : ""}
         </p>
         {onSite && (
           <>
-            <CheckGroup help="punch.sameAsServer" name="sameAsServer" options={[{ value: "1", label: "서버(미니 PC)와 같은 정비소 인터넷이면 허용" }]} defaultChecked={sameAsServer ? ["1"] : []} />
+            <CheckGroup help="punch.sameAsServer" name="sameAsServer" options={[{ value: "1", label: "서버(미니 PC)와 같은 공업사 인터넷이면 허용" }]} defaultChecked={sameAsServer ? ["1"] : []} />
             <p className="text-xs text-[var(--muted)]">
               서버가 지금 쓰는 인터넷 주소: <b>{serverIp || "알아내지 못함(인터넷 연결 확인)"}</b>
               {serverIp && myIp ? (serverIp === myIp ? " · 이 기기도 같은 인터넷입니다" : " · 이 기기는 다른 인터넷입니다") : ""}
@@ -292,7 +292,7 @@ export function PlaceCard({
         <TextAreaField help="punch.ips" name="ips" rows={2} defaultValue={prefill} />
         <p className="text-xs text-[var(--muted)]">
           지금 이 기기의 주소: <b>{myIp || "알 수 없음"}</b>
-          {ips.length || onSite || sameAsTv ? "" : " (아직 저장 전이라 칸에 미리 넣었습니다. 정비소 와이파이에 연결한 상태에서 저장하세요)"}
+          {ips.length || onSite || sameAsTv ? "" : " (아직 저장 전이라 칸에 미리 넣었습니다. 공업사 와이파이에 연결한 상태에서 저장하세요)"}
         </p>
         {none && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다.</p>}
         <SubmitButton>저장</SubmitButton>

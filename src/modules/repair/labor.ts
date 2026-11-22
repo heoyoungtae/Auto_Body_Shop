@@ -45,8 +45,8 @@ export function partGroup(part: string): PartGroup {
  */
 export type LaborKind = "hours" | "price" | "pct";
 /** 견적 줄 구분(estimate-rules LINE_CATEGORIES 중 부품 빼고). 계수(pct) 항목은 줄로 고르지 않는다 */
-export type LaborCat = "detach" | "sheet" | "dent" | "paint" | "polish" | "outsource" | "etc";
-export const LABOR_CATS: LaborCat[] = ["detach", "sheet", "dent", "paint", "polish", "outsource", "etc"];
+export type LaborCat = "detach" | "sheet" | "paint" | "outsource" | "etc";
+export const LABOR_CATS: LaborCat[] = ["detach", "sheet", "paint", "outsource", "etc"];
 export type LaborDef = { code: string; section: string; name: string; kind: LaborKind; value: number; hint?: string; cat?: LaborCat; custom?: boolean };
 
 const hours = (code: string, section: string, name: string, min: number, hint?: string): LaborDef => ({ code, section, name, kind: "hours", value: min, hint });
@@ -85,20 +85,6 @@ const BASE: LaborDef[] = [
   pct("COEF-metallic", "도장 등급 계수", "메탈릭", 110),
   pct("COEF-pearl", "도장 등급 계수", "펄", 120),
   pct("COEF-tricoat", "도장 등급 계수", "3코트", 140),
-  // 덴트(PDR): 크기별
-  hours("PDR-10", "덴트(PDR, 크기별)", "10cm 이하", 60),
-  hours("PDR-20", "덴트(PDR, 크기별)", "20cm 이하", 120),
-  hours("PDR-40", "덴트(PDR, 크기별)", "40cm 이하", 210),
-  hours("PDR-XL", "덴트(PDR, 크기별)", "40cm 초과", 300),
-  // 덴트 가산: 같은 크기라도 어려운 곳은 시간 × 계수
-  pct("PDR-LINE", "덴트 가산 계수", "프레스 라인·모서리", 130, "진단에서 '꺾임(라인)'에 체크하면 덴트 시간에 저절로 곱합니다"),
-  pct("PDR-ALU", "덴트 가산 계수", "알루미늄 패널", 140, "견적 줄 고르기에서 체크하면 곱합니다"),
-  pct("PDR-ACCESS", "덴트 가산 계수", "안쪽 접근 어려움(탈거 필요)", 120, "견적 줄 고르기에서 체크하면 곱합니다"),
-  price("PDR-HAIL", "덴트(PDR, 크기별)", "우박 덴트(1개당)", 15_000, "여러 개는 수량 대신 금액에 개수를 곱해 적습니다"),
-  // 광택: 패널당
-  hours("POL", "광택", "패널당", 60),
-  price("POL-FULL", "광택", "전체 광택", 250_000),
-  price("COAT", "광택", "유리막 코팅(전체)", 400_000),
   // 작은 수리
   price("SPOT", "작은 수리", "부분(스팟) 도장(1곳)", 90_000, "패널 일부만 칠하는 작은 도장. 경계는 블렌딩"),
   price("TOUCH", "작은 수리", "붓펜 터치업(1곳)", 20_000, "돌빵·작은 찍힘"),
@@ -135,7 +121,7 @@ const BASE: LaborDef[] = [
   hours("RI-handle", "탈부착(도장할 때)", "도어 손잡이(1개)", 20),
   hours("RI-emblem", "탈부착(도장할 때)", "엠블럼·레터링", 15),
   hours("RI-mirror", "탈부착(도장할 때)", "사이드미러", 20),
-  hours("RI-trim", "탈부착(도장할 때)", "도어 내장 트림(1짝)", 30, "도어 안쪽 덴트·판금 접근용"),
+  hours("RI-trim", "탈부착(도장할 때)", "도어 내장 트림(1짝)", 30, "도어 안쪽 판금 접근용"),
   // 기타
   price("CAL", "기타", "센서·카메라 보정(1곳)", 120_000, "보정 장비가 없으면 외주 단가"),
   price("OUT-DIAG", "기타", "외주 진단(프레임 계측)", 150_000),
@@ -148,8 +134,6 @@ const BASE: LaborDef[] = [
 export function catOf(code: string, kind: LaborKind): LaborCat | undefined {
   if (kind === "pct" || code === "RATE") return undefined;
   if (/^(PNT-|MAT-|BLEND|SPOT|TOUCH)/.test(code)) return "paint";
-  if (code.startsWith("PDR-")) return "dent";
-  if (/^(POL|COAT)/.test(code)) return "polish";
   if (code.startsWith("SHT-")) return "sheet";
   if (/^(RR-|RI-)/.test(code)) return "detach";
   if (code.startsWith("OUT-")) return "outsource";
@@ -181,7 +165,6 @@ export const paintWon = (group: PartGroup, grade: PaintGrade, table: LaborTable)
   const base = table[`PNT-${group}`];
   return base == null ? null : gradeWon(base, grade, table);
 };
-export const pdrCode = (sizeCm: number | null) => (sizeCm == null || sizeCm <= 10 ? "PDR-10" : sizeCm <= 20 ? "PDR-20" : sizeCm <= 40 ? "PDR-40" : "PDR-XL");
 export const fmtMinutes = (m: number) => (m % 60 ? `${Math.floor(m / 60) ? `${Math.floor(m / 60)}시간 ` : ""}${m % 60}분` : `${m / 60}시간`);
 
 /** 기준표 항목 → 견적 줄 작업내용(예: '범퍼' + '탈부착(도장할 때)' → '범퍼 탈부착') */
@@ -189,6 +172,5 @@ export function lineNameOf(d: Pick<LaborDef, "name" | "section" | "custom">): st
   const base = d.section.replace(/\(.*\)/, "").trim();
   if (d.custom || ["기타", "작은 수리"].includes(base) || d.name.includes(base)) return d.name;
   if (base === "도장 재료비") return `${d.name} 도장 재료비`;
-  if (base === "덴트") return `덴트(PDR) ${d.name}`;
   return `${d.name} ${base}`;
 }

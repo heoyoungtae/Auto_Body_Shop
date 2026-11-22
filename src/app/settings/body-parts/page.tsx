@@ -10,7 +10,7 @@ import { requireUser } from "../../_lib/session";
 import { buttonClass, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { saveSubPartsAction } from "./actions";
 
-/** 차 부위·세부 부위: 그림의 큰 부위는 고정이고, 그 안의 세부 부품 이름만 정비소가 더한다 */
+/** 차 부위·세부 부위: 그림의 큰 부위는 고정이고, 그 안의 세부 부품 이름만 공업사가 더한다 */
 export default async function BodyPartsPage({ searchParams }: { searchParams: Promise<{ part?: string; error?: string; notice?: string }> }) {
   const { part, error, notice } = await searchParams;
   const user = await requireUser();

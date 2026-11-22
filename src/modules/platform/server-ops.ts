@@ -341,7 +341,7 @@ export async function agentReport(
     const add = fresh.filter((e) => !seen.has(`${e.at}|${e.message}`));
     for (const e of add) {
       const day = e.at.slice(0, 10);
-      if (e.kind === "changed") await notifyRole(db, "owner", `서버 인터넷 주소가 바뀌었습니다: ${e.message.replace(/^정비소 주소 바뀜:\s*/, "")}. 앱 주소는 저절로 새 주소를 가리킵니다`, `ddns-changed:${e.at}`, "/settings/server");
+      if (e.kind === "changed") await notifyRole(db, "owner", `서버 인터넷 주소가 바뀌었습니다: ${e.message.replace(/^공업사 주소 바뀜:\s*/, "")}. 앱 주소는 저절로 새 주소를 가리킵니다`, `ddns-changed:${e.at}`, "/settings/server");
       else {
         await notifyRole(db, "owner", `앱 주소 자동 고치기 실패: ${e.message}. 계속되면 밖에서 앱이 안 열릴 수 있습니다`, `ddns-fail:${day}:${e.message.slice(0, 40)}`, "/settings/server");
         await recordErrorSafe(db, { kind: "system", message: `앱 주소 자동 고치기(DDNS) 실패: ${e.message}` }, now);

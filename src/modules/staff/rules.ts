@@ -4,12 +4,11 @@
 export const SKILLS = {
   consult: "상담·견적",
   sheet: "판금",
-  dent: "덴트",
   weld: "용접",
   putty: "퍼티·샌딩",
   color: "조색",
   paint: "도장",
-  polish: "광택",
+  polish: "도장 마무리(연마)",
   inspect: "검사",
   equip: "설비 운전",
 } as const;
@@ -34,7 +33,6 @@ export const INSPECTOR_LEVEL = 3;
 export const PROCESS_SKILL: Record<string, Skill | null> = {
   detach: "sheet",
   outsource: null,
-  dent: "dent",
   sheet: "sheet",
   putty: "putty",
   color: "color",

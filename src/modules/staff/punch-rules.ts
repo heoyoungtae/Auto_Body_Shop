@@ -1,5 +1,5 @@
 // 출퇴근·연장근무 인정 규칙(사용자 결정 2026-11-11). 화면·서버·급여·테스트가 같이 쓴다(DB 없음).
-// - 출퇴근 버튼은 정비소 인터넷(등록한 공인 IP)에서만 누른다. 목록이 비어 있으면 어디서나(설치 전).
+// - 출퇴근 버튼은 공업사 인터넷(등록한 공인 IP)에서만 누른다. 목록이 비어 있으면 어디서나(설치 전).
 // - 연장근무 인정 시간 = 승인된 연장 시각 구간 ∩ 실제 출근~퇴근. 분 단위로 센다(30분 절사는 임금 체불 위험).
 // - 승인 없이 더 일한 시간은 수당에 넣지 않고, 사후 신청으로 승인자가 인정 여부를 정한다.
 
@@ -20,7 +20,7 @@ export function durText(min: number) {
   return h && m ? `${h}시간 ${m}분` : h ? `${h}시간` : `${m}분`;
 }
 
-// ── 정비소 인터넷 확인 ────────────────────────────────────
+// ── 공업사 인터넷 확인 ────────────────────────────────────
 
 const v4 = (ip: string) => {
   const p = ip.split(".");
@@ -50,7 +50,7 @@ export function v6Prefix64(ip: string | null | undefined) {
   return full.slice(0, 4).map((x) => parseInt(x || "0", 16).toString(16)).join(":");
 }
 
-/** 접속 주소가 등록한 정비소 인터넷 주소 중 하나에 드는지 */
+/** 접속 주소가 등록한 공업사 인터넷 주소 중 하나에 드는지 */
 export function ipAllowed(ip: string | null | undefined, rules: string[]) {
   const a = normalizeIp(ip);
   if (!a) return false;

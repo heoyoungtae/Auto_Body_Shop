@@ -17,7 +17,7 @@ export default async function ManualsPage({ searchParams }: { searchParams: Prom
       <PageTitle
         help="training.manuals"
         std="STD-11 5절"
-        sub="우리 표준서·공정·설비·사용 도료처럼 우리 정비소만의 방법을 교재로 만듭니다. 대표가 승인하면 교육 자료로 씁니다. 공공 자료(안전보건공단 등)는 교재로 만들지 않고 교육 화면에서 링크로 겁니다."
+        sub="우리 표준서·공정·설비·사용 도료처럼 우리 공업사만의 방법을 교재로 만듭니다. 대표가 승인하면 교육 자료로 씁니다. 공공 자료(안전보건공단 등)는 교재로 만들지 않고 교육 화면에서 링크로 겁니다."
         actions={
           <div className="flex gap-2">
             <Link href="/training" className={buttonClass("secondary")}>

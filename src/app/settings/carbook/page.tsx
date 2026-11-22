@@ -1,4 +1,4 @@
-// 설정 › 내 차 수첩(고객용 차계부): 켜기·끄기, 영업시간·안내문, 쓰는 고객 수. 정비소 이름·전화·주소는 사업장 정보에서 불러온다
+// 설정 › 내 차 수첩(고객용 차계부): 켜기·끄기, 영업시간·안내문, 쓰는 고객 수. 공업사 이름·전화·주소는 사업장 정보에서 불러온다
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { carbookConfig, carbookStats, shopCard } from "@/modules/carbook/service";
@@ -40,7 +40,7 @@ export default async function CarbookSettingsPage({ searchParams }: { searchPara
             <TextField help="carbook.hours" name="hours" defaultValue={cfg.hours} />
             <TextAreaField help="carbook.notice" name="notice" defaultValue={cfg.notice} rows={2} />
             <p className="text-xs text-[var(--muted)]">
-              고객 화면에 보이는 정비소: {shop.name} · {shop.phone || "전화 없음"} · {shop.address || "주소 없음"} —{" "}
+              고객 화면에 보이는 공업사: {shop.name} · {shop.phone || "전화 없음"} · {shop.address || "주소 없음"} —{" "}
               <Link href="/settings/shop" className="text-[var(--accent)] underline">
                 사업장 정보에서 고치기
               </Link>

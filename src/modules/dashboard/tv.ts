@@ -328,7 +328,7 @@ export async function tvTokenOk(db: Db, token: string | null | undefined, kind: 
   return false;
 }
 
-/** 이 열쇠가 테크베이용 열쇠인가(그 TV는 정비소 밖에 있을 수 있어 출퇴근 장소 기억에 쓰지 않는다) */
+/** 이 열쇠가 테크베이용 열쇠인가(그 TV는 공업사 밖에 있을 수 있어 출퇴근 장소 기억에 쓰지 않는다) */
 export async function isTechbayToken(db: Db, token: string) {
   const cfg = await loadCfg(db, "techbay");
   return !!cfg.tokenHash && cfg.tokenHash === sha256(token);

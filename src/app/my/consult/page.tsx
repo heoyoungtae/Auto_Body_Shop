@@ -1,5 +1,5 @@
 // 사진으로 상담·예약 요청(3단계): 이름·전화·차량은 다시 묻지 않는다. 차 그림에서 다친 곳을 누르고 사진 몇 장.
-// 보내면 정비소 상담 일지에 '고객용 화면' 경로로 들어가고 상담원이 회신 기한 안에 연락한다
+// 보내면 공업사 상담 일지에 '고객용 화면' 경로로 들어가고 상담원이 회신 기한 안에 연락한다
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { shopCard } from "@/modules/carbook/service";
@@ -17,7 +17,7 @@ import { requireMy } from "../_session";
 import { ClaimPhotos } from "../warranty/[id]/claim-photos";
 
 const STATE = (r: { result: string; repliedAt: Date | null; reservedAt: Date | null }) =>
-  r.result === "reserved" && r.reservedAt ? `입고 예약 ${r.reservedAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}` : r.result === "converted" ? "입고함" : r.result === "declined" ? "마감" : r.repliedAt ? "정비소가 연락드림" : "연락 기다리는 중";
+  r.result === "reserved" && r.reservedAt ? `입고 예약 ${r.reservedAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}` : r.result === "converted" ? "입고함" : r.result === "declined" ? "마감" : r.repliedAt ? "공업사가 연락드림" : "연락 기다리는 중";
 
 export default async function MyConsultPage({ searchParams }: { searchParams: Promise<{ error?: string; sent?: string; due?: string }> }) {
   const q = await searchParams;
@@ -28,9 +28,9 @@ export default async function MyConsultPage({ searchParams }: { searchParams: Pr
     <div className="space-y-4 pt-2">
       <PageTitle help="my.consult">사진으로 상담 요청</PageTitle>
       <ErrorBox message={q.error} />
-      {q.sent && <Notice>보냈습니다. {q.due ? `${q.due}까지` : "곧"} 정비소에서 답을 드립니다. 답이 오면 알림톡(또는 문자)으로 알려 드리고, 이 화면 아래 '보낸 상담 요청'에서 보실 수 있습니다.</Notice>}
+      {q.sent && <Notice>보냈습니다. {q.due ? `${q.due}까지` : "곧"} 공업사에서 답을 드립니다. 답이 오면 알림톡(또는 문자)으로 알려 드리고, 이 화면 아래 '보낸 상담 요청'에서 보실 수 있습니다.</Notice>}
       {!cars.length ? (
-        <Empty>등록된 차가 없습니다. 새 차는 정비소로 전화해 주세요.</Empty>
+        <Empty>등록된 차가 없습니다. 새 차는 공업사로 전화해 주세요.</Empty>
       ) : (
         <Card title="어디가 다쳤나요" help={{ kind: "panel", id: "my.consultForm" }}>
           <AssistForm id="my-consult" action={requestConsultAction} encType="multipart/form-data" className="space-y-4">
@@ -59,13 +59,13 @@ export default async function MyConsultPage({ searchParams }: { searchParams: Pr
                   </span>
                   <span className="shrink-0 text-xs">{r.reply ? "답변 왔음" : STATE(r)}</span>
                 </div>
-                {/* 정비소 답변(비밀): 문자 인증으로 들어온 이 손님에게만 보인다 */}
+                {/* 공업사 답변(비밀): 문자 인증으로 들어온 이 손님에게만 보인다 */}
                 {r.reply && (
                   <div className="mt-2 rounded-md border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2">
-                    <p className="mb-1 text-xs font-semibold text-[var(--accent)]">정비소 답변 · {r.replyAt ? seoulDate(r.replyAt) : ""}</p>
+                    <p className="mb-1 text-xs font-semibold text-[var(--accent)]">공업사 답변 · {r.replyAt ? seoulDate(r.replyAt) : ""}</p>
                     <p className="whitespace-pre-line">{r.reply}</p>
                     {r.result === "open" && (
-                      <p className="mt-2 text-xs text-[var(--muted)]">예약하시려면 아래 정비소 전화로 연락해 주세요.</p>
+                      <p className="mt-2 text-xs text-[var(--muted)]">예약하시려면 아래 공업사 전화로 연락해 주세요.</p>
                     )}
                   </div>
                 )}

@@ -1,4 +1,4 @@
-// 수리 이력: 우리 정비소에서 고친 기록(최근 것부터)
+// 수리 이력: 우리 공업사에서 고친 기록(최근 것부터)
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { myRepairs } from "@/modules/carbook/service";

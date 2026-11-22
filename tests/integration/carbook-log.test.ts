@@ -1,4 +1,4 @@
-// 내 차 수첩 2단계: 이용 동의, 내 기록(주유 셈·주행거리 짐작·연비·소모품 주기), 다가오는 일, 알림(한 번만), 철회·그만 쓰기·3년 미접속 정리, 정비소는 주행거리만
+// 내 차 수첩 2단계: 이용 동의, 내 기록(주유 셈·주행거리 짐작·연비·소모품 주기), 다가오는 일, 알림(한 번만), 철회·그만 쓰기·3년 미접속 정리, 공업사는 주행거리만
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -47,7 +47,7 @@ describe("2단계 규칙", () => {
 });
 
 describe("내 기록", () => {
-  it("동의 전엔 잠김, 동의하면 적기(주유 셈·미리 채우기·주행거리 거꾸로 막기), 정비소는 주행거리만", async () => {
+  it("동의 전엔 잠김, 동의하면 적기(주유 셈·미리 채우기·주행거리 거꾸로 막기), 공업사는 주행거리만", async () => {
     const { roId } = await approvedRepair(db, ids, at("2026-11-01"));
     const [ro] = await db.select().from(schema.repairOrder).where(eq(schema.repairOrder.id, roId));
     const car = ro.vehicleId;
@@ -86,7 +86,7 @@ describe("내 기록", () => {
     expect(log.insuranceUntil).toBe("2026-12-10");
     expect(log.items.find((i) => i.key === "oil")?.due?.date).toBeTruthy();
 
-    // 정비소 쪽: 주행거리만
+    // 공업사 쪽: 주행거리만
     const km = await carbookMileage(db, s.customerId);
     expect(km).toEqual([{ vehicleId: car, plateNo: expect.any(String), km: 46040, on: "2026-11-21" }]);
     expect(Object.keys(km[0])).not.toContain("amountWon");

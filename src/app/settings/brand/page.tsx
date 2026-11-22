@@ -27,7 +27,7 @@ export default async function BrandSettingsPage({ searchParams }: { searchParams
   };
   return (
     <>
-      <PageTitle help="settings.brand" sub="정비소 로고와 앱 아이콘 PNG 파일을 등록합니다. 등록하지 않은 칸은 앱에 들어 있는 기본 그림을 씁니다.">
+      <PageTitle help="settings.brand" sub="공업사 로고와 앱 아이콘 PNG 파일을 등록합니다. 등록하지 않은 칸은 앱에 들어 있는 기본 그림을 씁니다.">
         로고·앱 아이콘
       </PageTitle>
       <div className="mb-4 space-y-2">

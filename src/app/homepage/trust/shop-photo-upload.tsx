@@ -1,5 +1,5 @@
 "use client";
-// 정비소 사진 올리기: 고른 사진을 이 화면에서 긴 변 1600px 로 새로 그려(촬영 위치 등 사진 정보 빠짐) 올린다
+// 공업사 사진 올리기: 고른 사진을 이 화면에서 긴 변 1600px 로 새로 그려(촬영 위치 등 사진 정보 빠짐) 올린다
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { shrink } from "../../repairs/photo-slots";

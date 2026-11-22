@@ -125,7 +125,7 @@ export const roDamage = pgTable(
     /** 도막 두께(μm): 손상 패널·인접 패널 각 3곳 이상 */
     filmPanel: jsonb("film_panel").$type<number[]>().notNull().default([]),
     filmAdjacent: jsonb("film_adjacent").$type<number[]>().notNull().default([]),
-    /** pdr·polish·partial·replace·outsource */
+    /** partial·replace·outsource·none(수리 안 함). 덴트(pdr)·광택(polish)은 2026-11-22에 없앴다 */
     method: text("method").notNull(),
     /** 앱이 기준표로 제안한 방법(다르게 고르면 사유 필요) */
     suggested: text("suggested").notNull(),

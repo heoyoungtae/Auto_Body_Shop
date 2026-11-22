@@ -1,4 +1,4 @@
-// 내 차 수첩 홈: 할 일(견적 승인), 수리 중인 차(단계·출고 예정), 다가오는 일(검사·보증·소모품·보험), 내 차, 남은 보증. 값은 모두 정비소 전표에서 불러온다
+// 내 차 수첩 홈: 할 일(견적 승인), 수리 중인 차(단계·출고 예정), 다가오는 일(검사·보증·소모품·보험), 내 차, 남은 보증. 값은 모두 공업사 전표에서 불러온다
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { myHome, shopCard } from "@/modules/carbook/service";
@@ -27,7 +27,7 @@ export default async function MyHome() {
       {/* 홈 화면 앱으로 처음 열면 알림 받기를 묻는다(문자 인증으로 들어온 경우만 켤 수 있음) */}
       {s.scope === "full" && <MyPushAsk vapid={vapid.publicKey} />}
       {news.length > 0 && (
-        <Card title="정비소 소식" help={{ kind: "panel", id: "my.news" }}>
+        <Card title="공업사 소식" help={{ kind: "panel", id: "my.news" }}>
           <ul className="space-y-1.5 text-sm">
             {news.map((n) => (
               <li key={n.id}>
@@ -115,7 +115,7 @@ export default async function MyHome() {
         <div className="grid grid-cols-2 gap-2">
           <Link href="/my/consult" className="block rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-sm hover:bg-[var(--surface-2)]">
             <span className="font-semibold">사진으로 상담 요청</span>
-            <span className="block text-xs text-[var(--muted)]">다친 곳을 찍어 보내면 정비소가 연락드립니다</span>
+            <span className="block text-xs text-[var(--muted)]">다친 곳을 찍어 보내면 공업사가 연락드립니다</span>
           </Link>
           <Link href="/my/cert" className="block rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-sm hover:bg-[var(--surface-2)]">
             <span className="font-semibold">수리 이력 확인서</span>
@@ -134,13 +134,13 @@ export default async function MyHome() {
                     {c.plateNo} <span className="font-normal text-[var(--muted)]">{[c.name, c.year ? `${c.year}년식` : ""].filter(Boolean).join(" · ")}</span>
                   </p>
                   <p className="text-xs text-[var(--muted)]">
-                    {c.mileage != null ? `주행거리 ${c.mileage.toLocaleString("ko-KR")}km(${c.mileageOn ?? ""} 정비소 확인)` : "주행거리 기록 없음"} · 우리 정비소 방문 {c.visits}번
+                    {c.mileage != null ? `주행거리 ${c.mileage.toLocaleString("ko-KR")}km(${c.mileageOn ?? ""} 공업사 확인)` : "주행거리 기록 없음"} · 우리 공업사 방문 {c.visits}번
                   </p>
                 </li>
               ))}
             </ul>
           ) : (
-            <Empty>등록된 차가 없습니다. 정비소에 처음 오시면 차가 등록됩니다.</Empty>
+            <Empty>등록된 차가 없습니다. 공업사에 처음 오시면 차가 등록됩니다.</Empty>
           )}
         </Card>
       )}
@@ -164,7 +164,7 @@ export default async function MyHome() {
         </Card>
       )}
 
-      {!h.total && <Empty action={<Link href="/my/more" className="text-[var(--accent)] underline">정비소 연락처 보기</Link>}>아직 수리 기록이 없습니다. 수리를 맡기시면 여기에 진행 상황이 나옵니다.</Empty>}
+      {!h.total && <Empty action={<Link href="/my/more" className="text-[var(--accent)] underline">공업사 연락처 보기</Link>}>아직 수리 기록이 없습니다. 수리를 맡기시면 여기에 진행 상황이 나옵니다.</Empty>}
       <ShopFooter shop={shop} />
     </div>
   );

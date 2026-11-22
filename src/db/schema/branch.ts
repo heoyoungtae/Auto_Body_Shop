@@ -48,7 +48,7 @@ export const branchId = () =>
     .references(() => branch.id);
 
 /** 작업장 종류. 공정 배정 때 이 종류로 알맞은 작업장을 먼저 채운다 */
-export const WORKPLACE_KINDS = ["panel", "paint", "dent", "polish", "inspect", "storage", "waiting", "other"] as const;
+export const WORKPLACE_KINDS = ["panel", "paint", "wash", "inspect", "storage", "waiting", "other"] as const;
 export type WorkplaceKind = (typeof WORKPLACE_KINDS)[number];
 
 /** 작업장: 같은 부지(같은 주소) 안의 작업 공간·보관 장소. 떨어진 보관 창고는 하치장 신고 뒤 '보관(storage)'으로 둔다 */

@@ -38,7 +38,7 @@ sudo chmod 755 /home/screen/kiosk.sh
 sudo tee /home/screen/.config/autostart/kiosk.desktop >/dev/null <<'DESK'
 [Desktop Entry]
 Type=Application
-Name=정비소 앱 화면
+Name=공업사 앱 화면
 Exec=/home/screen/kiosk.sh
 X-GNOME-Autostart-enabled=true
 DESK

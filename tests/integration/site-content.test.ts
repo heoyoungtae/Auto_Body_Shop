@@ -168,7 +168,7 @@ describe("공지사항", () => {
     const box = await db.select().from(schema.carbookInbox).where(eq(schema.carbookInbox.customerId, yes));
     expect(box.map((b) => b.title)).toContain("(광고) 광택 20% 할인");
 
-    // 내 차 수첩 '정비소 소식': 광고는 동의 손님에게만
+    // 내 차 수첩 '공업사 소식': 광고는 동의 손님에게만
     expect((await carbookNotices(db, yes, "2026-11-22")).map((x) => x.title)).toContain("광택 20% 할인");
     expect((await carbookNotices(db, no, "2026-11-22")).map((x) => x.title)).not.toContain("광택 20% 할인");
   });

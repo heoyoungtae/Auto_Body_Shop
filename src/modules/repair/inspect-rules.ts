@@ -3,12 +3,12 @@
 /** 검사 항목. need 는 그 공정이 있었을 때만 묻는다(없으면 '해당 없음') */
 export const INSPECT_ITEMS = [
   { key: "scope", group: "범위", label: "작업 지시서의 모든 작업 항목 완료", method: "지시서 대조", pass: "누락 0건" },
-  { key: "surface", group: "판금·덴트", label: "면 평활도", method: "검사등 육안·손 촉감", pass: "굴곡이 보이지 않음", need: ["dent", "sheet"] },
+  { key: "surface", group: "판금", label: "면 평활도", method: "검사등 육안·손 촉감", pass: "굴곡이 보이지 않음", need: ["sheet"] },
   { key: "gap", group: "판금", label: "패널 단차·간극", method: "간극 게이지", pass: "좌우 차이 정책값 이내", need: ["sheet", "detach"], measure: "gapMm" },
   { key: "color", group: "도장", label: "색상 일치", method: "자연광·표준 광원, 3개 각도", pass: "인접 패널과 색차가 눈에 띄지 않음", need: ["paint"] },
   { key: "defect", group: "도장", label: "도막 결함(먼지·흐름·오렌지 필·핀홀·크레이터)", method: "검사등 육안", pass: "1m에서 보이는 결함 0건", need: ["paint"] },
   { key: "film", group: "도장", label: "도막 두께(패널당 5점)", method: "도막 측정기", pass: "정책값 범위 이내", need: ["paint"], measure: "filmUm" },
-  { key: "polish", group: "광택", label: "스월 마크·버닝", method: "검사등", pass: "결함 0건", need: ["polish"] },
+  { key: "polish", group: "도장 마무리", label: "연마 자국(스월)·버닝", method: "검사등", pass: "결함 0건", need: ["polish"] },
   { key: "assembly", group: "조립", label: "탈착 부품 체결·클립 누락·몰딩 들뜸", method: "육안·손 확인", pass: "누락·들뜸 0건", need: ["detach", "assemble"], safety: true },
   { key: "electric", group: "전장", label: "램프·센서·경고등, 탈착한 전장 부품 작동", method: "시동 후 확인", pass: "정상 작동, 경고등 없음", safety: true },
   { key: "clean", group: "청결", label: "실내·외 오염, 마스킹 잔여물, 연마 가루", method: "육안", pass: "잔여물 0건" },

@@ -144,7 +144,7 @@ async function storeSignature(docNo: string, png: Uint8Array | null) {
 /** 고객이 링크에서 승인(로그인 없음, 링크가 곧 권한). 본인 확인 근거는 링크를 받은 휴대폰과 접속 IP, 서명 */
 export async function approveByLink(db: Db, token: string, input: { groups: string[]; name: string; agree: boolean; signaturePng: Uint8Array | null }, meta: { ip?: string | null } = {}, now = new Date()) {
   const e = await byToken(db, token);
-  if (!e) throw new EstimateError("링크가 만료되었거나 이미 쓰였습니다. 정비소에 다시 요청해 주세요");
+  if (!e) throw new EstimateError("링크가 만료되었거나 이미 쓰였습니다. 공업사에 다시 요청해 주세요");
   if (!input.agree) throw new EstimateError("내용을 확인했다는 칸에 체크해 주세요");
   const [c] = await db.select({ masked: customer.phoneMasked }).from(customer).where(eq(customer.id, e.customer.id));
   const sig = await storeSignature(e.docNo, input.signaturePng);
@@ -155,7 +155,7 @@ export async function approveByLink(db: Db, token: string, input: { groups: stri
 /** 내 차 수첩에서 승인: 문자 인증으로 들어온 손님이 자기 견적을 승인한다. 본인 확인 근거는 인증한 휴대폰·IP·서명 */
 export async function approveByCarbook(db: Db, customerId: string, estimateId: string, input: { groups: string[]; name: string; agree: boolean; signaturePng: Uint8Array | null }, meta: { ip?: string | null } = {}, now = new Date()) {
   const e = await ownEstimate(db, customerId, estimateId);
-  if (!e) throw new EstimateError("내 수리의 견적이 아닙니다. 정비소에 문의해 주세요");
+  if (!e) throw new EstimateError("내 수리의 견적이 아닙니다. 공업사에 문의해 주세요");
   if (!input.agree) throw new EstimateError("내용을 확인했다는 칸에 체크해 주세요");
   const [c] = await db.select({ masked: customer.phoneMasked }).from(customer).where(eq(customer.id, customerId));
   const sig = await storeSignature(e.docNo, input.signaturePng);

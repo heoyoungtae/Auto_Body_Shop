@@ -159,7 +159,7 @@ describe("접수·입고(STD-02)", () => {
     await expect(saveDamage(db, tech, id, { part: "hood", kind: "D", sizeCm: 5, depthMm: 2, paintLayer: "none", crease: false, broken: false, structural: false, filmPanel: [], filmAdjacent: [] })).rejects.toThrow(/입고 점검/);
     await signIntake(db, ids.advisor, id, { ...intake(), signaturePng: PNG, consentNow: false }, now);
     let r = await getRepair(db, id);
-    expect(r.damages.map((d) => [d.part, d.method])).toEqual([["f_bumper", "pdr"]]);
+    expect(r.damages.map((d) => [d.part, d.method])).toEqual([["f_bumper", "partial"]]);
     // 같은 부위의 O 표시는 한 줄, 처음 찍은 면의 칸이 위치로 넘어온다
     expect([r.damages[0].view, r.damages[0].cells]).toEqual(["top", [4]]);
     const line = r.damages[0];
@@ -173,12 +173,12 @@ describe("접수·입고(STD-02)", () => {
     r = await getRepair(db, id);
     expect([r.damages[1].view, r.damages[1].cells, r.damages[1].subPart]).toEqual(["left", [7, 8], "도어 몰딩"]);
     // 그 면에 없는 부위(앞모습의 왼쪽 앞도어)면 칸 없이 부위 전체
-    await saveDamage(db, tech, id, { id: r.damages[1].id, part: "l_f_door", view: "front", cells: [1], kind: "S", sizeCm: 20, depthMm: null, paintLayer: "clear", crease: false, broken: false, structural: false, filmPanel: [], filmAdjacent: [] });
+    await saveDamage(db, tech, id, { id: r.damages[1].id, part: "l_f_door", view: "front", cells: [1], kind: "S", sizeCm: 20, depthMm: null, paintLayer: "clear", crease: false, broken: false, structural: false, filmPanel: [120, 118, 122], filmAdjacent: [115, 117, 119] });
     r = await getRepair(db, id);
     expect([r.damages[1].view, r.damages[1].cells, r.damages[1].subPart]).toEqual([null, [], null]);
     expect(r.damages.map((d) => [d.part, d.method, d.suggested])).toEqual([
       ["f_bumper", "replace", "partial"],
-      ["l_f_door", "polish", "polish"],
+      ["l_f_door", "partial", "partial"],
     ]);
     await expect(saveDamage(db, { id: ids.advisor, roles: ["advisor"] }, id, { ...base })).rejects.toThrow(/기술자/);
     const todo = await myTodos(db, { id: ids.manager, roles: ["plant_manager"] }, now);
@@ -192,12 +192,12 @@ describe("접수·입고(STD-02)", () => {
 
   it("판단 기준표와 센서 보정", () => {
     const f = { kind: "D", paintLayer: "none" as const, crease: false, broken: false, structural: false, sizeCm: 10 };
-    expect(suggestMethod(f).method).toBe("pdr");
+    expect(suggestMethod(f).method).toBe("partial"); // 덴트는 하지 않음
     expect(suggestMethod({ ...f, crease: true }).method).toBe("partial");
     expect(suggestMethod({ ...f, sizeCm: 50 }).method).toBe("replace");
     expect(suggestMethod({ ...f, broken: true }).method).toBe("replace");
     expect(suggestMethod({ ...f, structural: true, broken: true }).method).toBe("outsource");
-    expect(suggestMethod({ ...f, kind: "S", paintLayer: "clear" }).method).toBe("polish");
+    expect(suggestMethod({ ...f, kind: "S", paintLayer: "clear" }).method).toBe("partial"); // 광택은 하지 않음
     expect(suggestMethod({ ...f, kind: "S", paintLayer: "primer" }).method).toBe("partial");
     expect(needsCalibration("f_bumper", ["radar_front"])).toBeTruthy();
     expect(needsCalibration("f_bumper", ["pdc_rear"])).toBeNull();

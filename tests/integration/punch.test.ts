@@ -1,4 +1,4 @@
-// 출퇴근 기록과 연장근무 인정(사용자 결정 2026-11-11): 정비소 인터넷에서만 버튼, 승인 ∩ 실제만 인정,
+// 출퇴근 기록과 연장근무 인정(사용자 결정 2026-11-11): 공업사 인터넷에서만 버튼, 승인 ∩ 실제만 인정,
 // 승인 없는 초과는 사후 신청, 공장장 지시 + 직원 동의, 출퇴근 정정, 급여 반영
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
@@ -52,11 +52,11 @@ describe("출퇴근 규칙", () => {
 });
 
 describe("출근·퇴근", () => {
-  it("정비소 인터넷에서만 누르고, 늦은 출근·승인 없는 연장을 잡아 사후 신청으로 이어 준다", async () => {
+  it("공업사 인터넷에서만 누르고, 늦은 출근·승인 없는 연장을 잡아 사후 신청으로 이어 준다", async () => {
     await expect(savePunchConfig(db, tech(), SHOP)).rejects.toThrow(/대표/);
     await expect(savePunchConfig(db, owner(), "집 와이파이")).rejects.toThrow(/형식/);
     await savePunchConfig(db, owner(), SHOP);
-    await expect(punchIn(db, tech(), "1.2.3.4", at("09:05"))).rejects.toThrow(/정비소 인터넷/);
+    await expect(punchIn(db, tech(), "1.2.3.4", at("09:05"))).rejects.toThrow(/공업사 인터넷/);
     const st = await punchIn(db, tech(), SHOP, at("09:12"));
     expect(st).toMatchObject({ inText: "09:12", late: 12, open: true, schedule: { start: "09:00", end: "18:00", fromContract: false } });
     await expect(punchIn(db, tech(), SHOP, at("09:30"))).rejects.toThrow(/이미/);
@@ -107,7 +107,7 @@ describe("출근·퇴근", () => {
   });
 });
 
-describe("서버(미니 PC)와 같은 정비소 인터넷", () => {
+describe("서버(미니 PC)와 같은 공업사 인터넷", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
@@ -118,20 +118,20 @@ describe("서버(미니 PC)와 같은 정비소 인터넷", () => {
     vi.stubEnv("SERVER_ON_SITE", "1");
     vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(`fl=1\nip=${String(url).includes("[") ? "2001:db8:aa:bb::1" : SHOP}\nts=1\n`)));
     await savePunchConfig(db, owner(), "", true);
-    await expect(punchOut(db, tech(), "9.9.9.9", at("18:00"))).rejects.toThrow(/정비소 인터넷/);
-    await expect(punchOut(db, tech(), "2001:db8:aa:cc::7", at("18:00"))).rejects.toThrow(/정비소 인터넷/);
+    await expect(punchOut(db, tech(), "9.9.9.9", at("18:00"))).rejects.toThrow(/공업사 인터넷/);
+    await expect(punchOut(db, tech(), "2001:db8:aa:cc::7", at("18:00"))).rejects.toThrow(/공업사 인터넷/);
     await punchOut(db, tech(), "2001:db8:aa:bb:1234::9", at("18:00")); // 같은 회선의 IPv6 휴대폰
     // 국내 직접 접속: 공유기 안쪽 주소로 들어온 와이파이 기기
-    await expect(punchIn(db, pm(), "172.30.1.23", at("09:00"))).rejects.toThrow(/정비소 인터넷/);
+    await expect(punchIn(db, pm(), "172.30.1.23", at("09:00"))).rejects.toThrow(/공업사 인터넷/);
     vi.stubEnv("SERVER_LAN_CIDR", "172.30.1.0/24");
     await punchIn(db, pm(), "172.30.1.23", at("09:00"));
   });
 });
 
-describe("정비소 TV 현황판과 같은 인터넷(서버가 대표 자택에 있을 때)", () => {
+describe("공업사 TV 현황판과 같은 인터넷(서버가 대표 자택에 있을 때)", () => {
   beforeEach(() => resetPunchCaches());
   afterEach(() => vi.unstubAllGlobals());
-  it("TV 링크 현황판이 10분쯤 꾸준히 접속한 주소를 정비소 주소로 따라가고, 잠깐 연 주소·서버 자신·내부망은 잡지 않는다", async () => {
+  it("TV 링크 현황판이 10분쯤 꾸준히 접속한 주소를 공업사 주소로 따라가고, 잠깐 연 주소·서버 자신·내부망은 잡지 않는다", async () => {
     const HOME = "61.70.1.2";
     vi.stubGlobal("fetch", vi.fn(async () => new Response(`fl=1\nip=${HOME}\nts=1\n`)));
     await savePunchConfig(db, owner(), "", false, true);
@@ -146,8 +146,8 @@ describe("정비소 TV 현황판과 같은 인터넷(서버가 대표 자택에 
     const c = await loadPunchConfig(db);
     expect(c).toMatchObject({ sameAsTv: true, tv: { v4: SHOP } });
     await punchIn(db, pm(), SHOP, at("09:00"));
-    await expect(punchIn(db, { id: ids.tech2, roles: ["technician"] }, "8.8.4.4", at("09:00"))).rejects.toThrow(/정비소 인터넷/);
-    // 인터넷 회사가 정비소 주소를 바꾸면 현황판을 따라 바뀐다
+    await expect(punchIn(db, { id: ids.tech2, roles: ["technician"] }, "8.8.4.4", at("09:00"))).rejects.toThrow(/공업사 인터넷/);
+    // 인터넷 회사가 공업사 주소를 바꾸면 현황판을 따라 바뀐다
     for (let i = 0; i < 20; i++) await noteTvIp(db, "121.1.2.3", t0 + 3_600_000 + i * 30_000);
     expect((await loadPunchConfig(db)).tv.v4).toBe("121.1.2.3");
     await punchIn(db, { id: ids.tech2, roles: ["technician"] }, "121.1.2.3", at("09:00"));
