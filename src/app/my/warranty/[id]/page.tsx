@@ -29,13 +29,13 @@ export default async function MyWarrantyPage({ params, searchParams }: { params:
         보증 신청
       </PageTitle>
       {r.status !== "delivered" ? (
-        <Notice>아직 출고하지 않은 수리입니다. 궁금한 점은 정비소로 전화해 주세요.</Notice>
+        <Notice>아직 출고하지 않은 수리입니다. 궁금한 점은 공업사로 전화해 주세요.</Notice>
       ) : (
         <>
           {r.warranty.inWarranty ? (
             <Notice>보증 기간 안입니다({r.warranty.live.map((w) => `${w.kind} ${w.until}까지`).join(", ")}).</Notice>
           ) : (
-            <Notice>보증 기간이 지났지만 보내실 수 있습니다. 차를 보고 정비소가 판단해 알려 드립니다.</Notice>
+            <Notice>보증 기간이 지났지만 보내실 수 있습니다. 차를 보고 공업사가 판단해 알려 드립니다.</Notice>
           )}
           <ErrorBox message={q.error} />
           <AssistForm id={`my-claim-${id}`} action={claimWarrantyAction} encType="multipart/form-data" className="space-y-4">

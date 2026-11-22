@@ -14,7 +14,7 @@ import { fmtBps, fmtBytes, fmtValue } from "./_fmt";
 import type { Sample } from "@/modules/platform/server-ops";
 import { errorCountToday } from "@/modules/platform/error-log";
 
-const PLACE: Record<string, string> = { home: "대표 자택", shop: "정비소", cloud: "클라우드" };
+const PLACE: Record<string, string> = { home: "대표 자택", shop: "공업사", cloud: "클라우드" };
 const MODE: Record<string, string> = { direct: "국내 직접 접속", tunnel: "클라우드플레어 터널" };
 
 function Changes({ list }: { list: Change[] }) {

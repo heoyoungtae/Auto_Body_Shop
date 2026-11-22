@@ -18,7 +18,7 @@ export default async function SurveyPage({ params, searchParams }: { params: Pro
       </PageTitle>
       {q.done === "ok" && <Notice>답해 주셔서 감사합니다. 더 나은 서비스로 보답하겠습니다. 이 창은 닫으셔도 됩니다.</Notice>}
       {q.done === "low" && <Notice>소중한 의견 감사합니다. 불편하셨던 점은 담당자가 확인해 1영업일 안에 연락드리겠습니다. 이 창은 닫으셔도 됩니다.</Notice>}
-      {v && v.state !== "open" && <Notice>{v.state === "done" ? "이미 답해 주신 설문입니다. 감사합니다." : v.state === "expired" ? "설문 기간이 지났습니다. 의견이 있으시면 정비소로 연락해 주세요." : "올바르지 않은 링크입니다. 받으신 문자의 링크를 다시 열어 주세요."}</Notice>}
+      {v && v.state !== "open" && <Notice>{v.state === "done" ? "이미 답해 주신 설문입니다. 감사합니다." : v.state === "expired" ? "설문 기간이 지났습니다. 의견이 있으시면 공업사로 연락해 주세요." : "올바르지 않은 링크입니다. 받으신 문자의 링크를 다시 열어 주세요."}</Notice>}
       {v?.state === "open" && (
         <div className="space-y-4">
           <ErrorBox message={q.error} />

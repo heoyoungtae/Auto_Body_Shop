@@ -123,8 +123,6 @@ export const POLICY_HELP: Record<PolicyKey, string> = {
     "작업 중 추가 비용이 견적보다 이 비율까지는 고객 재승인 없이 진행할 수 있습니다. 0이면 1원이라도 넘으면 고객 재승인을 받습니다(표준서 5.3 권장).",
   "warranty.paint_months":
     "도장·판금 작업의 보증 기간. 출고 확인서와 고객 화면에 보증 만료일로 찍힙니다.",
-  "warranty.dent_months": "덴트(무도장 판금) 작업의 보증 기간.",
-  "warranty.polish_months": "광택 작업의 보증 기간.",
   "warranty.decision_business_days":
     "보증 수리 요청을 받고 보증 여부를 판정해 고객에게 알려야 하는 영업일 수.",
   "survey.delay_days": "출고 뒤 만족도 설문을 보내는 날.",

@@ -1,4 +1,4 @@
-// 홈페이지 작업 사례 사진·정비소 사진(누구나 봄). 공개 중이고 손님 동의가 살아 있는 사례의 '가린 사진'만 연다(modules/site/content publicCaseFile)
+// 홈페이지 작업 사례 사진·공업사 사진(누구나 봄). 공개 중이고 손님 동의가 살아 있는 사례의 '가린 사진'만 연다(modules/site/content publicCaseFile)
 import { getDb } from "@/db/runtime";
 import { publicCaseFile } from "@/modules/site/content";
 import { publicShopFile } from "@/modules/site/trust";

@@ -25,7 +25,7 @@ export type ClaimAmounts = {
   customerExtraWon: number;
 };
 
-/** 누가 얼마를 내는가: 보험사 = 손해사정 금액 − 자기부담금, 고객 = 일반 줄 + 자기부담금 + 합의한 미승인분. 나머지는 정비소 손실(감액) */
+/** 누가 얼마를 내는가: 보험사 = 손해사정 금액 − 자기부담금, 고객 = 일반 줄 + 자기부담금 + 합의한 미승인분. 나머지는 공업사 손실(감액) */
 export function splitClaim(a: ClaimAmounts) {
   const adjusted = a.adjustedWon ?? a.insuranceWon;
   const insurerDue = Math.max(0, adjusted - a.deductibleWon);

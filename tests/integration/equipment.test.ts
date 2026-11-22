@@ -72,7 +72,7 @@ describe("설비 관리 흐름", () => {
 
     // 공정 시작 경고: A등급 점검 안 함
     expect((await processEquipmentWarnings(db, "paint", "2026-11-09")).join()).toMatch(/일상 점검/);
-    expect(await processEquipmentWarnings(db, "dent", "2026-11-09")).toEqual([]);
+    expect(await processEquipmentWarnings(db, "outsource", "2026-11-09")).toEqual([]);
 
     const n = (await getEquipment(db, id)).e.dailyItems.length;
     const marks = Array(n).fill("o");

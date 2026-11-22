@@ -21,7 +21,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     id: "/",
     name: APP_NAME,
     short_name: APP_SHORT_NAME,
-    description: "차체 외관 수리(찌그러짐·긁힘·도색) 정비소 업무 앱 — 상담부터 출고, 설비·품질까지",
+    description: "차체 외관 수리(찌그러짐·긁힘·도색) 공업사 업무 앱 — 상담부터 출고, 설비·품질까지",
     lang: "ko",
     start_url: "/",
     scope: "/",

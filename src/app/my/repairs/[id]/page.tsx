@@ -1,5 +1,5 @@
 // 수리 한 건: 단계·출고 예정, 부위별 작업 진행 그림, 수리 전·후 사진, 견적서·명세서, 보증·보증 신청.
-// 그림·사진·서류는 모두 정비소 전표(진단·작업 지시서·검사·명세서)에서 불러온다. 사내 메모·담당 이름은 보내지 않는다
+// 그림·사진·서류는 모두 공업사 전표(진단·작업 지시서·검사·명세서)에서 불러온다. 사내 메모·담당 이름은 보내지 않는다
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -33,7 +33,7 @@ export default async function MyRepairPage({ params, searchParams }: { params: P
       <PageTitle help="my.repair" sub={`${r.plateNo} ${r.car} · ${r.inOn} 입고${r.mileage != null ? ` · ${r.mileage.toLocaleString("ko-KR")}km` : ""}`}>
         {r.statusLabel}
       </PageTitle>
-      {q.claimed && <Notice>보증 신청을 받았습니다. 정비소가 1영업일 안에 연락드립니다.</Notice>}
+      {q.claimed && <Notice>보증 신청을 받았습니다. 공업사가 1영업일 안에 연락드립니다.</Notice>}
       {s.scope === "link" && <LinkOnlyNote next={`/my/repairs/${r.id}`} />}
       {r.status !== "cancelled" && <MySteps steps={r.steps} />}
       {r.dueDate && !["ready", "delivered", "cancelled"].includes(r.status) && <p className="text-sm">출고 예정 <b>{r.dueDate}</b> <span className="text-[var(--muted)]">(바뀌면 연락드립니다)</span></p>}

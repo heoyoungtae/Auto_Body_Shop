@@ -1,5 +1,5 @@
 // 내 차 수첩(고객용 차계부) 1단계: 로그인(문자 인증·알림톡 링크), 내 차·진행 중 수리·수리 이력·서류 보관함·보증 신청·차 판 기록.
-// 수리 기록은 정비소가 이미 넣은 전표(수리 건·진단·견적·작업 지시서·검사·정비명세서)를 그대로 보여 준다. 손님은 새로 치지 않는다.
+// 수리 기록은 공업사가 이미 넣은 전표(수리 건·진단·견적·작업 지시서·검사·정비명세서)를 그대로 보여 준다. 손님은 새로 치지 않는다.
 // 사내 메모·원가·담당 기술자 이름은 내보내지 않는다.
 import { randomInt } from "node:crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, ne, sql } from "drizzle-orm";
@@ -51,7 +51,7 @@ export async function saveCarbookConfig(db: Db, actor: Actor, input: CarbookConf
   await writeAudit(db, { actorId: actor.id, action: "carbook.config", entityType: "app_config", entityId: KEY, after: data });
 }
 
-/** 손님 화면 아래 정비소 안내(이름·전화·주소·영업시간·안내문). 사업장 정보에서 불러온다 */
+/** 손님 화면 아래 공업사 안내(이름·전화·주소·영업시간·안내문). 사업장 정보에서 불러온다 */
 export async function shopCard(db: Db) {
   const [shop, cfg, sms] = await Promise.all([loadShopInfo(db), carbookConfig(db), smsSenderInfo(db)]);
   const phone = shop.phone || sms.sender;
@@ -66,13 +66,13 @@ const codeHash = (otpId: string, code: string) => sha256(`${otpId}:${code}`);
  * 테스트 서버(문자 '시연' 설정)에서는 실제로 보내지 않으니 demoCode 로 화면에 보여 준다.
  */
 export async function requestCode(db: Db, raw: string, meta: Meta = {}, now = new Date(), f: typeof fetch = fetch): Promise<{ demoCode?: string }> {
-  if (!(await carbookConfig(db)).enabled) throw new CarbookError("내 차 수첩을 잠시 쉬고 있습니다. 정비소로 전화해 주세요");
+  if (!(await carbookConfig(db)).enabled) throw new CarbookError("내 차 수첩을 잠시 쉬고 있습니다. 공업사로 전화해 주세요");
   const phone = normalizePhone(raw);
   if (!MOBILE_RE.test(phone)) throw new CarbookError("휴대폰 번호를 확인해 주세요(예: 010-1234-5678)");
   const ph = phoneHash(phone);
   const dayAgo = new Date(now.getTime() - 864e5);
   const recent = await db.select().from(carbookOtp).where(and(eq(carbookOtp.phoneHash, ph), gte(carbookOtp.createdAt, dayAgo))).orderBy(desc(carbookOtp.createdAt));
-  if (recent.length >= OTP.perDay) throw new CarbookError("오늘은 인증번호를 더 보낼 수 없습니다. 내일 다시 해 주시거나 정비소로 전화해 주세요");
+  if (recent.length >= OTP.perDay) throw new CarbookError("오늘은 인증번호를 더 보낼 수 없습니다. 내일 다시 해 주시거나 공업사로 전화해 주세요");
   const locked = recent.find((o) => o.tries >= OTP.maxTries && o.createdAt.getTime() > now.getTime() - OTP.lockMinutes * 60_000);
   if (locked) throw new CarbookError(`인증번호를 여러 번 틀려 ${OTP.lockMinutes}분 동안 잠겼습니다. 잠시 뒤 다시 해 주세요`);
   if (recent[0] && now.getTime() - recent[0].createdAt.getTime() < 30_000) throw new CarbookError("방금 보냈습니다. 30초 뒤에 다시 받을 수 있습니다");
@@ -89,7 +89,7 @@ export async function requestCode(db: Db, raw: string, meta: Meta = {}, now = ne
   const shop = await shopCard(db);
   const text = `[${shop.name}] 내 차 수첩 인증번호 ${code} (${OTP.minutes}분 안에 넣어 주세요). 다른 사람에게 알려 주지 마세요.`;
   const r = await sendSecretSms(db, { to: phone, text, secret: code, purpose: "내 차 수첩 인증번호", customerName: who.name }, f);
-  if (!r.ok && !r.demo) throw new CarbookError("문자를 보내지 못했습니다. 잠시 뒤 다시 해 주시거나 정비소로 전화해 주세요");
+  if (!r.ok && !r.demo) throw new CarbookError("문자를 보내지 못했습니다. 잠시 뒤 다시 해 주시거나 공업사로 전화해 주세요");
   return r.demo ? { demoCode: code } : {};
 }
 
@@ -366,12 +366,12 @@ export type ClaimInput = { content: string; wish: string; photos: Uint8Array[] }
 export async function claimWarranty(db: Db, s: MySession, roId: string, input: ClaimInput, now = new Date()) {
   await mustOwnRo(db, s, roId);
   const [r] = await db.select({ status: repairOrder.status }).from(repairOrder).where(eq(repairOrder.id, roId));
-  if (r.status !== "delivered") throw new CarbookError("출고한 수리만 보증 신청을 합니다. 수리 중이면 정비소로 전화해 주세요");
+  if (r.status !== "delivered") throw new CarbookError("출고한 수리만 보증 신청을 합니다. 수리 중이면 공업사로 전화해 주세요");
   const content = input.content.trim();
   if (content.length < 5) throw new CarbookError("어디가 어떻게 이상한지 적어 주세요(예: 보닛 도장에 기포가 생겼어요)");
   if (input.photos.length > 5) throw new CarbookError("사진은 5장까지 올릴 수 있습니다");
   const open = await db.select({ id: complaint.id }).from(complaint).where(and(eq(complaint.repairOrderId, roId), eq(complaint.channel, "app"), ne(complaint.status, "closed"), gt(complaint.receivedAt, new Date(now.getTime() - 864e5))));
-  if (open.length) throw new CarbookError("오늘 이미 신청하셨습니다. 정비소에서 곧 연락드립니다");
+  if (open.length) throw new CarbookError("오늘 이미 신청하셨습니다. 공업사에서 곧 연락드립니다");
   const paths: string[] = [];
   for (const b of input.photos) {
     if (!b.length) continue;
@@ -397,7 +397,7 @@ export async function markSold(db: Db, s: MySession, vehicleId: string, now = ne
   await writeAudit(db, { actorId: null, action: "carbook.sold", entityType: "vehicle", entityId: v.plateNo, after: { customer: s.customerId } });
 }
 
-// ── 정비소 쪽 ──
+// ── 공업사 쪽 ──
 /** 고객 화면 카드: 사용 여부·처음·마지막 접속·로그인 기기 수·판 차 */
 export async function carbookStatus(db: Db, customerId: string, now = new Date()) {
   const [c] = await db.select({ at: customer.carbookAt, seen: customer.carbookSeenAt, phoneHash: customer.phoneHash, kind: customer.kind }).from(customer).where(eq(customer.id, customerId));

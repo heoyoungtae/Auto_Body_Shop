@@ -1,4 +1,4 @@
-// 내 차 수첩 화면 조각: 진행 단계 줄, 사진 묶음, 정비소 안내
+// 내 차 수첩 화면 조각: 진행 단계 줄, 사진 묶음, 공업사 안내
 import Link from "next/link";
 import type { mySteps } from "@/modules/carbook/rules";
 import type { shopCard } from "@/modules/carbook/service";

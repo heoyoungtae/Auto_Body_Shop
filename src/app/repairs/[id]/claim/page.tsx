@@ -235,7 +235,7 @@ export default async function ClaimPage({ params, searchParams }: { params: Prom
                 {c?.customerExtraWon ? ` + 미승인분 합의 ${won(c.customerExtraWon)}` : ""}
                 {a.customerDue > 0 && ` (${koMoney(a.customerDue)})`}
               </p>
-              {a.shopLoss > 0 && <p className="rounded-md bg-[var(--warn-soft)] px-2 py-1 text-xs">보험사가 인정하지 않고 고객도 내지 않는 {won(a.shopLoss)}은 정비소 손실(감액)입니다. 연말 공임 기준표 개정 때 봅니다.</p>}
+              {a.shopLoss > 0 && <p className="rounded-md bg-[var(--warn-soft)] px-2 py-1 text-xs">보험사가 인정하지 않고 고객도 내지 않는 {won(a.shopLoss)}은 공업사 손실(감액)입니다. 연말 공임 기준표 개정 때 봅니다.</p>}
               <p className="text-xs text-[var(--muted)]">금액 출처: {a.from ?? "견적 없음"}. 자기부담금·미승인분은 출고 때 고객에게 받습니다(STD-12). 자기부담금 면제 약속은 금지입니다.</p>
             </dl>
           </Card>

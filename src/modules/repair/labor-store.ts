@@ -1,5 +1,5 @@
 // 공임 기준표 읽기·바꾸기. 정책값과 같은 이력 표(policy_setting)에 'labor:코드' 키로 쌓는다(시행일·사유·근거 번호).
-// 정비소가 더한 항목은 app_config 'labor_custom', 견적 고르기에서 숨긴 항목은 'labor_hidden' 에 둔다.
+// 공업사가 더한 항목은 app_config 'labor_custom', 견적 고르기에서 숨긴 항목은 'labor_hidden' 에 둔다.
 import { and, desc, eq, like, lte } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appConfig, appUser, policySetting } from "@/db/schema";
@@ -26,7 +26,7 @@ async function putCfg(db: Db, key: string, data: unknown, actorId: string) {
 
 const customItems = (db: Db) => cfg<LaborDef[]>(db, CUSTOM, []);
 
-/** 기준표 전체: 기본 항목 + 정비소가 더한 항목, 숨김 여부 */
+/** 기준표 전체: 기본 항목 + 공업사가 더한 항목, 숨김 여부 */
 export async function laborCatalog(db: Db): Promise<(LaborDef & { hidden: boolean })[]> {
   const [custom, hidden] = await Promise.all([customItems(db), cfg<string[]>(db, HIDDEN, [])]);
   return [...LABOR_DEFAULTS, ...custom.map((d) => ({ ...d, custom: true }))].map((d) => ({ ...d, hidden: hidden.includes(d.code) }));

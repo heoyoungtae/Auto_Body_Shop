@@ -33,7 +33,7 @@ export default async function NewLetterPage({ searchParams }: { searchParams: Pr
         {pre?.replyToId ? "회신 공문 쓰기" : "공문 쓰기"}
       </PageTitle>
       <ErrorBox message={q.error} />
-      {missing && <p className="mb-3 rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">공문에 찍을 상호·대표자·직인이 정비소 정보에 다 있어야 합니다. &lsquo;설정 › 정비소 정보&rsquo;에서 채우세요.</p>}
+      {missing && <p className="mb-3 rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">공문에 찍을 상호·대표자·직인이 공업사 정보에 다 있어야 합니다. &lsquo;설정 › 공업사 정보&rsquo;에서 채우세요.</p>}
       {!can(user, "corr.write") ? (
         <ErrorBox message="공문 쓰기 권한이 없습니다" />
       ) : (

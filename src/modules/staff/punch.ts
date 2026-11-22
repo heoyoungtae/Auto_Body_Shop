@@ -1,4 +1,4 @@
-// 출퇴근 기록(사용자 결정 2026-11-11: 정비소 와이파이에서만 버튼, 퇴근은 업무일지 마감과 함께).
+// 출퇴근 기록(사용자 결정 2026-11-11: 공업사 와이파이에서만 버튼, 퇴근은 업무일지 마감과 함께).
 // 기록은 고치지 않는다. 빠졌거나 틀리면 근태 신청서 '출퇴근 정정'(F-11-04, 공장장 승인)으로 바꾸고, 계산은 확정된 정정 값을 먼저 쓴다.
 // 연장근무는 승인된 시각과 실제 출퇴근이 겹치는 부분만 인정한다(punch-rules.ts).
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, max, min, ne } from "drizzle-orm";
@@ -27,10 +27,10 @@ const DONE: string[] = ["confirmed", "checked"];
 /** 기본 근무 시각(취업규칙 제14조). 근로계약서가 있으면 그 시각 */
 export const DEFAULT_SCHEDULE = { start: 9 * 60, end: 18 * 60 };
 
-// ── 정비소 인터넷 주소 ─────────────────────────────────────
+// ── 공업사 인터넷 주소 ─────────────────────────────────────
 
 /** sameAsServer: 서버(사업장 미니 PC)와 같은 인터넷이면 허용. 인터넷 회사가 주소를 바꿔도 저절로 따라간다
- *  sameAsTv: 정비소 TV 현황판(TV 링크로 띄운 화면)과 같은 인터넷이면 허용. 서버가 대표 자택 등 정비소 밖에 있을 때(대표 2026-11-19).
+ *  sameAsTv: 공업사 TV 현황판(TV 링크로 띄운 화면)과 같은 인터넷이면 허용. 서버가 대표 자택 등 공업사 밖에 있을 때(대표 2026-11-19).
  *  tv: 현황판이 꾸준히 접속해 온 주소(IPv4·IPv6 따로)와 마지막으로 확인한 때 */
 export type TvSeen = { v4: string; v6: string; at: string | null };
 export type PunchConfig = { ips: string[]; sameAsServer: boolean; sameAsTv: boolean; tv: TvSeen };
@@ -48,8 +48,8 @@ export async function loadPunchConfig(db: Db, branchId?: string | null): Promise
   return { ips: Array.isArray(d.ips) ? d.ips : [], sameAsServer: main && d.sameAsServer === true && serverOnSite(), sameAsTv: d.sameAsTv === true, tv };
 }
 
-// TV 현황판은 30초마다 값을 부른다. 한 주소에서 30분 안에 20번(약 10분 꾸준히) 오면 그 주소를 정비소 주소로 본다.
-// 집이나 휴대폰에서 TV 링크를 잠깐 열어 본 것은 횟수가 모자라 정비소 주소로 잡히지 않는다.
+// TV 현황판은 30초마다 값을 부른다. 한 주소에서 30분 안에 20번(약 10분 꾸준히) 오면 그 주소를 공업사 주소로 본다.
+// 집이나 휴대폰에서 TV 링크를 잠깐 열어 본 것은 횟수가 모자라 공업사 주소로 잡히지 않는다.
 const TV_HITS = 20;
 const TV_WINDOW = 30 * 60_000;
 let tvTally = new Map<string, { n: number; from: number }>();
@@ -69,7 +69,7 @@ export async function noteTvIp(db: Db, rawIp: string | null | undefined, now = D
   if (tvTally.size > 200) tvTally = new Map();
   tvTally.set(ip, cur);
   if (cur.n < TV_HITS) return;
-  // 서버와 같은 인터넷(자택에 둔 서버 화면에 현황판을 띄운 경우 등)은 정비소 주소로 잡지 않는다
+  // 서버와 같은 인터넷(자택에 둔 서버 화면에 현황판을 띄운 경우 등)은 공업사 주소로 잡지 않는다
   const own = await ownPublicIps();
   if (sameLine(ip, own.v4) || sameLine(ip, own.v6)) return;
   const key = keyOf(branchId);
@@ -100,7 +100,7 @@ function sameNetAsTv(ip: string | null, tv: TvSeen) {
   return !!a && (sameLine(a, tv.v4) || sameLine(a, tv.v6));
 }
 
-/** 서버가 정비소 안에 있는가(미니 PC .env 의 SERVER_ON_SITE=1). 클라우드 서버에서는 '서버와 같은 인터넷'을 쓰지 않는다 */
+/** 서버가 공업사 안에 있는가(미니 PC .env 의 SERVER_ON_SITE=1). 클라우드 서버에서는 '서버와 같은 인터넷'을 쓰지 않는다 */
 export function serverOnSite() {
   return process.env.SERVER_ON_SITE === "1";
 }
@@ -115,7 +115,7 @@ async function trace(url: string) {
     return "";
   }
 }
-/** 서버가 밖으로 나갈 때 쓰는 공인 IP = 정비소 인터넷 주소(IPv4, 회선에 IPv6 가 있으면 그것도). 5분 동안 기억한다 */
+/** 서버가 밖으로 나갈 때 쓰는 공인 IP = 공업사 인터넷 주소(IPv4, 회선에 IPv6 가 있으면 그것도). 5분 동안 기억한다 */
 export async function serverPublicIps(): Promise<{ v4: string; v6: string }> {
   if (!serverOnSite()) return { v4: "", v6: "" };
   return ownPublicIps();
@@ -138,7 +138,7 @@ async function sameNetAsServer(ip: string | null) {
   const { v4, v6 } = await serverPublicIps();
   const a = normalizeIp(ip);
   if (!a) return false;
-  // '국내 직접 접속'이면 정비소 와이파이 기기가 내부 주소(예: 172.30.1.23)로 들어올 수 있다. 서버가 있는 내부망이면 정비소 안
+  // '국내 직접 접속'이면 공업사 와이파이 기기가 내부 주소(예: 172.30.1.23)로 들어올 수 있다. 서버가 있는 내부망이면 공업사 안
   const lan = process.env.SERVER_LAN_CIDR?.trim();
   if (lan && validIpRule(lan) && ipAllowed(a, [lan])) return true;
   if (v4 && a === v4) return true;
@@ -154,7 +154,7 @@ export async function savePunchConfig(db: Db, actor: Actor, raw: string, sameAsS
   }
   const key = keyOf(branchId);
   const sameAsServer = sameAsServerRaw && serverOnSite() && key === CONFIG_KEY;
-  if (!actor.roles.includes("owner")) throw new PunchError("정비소 인터넷 주소는 대표가 넣습니다");
+  if (!actor.roles.includes("owner")) throw new PunchError("공업사 인터넷 주소는 대표가 넣습니다");
   const ips = [...new Set(raw.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))];
   const bad = ips.find((x) => !validIpRule(x));
   if (bad) throw new PunchError(`'${bad}' 은(는) 인터넷 주소 형식이 아닙니다. 예: 211.234.10.5 또는 211.234.10.0/24`);
@@ -186,7 +186,7 @@ async function checkPlace(db: Db, ip: string | null): Promise<string | null> {
     if (sameAsServer && (await sameNetAsServer(ip))) return b.id;
   }
   if (free) return null;
-  throw new PunchError(`정비소 인터넷(와이파이)에 연결된 기기에서만 누를 수 있습니다. 지금 주소는 ${normalizeIp(ip) || "알 수 없음"} 입니다. 와이파이를 켜고 다시 누르거나, 못 누른 날은 '출퇴근 정정'을 올리세요`);
+  throw new PunchError(`공업사 인터넷(와이파이)에 연결된 기기에서만 누를 수 있습니다. 지금 주소는 ${normalizeIp(ip) || "알 수 없음"} 입니다. 와이파이를 켜고 다시 누르거나, 못 누른 날은 '출퇴근 정정'을 올리세요`);
 }
 
 // ── 근무 시각(근로계약서) ─────────────────────────────────

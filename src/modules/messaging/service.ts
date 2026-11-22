@@ -661,7 +661,7 @@ export async function sendNotice(
   const p = await smsRuntime(db);
   const vars = {
     업체명: SHOP_NAME,
-    업체전화: p.sender ? formatPhone(p.sender) : "정비소",
+    업체전화: p.sender ? formatPhone(p.sender) : "제이모터스",
     ...e.vars,
   };
   const text = renderKakao(e.key, vars);

@@ -27,7 +27,7 @@ export function CertSheet({ snap, docNo, code, qr, url, revoked, maskPlate }: { 
           </div>
         ))}
       </dl>
-      <h2 className="mt-4 font-semibold">우리 정비소 수리 {snap.repairs.length}건</h2>
+      <h2 className="mt-4 font-semibold">우리 공업사 수리 {snap.repairs.length}건</h2>
       <ol className="mt-1 space-y-2">
         {snap.repairs.map((r, i) => (
           <li key={r.docNo} className="rounded border border-neutral-300 p-2">
@@ -40,7 +40,7 @@ export function CertSheet({ snap, docNo, code, qr, url, revoked, maskPlate }: { 
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-xs text-neutral-600">이 확인서는 위 정비소에서 고친 내역만 담습니다. 다른 정비소 수리·사고 이력은 들어 있지 않습니다. 보증은 정비명세서에 적힌 기간이며, 차 주인이 바뀌어도 보증 처리는 정비소에 문의해 주세요.</p>
+      <p className="mt-3 text-xs text-neutral-600">이 확인서는 위 공업사에서 고친 내역만 담습니다. 다른 곳의 수리·사고 이력은 들어 있지 않습니다. 보증은 정비명세서에 적힌 기간이며, 차 주인이 바뀌어도 보증 처리는 공업사에 문의해 주세요.</p>
       <div className="mt-4 flex items-end justify-between gap-4 border-t border-neutral-300 pt-3">
         <div className="text-sm">
           <p className="font-semibold">{snap.shop.name}</p>

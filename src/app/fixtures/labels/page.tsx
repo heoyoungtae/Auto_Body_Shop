@@ -50,7 +50,7 @@ export default async function FixtureLabelsPage({ searchParams }: { searchParams
                     정 {nm(f.managerId)} · 부 {nm(f.subManagerId)}
                   </p>
                 )}
-                <p className="text-[10px]">{shop.name || "정비소"} 비품</p>
+                <p className="text-[10px]">{shop.name || "공업사"} 비품</p>
               </div>
             </div>
           ))}

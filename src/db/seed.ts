@@ -42,10 +42,10 @@ export async function seed(db: Db, env: Record<string, string | undefined> = pro
 /** 시연용 역량 표(F-11-02): 대표가 확인한 값으로 넣는다 */
 const DEMO_LEVELS: Record<string, Record<string, number>> = {
   owner: { consult: 4, inspect: 4 },
-  manager: { consult: 3, sheet: 4, dent: 4, weld: 4, putty: 4, color: 4, paint: 4, polish: 4, inspect: 4, equip: 4 },
+  manager: { consult: 3, sheet: 4, weld: 4, putty: 4, color: 4, paint: 4, polish: 4, inspect: 4, equip: 4 },
   advisor: { consult: 3 },
-  tech1: { sheet: 3, dent: 3, weld: 3, putty: 3, color: 2, paint: 3, polish: 3, equip: 3 },
-  tech2: { sheet: 2, dent: 2, weld: 1, putty: 2, color: 2, paint: 2, polish: 2, equip: 2 },
+  tech1: { sheet: 3, weld: 3, putty: 3, color: 2, paint: 3, polish: 3, equip: 3 },
+  tech2: { sheet: 2, weld: 1, putty: 2, color: 2, paint: 2, polish: 2, equip: 2 },
   quality: { inspect: 3, color: 3, polish: 2 },
 };
 

@@ -18,7 +18,7 @@ export default async function TechbayTvPage({ searchParams }: { searchParams: Pr
   if (k && !byLink && !user)
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0c1524] p-8 text-center text-2xl text-[#eef3fa]">
-        TV 링크가 맞지 않거나 새로 만들어졌습니다. 정비소에 새 링크를 받아 다시 띄워 주세요.
+        TV 링크가 맞지 않거나 새로 만들어졌습니다. 공업사에 새 링크를 받아 다시 띄워 주세요.
       </div>
     );
   if (!byLink) {

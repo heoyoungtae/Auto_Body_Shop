@@ -4,7 +4,7 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "내 차 수첩",
-  description: "우리 정비소에서 고친 내 차의 수리 기록·서류·보증",
+  description: "우리 공업사에서 고친 내 차의 수리 기록·서류·보증",
   // 홈 화면에 앱처럼 두기(3단계): 안드로이드는 manifest, 아이폰은 apple-touch-icon·appleWebApp
   manifest: "/my/manifest.webmanifest",
   icons: { icon: "/my/icon-192.png", apple: "/my/apple-touch-icon.png" },

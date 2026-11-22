@@ -21,13 +21,13 @@ describe("공임 기준표 항목", () => {
     expect(new Set(LABOR_DEFAULTS.map((d) => d.code)).size).toBe(LABOR_DEFAULTS.length);
     expect(lineNameOf({ name: "범퍼", section: "탈부착(도장할 때)" })).toBe("범퍼 탈부착");
     expect(lineNameOf({ name: "도어", section: "도장 재료비(패널당, 솔리드 기준)" })).toBe("도어 도장 재료비");
-    expect(lineNameOf({ name: "전체 광택", section: "광택" })).toBe("전체 광택");
+    expect(lineNameOf({ name: "출고 세차(실내·외)", section: "기타" })).toBe("출고 세차(실내·외)");
     expect(lineNameOf({ name: "탁송(편도)", section: "기타" })).toBe("탁송(편도)");
   });
 
   it("대표가 더한 항목은 목록·기준표 값에 들어가고, 값 바꾸기 이력도 남는다. 숨기기는 계수·시간당 공임은 안 된다", async () => {
     await expect(addLaborItem(db, ids.owner, { section: "작은 수리", name: "", kind: "price", cat: "etc", value: 1 })).rejects.toThrow(/이름/);
-    await expect(addLaborItem(db, ids.owner, { section: "광택", name: "전체 광택", kind: "price", cat: "polish", value: 1 })).rejects.toThrow(/이미/);
+    await expect(addLaborItem(db, ids.owner, { section: "기타", name: "탁송(편도)", kind: "price", cat: "etc", value: 1 })).rejects.toThrow(/이미/);
     const code = await addLaborItem(db, ids.owner, { section: "작은 수리", name: "헤드램프 복원(1개)", kind: "price", cat: "etc", value: 70_000 });
     expect(code).toBe("U-001");
     expect(await addLaborItem(db, ids.owner, { section: "작은 수리", name: "실내 클리닝", kind: "hours", cat: "etc", value: 90 })).toBe("U-002");
@@ -36,12 +36,12 @@ describe("공임 기준표 항목", () => {
     expect((await loadLabor(db, "2026-11-08"))[code]).toBe(80_000);
 
     await expect(setLaborHidden(db, ids.owner, "RATE", true)).rejects.toThrow(/숨길 수 없/);
-    await setLaborHidden(db, ids.owner, "COAT", true);
+    await setLaborHidden(db, ids.owner, "TOW", true);
     let cat = await laborCatalog(db);
-    expect(cat.find((d) => d.code === "COAT")!.hidden).toBe(true);
+    expect(cat.find((d) => d.code === "TOW")!.hidden).toBe(true);
     expect(cat.find((d) => d.code === code)!.custom).toBe(true);
-    await setLaborHidden(db, ids.owner, "COAT", false);
+    await setLaborHidden(db, ids.owner, "TOW", false);
     cat = await laborCatalog(db);
-    expect(cat.find((d) => d.code === "COAT")!.hidden).toBe(false);
+    expect(cat.find((d) => d.code === "TOW")!.hidden).toBe(false);
   });
 });

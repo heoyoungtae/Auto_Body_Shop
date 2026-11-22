@@ -1,6 +1,6 @@
 // 내 차 수첩 3단계: 사진으로 상담·예약 요청, 수리 이력 확인서.
-// 상담 요청은 이름·전화·차량을 다시 묻지 않고 정비소 '상담 일지'(F-01-01)에 '고객용 화면' 경로로 바로 들어간다(회신 기한은 정책값).
-// 수리 이력 확인서는 출고한 우리 정비소 수리만 모아 한 장으로 만들고, 확인 번호로 누구나 진위를 볼 수 있다(발급 때 내용 그대로).
+// 상담 요청은 이름·전화·차량을 다시 묻지 않고 공업사 '상담 일지'(F-01-01)에 '고객용 화면' 경로로 바로 들어간다(회신 기한은 정책값).
+// 수리 이력 확인서는 출고한 우리 공업사 수리만 모아 한 장으로 만들고, 확인 번호로 누구나 진위를 볼 수 있다(발급 때 내용 그대로).
 import { randomInt } from "node:crypto";
 import { and, desc, eq, gte, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -47,7 +47,7 @@ export async function requestConsult(db: Db, s: MySession, input: ConsultRequest
   const cars = await myCarsFull(db, s);
   const car = cars.find((c) => c.id === input.vehicleId);
   if (!car) throw new CarbookError("어느 차인지 골라 주세요");
-  if (!(await requiredConsent(db, s.customerId)).required) throw new CarbookError("개인정보 동의가 없어 상담을 받을 수 없습니다. 정비소로 전화해 주세요");
+  if (!(await requiredConsent(db, s.customerId)).required) throw new CarbookError("개인정보 동의가 없어 상담을 받을 수 없습니다. 공업사로 전화해 주세요");
   const zones = cleanMarks(input.damageZones).filter((m) => m.kind !== "O").slice(0, 40);
   const parts = input.damageParts.trim().slice(0, 500);
   if (!zones.length && parts.length < 2) throw new CarbookError("차 그림에서 다친 곳을 누르거나, 어디가 어떤지 적어 주세요");
@@ -60,7 +60,7 @@ export async function requestConsult(db: Db, s: MySession, input: ConsultRequest
     .select({ id: consultation.id })
     .from(consultation)
     .where(and(eq(consultation.customerId, s.customerId), eq(consultation.channel, "online"), gte(consultation.at, new Date(now.getTime() - 864e5))));
-  if (recent.length >= REQUEST_LIMIT.perDay) throw new CarbookError("오늘은 상담 요청을 더 보낼 수 없습니다. 정비소로 전화해 주세요");
+  if (recent.length >= REQUEST_LIMIT.perDay) throw new CarbookError("오늘은 상담 요청을 더 보낼 수 없습니다. 공업사로 전화해 주세요");
   const paths: string[] = [];
   for (const b of input.photos) {
     if (!b.length) continue;
@@ -102,7 +102,7 @@ export async function requestConsult(db: Db, s: MySession, input: ConsultRequest
   return { id: row.id, docNo, replyDue };
 }
 
-/** 내가 보낸 상담 요청(최근 10건): 정비소가 회신했는지, 예약됐는지 */
+/** 내가 보낸 상담 요청(최근 10건): 공업사가 회신했는지, 예약됐는지 */
 export async function myConsults(db: Db, s: MySession) {
   if (s.scope !== "full") return [];
   const rows = await db
@@ -146,7 +146,7 @@ export async function issueCert(db: Db, s: MySession, vehicleId: string, withAmo
     .innerJoin(repairStatement, eq(repairStatement.repairOrderId, repairOrder.id))
     .where(and(eq(repairOrder.customerId, s.customerId), eq(repairOrder.vehicleId, car.id), eq(repairOrder.status, "delivered")))
     .orderBy(desc(repairOrder.inAt));
-  if (!ros.length) throw new CarbookError("이 차는 우리 정비소에서 출고한 수리가 없어 확인서를 만들 수 없습니다");
+  if (!ros.length) throw new CarbookError("이 차는 우리 공업사에서 출고한 수리가 없어 확인서를 만들 수 없습니다");
   const shop = await loadShopInfo(db);
   const snap: CertSnap = {
     shop: { name: shop.name, phone: shop.phone ?? "", address: shopAddressLine(shop), bizNo: shop.bizNo ?? "" },

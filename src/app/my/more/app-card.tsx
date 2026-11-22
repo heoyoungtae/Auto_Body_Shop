@@ -124,7 +124,7 @@ export function AppCard({ vapid }: { vapid: string }) {
             <Button onClick={pushOn} disabled={busy} className="w-full">
               이 휴대폰으로 푸시 알림 받기
             </Button>
-            <p className="text-xs text-[var(--muted)]">켜면 검사·보증·소모품·보험 알림이 알림톡 대신 이 휴대폰에 바로 뜹니다. 알림 내용은 정비소 서버에서만 가져옵니다.</p>
+            <p className="text-xs text-[var(--muted)]">켜면 검사·보증·소모품·보험 알림이 알림톡 대신 이 휴대폰에 바로 뜹니다. 알림 내용은 공업사 서버에서만 가져옵니다.</p>
           </div>
         )}
       </div>

@@ -46,8 +46,8 @@ describe("직무기술서", () => {
   });
 
   it("채용 공고 문구에 자격·우대가 들어가고 나이·성별 조건은 없다", () => {
-    const t = jobPosting("tech_sheet", "테스트 정비소");
-    expect(t).toContain("[테스트 정비소] 기술자(판금·덴트) 채용");
+    const t = jobPosting("tech_sheet", "테스트 공업사");
+    expect(t).toContain("[테스트 공업사] 기술자(판금) 채용");
     expect(t).toContain("자동차차체수리기능사");
     expect(t).not.toMatch(/나이|성별|남성|여성|세 이하/);
   });

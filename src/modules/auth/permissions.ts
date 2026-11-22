@@ -584,7 +584,7 @@ export const PERMS = {
   },
   "settings.edit": {
     area: "설정",
-    label: "정비소 정보·영업일·정책값·전결·공임표·연동 설정",
+    label: "공업사 정보·영업일·정책값·전결·공임표·연동 설정",
     std: "부록 B·D",
     roles: ["owner"],
   },

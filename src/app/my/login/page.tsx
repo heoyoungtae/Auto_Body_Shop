@@ -30,19 +30,19 @@ export default async function MyLogin({ searchParams }: { searchParams: Promise<
       {/* 홈 화면 앱으로 연 게 아니면 '홈 화면에 추가' 안내(대표 지시 2026-11-21) */}
       {shop.enabled && <InstallHint appName="내 차 수첩" what="수리 진행·견적 승인·보증" />}
       {!shop.enabled ? (
-        <Notice>내 차 수첩을 잠시 쉬고 있습니다. 수리 문의는 정비소로 전화해 주세요.</Notice>
+        <Notice>내 차 수첩을 잠시 쉬고 있습니다. 수리 문의는 공업사로 전화해 주세요.</Notice>
       ) : (
         <div className="space-y-4">
           {q.bye && <Notice>나갔습니다. 다음에는 문자 인증을 다시 하시면 됩니다.</Notice>}
-          {q.left && <Notice>내 차 수첩을 그만 쓰도록 하고, 직접 적으신 기록을 모두 지웠습니다. 수리 기록과 서류는 정비소에 법정 기간 동안 남습니다. 다시 쓰시려면 문자 인증을 하시면 됩니다.</Notice>}
+          {q.left && <Notice>내 차 수첩을 그만 쓰도록 하고, 직접 적으신 기록을 모두 지웠습니다. 수리 기록과 서류는 공업사에 법정 기간 동안 남습니다. 다시 쓰시려면 문자 인증을 하시면 됩니다.</Notice>}
           {q.more && s?.scope === "link" && <Notice>지금은 알림톡 링크의 수리 한 건만 보입니다. 휴대폰 문자 인증을 한 번 하시면 모든 수리 기록과 서류가 보입니다.</Notice>}
           {!codeStep && !q.bye && !q.left && !q.more && (
-            <p className="text-sm text-[var(--muted)]">우리 정비소에서 고친 내 차의 수리 기록·사진·견적서·명세서·보증 기간을 모아 보는 곳입니다. 아이디·비밀번호 없이 휴대폰 문자로 들어옵니다.</p>
+            <p className="text-sm text-[var(--muted)]">우리 공업사에서 고친 내 차의 수리 기록·사진·견적서·명세서·보증 기간을 모아 보는 곳입니다. 아이디·비밀번호 없이 휴대폰 문자로 들어옵니다.</p>
           )}
           <ErrorBox message={q.error} />
           {!codeStep ? (
             <AssistForm id="my-phone" action={requestCodeAction} className="space-y-4">
-              <p className="text-sm text-[var(--muted)]">정비소에 알려 주신 휴대폰 번호를 넣어 주세요. 숫자만 누르면 됩니다.</p>
+              <p className="text-sm text-[var(--muted)]">공업사에 알려 주신 휴대폰 번호를 넣어 주세요. 숫자만 누르면 됩니다.</p>
               <TextField help="my.phone" name="phone" required autoComplete="tel" autoFocus placeholder="010-1234-5678" />
               <SubmitButton full>인증번호 받기</SubmitButton>
             </AssistForm>

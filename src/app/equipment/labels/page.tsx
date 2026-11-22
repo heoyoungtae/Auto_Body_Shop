@@ -58,7 +58,7 @@ export default async function EquipmentLabelsPage({ searchParams }: { searchPara
                     정 {nm(e.ownerId)} · 부 {nm(e.subManagerId)}
                   </p>
                   <p>점검 {cycle(e)}</p>
-                  <p className="text-[10px]">QR: 점검·고장 신고 · {shop.name || "정비소"}</p>
+                  <p className="text-[10px]">QR: 점검·고장 신고 · {shop.name || "공업사"}</p>
                 </div>
               </div>
             ))}

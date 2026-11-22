@@ -8,7 +8,7 @@ describe("작업장 고르기", () => {
   it("공정 종류에 맞는 작업장, 없으면 다음 종류, 외주는 없음", () => {
     const wps = [W("panel", "panel", 3), W("booth", "paint")];
     expect(chooseWorkplace("paint", wps, new Map())).toBe("booth");
-    expect(chooseWorkplace("dent", wps, new Map())).toBe("panel"); // 덴트실이 없으면 판금
+    expect(chooseWorkplace("polish", wps, new Map())).toBe("panel"); // 도장 마무리(연마)는 판금 자리 먼저
     expect(chooseWorkplace("outsource", wps, new Map())).toBeNull();
     expect(chooseWorkplace("paint", [], new Map())).toBeNull();
   });
@@ -22,9 +22,9 @@ describe("작업장 고르기", () => {
   });
 
   it("공정 여러 개는 앞 공정 작업장을 이어받는다", () => {
-    const wps = [W("p", "panel", 2), W("b1", "paint", 1, 1), W("b2", "paint", 1, 2), W("pol", "polish")];
+    const wps = [W("p", "panel", 2), W("b1", "paint", 1, 1), W("b2", "paint", 1, 2), W("w", "wash")];
     const out = fillWorkplaces([{ process: "sheet" }, { process: "paint" }, { process: "dry" }, { process: "polish" }, { process: "outsource" }], { wps, inUse: new Map([["b1", 1]]) });
-    expect(out.map((s) => s.workplaceId)).toEqual(["p", "b2", "b2", "pol", null]);
+    expect(out.map((s) => s.workplaceId)).toEqual(["p", "b2", "b2", "p", null]);
   });
 
   it("3정5S 구역에 맞는 작업장 추천", () => {

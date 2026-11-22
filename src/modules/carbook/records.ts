@@ -1,6 +1,6 @@
 // 내 차 수첩 2단계: 이용 동의, 손님 기록(주유·소모품·비용), 주행거리 도우미, 다가오는 일·알림, 오래 안 쓴 기록 지우기.
-// 손님 기록은 손님 것이다. 정비소는 주행거리만 참고로 본다(carbookMileage). 금액·장소는 사내 화면에 나가지 않는다.
-// 앞선 값 불러오기: 차·연료·주유소는 지난 기록, 주행거리는 정비소 확인 값과 손님 기록으로 짐작한 오늘 값을 미리 채운다.
+// 손님 기록은 손님 것이다. 공업사는 주행거리만 참고로 본다(carbookMileage). 금액·장소는 사내 화면에 나가지 않는다.
+// 앞선 값 불러오기: 차·연료·주유소는 지난 기록, 주행거리는 공업사 확인 값과 손님 기록으로 짐작한 오늘 값을 미리 채운다.
 import { and, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { carbookAlertLog, carbookCar, carbookConsent, carbookEntry, carbookPref, carbookSold, customer, repairOrder, repairStatement, vehicle } from "@/db/schema";
@@ -63,7 +63,7 @@ async function wipeRecords(db: Db, customerId: string) {
   return gone.length;
 }
 
-/** 그만 쓰기: 기록을 지우고 동의를 철회한 뒤 모든 기기에서 나간다. 수리 기록(정비소 전표)은 법정 보관 기간대로 남는다 */
+/** 그만 쓰기: 기록을 지우고 동의를 철회한 뒤 모든 기기에서 나간다. 수리 기록(공업사 전표)은 법정 보관 기간대로 남는다 */
 export async function leaveCarbook(db: Db, s: MySession, meta: Meta = {}, now = new Date()) {
   const { deleted } = await setConsent(db, s, false, meta, now);
   await endAllSessions(db, s.customerId);
@@ -359,7 +359,7 @@ export async function savePrefs(db: Db, s: MySession, on: string[], now = new Da
   await db.insert(carbookPref).values({ customerId: s.customerId, alerts, updatedAt: now }).onConflictDoUpdate({ target: carbookPref.customerId, set: { alerts, updatedAt: now } });
 }
 
-// ── 정비소 쪽: 주행거리만 ──
+// ── 공업사 쪽: 주행거리만 ──
 /** 고객 화면·상담·입고 참고용: 손님이 적은 가장 최근 주행거리(차마다). 금액·장소는 내보내지 않는다 */
 export async function carbookMileage(db: Db, customerId: string) {
   const rows = await db

@@ -1,4 +1,4 @@
-// 재직증명서: 근로자 명부(입사일·종사 업무·생년월일·주소)와 정비소 정보·직인으로 찍는다. 발급일은 대표 승인일.
+// 재직증명서: 근로자 명부(입사일·종사 업무·생년월일·주소)와 공업사 정보·직인으로 찍는다. 발급일은 대표 승인일.
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { loadShopInfo, shopAddressLine } from "@/modules/platform/shop";
@@ -53,7 +53,7 @@ export default async function CertificatePrint({ params }: { params: Promise<{ i
         >
           재직증명서 인쇄
         </PageTitle>
-        {missing && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">정비소 설정에 상호·대표자·직인이 다 있어야 합니다. &lsquo;설정 → 정비소 정보&rsquo;에서 채우세요.</p>}
+        {missing && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">공업사 설정에 상호·대표자·직인이 다 있어야 합니다. &lsquo;설정 → 공업사 정보&rsquo;에서 채우세요.</p>}
       </div>
       <article className="mx-auto max-w-[180mm] bg-white p-6 text-[13px] leading-relaxed text-black print:max-w-none print:p-0">
         <p className="text-[11px]">발급 번호 {v.doc.docNo}</p>

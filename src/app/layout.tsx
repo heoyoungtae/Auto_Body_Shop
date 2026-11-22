@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
     // 화면마다 제목을 주면 탭에 '화면 제목 · 제이모터스'로 보인다
     title: { default: APP_NAME, template: `%s · ${APP_SHORT_NAME}` },
     applicationName: APP_NAME,
-    description: "사내 표준서에 따라 상담부터 출고, 설비·품질까지 관리하는 차체 외관 수리(찌그러짐·긁힘·도색) 정비소 업무 앱",
+    description: "사내 표준서에 따라 상담부터 출고, 설비·품질까지 관리하는 차체 외관 수리(찌그러짐·긁힘·도색) 공업사 업무 앱",
     icons: {
       icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: brandUrl(brand, "small-icon"), type: "image/png" }],
       apple: brand["app-icon"] ? brandUrl(brand, "app-icon") : "/icons/apple-180.png",

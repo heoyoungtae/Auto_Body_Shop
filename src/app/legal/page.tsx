@@ -57,7 +57,7 @@ export default async function LegalPage({
     <>
       <PageTitle
         help="legal"
-        sub="정비소에 적용되는 법령과 의무, 대상 여부와 근거, 담당·주기·기한, 인허가 유효기간을 한곳에서 관리합니다. 기한 30일·7일 전에 알림이 가고, 분기마다 법령 개정을 확인하며, 12월에 준수 평가를 합니다."
+        sub="공업사에 적용되는 법령과 의무, 대상 여부와 근거, 담당·주기·기한, 인허가 유효기간을 한곳에서 관리합니다. 기한 30일·7일 전에 알림이 가고, 분기마다 법령 개정을 확인하며, 12월에 준수 평가를 합니다."
         actions={
           <div className="flex flex-wrap gap-2">
             {manage && (

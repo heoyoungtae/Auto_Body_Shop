@@ -114,7 +114,7 @@ export default async function WorkplacesPage({ searchParams }: { searchParams: P
           )}
           <Card title="작업장과 지점의 차이" help={{ kind: "panel", id: "set.workplaces" }}>
             <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--muted)]">
-              <li>같은 부지(같은 주소) 안의 판금동·도장 부스·덴트실·광택장은 모두 작업장입니다.</li>
+              <li>같은 부지(같은 주소) 안의 판금동·도장 부스·세차장은 모두 작업장입니다.</li>
               <li>떨어진 곳이 부품·도료를 보관만 하면 하치장 신고 뒤 종류 &lsquo;보관(창고)&rsquo;로 넣습니다.</li>
               <li>떨어진 주소에서 수리 작업까지 하면 작업장이 아니라 지점입니다(별도 사업자·정비업 등록). 대표에게 알려 주세요.</li>
             </ul>

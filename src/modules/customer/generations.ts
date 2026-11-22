@@ -1,5 +1,5 @@
 // 차종별 세대(코드·생산 연도)와 수리에 영향이 큰 사양. 화면(고르기·연식 점검)과 서버(자동 채움)가 같이 쓴다.
-// 사용자 지시(2026-11-08): 세대는 목록화, 트림은 고정 목록 대신 이 정비소 기록·유료 조회로 추천.
+// 사용자 지시(2026-11-08): 세대는 목록화, 트림은 고정 목록 대신 이 공업사 기록·유료 조회로 추천.
 // 연도는 국내 출시 기준의 대략값이다(연식·등록 시기에 따라 앞뒤 1년 차이가 날 수 있음). 부분변경은 같은 세대로 본다.
 
 export type Generation = { code: string; name?: string; from: number; to?: number };
@@ -136,7 +136,7 @@ export const VEHICLE_OPTIONS = {
 export type VehicleOption = keyof typeof VEHICLE_OPTIONS;
 export const isVehicleOption = (k: string): k is VehicleOption => k in VEHICLE_OPTIONS;
 
-/** 이 정비소 기록이 없을 때 보여 줄 흔한 트림 이름(회사별, 모델마다 다를 수 있음) */
+/** 이 공업사 기록이 없을 때 보여 줄 흔한 트림 이름(회사별, 모델마다 다를 수 있음) */
 export const COMMON_TRIMS: Record<string, string[]> = {
   현대: ["스마트", "모던", "프리미엄", "인스퍼레이션", "익스클루시브", "캘리그래피", "N 라인"],
   기아: ["트렌디", "프레스티지", "노블레스", "시그니처", "그래비티", "X-Line", "GT-Line"],

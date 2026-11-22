@@ -59,7 +59,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           <FixCard missing={missing} pick={fix} />
           {!orders.length && !missing.length && (
             <Card title="출퇴근 안내" help={{ kind: "panel", id: "punch.today" }}>
-              <p className="text-sm text-[var(--muted)]">정비소 와이파이에 연결한 휴대폰이나 사무실 PC에서 출근을 누릅니다. 퇴근은 업무일지를 마감하면서 함께 누릅니다. 연장근무는 미리 신청해 승인받은 시간 중 실제로 남아 있던 시간만 인정됩니다.</p>
+              <p className="text-sm text-[var(--muted)]">공업사 와이파이에 연결한 휴대폰이나 사무실 PC에서 출근을 누릅니다. 퇴근은 업무일지를 마감하면서 함께 누릅니다. 연장근무는 미리 신청해 승인받은 시간 중 실제로 남아 있던 시간만 인정됩니다.</p>
             </Card>
           )}
         </div>
@@ -70,9 +70,9 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           <div className="space-y-4">
             {orderer && <OrderCard users={staff.filter((u) => u.id !== user.id)} today={today} defaultFrom={st.schedule.end} />}
             {cfg && (
-              <Card title="정비소 인터넷 주소" help={{ kind: "panel", id: "punch.config" }}>
+              <Card title="공업사 인터넷 주소" help={{ kind: "panel", id: "punch.config" }}>
                 <p className="text-sm">
-                  {cfg.ips.length || cfg.sameAsServer ? `${[cfg.sameAsServer ? "서버와 같은 정비소 인터넷" : "", ...cfg.ips].filter(Boolean).join(", ")} 에서만 출퇴근을 누를 수 있습니다.` : "아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다."}{" "}
+                  {cfg.ips.length || cfg.sameAsServer ? `${[cfg.sameAsServer ? "서버와 같은 공업사 인터넷" : "", ...cfg.ips].filter(Boolean).join(", ")} 에서만 출퇴근을 누를 수 있습니다.` : "아직 주소가 없어 어디서나 출퇴근을 누를 수 있습니다."}{" "}
                   <Link href="/settings/punch" className="text-[var(--accent)] hover:underline">
                     설정에서 바꾸기
                   </Link>

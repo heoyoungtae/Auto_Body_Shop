@@ -31,7 +31,7 @@ const detail: Partial<Record<Process, Record<string, string>>> = { color: { colo
 
 describe("작업(STD-04)", () => {
   it("승인한 줄만으로 공정을 만들고, 순서·자주 검사·사진을 지키면 검사 대기로 넘어간다", async () => {
-    // 앞문 덴트는 빼고 앞범퍼 묶음만 승인
+    // 앞문 묶음은 빼고 앞범퍼 묶음만 승인
     const { roId } = await approvedRepair(db, ids, now, (names) => names.some((n) => n.includes("범퍼")));
     await expect(createWorkOrder(db, tech(), roId, now)).rejects.toThrow(/공장장/);
     const { id } = await createWorkOrder(db, boss(), roId, now);
@@ -82,7 +82,7 @@ describe("작업(STD-04)", () => {
 
 describe("검사·출고(STD-05)", () => {
   async function workedRepair() {
-    const { roId } = await approvedRepair(db, ids, now, (names) => names.some((n) => n.includes("덴트")));
+    const { roId } = await approvedRepair(db, ids, now, (names) => !names.some((n) => n.includes("범퍼")));
     const { id } = await createWorkOrder(db, boss(), roId, now);
     await assignRest(db, boss(), id, { assignee: ids.tech1, planDate: "" }, now);
     await finishAll(id);
@@ -98,6 +98,7 @@ describe("검사·출고(STD-05)", () => {
     }
   }
   const quality = () => ({ id: ids.quality, roles: ["quality" as const] });
+  const FILM = [150, 152, 148, 155, 150];
 
   it("작업자는 검사 못 하고, 불합격이면 재작업 뒤 다시 검사, 합격하면 정비명세서·인수 서명으로 출고", async () => {
     const { roId, woId } = await workedRepair();
@@ -107,10 +108,10 @@ describe("검사·출고(STD-05)", () => {
     const ctx = await inspectionContext(db, roId, now);
     const all = itemsFor(ctx.processes).map((i) => i.key);
     expect(all).toContain("surface");
-    expect(all).not.toContain("film"); // 덴트만 — 도장 항목 없음
+    expect(all).toContain("film"); // 앞문 판금+도장
     // 사진 부족 + 메모 없이 불합격 → 막음
-    await expect(judgeInspection(db, quality(), id, { passed: all, gapMm: null, filmUm: [], failNote: "" }, now)).rejects.toThrow(/사진/);
-    const res = await judgeInspection(db, quality(), id, { passed: all.filter((k) => k !== "surface"), gapMm: null, filmUm: [], failNote: "앞문 아래 굴곡 남음" }, now);
+    await expect(judgeInspection(db, quality(), id, { passed: all, gapMm: 1, filmUm: FILM, failNote: "" }, now)).rejects.toThrow(/사진/);
+    const res = await judgeInspection(db, quality(), id, { passed: all.filter((k) => k !== "surface"), gapMm: 1, filmUm: FILM, failNote: "앞문 아래 굴곡 남음" }, now);
     expect(res.pass).toBe(false);
     let [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
     expect(ro.status).toBe("working");
@@ -121,7 +122,7 @@ describe("검사·출고(STD-05)", () => {
     await finishAll(woId);
     const second = await startInspection(db, quality(), roId, "", now);
     for (let k = 0; k < 4; k++) await addInspectionPhoto(db, quality(), second.id, WEBP);
-    expect((await judgeInspection(db, quality(), second.id, { passed: all, gapMm: null, filmUm: [], failNote: "" }, now)).pass).toBe(true);
+    expect((await judgeInspection(db, quality(), second.id, { passed: all, gapMm: 1, filmUm: FILM, failNote: "" }, now)).pass).toBe(true);
     [ro] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
     expect(ro.status).toBe("ready");
     expect((await inspectionsOf(db, roId)).map((i) => i.result)).toEqual(["fail", "pass"]);
@@ -136,7 +137,7 @@ describe("검사·출고(STD-05)", () => {
     const st = await issueStatement(db, advisor, roId, { mileageOut: 45012 }, now);
     const s = (await statementOf(db, roId))!;
     expect(s.docNo).toBe("IV-2611-0001");
-    expect(s.totalWon).toBe(41_800); // 덴트 38,000 + 부가세
+    expect(s.totalWon).toBe(673_200); // 앞문 판금·도장(메탈릭)·블렌딩·재료비 + 부가세
     expect((s.snapshot as { legalFreeDays: number }).legalFreeDays).toBe(60); // 2021년 등록·4.5만km
     expect(st.created).toBe(true);
     const deliverIn = { payMethod: "card", notices: ["photos", "care", "warranty"], receiverName: "홍길동", proxy: false, proxyNote: "", signaturePng: PNG };

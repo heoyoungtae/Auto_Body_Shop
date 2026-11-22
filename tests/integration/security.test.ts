@@ -79,7 +79,7 @@ describe("공격 대책", () => {
 
 describe("앱 주소 자동 고치기·도메인", () => {
   it("주소가 바뀌면 알리고, 실패하면 알리고 오류 기록에 남긴다(같은 줄은 한 번)", async () => {
-    const lines = [{ line: "2026-11-21 10:05 정비소 주소 바뀜: 1.1.1.1 → 2.2.2.2 (DNS 고침)" }, { line: "2026-11-21 10:10 DNS 고치기 실패" }, { line: "그냥 줄" }];
+    const lines = [{ line: "2026-11-21 10:05 공업사 주소 바뀜: 1.1.1.1 → 2.2.2.2 (DNS 고침)" }, { line: "2026-11-21 10:10 DNS 고치기 실패" }, { line: "그냥 줄" }];
     await agentReport(db, { ddns: lines }, t(10));
     await agentReport(db, { ddns: lines }, t(11));
     const n = await notes();

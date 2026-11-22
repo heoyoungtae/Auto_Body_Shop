@@ -1,4 +1,4 @@
-// 홈페이지 믿음 자료: 바깥 후기 주소·별점, 후기(이름 가림·번호 막기), 자격·인증, 정비소 사진(공개 주소), 검색 확인 값
+// 홈페이지 믿음 자료: 바깥 후기 주소·별점, 후기(이름 가림·번호 막기), 자격·인증, 공업사 사진(공개 주소), 검색 확인 값
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
 import { addCert, addReview, addShopPhoto, publicShopFile, removeShopPhoto, saveTrustLinks, siteTrust } from "@/modules/site/trust";
@@ -39,7 +39,7 @@ describe("후기·사진·인증", () => {
     ]);
   });
 
-  it("자격·인증은 한 줄 설명이 있어야, 정비소 사진은 걸려 있는 것만 누구나 연다", async () => {
+  it("자격·인증은 한 줄 설명이 있어야, 공업사 사진은 걸려 있는 것만 누구나 연다", async () => {
     await expect(addCert(db, advisor(), { name: "정비업 등록", desc: "" })).rejects.toThrow(/한 줄 설명/);
     await addCert(db, advisor(), { name: "자동차 종합정비업 등록", desc: "관할 구청에 등록한 정식 정비업체입니다." });
     expect((await siteTrust(db)).certs).toHaveLength(1);

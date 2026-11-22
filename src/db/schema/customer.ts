@@ -63,7 +63,7 @@ export const vehicle = pgTable(
     year: integer("year"),
     /** 세대 코드(예: CN7). src/modules/customer/generations.ts 목록 */
     generation: text("generation"),
-    /** 트림(세부 모델). 고정 목록 없이 이 정비소 기록에서 추천 */
+    /** 트림(세부 모델). 고정 목록 없이 이 공업사 기록에서 추천 */
     trim: text("trim"),
     colorCode: text("color_code"),
     /** 수리 사양: 레이더·센서·카메라·램프·선루프·3코트 도장 등(VEHICLE_OPTIONS 키) */

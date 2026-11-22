@@ -81,7 +81,7 @@ function Summary({ d, repaintUm }: { d: Damage; repaintUm: number }) {
       {d.method !== d.suggested && <Badge tone="warn">제안과 다름</Badge>}
       {d.calibrate && <Badge tone="warn">센서 보정</Badge>}
       {repainted(film, repaintUm) && <Badge tone="danger">재도장 이력</Badge>}
-      {d.method !== "polish" && d.method !== "outsource" && (d.filmPanel.length < 3 || d.filmAdjacent.length < 3) && <Badge tone="warn">도막 측정 부족</Badge>}
+      {d.method !== "none" && d.method !== "outsource" && (d.filmPanel.length < 3 || d.filmAdjacent.length < 3) && <Badge tone="warn">도막 측정 부족</Badge>}
     </span>
   );
 }

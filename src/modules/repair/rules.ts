@@ -151,9 +151,10 @@ export const PAINT_LAYERS = { none: "도장 손상 없음", clear: "클리어층
 export type PaintLayer = keyof typeof PAINT_LAYERS;
 export const isPaintLayer = (s: string): s is PaintLayer => s in PAINT_LAYERS;
 
-export const METHODS = { pdr: "덴트(PDR)", polish: "광택", partial: "부분 판금+도장(블렌딩)", replace: "교환+도장", outsource: "외주 진단 후 결정" } as const;
+/** 수리 방법. 덴트(PDR)·광택은 하지 않는다(대표 2026-11-22). none = 고치지 않고 안내만(광택 업체 등) */
+export const METHODS = { partial: "부분 판금+도장(블렌딩)", replace: "교환+도장", outsource: "외주 진단 후 결정", none: "수리 안 함(다른 업체 안내)" } as const;
 /** 차 그림에서 수리 방법을 나타내는 색(밝은·어두운 화면 모두 읽히는 중간 밝기) */
-export const METHOD_COLORS: Record<keyof typeof METHODS, string> = { pdr: "#1f9d6a", polish: "#7fae2a", partial: "#e08a1e", replace: "#d4433b", outsource: "#7a52c7" };
+export const METHOD_COLORS: Record<keyof typeof METHODS, string> = { partial: "#e08a1e", replace: "#d4433b", outsource: "#7a52c7", none: "#8a8f98" };
 /** 손상 정도(경 1·중 2·심 3): 따로 묻지 않고 크기·깊이·도장 손상·꺾임·파손으로 정한다 */
 export function damageSeverity(d: { sizeCm: number | null; depthMm?: number | null; paintLayer: string; crease?: boolean; broken?: boolean; structural?: boolean }): 1 | 2 | 3 {
   if (d.broken || d.structural || d.crease || d.paintLayer === "metal" || (d.sizeCm ?? 0) >= 25) return 3;
@@ -171,15 +172,15 @@ export type DamageFacts = { kind: string; paintLayer: PaintLayer; crease: boolea
 
 /**
  * 수리 방법 판단 기준표(STD-02 5절)를 그대로 옮긴 것. 위에서부터 먼저 맞는 것을 고른다.
- * 1 구조 의심 → 외주 진단, 2 찢어짐·파손·넓은 변형 → 교환, 3 클리어층만 긁힘 → 광택,
- * 4 도장 균열 없고 꺾임 없는 찌그러짐 → 덴트, 5 그 밖(베이스·프라이머까지, 작은 찌그러짐) → 부분 판금+도장
+ * 1 구조 의심 → 외주 진단, 2 찢어짐·파손·넓은 변형 → 교환, 3 그 밖(작은 찌그러짐·긁힘) → 부분 판금+도장.
+ * 덴트·광택은 하지 않으므로 클리어층만 긁혀도 부분 도장을 제안한다. 손님이 원하지 않으면 '수리 안 함'을 고르고 다른 업체를 안내한다(대표 2026-11-22)
  */
 export function suggestMethod(f: DamageFacts): { method: Method; why: string } {
   if (f.structural) return { method: "outsource", why: "보강재·프레임 손상 의심이나 간격 틀어짐은 외주 진단(STD-07) 후 결정합니다" };
   if (f.broken) return { method: "replace", why: "찢어짐·플라스틱 파손은 교환+도장이 우선입니다" };
   if (f.sizeCm != null && f.sizeCm >= 40 && f.kind === "D") return { method: "replace", why: "넓은 변형(40cm 이상)은 복원보다 교환이 나은지 먼저 봅니다" };
-  if (f.kind === "S" && (f.paintLayer === "clear" || f.paintLayer === "none")) return { method: "polish", why: "클리어층만 긁혔으면(손톱에 안 걸림) 광택이 우선입니다" };
-  if (f.kind === "D" && f.paintLayer === "none" && !f.crease) return { method: "pdr", why: "도장 균열이 없고 날카로운 꺾임이 없으면 덴트(PDR)가 우선입니다" };
+  if (f.kind === "S" && (f.paintLayer === "clear" || f.paintLayer === "none")) return { method: "partial", why: "클리어층만 긁혔어도 광택은 하지 않으므로 부분 도장(블렌딩)입니다. 손님이 원하지 않으면 '수리 안 함'을 고르고 광택 업체를 안내합니다" };
+  if (f.kind === "D" && f.paintLayer === "none" && !f.crease) return { method: "partial", why: "도장이 멀쩡한 찌그러짐도 덴트는 하지 않으므로 부분 판금+도장입니다. 손님이 원하지 않으면 '수리 안 함'을 고르고 덴트 업체를 안내합니다" };
   if (f.kind === "W") return { method: "partial", why: "휠 긁힘은 휠 수리(외주 포함)로 처리합니다. 부분 수리로 두고 메모에 적습니다" };
   return { method: "partial", why: "베이스·프라이머까지 손상되었거나 꺾임이 있는 작은 찌그러짐은 부분 판금+도장(블렌딩)입니다" };
 }
@@ -211,7 +212,7 @@ export function diagnosisIssues(lines: DiagLine[]): Issue[] {
   if (!lines.length) out.push({ field: "lines", msg: "진단한 손상이 없습니다. 수리할 부위를 하나 이상 넣어야 합니다" });
   for (const l of lines) {
     const name = partLabel(l.part);
-    if (l.method !== "polish" && l.method !== "outsource" && (l.filmPanel.length < 3 || l.filmAdjacent.length < 3)) out.push({ field: "lines", msg: `${name}: 도막 두께를 손상 패널·인접 패널 각 3곳 이상 재어야 합니다` });
+    if (l.method !== "none" && l.method !== "outsource" && (l.filmPanel.length < 3 || l.filmAdjacent.length < 3)) out.push({ field: "lines", msg: `${name}: 도막 두께를 손상 패널·인접 패널 각 3곳 이상 재어야 합니다` });
     if (l.method !== l.suggested && !l.methodReason?.trim()) out.push({ field: "lines", msg: `${name}: 기준표 제안과 다른 방법을 골랐으면 사유를 적어야 합니다` });
   }
   return out;

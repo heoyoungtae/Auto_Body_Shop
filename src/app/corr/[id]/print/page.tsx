@@ -60,7 +60,7 @@ export default async function LetterPrint({ params }: { params: Promise<{ id: st
         >
           공문 {approved ? "인쇄" : "미리 보기"}
         </PageTitle>
-        {missing && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">정비소 정보에 상호·대표자·직인이 다 있어야 합니다. &lsquo;설정 › 정비소 정보&rsquo;에서 채우세요.</p>}
+        {missing && <p className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-sm">공업사 정보에 상호·대표자·직인이 다 있어야 합니다. &lsquo;설정 › 공업사 정보&rsquo;에서 채우세요.</p>}
       </div>
       <article className="relative mx-auto flex min-h-[260mm] max-w-[180mm] flex-col bg-white p-8 text-[14px] leading-relaxed text-black print:max-w-none print:p-0">
         {!approved && <p className="absolute top-2 right-2 rounded border border-red-600 px-2 py-0.5 text-xs font-bold text-red-600">미리 보기(결재 중)</p>}

@@ -18,7 +18,7 @@ const now = new Date("2026-11-14T01:00:00Z");
 const owner = () => ({ id: ids.owner, roles: ["owner" as const] });
 const tech = () => ({ id: ids.tech1, roles: ["technician" as const] });
 const PNG = new Uint8Array(400).fill(7);
-const profile = (o: Partial<ProfileView> = {}): ProfileView => ({ job: "기술자(판금·덴트)", gender: "", birth: "1990-01-02", phone: "01012345678", emName: "", emRelation: "", emPhone: "", zip: "", address: "", addressDetail: "", career: "", hiredOn: "2026-11-02", contractKind: "regular", contractEnd: "", licenses: [], leftOn: "", leftReason: "", ...o });
+const profile = (o: Partial<ProfileView> = {}): ProfileView => ({ job: "기술자(판금)", gender: "", birth: "1990-01-02", phone: "01012345678", emName: "", emRelation: "", emPhone: "", zip: "", address: "", addressDetail: "", career: "", hiredOn: "2026-11-02", contractKind: "regular", contractEnd: "", licenses: [], leftOn: "", leftReason: "", ...o });
 
 describe("직무기술서 확인", () => {
   it("명부에 직무가 없으면 서명할 수 없고, 정하면 본인에게 확인 요청이 간다", async () => {
@@ -28,7 +28,7 @@ describe("직무기술서 확인", () => {
     const n = await db.select().from(notification).where(eq(notification.userId, ids.tech1));
     expect(n.some((x) => x.title.includes("직무기술서 확인 요청"))).toBe(true);
     await ackJobDesc(db, tech(), PNG, now);
-    expect((await jdAckStatus(db)).get(ids.tech1)?.job).toEqual(["기술자(판금·덴트)"]);
+    expect((await jdAckStatus(db)).get(ids.tech1)?.job).toEqual(["기술자(판금)"]);
     await expect(ackJobDesc(db, tech(), PNG, now)).rejects.toThrow("이미 확인");
   });
 
@@ -36,7 +36,7 @@ describe("직무기술서 확인", () => {
     await saveProfile(db, owner(), ids.tech1, profile(), now);
     await ackJobDesc(db, tech(), PNG, now);
     await db.insert(userRole).values({ userId: ids.tech1, role: "quality" });
-    expect(await myJobTitles(db, ids.tech1)).toEqual(["기술자(판금·덴트)", "품질 담당"]);
+    expect(await myJobTitles(db, ids.tech1)).toEqual(["기술자(판금)", "품질 담당"]);
     const o = await onboardingOf(db, ids.tech1);
     expect(o?.items.find((i) => i.key === "jd")?.done).toBe(false);
     await ackJobDesc(db, tech(), PNG, now);

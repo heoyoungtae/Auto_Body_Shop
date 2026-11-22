@@ -102,18 +102,6 @@ export const DEFAULT_POLICY = {
     label: "보증 기간: 도장·판금",
     clause: "6.1",
   },
-  "warranty.dent_months": {
-    value: 6,
-    unit: "개월",
-    label: "보증 기간: 덴트",
-    clause: "6.1",
-  },
-  "warranty.polish_months": {
-    value: 1,
-    unit: "개월",
-    label: "보증 기간: 광택",
-    clause: "6.1",
-  },
   "warranty.decision_business_days": {
     value: 3,
     unit: "영업일",

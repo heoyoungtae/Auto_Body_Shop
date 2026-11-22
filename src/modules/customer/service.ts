@@ -752,7 +752,7 @@ export async function consentRequestView(db: Db, token: string, now = new Date()
 
 export async function acceptConsentRequest(db: Db, token: string, input: { required: boolean; photo: boolean; marketing: boolean }, meta: { ip?: string | null } = {}, now = new Date()) {
   const r = await requestByToken(db, token);
-  if (!r || r.usedAt || r.expiresAt < now) throw new CustomerError("링크가 만료되었거나 이미 쓰였습니다. 정비소에 다시 요청해 주세요");
+  if (!r || r.usedAt || r.expiresAt < now) throw new CustomerError("링크가 만료되었거나 이미 쓰였습니다. 공업사에 다시 요청해 주세요");
   await db.transaction(async (tx) => {
     await tx.update(consentRequest).set({ usedAt: now }).where(eq(consentRequest.id, r.id));
     await addConsent(tx, null, r.customerId, { ...input, method: "online", note: meta.ip ? `링크 동의 IP ${meta.ip}` : "링크 동의" });
@@ -782,7 +782,7 @@ export async function purgeUnconsented(db: Db, now = new Date()) {
 }
 
 /** 같은 차종에서 쓴 색상 코드(많이 쓴 순). 화면의 추천 목록 */
-/** 이 정비소에서 차종별로 쓴 트림(많이 쓴 순). 기록이 쌓일수록 추천이 정확해진다 */
+/** 이 공업사에서 차종별로 쓴 트림(많이 쓴 순). 기록이 쌓일수록 추천이 정확해진다 */
 export async function trimHints(db: Db) {
   const rows = await db
     .select({ model: vehicle.model, trim: vehicle.trim, n: sql<number>`count(*)::int` })
@@ -796,7 +796,7 @@ export async function trimHints(db: Db) {
   return out;
 }
 
-/** 차량 칸 추천: 색상 코드·트림(이 정비소 기록) */
+/** 차량 칸 추천: 색상 코드·트림(이 공업사 기록) */
 export async function vehicleHints(db: Db) {
   const [colors, trims] = await Promise.all([colorHints(db), trimHints(db)]);
   return { colors, trims };

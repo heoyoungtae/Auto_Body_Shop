@@ -192,8 +192,6 @@ export async function issueStatement(db: Db, actor: Actor, roId: string, input: 
   const procs = await processesOf(db, w.id);
   const warranty = [
     procs.some((x) => x === "paint" || x === "sheet") ? { kind: "도장·판금", until: addMonths(today, p["warranty.paint_months"]) } : null,
-    procs.includes("dent") ? { kind: "덴트", until: addMonths(today, p["warranty.dent_months"]) } : null,
-    procs.includes("polish") && !procs.includes("paint") ? { kind: "광택", until: addMonths(today, p["warranty.polish_months"]) } : null,
   ].filter(Boolean);
   const snapshot = {
     owner: c?.name ?? "",

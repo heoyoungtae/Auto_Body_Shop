@@ -60,7 +60,7 @@ export const carbookLink = pgTable(
   (t) => [index("carbook_link_customer_idx").on(t.customerId)],
 );
 
-/** 손님이 '이 차 팔았어요'를 누른 기록. 그 차는 내 차 목록에서 빠지고 정비소에 알린다 */
+/** 손님이 '이 차 팔았어요'를 누른 기록. 그 차는 내 차 목록에서 빠지고 공업사에 알린다 */
 export const carbookSold = pgTable(
   "carbook_sold",
   {
@@ -98,7 +98,7 @@ export const carbookConsent = pgTable(
 
 export const CARBOOK_ENTRY_KINDS = ["fuel", "item", "wash", "fee", "other"] as const;
 
-/** 손님이 적은 기록(주유·충전, 소모품·정비, 세차, 보험·세금·검사, 기타 비용). 정비소는 주행거리만 참고로 본다 */
+/** 손님이 적은 기록(주유·충전, 소모품·정비, 세차, 보험·세금·검사, 기타 비용). 공업사는 주행거리만 참고로 본다 */
 export const carbookEntry = pgTable(
   "carbook_entry",
   {
@@ -119,7 +119,7 @@ export const carbookEntry = pgTable(
     qtyX100: integer("qty_x100"),
     /** 단가(원/L·원/kWh·원/kg) */
     unitPrice: integer("unit_price"),
-    /** 주유소·정비소·세차장 이름(위치는 받지 않는다) */
+    /** 주유소·공업사·세차장 이름(위치는 받지 않는다) */
     place: text("place"),
     memo: text("memo"),
     /** 소모품 다음 교체 주기(이 기록 기준). 비우면 알림 없음 */
@@ -206,7 +206,7 @@ export const carbookInbox = pgTable(
   (t) => [index("carbook_inbox_customer_idx").on(t.customerId, t.createdAt)],
 );
 
-/** 수리 이력 확인서: 차 팔 때 건네는 우리 정비소 수리 내역 한 장. 확인 번호로 누구나 진위를 본다(발급 때 내용 그대로) */
+/** 수리 이력 확인서: 차 팔 때 건네는 우리 공업사 수리 내역 한 장. 확인 번호로 누구나 진위를 본다(발급 때 내용 그대로) */
 export const carbookCert = pgTable(
   "carbook_cert",
   {

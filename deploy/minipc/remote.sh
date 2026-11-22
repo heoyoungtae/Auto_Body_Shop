@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 원격 관리 켜기(설명서 10단계). 서버가 대표 자택 등 정비소 밖에 있을 때 한 번 실행한다.
-#  1) 서버 위치를 '정비소 밖'으로 표시: 출퇴근 '서버와 같은 인터넷'을 끈다(서버 인터넷 ≠ 정비소 인터넷)
+# 원격 관리 켜기(설명서 10단계). 서버가 대표 자택 등 공업사 밖에 있을 때 한 번 실행한다.
+#  1) 서버 위치를 '공업사 밖'으로 표시: 출퇴근 '서버와 같은 인터넷'을 끈다(서버 인터넷 ≠ 공업사 인터넷)
 #  2) 앱 설정 › 서버 화면이 이 PC 상태를 보고 '지금 새 버전 올리기'를 할 수 있게 agent.sh 를 1분마다 돌린다
-#  3) (고르면) Tailscale: 정비소 PC·휴대폰에서 이 PC 터미널에 들어갈 수 있게(공유기 포트를 열지 않음)
+#  3) (고르면) Tailscale: 공업사 PC·휴대폰에서 이 PC 터미널에 들어갈 수 있게(공유기 포트를 열지 않음)
 # 사용(관리자 abs 계정 터미널): bash ~/auto-body-shop/deploy/minipc/remote.sh
-#   서버를 다시 정비소 안에 두면: bash ~/auto-body-shop/deploy/minipc/remote.sh shop
+#   서버를 다시 공업사 안에 두면: bash ~/auto-body-shop/deploy/minipc/remote.sh shop
 set -uo pipefail
 cd "$(dirname "$0")/.."
 DIR="$(dirname "$PWD")"
@@ -15,10 +15,10 @@ command -v jq >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install 
 say "1/3 서버 위치"
 if [ "${1:-}" = shop ]; then
   printf 'SERVER_ON_SITE=1\n' | bash ./set-env.sh >/dev/null
-  ok "정비소 안으로 표시(출퇴근 '서버와 같은 인터넷'을 쓸 수 있음)"
+  ok "공업사 안으로 표시(출퇴근 '서버와 같은 인터넷'을 쓸 수 있음)"
 else
   printf 'SERVER_ON_SITE=0\n' | bash ./set-env.sh >/dev/null
-  ok "정비소 밖(대표 자택)으로 표시. 출퇴근은 'TV 현황판과 같은 인터넷'으로 정비소를 알아봅니다"
+  ok "공업사 밖(대표 자택)으로 표시. 출퇴근은 'TV 현황판과 같은 인터넷'으로 공업사를 알아봅니다"
 fi
 sudo docker compose up -d app >/dev/null && ok "앱에 반영"
 
@@ -35,7 +35,7 @@ say "3/3 원격 터미널(Tailscale, 선택)"
 if command -v tailscale >/dev/null; then
   ok "이미 설치됨: $(tailscale ip -4 2>/dev/null | head -1)"
 else
-  read -r -p "  정비소 PC·휴대폰에서 이 PC 터미널에 들어갈 수 있게 Tailscale 을 설치할까요? (y/N) " a
+  read -r -p "  공업사 PC·휴대폰에서 이 PC 터미널에 들어갈 수 있게 Tailscale 을 설치할까요? (y/N) " a
   if [ "${a,,}" = y ]; then
     curl -fsSL https://tailscale.com/install.sh | sh
     echo "  아래에 나오는 주소를 휴대폰이나 PC 브라우저로 열어 로그인(구글 계정 등)하세요."

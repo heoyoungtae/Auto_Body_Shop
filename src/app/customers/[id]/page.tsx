@@ -272,7 +272,7 @@ export default async function CustomerDetail({ params, searchParams }: { params:
               ) : (
                 <p className="text-[var(--muted)]">아직 문자 인증으로 들어온 적이 없습니다{cb.seen ? `(링크로 마지막 ${fmtTime(cb.seen)})` : ""}.</p>
               )}
-              {cb.since && <p className="text-[var(--muted)]">내 기록(손님 차계부): {cbConsent.agreed ? "이용 동의함" : "동의 안 함"} · 금액·장소 같은 손님 기록은 정비소에 보이지 않습니다</p>}
+              {cb.since && <p className="text-[var(--muted)]">내 기록(손님 차계부): {cbConsent.agreed ? "이용 동의함" : "동의 안 함"} · 금액·장소 같은 손님 기록은 공업사에 보이지 않습니다</p>}
               {cbKm.map((x) => (
                 <p key={x.vehicleId}>
                   {x.plateNo} 손님이 적은 주행거리 <b className="tabular-nums">{x.km.toLocaleString("ko-KR")}km</b> ({x.on}) <span className="text-xs text-[var(--muted)]">참고용, 입고 때 계기판으로 확인</span>

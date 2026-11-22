@@ -13,7 +13,7 @@ import { carOf } from "@/modules/repair/body-map";
 import { ESTIMATE_KIND, ESTIMATE_STATUS_LABEL, estimateIssues, LINE_CATEGORIES, PART_CODES, totals } from "@/modules/repair/estimate-rules";
 import { fmtMinutes, gradeWon, laborWon, lineNameOf, PAINT_GRADES, usesGradeCoef, type PaintGrade } from "@/modules/repair/labor";
 import { laborCatalog, loadLabor } from "@/modules/repair/labor-store";
-import { LaborPick, type PickCoef, type PickItem } from "../../../labor-pick";
+import { LaborPick, type PickItem } from "../../../labor-pick";
 import { AssistForm } from "../../../../_assist";
 import { DateField, NumberField, SelectField, TextAreaField, TextField } from "../../../../_input";
 import { koMoney } from "../../../../_format";
@@ -135,16 +135,15 @@ async function pickList(db: Awaited<ReturnType<typeof getDb>>, grade: PaintGrade
       const amount = d.kind === "hours" ? laborWon(v, t) : usesGradeCoef(d.code) ? gradeWon(v, grade, t) : v;
       return { code: d.code, label: `${d.section} › ${d.name} — ${minutes != null ? `${fmtMinutes(minutes)} · ` : ""}${amount.toLocaleString("ko-KR")}원`, name: lineNameOf(d), cat: d.cat!, minutes, won: amount, hiddenOnly: d.hidden };
     });
-  const coefs = all.filter((d) => d.kind === "pct" && d.code.startsWith("PDR-") && !d.hidden).map((d) => ({ code: d.code, name: d.name, pct: t[d.code] }));
-  return { items, coefs, rate: t.RATE };
+  return { items, rate: t.RATE };
 }
 
-type Pick = { items: PickItem[]; coefs: PickCoef[]; rate: number };
+type Pick = { items: PickItem[]; rate: number };
 
 function LineFields({ l, kind, pick }: { l?: Line; kind: string; pick: Pick }) {
   return (
     <div className="space-y-3">
-      {l?.category !== "part" && <LaborPick items={pick.items.filter((i) => !i.hiddenOnly || i.code === l?.laborCode)} coefs={pick.coefs} rate={pick.rate} current={l?.laborCode} />}
+      {l?.category !== "part" && <LaborPick items={pick.items.filter((i) => !i.hiddenOnly || i.code === l?.laborCode)} rate={pick.rate} current={l?.laborCode} />}
       <div className="grid gap-3 md:grid-cols-3">
         <SelectField help="est.payer" name="payer" defaultValue={l?.payer ?? kind} options={opts(ESTIMATE_KIND)} />
         <SelectField help="est.category" name="category" required defaultValue={l?.category ?? ""} placeholder="고르기" options={opts(LINE_CATEGORIES)} />
@@ -181,7 +180,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const reviewer = await resolveApprover(db, "estimate", e.totalWon, e.createdBy ? await rolesOf(db, e.createdBy) : []);
   const canReview = e.status === "review" && (user.roles.includes(reviewer) || user.roles.includes("owner"));
   const missingShop = shopMissing(shop);
-  const pick = draft ? await pickList(db, e.paintGrade as PaintGrade) : { items: [], coefs: [], rate: 0 };
+  const pick = draft ? await pickList(db, e.paintGrade as PaintGrade) : { items: [], rate: 0 };
   const v = e.vehicle;
   const today = seoulDate();
 

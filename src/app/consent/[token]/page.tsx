@@ -17,9 +17,9 @@ export default async function ConsentPage({ params, searchParams }: { params: Pr
         개인정보 수집·이용 동의
       </PageTitle>
       {q.done === "yes" && <Notice>동의해 주셔서 감사합니다. 상담 내용대로 연락드리겠습니다. 이 창은 닫으셔도 됩니다.</Notice>}
-      {q.done === "no" && <Notice>필수 항목에 동의하지 않으셔서 연락처를 저장하지 않고 지웠습니다. 다시 상담을 원하시면 정비소로 연락해 주세요.</Notice>}
+      {q.done === "no" && <Notice>필수 항목에 동의하지 않으셔서 연락처를 저장하지 않고 지웠습니다. 다시 상담을 원하시면 공업사로 연락해 주세요.</Notice>}
       {view && view.state !== "open" && (
-        <Notice>{view.state === "used" ? "이미 답해 주신 링크입니다." : view.state === "expired" ? "링크 기한이 지났습니다. 정비소에 다시 요청해 주세요." : "올바르지 않은 링크입니다."}</Notice>
+        <Notice>{view.state === "used" ? "이미 답해 주신 링크입니다." : view.state === "expired" ? "링크 기한이 지났습니다. 공업사에 다시 요청해 주세요." : "올바르지 않은 링크입니다."}</Notice>
       )}
       {view?.state === "open" && (
         <form action={acceptConsentAction} className="space-y-4">
