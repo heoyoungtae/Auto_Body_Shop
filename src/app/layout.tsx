@@ -11,6 +11,7 @@ import { BranchPicker } from "./_branch/picker";
 import { HelpProvider } from "./_help-drawer";
 import { TableCards } from "./_table-cards";
 import { AppAlerts } from "./_app-alerts";
+import { HomeLink, MyMenu } from "./my/my-nav";
 import { MenuButton, NavProvider, Sidebar } from "./_sidebar";
 import { APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
 import { brandSize, brandUrl, loadBrand } from "@/modules/platform/brand-assets";
@@ -66,15 +67,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <NavProvider>
             <header id="site-header" className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--surface)]">
               <div className="flex min-h-14 items-center gap-2 px-2 sm:px-4">
-                {user && <MenuButton />}
-                <Link href={user ? "/home" : "/login"} className="flex min-w-0 shrink items-center" title={APP_NAME}>
+                {/* 직원은 사이드 메뉴, 손님(내 차 수첩)은 내 차 수첩 옆 메뉴 */}
+                {user ? <MenuButton /> : <MyMenu />}
+                <HomeLink staff={!!user} className="flex min-w-0 shrink items-center" title={APP_NAME}>
                   {/* 가로 로고(대표 지시 2026-11-21). 어두운 화면이면 어두운 화면용 로고 */}
                   <picture className="block shrink-0">
                     <source media="(prefers-color-scheme: dark)" srcSet={brandUrl(brand, "logo-dark")} />
                     {/* eslint-disable-next-line @next/next/no-img-element -- 설정에서 올린 그림을 그대로 쓴다 */}
                     <img src={brandUrl(brand, "logo-light")} alt={APP_NAME} width={logoW} height={logoH} className="h-8 w-auto max-w-[45vw] object-contain object-left sm:h-10 sm:max-w-none" />
                   </picture>
-                </Link>
+                </HomeLink>
                 {user && (user.branches?.length ?? 0) > 1 && (
                   <Suspense>
                     <BranchPicker branches={user.branches!} current={user.branchId!} view={user.viewBranchId ?? null} allBranches={!!user.allBranches} />

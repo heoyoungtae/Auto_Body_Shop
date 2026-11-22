@@ -1,6 +1,6 @@
-// 내 차 수첩(고객용) 틀: 휴대폰 폭 가운데, 아래 탭 줄. 글자는 크게, 누를 곳은 넓게
+// 내 차 수첩(고객용) 틀: 휴대폰 폭 가운데. 글자는 크게, 누를 곳은 넓게.
+// 메뉴는 머리줄 왼쪽 ☰ 로 여는 옆 메뉴(my-nav.tsx MyMenu, 루트 layout.tsx 머리줄에 둠). 아래 탭 줄은 폐기(대표 지시 2026-11-22)
 import type { Metadata, Viewport } from "next";
-import { MyNav } from "./my-nav";
 
 export const metadata: Metadata = {
   title: "내 차 수첩",
@@ -14,9 +14,8 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 
 export default function MyLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-xl px-1 pb-24 text-[15px] sm:px-0">
+    <div className="mx-auto max-w-xl px-1 pb-8 text-[15px] sm:px-0">
       {children}
-      <MyNav />
     </div>
   );
 }
