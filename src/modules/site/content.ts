@@ -18,7 +18,10 @@ import { maskPersonal, SERVICES } from "./rules";
 import { SiteError } from "./service";
 
 type Actor = { id: string; roles: readonly Role[] };
-const cut = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
+const cut = (s: unknown, n: number) =>
+  String(s ?? "")
+    .trim()
+    .slice(0, n);
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 function mustWrite(actor: Actor) {
   if (!can(actor, "consult.write")) throw new SiteError("홈페이지 글은 상담을 쓸 수 있는 사람(상담원·공장장·대표)이 씁니다");
@@ -41,7 +44,11 @@ export async function listFaqs(db: Db) {
 /** 공개한 질문만. q 가 있으면 질문·답에서 찾는다(띄어쓰기 무시) */
 export async function publicFaqs(db: Db, q = "", category = "") {
   await ensureFaqStarters(db);
-  const rows = await db.select({ id: siteFaq.id, category: siteFaq.category, question: siteFaq.question, answer: siteFaq.answer, sort: siteFaq.sort }).from(siteFaq).where(eq(siteFaq.published, true)).orderBy(asc(siteFaq.sort), asc(siteFaq.createdAt));
+  const rows = await db
+    .select({ id: siteFaq.id, category: siteFaq.category, question: siteFaq.question, answer: siteFaq.answer, sort: siteFaq.sort })
+    .from(siteFaq)
+    .where(eq(siteFaq.published, true))
+    .orderBy(asc(siteFaq.sort), asc(siteFaq.createdAt));
   const order = (c: string) => {
     const i = (FAQ_CATEGORIES as readonly string[]).indexOf(c);
     return i < 0 ? 99 : i;
@@ -70,7 +77,10 @@ export async function saveFaq(db: Db, actor: Actor, input: FaqInput, now = new D
     const [r] = await db.update(siteFaq).set(values).where(eq(siteFaq.id, id)).returning({ id: siteFaq.id });
     if (!r) throw new SiteError("없는 질문입니다");
   } else {
-    [{ id }] = await db.insert(siteFaq).values({ ...values, createdAt: now }).returning({ id: siteFaq.id });
+    [{ id }] = await db
+      .insert(siteFaq)
+      .values({ ...values, createdAt: now })
+      .returning({ id: siteFaq.id });
   }
   await writeAudit(db, { actorId: actor.id, action: "site.faq", entityType: "site_faq", entityId: id!, after: { category, question, published: input.published } });
   return id!;
@@ -95,7 +105,18 @@ export async function loadFaqStarters(db: Db, actor: Actor, now = new Date()) {
 /** 상담 답변으로 질문 초안 만들기: 손님 요청을 질문으로, 비밀 답변을 답으로. 이름·번호는 가리고 '공개 안 함'으로 둔다 */
 export async function faqFromConsult(db: Db, actor: Actor, consultId: string, now = new Date()) {
   mustWrite(actor);
-  const [c] = await db.select({ id: consultation.id, docNo: consultation.docNo, parts: consultation.damageParts, needs: consultation.needs, reply: consultation.webReply, types: consultation.damageTypes, customerId: consultation.customerId }).from(consultation).where(eq(consultation.id, consultId));
+  const [c] = await db
+    .select({
+      id: consultation.id,
+      docNo: consultation.docNo,
+      parts: consultation.damageParts,
+      needs: consultation.needs,
+      reply: consultation.webReply,
+      types: consultation.damageTypes,
+      customerId: consultation.customerId,
+    })
+    .from(consultation)
+    .where(eq(consultation.id, consultId));
   if (!c) throw new SiteError("없는 상담입니다");
   if (!c.reply) throw new SiteError("손님에게 보낸 답이 있어야 질문 초안을 만들 수 있습니다");
   const [dup] = await db.select({ id: siteFaq.id }).from(siteFaq).where(eq(siteFaq.consultationId, c.id));
@@ -111,7 +132,18 @@ export async function faqFromConsult(db: Db, actor: Actor, consultId: string, no
   const category = (c.types as string[]).some((t) => t === "찌그러짐" || t === "긁힘") ? "수리·작업" : "견적·비용";
   const [r] = await db
     .insert(siteFaq)
-    .values({ category, question: question.slice(0, 200), answer: hide(c.reply).slice(0, 3000), sort: 500, published: false, origin: "consult", consultationId: c.id, updatedBy: actor.id, createdAt: now, updatedAt: now })
+    .values({
+      category,
+      question: question.slice(0, 200),
+      answer: hide(c.reply).slice(0, 3000),
+      sort: 500,
+      published: false,
+      origin: "consult",
+      consultationId: c.id,
+      updatedBy: actor.id,
+      createdAt: now,
+      updatedAt: now,
+    })
     .returning({ id: siteFaq.id });
   await writeAudit(db, { actorId: actor.id, action: "site.faq_from_consult", entityType: "site_faq", entityId: r.id, after: { from: c.docNo } });
   return r.id;
@@ -149,9 +181,15 @@ export async function bannerNotice(db: Db, today = seoulDate()) {
 /** 공지 한 건(게시 중일 때만). 읽은 수를 하나 올린다 */
 export async function readNotice(db: Db, id: string, today = seoulDate()) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const [r] = await db.select().from(siteNotice).where(and(eq(siteNotice.id, id), liveNotice(today)));
+  const [r] = await db
+    .select()
+    .from(siteNotice)
+    .where(and(eq(siteNotice.id, id), liveNotice(today)));
   if (!r) return null;
-  await db.update(siteNotice).set({ views: sql`${siteNotice.views} + 1` }).where(eq(siteNotice.id, id));
+  await db
+    .update(siteNotice)
+    .set({ views: sql`${siteNotice.views} + 1` })
+    .where(eq(siteNotice.id, id));
   return r;
 }
 
@@ -167,16 +205,38 @@ export async function saveNotice(db: Db, actor: Actor, input: NoticeInput, now =
   const startsOn = isDate(input.startsOn) ? input.startsOn : today;
   const endsOn = isDate(input.endsOn) ? input.endsOn : null;
   if (endsOn && endsOn < startsOn) throw new SiteError("게시 끝 날은 시작 날 뒤여야 합니다");
-  if (input.published && maskPersonal(`${title}\n${body}`) !== `${title}\n${body}`) throw new SiteError("공개할 글에 휴대폰 번호나 차량번호가 있습니다(정비소 전화는 괜찮지만 휴대폰 번호는 가려 주세요)");
-  const values = { title, body, pinned: input.pinned, banner: input.banner, ad: input.ad, published: input.published, startsOn, endsOn, notifyCarbook: input.notifyCarbook, updatedBy: actor.id, updatedAt: now };
+  if (input.published && maskPersonal(`${title}\n${body}`) !== `${title}\n${body}`)
+    throw new SiteError("공개할 글에 휴대폰 번호나 차량번호가 있습니다(공업사 전화는 괜찮지만 휴대폰 번호는 가려 주세요)");
+  const values = {
+    title,
+    body,
+    pinned: input.pinned,
+    banner: input.banner,
+    ad: input.ad,
+    published: input.published,
+    startsOn,
+    endsOn,
+    notifyCarbook: input.notifyCarbook,
+    updatedBy: actor.id,
+    updatedAt: now,
+  };
   let id = input.id;
   if (id) {
     const [r] = await db.update(siteNotice).set(values).where(eq(siteNotice.id, id)).returning({ id: siteNotice.id });
     if (!r) throw new SiteError("없는 공지입니다");
   } else {
-    [{ id }] = await db.insert(siteNotice).values({ ...values, createdBy: actor.id, createdAt: now }).returning({ id: siteNotice.id });
+    [{ id }] = await db
+      .insert(siteNotice)
+      .values({ ...values, createdBy: actor.id, createdAt: now })
+      .returning({ id: siteNotice.id });
   }
-  await writeAudit(db, { actorId: actor.id, action: "site.notice", entityType: "site_notice", entityId: id!, after: { title, published: input.published, startsOn, endsOn, notify: input.notifyCarbook } });
+  await writeAudit(db, {
+    actorId: actor.id,
+    action: "site.notice",
+    entityType: "site_notice",
+    entityId: id!,
+    after: { title, published: input.published, startsOn, endsOn, notify: input.notifyCarbook },
+  });
   // 지금 게시가 시작되는 공지면 바로 알린다(광고는 밤 9시~아침 8시를 피해 오후 4시 작업에서 보낸다)
   const sent = input.published && input.notifyCarbook && startsOn <= today && !(input.ad && quietHours(now)) ? await notifyNotice(db, id!, now, f) : null;
   return { id: id!, sent };
@@ -196,7 +256,11 @@ export async function notifyNotice(db: Db, id: string, now = new Date(), f: type
   const [n] = await db.select().from(siteNotice).where(eq(siteNotice.id, id));
   if (!n || !n.notifyCarbook || n.notifiedAt || !n.published) return 0;
   // 먼저 표시해서 두 번 보내지 않게 한다
-  const [claimed] = await db.update(siteNotice).set({ notifiedAt: now }).where(and(eq(siteNotice.id, id), isNull(siteNotice.notifiedAt))).returning({ id: siteNotice.id });
+  const [claimed] = await db
+    .update(siteNotice)
+    .set({ notifiedAt: now })
+    .where(and(eq(siteNotice.id, id), isNull(siteNotice.notifiedAt)))
+    .returning({ id: siteNotice.id });
   if (!claimed) return 0;
   const ids = [...new Set((await db.selectDistinct({ c: carbookPush.customerId }).from(carbookPush)).map((r) => r.c))];
   const live = ids.length ? await db.select({ id: customer.id, purgedAt: customer.purgedAt }).from(customer).where(inArray(customer.id, ids)) : [];
@@ -214,13 +278,16 @@ export async function notifyNotice(db: Db, id: string, now = new Date(), f: type
 /** 오후 4시 작업: 오늘부터 게시하는 공지 가운데 알림을 고른 것을 보낸다 */
 export async function noticeNotifyJob(db: Db, now = new Date(), f: typeof fetch = fetch) {
   const today = seoulDate(now);
-  const due = await db.select({ id: siteNotice.id }).from(siteNotice).where(and(liveNotice(today), eq(siteNotice.notifyCarbook, true), isNull(siteNotice.notifiedAt)));
+  const due = await db
+    .select({ id: siteNotice.id })
+    .from(siteNotice)
+    .where(and(liveNotice(today), eq(siteNotice.notifyCarbook, true), isNull(siteNotice.notifiedAt)));
   let sent = 0;
   for (const d of due) sent += await notifyNotice(db, d.id, now, f);
   return `홈페이지 공지 알림 ${due.length}건(${sent}명)`;
 }
 
-/** 내 차 수첩 첫 화면 '정비소 소식'(광고 공지는 광고 수신 동의 손님에게만) */
+/** 내 차 수첩 첫 화면 '제이모터스 소식'(광고 공지는 광고 수신 동의 손님에게만) */
 export async function carbookNotices(db: Db, customerId: string, today = seoulDate()) {
   const rows = await publicNotices(db, today);
   const marketing = rows.some((r) => r.ad) ? (await consentState(db, customerId)).marketing : false;
@@ -243,7 +310,14 @@ async function photoConsent(db: Db, customerId: string | null) {
 /** 사례로 쓸 수 있는 수리 건: 출고했고, 손님이 사진 홍보 사용에 동의했고, 아직 사례가 없는 것(최근 순) */
 export async function caseCandidates(db: Db, limit = 30) {
   const ros = await db
-    .select({ id: repairOrder.id, docNo: repairOrder.docNo, customerId: repairOrder.customerId, deliveredAt: sql<Date | null>`coalesce(${repairStatement.deliveredAt}, ${repairOrder.updatedAt})`, maker: vehicle.maker, model: vehicle.model })
+    .select({
+      id: repairOrder.id,
+      docNo: repairOrder.docNo,
+      customerId: repairOrder.customerId,
+      deliveredAt: sql<Date | null>`coalesce(${repairStatement.deliveredAt}, ${repairOrder.updatedAt})`,
+      maker: vehicle.maker,
+      model: vehicle.model,
+    })
     .from(repairOrder)
     .leftJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
     .leftJoin(repairStatement, eq(repairStatement.repairOrderId, repairOrder.id))
@@ -284,7 +358,17 @@ export async function getCase(db: Db, id: string) {
 export async function createCase(db: Db, actor: Actor, roId: string, now = new Date()) {
   mustWrite(actor);
   const [ro] = await db
-    .select({ id: repairOrder.id, docNo: repairOrder.docNo, status: repairOrder.status, customerId: repairOrder.customerId, at: repairOrder.updatedAt, deliveredAt: repairStatement.deliveredAt, maker: vehicle.maker, model: vehicle.model, consultId: repairOrder.consultationId })
+    .select({
+      id: repairOrder.id,
+      docNo: repairOrder.docNo,
+      status: repairOrder.status,
+      customerId: repairOrder.customerId,
+      at: repairOrder.updatedAt,
+      deliveredAt: repairStatement.deliveredAt,
+      maker: vehicle.maker,
+      model: vehicle.model,
+      consultId: repairOrder.consultationId,
+    })
     .from(repairOrder)
     .leftJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
     .leftJoin(repairStatement, eq(repairStatement.repairOrderId, repairOrder.id))
@@ -300,7 +384,19 @@ export async function createCase(db: Db, actor: Actor, roId: string, now = new D
   const carLabel = [ro.maker, ro.model].filter(Boolean).join(" ") || null;
   const [r] = await db
     .insert(siteCase)
-    .values({ repairOrderId: ro.id, customerId: ro.customerId, title: `${carLabel ?? "차"} ${category} 수리`, body: "", category, carLabel, workedOn: seoulDate(ro.deliveredAt ?? ro.at), createdBy: actor.id, updatedBy: actor.id, createdAt: now, updatedAt: now })
+    .values({
+      repairOrderId: ro.id,
+      customerId: ro.customerId,
+      title: `${carLabel ?? "차"} ${category} 수리`,
+      body: "",
+      category,
+      carLabel,
+      workedOn: seoulDate(ro.deliveredAt ?? ro.at),
+      createdBy: actor.id,
+      updatedBy: actor.id,
+      createdAt: now,
+      updatedAt: now,
+    })
     .returning({ id: siteCase.id });
   await writeAudit(db, { actorId: actor.id, action: "site.case", entityType: "site_case", entityId: r.id, after: { ro: ro.docNo } });
   return r.id;
@@ -340,7 +436,10 @@ export async function addCasePhoto(db: Db, actor: Actor, id: string, side: strin
   if (!t) throw new SiteError("사진 파일만 올릴 수 있습니다");
   const path = await storeFile(`${CASE_DIR}/${id}`, bytes, IMAGE_TYPES[t]);
   const photo: CasePhoto = { path, side, width: size.width && size.width > 0 ? Math.round(size.width) : undefined, height: size.height && size.height > 0 ? Math.round(size.height) : undefined };
-  await db.update(siteCase).set({ photos: [...c.photos, photo], updatedBy: actor.id, updatedAt: now }).where(eq(siteCase.id, id));
+  await db
+    .update(siteCase)
+    .set({ photos: [...c.photos, photo], updatedBy: actor.id, updatedAt: now })
+    .where(eq(siteCase.id, id));
   await writeAudit(db, { actorId: actor.id, action: "site.case_photo", entityType: "site_case", entityId: id, after: { side } });
   return path;
 }
@@ -351,7 +450,10 @@ export async function removeCasePhoto(db: Db, actor: Actor, id: string, path: st
   if (!c) throw new SiteError("없는 사례입니다");
   if (!c.photos.some((p) => p.path === path)) return;
   const photos = c.photos.filter((p) => p.path !== path);
-  await db.update(siteCase).set({ photos, published: c.published && photos.some((p) => p.side === "before") && photos.some((p) => p.side === "after"), updatedBy: actor.id, updatedAt: now }).where(eq(siteCase.id, id));
+  await db
+    .update(siteCase)
+    .set({ photos, published: c.published && photos.some((p) => p.side === "before") && photos.some((p) => p.side === "after"), updatedBy: actor.id, updatedAt: now })
+    .where(eq(siteCase.id, id));
   await removeStored(path);
 }
 
@@ -380,7 +482,10 @@ export async function publicCases(db: Db, category = "", limit = 60) {
 export async function readCase(db: Db, id: string) {
   const c = await getCase(db, id);
   if (!c || !c.published || !c.consent) return null;
-  await db.update(siteCase).set({ views: sql`${siteCase.views} + 1` }).where(eq(siteCase.id, id));
+  await db
+    .update(siteCase)
+    .set({ views: sql`${siteCase.views} + 1` })
+    .where(eq(siteCase.id, id));
   return c;
 }
 

@@ -1,4 +1,4 @@
-// 홈페이지 믿음 자료(대표 2026-11-21 "제안대로 전부"): 손님 후기·바깥 후기 바로 가기, 정비소 실제 사진, 자격·인증.
+// 홈페이지 믿음 자료(대표 2026-11-21 "제안대로 전부"): 손님 후기·바깥 후기 바로 가기, 공업사 실제 사진, 자격·인증.
 // 한 곳(app_config 'site_trust')에 모아 둔다. 상담을 쓸 수 있는 직원(consult.write)이 '홈페이지 글 › 후기·사진·인증'에서 고친다.
 // - 후기: 네이버·카카오·구글 등 바깥 후기를 옮겨 적는다(이름은 첫 글자만 남기고 가림). 별점 요약은 바깥 사이트 숫자를 그대로 적는다.
 // - 사진: 화면에서 줄여 새로 그린 그림(위치정보 없음)만 받는다. 직원 얼굴이 나오면 그 직원의 동의를 먼저 받는다.
@@ -32,7 +32,7 @@ export type SiteTrust = {
   reviews: SiteReview[];
   certs: SiteCert[];
   photos: SitePhoto[];
-  /** 첫 화면 배경으로 쓸 정비소 사진(사진 id). 비우면 기본 그림(/site-art/hero.svg) */
+  /** 첫 화면 배경으로 쓸 공업사 사진(사진 id). 비우면 기본 그림(/site-art/hero.svg) */
   hero: string;
 };
 export const EMPTY_TRUST: SiteTrust = { links: { naver: "", kakao: "", google: "" }, rating: { score: null, count: null, source: "" }, reviews: [], certs: [], photos: [], hero: "" };
@@ -44,14 +44,20 @@ export async function siteTrust(db: Db): Promise<SiteTrust> {
 }
 
 async function put(db: Db, actor: Actor, data: SiteTrust, action: string, after: Record<string, unknown>, now = new Date()) {
-  await db.insert(appConfig).values({ key: KEY, data, updatedBy: actor.id, updatedAt: now }).onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: now } });
+  await db
+    .insert(appConfig)
+    .values({ key: KEY, data, updatedBy: actor.id, updatedAt: now })
+    .onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: now } });
   await writeAudit(db, { actorId: actor.id, action, entityType: "app_config", entityId: KEY, after });
 }
 
 function mustWrite(actor: Actor) {
   if (!can(actor, "consult.write")) throw new SiteError("홈페이지 글은 상담을 쓸 수 있는 사람(상담원·공장장·대표)이 씁니다");
 }
-const cut = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
+const cut = (s: unknown, n: number) =>
+  String(s ?? "")
+    .trim()
+    .slice(0, n);
 
 /** 바깥 후기 주소: 네이버(map.naver.com·naver.me·m.place.naver.com), 카카오(place.map.kakao.com·kko.to), 구글(g.page·maps.app.goo.gl·google.com/maps) */
 const LINK_RE = {
@@ -65,7 +71,8 @@ export async function saveTrustLinks(db: Db, actor: Actor, input: { naver: strin
   const t = await siteTrust(db);
   const links = { naver: cut(input.naver, 300), kakao: cut(input.kakao, 300), google: cut(input.google, 300) };
   const names = { naver: "네이버", kakao: "카카오맵", google: "구글" } as const;
-  for (const k of ["naver", "kakao", "google"] as const) if (links[k] && !LINK_RE[k].test(links[k])) throw new SiteError(`${names[k]} 주소가 아닙니다. ${names[k]} 지도에서 우리 정비소를 열고 '공유 › 주소 복사'로 붙여 주세요`);
+  for (const k of ["naver", "kakao", "google"] as const)
+    if (links[k] && !LINK_RE[k].test(links[k])) throw new SiteError(`${names[k]} 주소가 아닙니다. ${names[k]} 지도에서 제이모터스를 찾아 열고 '공유 › 주소 복사'로 붙여 주세요`);
   const score = input.score.trim() ? Number(input.score) : null;
   if (score != null && !(score >= 1 && score <= 5)) throw new SiteError("별점은 1~5 사이 숫자입니다(예: 4.9)");
   const count = input.count.trim() ? Math.round(Number(input.count.replace(/[^\d]/g, ""))) : null;
@@ -102,7 +109,7 @@ export async function addCert(db: Db, actor: Actor, input: { name: string; desc:
   const name = cut(input.name, 40);
   const desc = cut(input.desc, 120);
   if (name.length < 2) throw new SiteError("자격·인증 이름을 적어 주세요");
-  if (desc.length < 5) throw new SiteError("손님이 알아듣게 한 줄 설명을 적어 주세요(예: 국토교통부에 등록한 자동차 정비업체입니다)");
+  if (desc.length < 5) throw new SiteError("손님이 알아듣게 한 줄 설명을 적어 주세요(예: 구청에 소형자동차종합정비업으로 등록한 공업사입니다)");
   await put(db, actor, { ...t, certs: [...t.certs, { id: randomUUID(), name, desc }] }, "site.cert", { name });
 }
 
@@ -112,7 +119,7 @@ export async function removeCert(db: Db, actor: Actor, id: string) {
   await put(db, actor, { ...t, certs: t.certs.filter((c) => c.id !== id) }, "site.cert_delete", { id });
 }
 
-/** 정비소 사진 올리기: 화면에서 긴 변 1600px 로 새로 그린 그림(위치정보 없음) */
+/** 공업사 사진 올리기: 화면에서 긴 변 1600px 로 새로 그린 그림(위치정보 없음) */
 export async function addShopPhoto(db: Db, actor: Actor, bytes: Uint8Array, input: { caption: string; kind: string; width?: number; height?: number }) {
   mustWrite(actor);
   const t = await siteTrust(db);
@@ -122,7 +129,14 @@ export async function addShopPhoto(db: Db, actor: Actor, bytes: Uint8Array, inpu
   const type = sniffImage(bytes);
   if (!type) throw new SiteError("사진 파일만 올릴 수 있습니다");
   const path = await storeFile("site/shop", bytes, IMAGE_TYPES[type]);
-  const p: SitePhoto = { id: randomUUID(), path, caption: cut(input.caption, 60), kind: input.kind as PhotoKind, width: input.width && input.width > 0 ? Math.round(input.width) : undefined, height: input.height && input.height > 0 ? Math.round(input.height) : undefined };
+  const p: SitePhoto = {
+    id: randomUUID(),
+    path,
+    caption: cut(input.caption, 60),
+    kind: input.kind as PhotoKind,
+    width: input.width && input.width > 0 ? Math.round(input.width) : undefined,
+    height: input.height && input.height > 0 ? Math.round(input.height) : undefined,
+  };
   await put(db, actor, { ...t, photos: [...t.photos, p] }, "site.photo", { kind: p.kind });
   return path;
 }
@@ -146,13 +160,13 @@ export async function setHeroPhoto(db: Db, actor: Actor, id: string) {
 
 export const DEFAULT_HERO = "/site-art/hero.svg";
 
-/** 첫 화면 배경 주소: 고른 정비소 사진, 없으면 기본 그림 */
+/** 첫 화면 배경 주소: 고른 공업사 사진, 없으면 기본 그림 */
 export function heroImage(t: SiteTrust) {
   const p = t.hero ? t.photos.find((x) => x.id === t.hero) : undefined;
   return p ? `/api/site-file/${p.path}` : DEFAULT_HERO;
 }
 
-/** 홈페이지에서 누구나 여는 정비소 사진인지(지금 걸려 있는 것만) */
+/** 홈페이지에서 누구나 여는 공업사 사진인지(지금 걸려 있는 것만) */
 export async function publicShopFile(db: Db, rel: string) {
   if (!/^site\/shop\/[0-9a-f-]{36}\.(jpg|webp|png)$/.test(rel)) return false;
   return (await siteTrust(db)).photos.some((p) => p.path === rel);

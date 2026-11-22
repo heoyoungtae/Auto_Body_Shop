@@ -1,5 +1,5 @@
 // 홈페이지(jmotors.co.kr) 1단계: 홈페이지 설정, 견적 요청(휴대폰 인증 → 상담 일지), 비밀 답변.
-// - 견적 요청은 새 표를 두지 않고 정비소 '상담 일지'(F-01-01)에 경로 '고객용 화면'·출처 'web'으로 들어간다. 직원은 다시 치지 않는다.
+// - 견적 요청은 새 표를 두지 않고 공업사 '상담 일지'(F-01-01)에 경로 '고객용 화면'·출처 'web'으로 들어간다. 직원은 다시 치지 않는다.
 // - 같은 휴대폰 번호의 고객·같은 차량번호의 차가 있으면 거기에 붙이고, 없으면 만든다(필수 동의는 요청 화면에서 받는다).
 // - 답은 요청한 손님만 본다: 휴대폰 문자 인증으로 들어오는 '내 차 수첩'의 상담 요청 목록에 나온다. 알림톡(안 되면 문자)으로 알린다.
 import { randomInt } from "node:crypto";
@@ -25,7 +25,7 @@ import { loadPolicy } from "@/modules/platform/policy";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, sniffImage, storeFile } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
 import { cleanMarks } from "@/modules/repair/rules";
-import { DEFAULT_SITE, homepageHosts, WEB_LIMIT, type SiteConfig } from "./rules";
+import { DEFAULT_SITE, homepageHosts, LEGACY_SITE, WEB_LIMIT, type SiteConfig } from "./rules";
 
 export class SiteError extends UserError {}
 
@@ -43,10 +43,16 @@ export function siteUrl(): string {
 // ── 홈페이지 설정(대표) ──
 export async function siteConfig(db: Db): Promise<SiteConfig> {
   const [r] = await db.select({ data: appConfig.data }).from(appConfig).where(eq(appConfig.key, KEY));
-  return { ...DEFAULT_SITE, ...((r?.data as Partial<SiteConfig>) ?? {}) };
+  const cfg = { ...DEFAULT_SITE, ...((r?.data as Partial<SiteConfig>) ?? {}) };
+  // 예전 처음 문구를 그대로 저장해 둔 칸은 새 처음 문구로(공업사·덴트 빼기, 2026-11-22)
+  for (const [k, olds] of Object.entries(LEGACY_SITE) as [keyof SiteConfig, string[]][]) if (olds.includes(cfg[k] as string)) (cfg as Record<string, unknown>)[k] = DEFAULT_SITE[k];
+  return cfg;
 }
 
-const cut = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
+const cut = (s: unknown, n: number) =>
+  String(s ?? "")
+    .trim()
+    .slice(0, n);
 const dateOrEmpty = (s: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s ?? "")) ? String(s) : "");
 
 /** 검색 등록 확인 값: '<meta name=... content="값">' 을 통째로 붙여도 값만 꺼낸다 */
@@ -77,7 +83,10 @@ export async function saveSiteConfig(db: Db, actor: Actor, input: Partial<SiteCo
     verifyNaver: verifyCode(input.verifyNaver, "네이버"),
     verifyGoogle: verifyCode(input.verifyGoogle, "구글"),
   };
-  await db.insert(appConfig).values({ key: KEY, data, updatedBy: actor.id, updatedAt: now }).onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: now } });
+  await db
+    .insert(appConfig)
+    .values({ key: KEY, data, updatedBy: actor.id, updatedAt: now })
+    .onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: now } });
   await writeAudit(db, { actorId: actor.id, action: "site.config", entityType: "app_config", entityId: KEY, after: data });
 }
 
@@ -95,25 +104,38 @@ function mobileOf(raw: string) {
  * 테스트 서버(문자 '시연')는 실제로 보내지 않으니 demoCode 로 화면에 보여 준다.
  */
 export async function requestWebCode(db: Db, raw: string, meta: Meta = {}, now = new Date(), f: typeof fetch = fetch): Promise<{ demoCode?: string }> {
-  if (!(await siteConfig(db)).requests) throw new SiteError("지금은 홈페이지 견적 요청을 받지 않습니다. 정비소로 전화해 주세요");
+  if (!(await siteConfig(db)).requests) throw new SiteError("지금은 홈페이지 견적 요청을 받지 않습니다. 제이모터스로 전화해 주세요");
   const phone = mobileOf(raw);
   const ph = phoneHash(phone);
   const dayAgo = new Date(now.getTime() - 864e5);
-  const recent = await db.select().from(carbookOtp).where(and(eq(carbookOtp.phoneHash, ph), eq(carbookOtp.purpose, "web"), gte(carbookOtp.createdAt, dayAgo))).orderBy(desc(carbookOtp.createdAt));
-  if (recent.length >= WEB_LIMIT.codesPerDay) throw new SiteError("오늘은 인증번호를 더 보낼 수 없습니다. 내일 다시 해 주시거나 정비소로 전화해 주세요");
+  const recent = await db
+    .select()
+    .from(carbookOtp)
+    .where(and(eq(carbookOtp.phoneHash, ph), eq(carbookOtp.purpose, "web"), gte(carbookOtp.createdAt, dayAgo)))
+    .orderBy(desc(carbookOtp.createdAt));
+  if (recent.length >= WEB_LIMIT.codesPerDay) throw new SiteError("오늘은 인증번호를 더 보낼 수 없습니다. 내일 다시 해 주시거나 제이모터스로 전화해 주세요");
   const locked = recent.find((o) => o.tries >= OTP.maxTries && o.createdAt.getTime() > now.getTime() - OTP.lockMinutes * 60_000);
   if (locked) throw new SiteError(`인증번호를 여러 번 틀려 ${OTP.lockMinutes}분 동안 잠겼습니다. 잠시 뒤 다시 해 주세요`);
   if (recent[0] && now.getTime() - recent[0].createdAt.getTime() < 30_000) throw new SiteError("방금 보냈습니다. 30초 뒤에 다시 받을 수 있습니다");
   if (meta.ip) {
-    const [n] = await db.select({ n: sql<number>`count(*)::int` }).from(carbookOtp).where(and(eq(carbookOtp.ip, meta.ip), eq(carbookOtp.purpose, "web"), gte(carbookOtp.createdAt, new Date(now.getTime() - 3600_000))));
+    const [n] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(carbookOtp)
+      .where(and(eq(carbookOtp.ip, meta.ip), eq(carbookOtp.purpose, "web"), gte(carbookOtp.createdAt, new Date(now.getTime() - 3600_000))));
     if ((n?.n ?? 0) >= WEB_LIMIT.codesPerIpHour) throw new SiteError("요청이 너무 많습니다. 한 시간 뒤에 다시 해 주세요");
   }
   const code = String(randomInt(0, 10 ** OTP.digits)).padStart(OTP.digits, "0");
-  const [row] = await db.insert(carbookOtp).values({ phoneHash: ph, customerId: null, codeHash: "-", purpose: "web", expiresAt: new Date(now.getTime() + OTP.minutes * 60_000), ip: meta.ip ?? null, createdAt: now }).returning({ id: carbookOtp.id });
-  await db.update(carbookOtp).set({ codeHash: codeHash(row.id, code) }).where(eq(carbookOtp.id, row.id));
+  const [row] = await db
+    .insert(carbookOtp)
+    .values({ phoneHash: ph, customerId: null, codeHash: "-", purpose: "web", expiresAt: new Date(now.getTime() + OTP.minutes * 60_000), ip: meta.ip ?? null, createdAt: now })
+    .returning({ id: carbookOtp.id });
+  await db
+    .update(carbookOtp)
+    .set({ codeHash: codeHash(row.id, code) })
+    .where(eq(carbookOtp.id, row.id));
   const text = `[${SHOP_NAME}] 견적 요청 인증번호 ${code} (${OTP.minutes}분 안에 넣어 주세요). 요청하지 않으셨으면 무시해 주세요.`;
   const r = await sendSecretSms(db, { to: phone, text, secret: code, purpose: "홈페이지 견적 요청 인증번호" }, f);
-  if (!r.ok && !r.demo) throw new SiteError("문자를 보내지 못했습니다. 잠시 뒤 다시 해 주시거나 정비소로 전화해 주세요");
+  if (!r.ok && !r.demo) throw new SiteError("문자를 보내지 못했습니다. 잠시 뒤 다시 해 주시거나 제이모터스로 전화해 주세요");
   return r.demo ? { demoCode: code } : {};
 }
 
@@ -122,7 +144,12 @@ export async function verifyWebCode(db: Db, raw: string, rawCode: string, now = 
   const phone = mobileOf(raw);
   const code = rawCode.replace(/\D/g, "").slice(0, OTP.digits);
   if (code.length !== OTP.digits) throw new SiteError(`문자로 받은 숫자 ${OTP.digits}자리를 넣어 주세요`);
-  const [o] = await db.select().from(carbookOtp).where(and(eq(carbookOtp.phoneHash, phoneHash(phone)), eq(carbookOtp.purpose, "web"))).orderBy(desc(carbookOtp.createdAt)).limit(1);
+  const [o] = await db
+    .select()
+    .from(carbookOtp)
+    .where(and(eq(carbookOtp.phoneHash, phoneHash(phone)), eq(carbookOtp.purpose, "web")))
+    .orderBy(desc(carbookOtp.createdAt))
+    .limit(1);
   if (!o || o.usedAt) throw new SiteError("인증번호를 먼저 받아 주세요");
   if (o.tries >= OTP.maxTries) throw new SiteError(`여러 번 틀려 잠겼습니다. ${OTP.lockMinutes}분 뒤 인증번호를 다시 받아 주세요`);
   if (o.expiresAt < now) throw new SiteError("인증번호 시간이 지났습니다. 다시 받아 주세요");
@@ -148,8 +175,12 @@ async function checkProof(db: Db, proof: string, phone: string, now: Date) {
 /** 인증한 번호가 우리 고객이면 이름·차를 미리 채운다(다시 치지 않게). 화면에는 이름과 차량번호만 보인다 */
 export async function knownVisitor(db: Db, proof: string, phone: string, now = new Date()) {
   if (!(await checkProof(db, proof, phone, now))) return null;
-  const [c] = await db.select({ id: customer.id, name: customer.name, purgedAt: customer.purgedAt, kind: customer.kind }).from(customer).where(eq(customer.phoneHash, phoneHash(phone)));
-  if (!c || c.purgedAt) return { name: "", cars: [] as { id: string; label: string; model: string | null; bodyType: string | null; options: string[] }[], phoneMasked: maskPhone(phone), consented: false };
+  const [c] = await db
+    .select({ id: customer.id, name: customer.name, purgedAt: customer.purgedAt, kind: customer.kind })
+    .from(customer)
+    .where(eq(customer.phoneHash, phoneHash(phone)));
+  if (!c || c.purgedAt)
+    return { name: "", cars: [] as { id: string; label: string; model: string | null; bodyType: string | null; options: string[] }[], phoneMasked: maskPhone(phone), consented: false };
   const cars = await db.select().from(vehicle).where(eq(vehicle.customerId, c.id)).orderBy(desc(vehicle.updatedAt));
   const st = await consentState(db, c.id);
   return {
@@ -186,13 +217,15 @@ export type WebRequestInput = {
  * 내 차 수첩을 꺼 두었으면 로그인은 만들지 않는다(token null).
  */
 export async function submitWebRequest(db: Db, input: WebRequestInput, meta: Meta = {}, now = new Date()) {
-  if (!(await siteConfig(db)).requests) throw new SiteError("지금은 홈페이지 견적 요청을 받지 않습니다. 정비소로 전화해 주세요");
+  if (!(await siteConfig(db)).requests) throw new SiteError("지금은 홈페이지 견적 요청을 받지 않습니다. 제이모터스로 전화해 주세요");
   const phone = mobileOf(input.phone);
   const proof = await checkProof(db, input.proof, phone, now);
   if (!proof) throw new SiteError(`휴대폰 인증이 끝났거나 ${WEB_LIMIT.verifiedMinutes}분이 지났습니다. 인증번호를 다시 받아 주세요`);
   const name = input.name.trim().slice(0, 30);
   if (name.length < 2) throw new SiteError("이름을 적어 주세요");
-  const zones = cleanMarks(input.damageZones).filter((m) => m.kind !== "O").slice(0, 40);
+  const zones = cleanMarks(input.damageZones)
+    .filter((m) => m.kind !== "O")
+    .slice(0, 40);
   const parts = input.damageParts.trim().slice(0, 500);
   if (!zones.length && parts.length < 2) throw new SiteError("차 그림에서 다친 곳을 누르거나, 어디가 어떤지 적어 주세요");
   if (!(input.insurance in INSURANCE_PICK)) throw new SiteError("수리비를 어떻게 하실지 골라 주세요");
@@ -206,8 +239,11 @@ export async function submitWebRequest(db: Db, input: WebRequestInput, meta: Met
   const needConsent = !(st?.required && st.current);
   if (needConsent && !input.agreeRequired) throw new SiteError("[필수] 개인정보 수집·이용에 동의해야 견적 요청을 받을 수 있습니다");
   if (was) {
-    const recent = await db.select({ id: consultation.id }).from(consultation).where(and(eq(consultation.customerId, was.id), eq(consultation.channel, "online"), gte(consultation.at, new Date(now.getTime() - 864e5))));
-    if (recent.length >= REQUEST_LIMIT.perDay) throw new SiteError("오늘은 견적 요청을 더 보낼 수 없습니다. 정비소로 전화해 주세요");
+    const recent = await db
+      .select({ id: consultation.id })
+      .from(consultation)
+      .where(and(eq(consultation.customerId, was.id), eq(consultation.channel, "online"), gte(consultation.at, new Date(now.getTime() - 864e5))));
+    if (recent.length >= REQUEST_LIMIT.perDay) throw new SiteError("오늘은 견적 요청을 더 보낼 수 없습니다. 제이모터스로 전화해 주세요");
   }
   // 차: 내 차 고르기 → 같은 번호의 차 → 새 차. 다른 사람 이름으로 등록된 번호면 잇지 않고 글로만 남긴다(직원이 확인)
   let plateNote = "";
@@ -230,13 +266,32 @@ export async function submitWebRequest(db: Db, input: WebRequestInput, meta: Met
   const out = await db.transaction(async (tx) => {
     let customerId = was?.id;
     if (!customerId) {
-      const [c] = await tx.insert(customer).values({ name, phoneEnc: encrypt(phone), phoneHash: ph, phoneMasked: maskPhone(phone), memo: "홈페이지 견적 요청으로 등록" }).returning({ id: customer.id });
+      const [c] = await tx
+        .insert(customer)
+        .values({ name, phoneEnc: encrypt(phone), phoneHash: ph, phoneMasked: maskPhone(phone), memo: "홈페이지 견적 요청으로 등록" })
+        .returning({ id: customer.id });
       customerId = c.id;
       await writeAudit(tx, { actorId: null, action: "customer.create", entityType: "customer", entityId: customerId, after: { name, via: "homepage" } });
     }
     if (needConsent || (input.agreeMarketing && !st?.marketing)) {
-      await tx.insert(consent).values({ customerId, version: CONSENT_VERSION, required: true, photo: st?.photo ?? false, marketing: input.agreeMarketing || (st?.marketing ?? false), method: "online", note: "홈페이지 견적 요청 화면에서 직접 동의" });
-      await writeAudit(tx, { actorId: null, action: "consent.record", entityType: "customer", entityId: customerId, after: { required: true, marketing: input.agreeMarketing, method: "online", via: "homepage" } });
+      await tx
+        .insert(consent)
+        .values({
+          customerId,
+          version: CONSENT_VERSION,
+          required: true,
+          photo: st?.photo ?? false,
+          marketing: input.agreeMarketing || (st?.marketing ?? false),
+          method: "online",
+          note: "홈페이지 견적 요청 화면에서 직접 동의",
+        });
+      await writeAudit(tx, {
+        actorId: null,
+        action: "consent.record",
+        entityType: "customer",
+        entityId: customerId,
+        after: { required: true, marketing: input.agreeMarketing, method: "online", via: "homepage" },
+      });
     }
     let vehicleId: string | null = null;
     if (input.vehicleId) {
@@ -276,7 +331,13 @@ export async function submitWebRequest(db: Db, input: WebRequestInput, meta: Met
       })
       .returning({ id: consultation.id, docNo: consultation.docNo });
     await tx.update(carbookOtp).set({ codeHash: "spent" }).where(eq(carbookOtp.id, proof.id));
-    await writeAudit(tx, { actorId: null, action: "site.request", entityType: "consultation", entityId: docNo, after: { photos: paths.length, zones: zones.length, newCustomer: !was, ip: meta.ip ?? null } });
+    await writeAudit(tx, {
+      actorId: null,
+      action: "site.request",
+      entityType: "consultation",
+      entityId: docNo,
+      after: { photos: paths.length, zones: zones.length, newCustomer: !was, ip: meta.ip ?? null },
+    });
     return { id: row.id, docNo, customerId };
   });
   await notifyRole(db, "advisor", `홈페이지 견적 요청: ${name} ${parts.split("\n")[0].slice(0, 30) || "사진 견적"} — ${replyDue}까지 답변`, `web-request-${out.id}`, `/consults/${out.id}`);
@@ -284,9 +345,23 @@ export async function submitWebRequest(db: Db, input: WebRequestInput, meta: Met
   let token: string | null = null;
   if ((await carbookConfig(db)).enabled) {
     token = randomToken(32);
-    await db.insert(carbookSession).values({ tokenHash: sha256(token), customerId: out.customerId, scope: "full", expiresAt: new Date(now.getTime() + SESSION_DAYS.full * 864e5), ip: meta.ip ?? null, userAgent: meta.userAgent?.slice(0, 300) ?? null, lastSeenAt: now, createdAt: now });
+    await db
+      .insert(carbookSession)
+      .values({
+        tokenHash: sha256(token),
+        customerId: out.customerId,
+        scope: "full",
+        expiresAt: new Date(now.getTime() + SESSION_DAYS.full * 864e5),
+        ip: meta.ip ?? null,
+        userAgent: meta.userAgent?.slice(0, 300) ?? null,
+        lastSeenAt: now,
+        createdAt: now,
+      });
     const [c] = await db.select({ at: customer.carbookAt }).from(customer).where(eq(customer.id, out.customerId));
-    await db.update(customer).set({ carbookAt: c?.at ?? now, carbookSeenAt: now }).where(eq(customer.id, out.customerId));
+    await db
+      .update(customer)
+      .set({ carbookAt: c?.at ?? now, carbookSeenAt: now })
+      .where(eq(customer.id, out.customerId));
   }
   return { ...out, replyDue, token, days: SESSION_DAYS.full };
 }
@@ -304,11 +379,26 @@ export async function replyToRequest(db: Db, actor: Actor & { name?: string }, i
   if (!c) throw new SiteError("없는 상담입니다");
   if (c.channel !== "online") throw new SiteError("홈페이지·내 차 수첩으로 들어온 요청에만 답을 씁니다");
   const first = !c.webReplyAt;
-  await db.update(consultation).set({ webReply: body, webReplyAt: now, webReplyBy: actor.id, repliedAt: c.repliedAt ?? now, advisorId: c.advisorId ?? actor.id, updatedAt: now }).where(eq(consultation.id, id));
+  await db
+    .update(consultation)
+    .set({ webReply: body, webReplyAt: now, webReplyBy: actor.id, repliedAt: c.repliedAt ?? now, advisorId: c.advisorId ?? actor.id, updatedAt: now })
+    .where(eq(consultation.id, id));
   await writeAudit(db, { actorId: actor.id, action: first ? "site.reply" : "site.reply_edit", entityType: "consultation", entityId: c.docNo, after: { length: body.length } });
   if (!first && !notify) return { sent: null };
   const [cu] = await db.select({ name: customer.name, enc: customer.phoneEnc }).from(customer).where(eq(customer.id, c.customerId));
   if (!cu?.enc) return { sent: null };
-  const r = await sendNotice(db, { key: "web_reply", to: decrypt(cu.enc), vars: { 고객명: cu.name, 요청번호: c.docNo, 답변링크: `${siteUrl()}/my/consult` }, purpose: "견적 요청 답변 알림", customerName: cu.name, ref: c.docNo, sentBy: actor.id }, f);
+  const r = await sendNotice(
+    db,
+    {
+      key: "web_reply",
+      to: decrypt(cu.enc),
+      vars: { 고객명: cu.name, 요청번호: c.docNo, 답변링크: `${siteUrl()}/my/consult` },
+      purpose: "견적 요청 답변 알림",
+      customerName: cu.name,
+      ref: c.docNo,
+      sentBy: actor.id,
+    },
+    f,
+  );
   return { sent: r };
 }

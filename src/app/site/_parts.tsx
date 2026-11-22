@@ -1,11 +1,13 @@
-// 홈페이지(jmotors.co.kr) 공용 부품: 제목 줄(도움말 단추), 홈 주소, 정비소 정보 불러오기
-import { headers } from "next/headers";
+// 홈페이지(jmotors.co.kr) 공용 부품: 제목 줄(도움말 단추), 홈 주소, 공업사 정보 불러오기
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 import { getDb } from "@/db/runtime";
 import { shopCard } from "@/modules/carbook/service";
 import { PAGE_HELP, type PageHelpKey } from "@/modules/help/pages";
 import { loadShopInfo, formatBizNo } from "@/modules/platform/shop";
 import { siteConfig } from "@/modules/site/service";
+import { sitePages } from "@/modules/site/pages";
+import { currentUser } from "../_lib/session";
 import { isHomepageHost } from "@/modules/site/rules";
 import type { ArticleBlock } from "@/modules/site/articles";
 import { HelpButton } from "../_help-drawer";
@@ -16,11 +18,31 @@ export async function homeHref() {
   return isHomepageHost(h.get("x-forwarded-host") ?? h.get("host")) ? "/" : "/site";
 }
 
-/** 정비소 이름·전화·주소(사업장 정보)와 홈페이지 설정을 한 번에 */
+/** 미리 보기 쿠키 이름(설정 › 홈페이지 '미리 보기'가 켠다) */
+export const PREVIEW_COOKIE = "site_preview";
+
+/** 대표가 미리 보기를 켰는가(쿠키 + 대표 로그인). 손님에게는 늘 공개 중인 글만 보인다 */
+export async function isPreview() {
+  if (!(await cookies()).get(PREVIEW_COOKIE)) return false;
+  return !!(await currentUser())?.roles.includes("owner");
+}
+
+/** 화면 글(미리 보기면 공개 전 고침까지) */
+export async function viewPages() {
+  return sitePages(await getDb(), await isPreview());
+}
+
+/** 공업사 이름·전화·주소(사업장 정보)와 홈페이지 설정을 한 번에 */
 export async function siteData() {
   const db = await getDb();
   const [shop, info, cfg] = await Promise.all([shopCard(db), loadShopInfo(db), siteConfig(db)]);
-  return { shop, ceo: info.ceo, bizNo: info.bizNo ? formatBizNo(info.bizNo) : "", cfg, mapUrl: shop.address ? `https://map.naver.com/p/search/${encodeURIComponent(shop.address.replace(/^\(\d+\)\s*/, ""))}` : "" };
+  return {
+    shop,
+    ceo: info.ceo,
+    bizNo: info.bizNo ? formatBizNo(info.bizNo) : "",
+    cfg,
+    mapUrl: shop.address ? `https://map.naver.com/p/search/${encodeURIComponent(shop.address.replace(/^\(\d+\)\s*/, ""))}` : "",
+  };
 }
 
 /** 홈페이지 화면 제목: 영어 작은 머리말 + 큰 글자 + 도움말 단추(모든 화면 도움말 규칙) */
@@ -34,6 +56,21 @@ export function SiteTitle({ help, children, sub, eyebrow }: { help: PageHelpKey;
       </h1>
       {sub && <p className="mt-3 max-w-2xl text-lg text-[var(--muted)]">{sub}</p>}
     </div>
+  );
+}
+
+/** 줄 바꿈(\n)을 그대로 보이는 제목 글(설정에서 두 줄로 적은 제목) */
+export function Lines({ text }: { text: string }) {
+  const xs = text.split("\n");
+  return (
+    <>
+      {xs.map((x, i) => (
+        <span key={i}>
+          {x}
+          {i < xs.length - 1 && <br />}
+        </span>
+      ))}
+    </>
   );
 }
 

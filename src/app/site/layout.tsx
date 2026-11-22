@@ -1,5 +1,5 @@
-// 홈페이지(jmotors.co.kr) 틀: 위 로고·메뉴, 개업 준비 띠·공지 띠, 아래 먹색 바닥줄(정비소 정보·처리방침), 휴대폰 아래 고정 단추(전화·견적 요청·길 찾기).
-// 이름·전화·주소·대표·사업자번호는 사업장 정보, 로고는 설정 › 로고·앱 아이콘, 문구는 설정 › 홈페이지에서 불러온다(다시 치지 않음).
+// 홈페이지(jmotors.co.kr) 틀: 위 로고·메뉴, 개업 준비 띠·공지 띠, 아래 먹색 바닥줄(공업사 정보·처리방침), 휴대폰 아래 고정 단추(전화·견적 요청·길 찾기).
+// 이름·전화·주소·대표·사업자번호는 사업장 정보, 로고는 설정 › 로고·앱 아이콘, 문구·메뉴·바닥글은 설정 › 홈페이지에서 불러온다(다시 치지 않음).
 // 모양은 site.css(.site 안에서만): 먹색·흰색·브랜드 빨강, 프리텐다드 글꼴(public/fonts, 필요한 글자 묶음만 받음).
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -11,7 +11,8 @@ import { daysToOpen, homepageHosts } from "@/modules/site/rules";
 import { siteUrl } from "@/modules/site/service";
 import { bannerNotice, noticeTitle } from "@/modules/site/content";
 import { siteTrust } from "@/modules/site/trust";
-import { homeHref, siteBtn, siteData } from "./_parts";
+import { homeHref, isPreview, siteBtn, siteData, viewPages } from "./_parts";
+import { previewOffAction, publishAction } from "../settings/site/actions";
 import "./site.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,27 +23,27 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: base ? { canonical: "./" } : undefined,
     verification: { google: cfg.verifyGoogle || undefined, other: cfg.verifyNaver ? { "naver-site-verification": cfg.verifyNaver } : undefined },
     title: { default: `${APP_NAME} — 찌그러짐·긁힘·도색`, template: `%s · ${APP_NAME}` },
-    description: cfg.lead || "차체 외관 수리(찌그러짐·긁힘·도색) 전문 정비소",
+    description: cfg.lead || "찌그러짐·긁힘을 판금과 도장으로 고치는 차체 수리 전문 공업사",
     openGraph: { title: APP_NAME, description: cfg.lead, type: "website", locale: "ko_KR" },
   };
 }
-
-const NAV = [
-  { href: "/about", label: "정비소 소개" },
-  { href: "/services", label: "수리 안내" },
-  { href: "/cases", label: "작업 사례" },
-  { href: "/insurance", label: "보험 수리" },
-  { href: "/tech", label: "기술자료" },
-  { href: "/faq", label: "자주 묻는 질문" },
-  { href: "/notice", label: "공지사항" },
-  { href: "/carbook-guide", label: "내 차 수첩", isNew: true },
-] as const;
 
 const NewDot = () => <span className="ml-1 rounded-full bg-[var(--red)] px-1.5 py-px align-[2px] text-[10px] font-bold leading-none text-white">NEW</span>;
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const db = await getDb();
-  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner, trust] = await Promise.all([siteData(), loadBrand(db), homeHref(), bannerNotice(db), siteTrust(db)]);
+  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner, trust, v, preview] = await Promise.all([
+    siteData(),
+    loadBrand(db),
+    homeHref(),
+    bannerNotice(db),
+    siteTrust(db),
+    viewPages(),
+    isPreview(),
+  ]);
+  // 위 메뉴·바닥글 링크는 설정 › 홈페이지 › 메뉴·바닥글에서(이름·차례·숨기기·NEW 표시)
+  const nav = v.nav.filter((n) => n.on);
+  const foot = v.foot.filter((n) => n.on);
   const [w, h] = brandSize(brand, "logo-light");
   const [dw, dh] = brandSize(brand, "logo-dark");
   const dday = daysToOpen(cfg.openOn, seoulDate());
@@ -69,6 +70,21 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           }).replace(/</g, "\\u003c"),
         }}
       />
+      {preview && (
+        // 대표가 설정 › 홈페이지에서 '미리 보기'를 켰을 때만(이 브라우저, 2시간). 손님에게는 보이지 않는다
+        <div role="status" className="relative z-40 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-[#b45309] px-4 py-2 text-center text-[13px] text-white">
+          <span>
+            <b>미리 보기</b> · 공개 전 고침이 보이는 화면입니다. 손님에게는 아직 보이지 않습니다.
+          </span>
+          <form action={publishAction}>
+            <input type="hidden" name="back" value="/settings/site/history" />
+            <button className="rounded-full bg-white px-3 py-1 font-semibold text-[#b45309]">공개하기</button>
+          </form>
+          <form action={previewOffAction}>
+            <button className="rounded-full border border-white/60 px-3 py-1 font-semibold">미리 보기 끄기</button>
+          </form>
+        </div>
+      )}
       {dday != null && (
         <p className="bg-[var(--ink)] px-4 py-2 text-center text-[13px] text-white/85">
           <span className="mr-2 font-semibold text-white">GRAND OPENING</span>
@@ -85,10 +101,14 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             </picture>
           </Link>
           <nav aria-label="홈페이지 메뉴" className="ml-auto hidden items-center gap-0.5 xl:flex">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="whitespace-nowrap rounded-full px-3 py-2 text-[15px] font-medium text-[var(--fg)]/80 transition hover:bg-[var(--surface-2)] hover:text-[var(--fg)]">
+            {nav.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                className="whitespace-nowrap rounded-full px-3 py-2 text-[15px] font-medium text-[var(--fg)]/80 transition hover:bg-[var(--surface-2)] hover:text-[var(--fg)]"
+              >
                 {n.label}
-                {"isNew" in n && <NewDot />}
+                {n.isNew && <NewDot />}
               </Link>
             ))}
             {shop.phone && (
@@ -113,10 +133,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               <Link href={home} className="block rounded-xl px-4 py-3 font-medium hover:bg-[var(--surface-2)]">
                 홈
               </Link>
-              {NAV.map((n) => (
+              {nav.map((n) => (
                 <Link key={n.href} href={n.href} className="block rounded-xl px-4 py-3 font-medium hover:bg-[var(--surface-2)]">
                   {n.label}
-                  {"isNew" in n && <NewDot />}
+                  {n.isNew && <NewDot />}
                 </Link>
               ))}
               <Link href="/request" className={`${siteBtn("red")} mt-1 w-full`}>
@@ -140,7 +160,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               {/* eslint-disable-next-line @next/next/no-img-element -- 어두운 바탕용 로고 */}
               <img src={brandUrl(brand, "logo-dark")} alt={shop.name} width={dw} height={dh} className="h-9 w-auto object-contain object-left" />
             </picture>
-            <p className="max-w-sm leading-relaxed">찌그러짐·긁힘·도색 차체 외관 수리. 사내 표준에 따라 기록하고 검사합니다.</p>
+            <p className="max-w-sm whitespace-pre-line leading-relaxed">{v.t("footer.tagline")}</p>
           </div>
           <div className="space-y-1.5">
             <p className="eyebrow mb-3 !text-white/45">CONTACT</p>
@@ -180,36 +200,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
                 개인정보 처리방침
               </Link>
             </p>
-            <p>
-              <Link href="/terms" className="hover:text-white">
-                이용약관
-              </Link>
-            </p>
-            <p>
-              <Link href="/insurance" className="hover:text-white">
-                보험 수리 안내
-              </Link>
-            </p>
-            <p>
-              <Link href="/guide" className="hover:text-white">
-                이용 안내
-              </Link>
-            </p>
-            <p>
-              <Link href="/services" className="hover:text-white">
-                수리 안내
-              </Link>
-            </p>
-            <p>
-              <Link href="/tech" className="hover:text-white">
-                기술자료
-              </Link>
-            </p>
-            <p>
-              <Link href="/carbook-guide" className="hover:text-white">
-                내 차 수첩 사용설명서
-              </Link>
-            </p>
+            {foot.map((n) => (
+              <p key={n.href}>
+                <Link href={n.href} className="hover:text-white">
+                  {n.label}
+                </Link>
+              </p>
+            ))}
             {app && (
               <p>
                 <a href={`${app}/login`} className="hover:text-white">
@@ -220,13 +217,14 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           </div>
         </div>
         <div className="border-t border-white/10">
-          <p className="mx-auto max-w-6xl px-5 py-5 text-xs text-white/45">
-            {[shop.name, ceo && `대표 ${ceo}`, bizNo && `사업자등록번호 ${bizNo}`].filter(Boolean).join(" · ")}
-          </p>
+          <p className="mx-auto max-w-6xl px-5 py-5 text-xs text-white/45">{[shop.name, ceo && `대표 ${ceo}`, bizNo && `사업자등록번호 ${bizNo}`].filter(Boolean).join(" · ")}</p>
         </div>
       </footer>
       {/* 휴대폰·태블릿: 아래 고정 단추 세 개 */}
-      <nav aria-label="바로 가기" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-[var(--line)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+      <nav
+        aria-label="바로 가기"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-[var(--line)] bg-[var(--surface)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      >
         <a href={shop.tel ? `tel:${shop.tel}` : "/about"} className="flex min-h-14 items-center justify-center text-sm font-semibold">
           전화 걸기
         </a>

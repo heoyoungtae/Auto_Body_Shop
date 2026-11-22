@@ -5,13 +5,15 @@ import { getDb } from "@/db/runtime";
 import { noticeTitle, publicNotices } from "@/modules/site/content";
 import { SiteTitle } from "../_parts";
 
-export const metadata: Metadata = { title: "공지사항", description: "휴무·영업시간·이벤트 등 정비소 소식" };
+export const metadata: Metadata = { title: "공지사항", description: "휴무·영업시간·이벤트 등 제이모터스 소식" };
 
 export default async function NoticeListPage() {
   const rows = await publicNotices(await getDb());
   return (
     <div className="mx-auto max-w-3xl">
-      <SiteTitle eyebrow="NOTICE" help="site.notice">공지사항</SiteTitle>
+      <SiteTitle eyebrow="NOTICE" help="site.notice">
+        공지사항
+      </SiteTitle>
       {!rows.length ? (
         <p className="rounded-xl bg-[var(--surface-2)] p-6 text-center text-[var(--muted)]">지금 올라온 공지가 없습니다.</p>
       ) : (
