@@ -51,7 +51,7 @@ const WORDS: [string, string][] = [
 ];
 const ALL = new RegExp(WORDS.map(([w]) => `(${w})`).join("|"), "g");
 
-function sideOf(s: string): Side {
+export function sideOf(s: string): Side {
   if (/양쪽|양측|좌우|양옆|양면/.test(s)) return "both";
   const l = /좌측|좌|왼쪽|왼|운전석|lh/.test(s);
   const r = /우측|우(?!레탄)|오른쪽|오른|조수석|동승석|rh/.test(s);

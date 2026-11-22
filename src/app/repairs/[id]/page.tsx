@@ -485,6 +485,15 @@ export default async function RepairDetail({
                       </span>
                       {portal.todo.length > 0 ? <Badge tone="warn">그쪽 앱에 등록할 것 {portal.todo.length}단계</Badge> : <Badge tone="ok">등록할 것 없음</Badge>}
                     </p>
+                    {portal.o.checked && (() => {
+                      const ls = (portal.o.checked.lines ?? []) as { skip?: boolean; items?: unknown[] }[];
+                      const dmg = ls.filter((l) => !l.skip && l.items?.length).length;
+                      return (
+                        <p className="text-xs text-[var(--muted)]">
+                          작업 내용 확인함 {portal.o.checked.at.slice(0, 10)}: 작업 항목 {ls.length}줄 = 손상 부위 {dmg} + 기타 요구 {ls.length - dmg}
+                        </p>
+                      );
+                    })()}
                     {portal.note && <p className="whitespace-pre-line text-xs text-[var(--muted)]">{portal.note}</p>}
                     {can(user, "portal.order") ? <PortalSteps v={portal} back={`/repairs/${r.id}#portal`} /> : null}
                   </div>

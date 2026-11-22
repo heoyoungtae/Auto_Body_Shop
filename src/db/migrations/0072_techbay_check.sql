@@ -1,0 +1,1 @@
+ALTER TABLE "portal_order" ADD COLUMN "checked" jsonb;

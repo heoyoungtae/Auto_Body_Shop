@@ -36,9 +36,16 @@ import {
   type PaintLayer,
   type PhotoSlot,
 } from "./rules";
-import { cleanCells, isView, shapeOf } from "./body-map";
+import { bodyOf, cleanCells, isView, shapeOf, viewsOf } from "./body-map";
+import { checkedLines, needsTechbayCheck } from "@/modules/partner/techbay-check";
 
 export class RepairError extends UserError {}
+/** 입고 전에 테크베이 작업 내용 확인 화면으로 보낸다 */
+export class TechbayCheckNeeded extends RepairError {
+  constructor(readonly consultationId: string) {
+    super("테크베이 작업 내용을 줄마다 확인한 뒤 입고합니다");
+  }
+}
 
 const clean = (s: string | null | undefined) => (s ?? "").trim() || null;
 
@@ -50,6 +57,8 @@ export async function startRepair(db: Db, actorId: string, consultationId: strin
   if (had) return { id: had.id, created: false };
   if (!c.vehicleId) throw new RepairError("상담에 차량이 없습니다. 상담의 '고치기'에서 차량번호를 넣고 다시 눌러 주세요");
   if (c.result === "declined") throw new RepairError("거절·보류된 상담입니다. 다시 온 것이면 '이 값으로 새 상담'으로 상담을 새로 쓰고 입고하세요");
+  // 테크베이 주문: 작업 항목을 줄마다 확인해야 입고한다(대표 결정 2026-11-22)
+  if (await needsTechbayCheck(db, consultationId)) throw new TechbayCheckNeeded(consultationId);
   return db.transaction(async (tx) => {
     const docNo = await branchDocNo(tx, "RO", now, c.branchId);
     const [ro] = await tx
@@ -363,12 +372,39 @@ export async function seedDiagnosis(db: Db, actorId: string, id: string) {
   const [has] = await db.select({ id: roDamage.id }).from(roDamage).where(eq(roDamage.repairOrderId, id)).limit(1);
   if (has) return 0;
   const [c] = await db.select({ damageTypes: consultation.damageTypes, zones: consultation.damageZones }).from(consultation).where(eq(consultation.id, r.consultationId));
-  const [v] = await db.select({ options: vehicle.options }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
-  const kind = c?.damageTypes.includes("찌그러짐") || !c?.damageTypes.includes("긁힘") ? "D" : "S";
-  // 같은 부위에 찍은 O 표시들은 한 줄로 묶고, 처음 찍은 면의 칸들을 위치로 옮긴다
+  const [v] = await db.select({ options: vehicle.options, bodyType: vehicle.bodyType, model: vehicle.model }).from(vehicle).where(eq(vehicle.id, r.vehicleId));
   const marks = cleanMarks(r.marks).filter((m) => m.kind === "O");
-  const parts = [...new Set(marks.map((m) => m.part))];
+  const kind = c?.damageTypes.includes("찌그러짐") || !c?.damageTypes.includes("긁힘") ? "D" : "S";
+  // 테크베이 주문을 입고 전에 확인했으면 요청 한 줄마다 진단 줄을 따로 만든다(같은 부위에 요청이 둘이면 줄도 둘)
+  const tb = await checkedLines(db, r.consultationId);
   let seq = 0;
+  const done = new Set<string>();
+  for (const l of tb ?? [])
+    for (const it of l.skip ? [] : l.items) {
+      const k = it.kind === "W" ? "S" : it.kind;
+      const s = suggestMethod({ kind: k, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
+      const method = l.method ?? s.method;
+      done.add(it.part);
+      // 입고 도면에서 그 부위를 옮겨 찍었으면 그 자리, 아니면 대표 면 가운데
+      const mv = marks.find((m) => m.part === it.part)?.view ?? null;
+      const at = mv ? { view: mv, cells: cleanCells(marks.filter((m) => m.part === it.part && m.view === mv).map((m) => m.cell)) } : { view: viewsOf(it.part, bodyOf(v))[0] ?? null, cells: [4] };
+      await db.insert(roDamage).values({
+        repairOrderId: id,
+        seq: ++seq,
+        part: it.part,
+        view: at.view,
+        cells: at.view ? at.cells : [],
+        kind: k,
+        method,
+        suggested: s.method,
+        methodReason: method !== s.method ? "업체(테크베이) 요청 방법" : null,
+        calibrate: !!needsCalibration(it.part, v?.options ?? []),
+        note: `테크베이 요청 ${l.no}번: ${l.text} — 실제 손상을 보고 크기·도장 손상을 고치세요`,
+        createdBy: actorId,
+      });
+    }
+  // 같은 부위에 찍은 O 표시들은 한 줄로 묶고, 처음 찍은 면의 칸들을 위치로 옮긴다
+  const parts = [...new Set(marks.map((m) => m.part))].filter((p) => !done.has(p));
   for (const part of parts) {
     const view = marks.find((m) => m.part === part)!.view;
     const cells = cleanCells(marks.filter((m) => m.part === part && m.view === view).map((m) => m.cell));
@@ -378,7 +414,7 @@ export async function seedDiagnosis(db: Db, actorId: string, id: string) {
     const s = suggestMethod({ kind: k, paintLayer: "none", crease: false, broken: false, structural: false, sizeCm: null });
     await db.insert(roDamage).values({ repairOrderId: id, seq: ++seq, part, view, cells, kind: k, method: s.method, suggested: s.method, calibrate: !!needsCalibration(part, v?.options ?? []), note: "입고 도면에서 불러옴 — 크기·도장 손상·도막 두께를 재어 고치세요", createdBy: actorId });
   }
-  return parts.length;
+  return seq;
 }
 
 export async function saveDamage(db: Db, actor: { id: string; roles: Role[] }, roId: string, input: DamageInput, now = new Date()) {

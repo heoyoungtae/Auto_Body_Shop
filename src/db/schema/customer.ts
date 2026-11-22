@@ -224,6 +224,8 @@ export const portalOrder = pgTable(
     consultationId: uuid("consultation_id").references(() => consultation.id),
     /** 그쪽 앱에 등록한 진행 상태 */
     posted: jsonb("posted").$type<{ step: string; at: string; by: string; note?: string }[]>().notNull().default([]),
+    /** 입고로 넘길 때 확인한 작업 항목 풀이(대표 결정 2026-11-22). 비면 아직 확인 안 함 */
+    checked: jsonb("checked").$type<{ at: string; by: string; lines: unknown[] }>(),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
   },
