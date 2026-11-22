@@ -5,10 +5,11 @@ import { requireUser } from "../../_lib/session";
 import { NumberField, RadioRow, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle, fmtTime } from "../../_ui";
-import { blockIpAction, requestUpdateAction, setAutoUpdateAction, setGeoBlockAction, unblockIpAction } from "./actions";
+import { blockIpAction, requestModeAction, requestUpdateAction, setAutoUpdateAction, setGeoBlockAction, unblockIpAction } from "./actions";
 import { RULES, securityView } from "@/modules/platform/security";
 import { certDays } from "@/modules/platform/server-ops";
 import { UpdateWatch } from "./_watch";
+import { AutoRefresh } from "./_refresh";
 import { Spark, type SparkPoint } from "./_spark";
 import { fmtBps, fmtBytes, fmtValue } from "./_fmt";
 import type { Sample } from "@/modules/platform/server-ops";
@@ -363,6 +364,76 @@ export default async function ServerSettingsPage({ searchParams }: { searchParam
                 </details>
               )}
             </div>
+          </Card>
+        </div>
+      )}
+      {owner && st && (
+        <div className="mt-4" id="mode">
+          <Card title="접속 방식" help={{ kind: "panel", id: "server.mode" }}>
+            <AutoRefresh active={v.mode.pending || v.mode.running} />
+            {(() => {
+              const other = direct ? "tunnel" : "direct";
+              const busy = v.mode.pending || v.mode.running;
+              const why = v.silent
+                ? "서버 소식이 끊겨 있어 바꿀 수 없습니다"
+                : v.pending || v.running
+                  ? "새 버전을 올리는 중이라 끝난 뒤 바꿀 수 있습니다"
+                  : other === "tunnel" && !st.tunnelReady
+                    ? "서버에 터널 토큰이 없어 터널로 바꿀 수 없습니다(서버 설명서 3단계)"
+                    : !st.cfReady
+                      ? "서버에 클라우드플레어 API 토큰이 없습니다. 설정 › 도메인에서 먼저 넣어 주세요"
+                      : "";
+              const r = v.mode.result;
+              return (
+                <div className="space-y-3 text-sm">
+                  <p>
+                    지금: <Badge tone="ok">{MODE[st.mode] ?? (st.mode || "-")}</Badge>{" "}
+                    <span className="text-[var(--muted)]">
+                      {direct ? "공유기 443번으로 미니 PC에 바로 들어옵니다(빠름)." : "클라우드플레어를 거쳐 들어옵니다(공유기 포트를 열지 않음, 조금 느림)."}
+                    </span>
+                  </p>
+                  {busy ? (
+                    <Notice>
+                      {MODE[v.mode.req?.to ?? ""] ?? ""}(으)로 {v.mode.running ? "바꾸는 중입니다(1~5분)" : "바꾸기를 요청했습니다. 서버가 몇 초 안에 받아 갑니다"}. 그동안 앱이 잠시 안 열릴 수 있습니다. 안 되면 원래 방식으로 저절로 되돌아갑니다.
+                    </Notice>
+                  ) : (
+                    <form action={requestModeAction} className="space-y-1">
+                      <input type="hidden" name="to" value={other} />
+                      <SubmitButton variant="secondary" disabled={!!why}>
+                        {MODE[other]}(으)로 바꾸기
+                      </SubmitButton>
+                      <p className="text-xs text-[var(--muted)]">
+                        {why ||
+                          (other === "tunnel"
+                            ? "공격이 몰리거나 공유기를 바꿀 때처럼 직접 접속이 어려울 때 씁니다. 메뉴가 0.3~0.5초쯤 느려집니다."
+                            : "공유기 443 포트 포워딩이 되어 있어야 합니다. 서버가 확인하고, 안 되면 터널로 되돌립니다.")}
+                      </p>
+                    </form>
+                  )}
+                  {r && (
+                    <p className="text-xs">
+                      지난 바꾸기 {fmtTime(r.at)}: {r.ok ? <Badge tone="ok">성공</Badge> : <Badge tone="danger">실패</Badge>} {r.message}
+                    </p>
+                  )}
+                  {direct && (
+                    <p>
+                      http:// 넘기기:{" "}
+                      {st.http80 === "ok" ? (
+                        <>
+                          <Badge tone="ok">켜짐</Badge> http:// 로 열거나 주소만 보내도 https:// 로 넘어갑니다.
+                        </>
+                      ) : st.http80 === "closed" ? (
+                        <>
+                          <Badge tone="warn">공유기 설정 필요</Badge> 공유기 포트 포워딩에 <b>외부 80 → 내부 IP {st.lanIp || "(미니 PC 주소)"}, 내부 80, TCP</b> 한 줄을 더 넣어 주세요(서버 설명서 9-1). 넣으면 10분 안에 여기 &apos;켜짐&apos;으로 바뀝니다.
+                        </>
+                      ) : (
+                        <span className="text-[var(--muted)]">새 버전이 올라간 뒤 10분 안에 확인합니다.</span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </Card>
         </div>
       )}

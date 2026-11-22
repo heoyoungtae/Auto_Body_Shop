@@ -59,7 +59,15 @@ export type ServerStatus = {
   siteHost: string; // 앱 주소(app.jmotors.co.kr)
   dnsIp: string; // 앱 주소가 가리키는 IP
   certUntil: string; // 보안 접속 인증서가 끝나는 때(ISO)
+  // 접속 방식 바꾸기·http 넘기기(대표 2026-11-22)
+  http80: string; // ok = 공유기 80 이 열려 http:// 가 https:// 로 넘어감, closed = 안 열림, "" = 모름(터널)
+  tunnelReady: boolean; // 터널 토큰이 있어 터널로 바꿀 수 있음
+  cfReady: boolean; // 클라우드플레어 API 토큰이 있어 직접 접속으로 바꿀 수 있음
 };
+export type AccessMode = "direct" | "tunnel";
+export const MODE_LABEL: Record<AccessMode, string> = { direct: "국내 직접 접속", tunnel: "클라우드플레어 터널" };
+export type ModeRequest = { to: AccessMode; at: string; by: string | null; taken: string | null };
+export type ModeResult = { at: string; ok: boolean; to: AccessMode; message: string };
 /** 인증서 남은 날(모르면 null) */
 export function certDays(st: { certUntil?: string } | null, now = Date.now()) {
   const t = st?.certUntil ? Date.parse(st.certUntil) : NaN;
@@ -172,6 +180,8 @@ type Data = {
   series?: Sample[];
   ddns?: DdnsEvent[];
   lastBuildSec?: number | null;
+  modeReq?: ModeRequest | null;
+  modeResult?: ModeResult | null;
   auto?: AutoUpdate; status?: ServerStatus & { at: string }; request?: UpdateRequest | null; result?: UpdateResult | null; history?: UpdateEvent[] };
 
 async function load(db: Db): Promise<Data> {
@@ -202,7 +212,12 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   const series = d.series ?? [];
   // 새 버전이 없으면 올릴 것이 없다(대표 2026-11-20). 미니 PC 가 1분마다 GitHub 끝 번호를 보므로 최신인지 바로 안다
   const upToDate = !!d.status?.latest && d.status.behind === 0;
-  return { ddns: d.ddns ?? [], upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin, now), auto: d.auto ?? AUTO_DEFAULT, history: (d.history ?? []).map((e) => ({ ...e, changes: e.changes.filter((c) => isChangeTitle(c.title)) })), status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  // 접속 방식 바꾸기: 요청 뒤 15분 안 가져감 = 기다림, 가져간 뒤 20분 안 결과 없음 = 바꾸는 중
+  const mr = d.modeReq ?? null;
+  const modePending = !!mr && !mr.taken && now - Date.parse(mr.at) < 15 * 60_000;
+  const modeRunning = !!mr?.taken && (!d.modeResult || Date.parse(d.modeResult.at) < Date.parse(mr.taken)) && now - Date.parse(mr.taken) < 20 * 60_000;
+  const mode = { req: mr, pending: modePending, running: modeRunning, result: d.modeResult ?? null };
+  return { mode, ddns: d.ddns ?? [], upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin, now), auto: d.auto ?? AUTO_DEFAULT, history: (d.history ?? []).map((e) => ({ ...e, changes: e.changes.filter((c) => isChangeTitle(c.title)) })), status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -229,6 +244,25 @@ export async function requestUpdate(db: Db, actor: Actor, now = new Date()) {
   await save(db, { ...d, request }, actor.id);
   await writeAudit(db, { actorId: actor.id, action: "server.update_request", entityType: "app_config", entityId: KEY, after: request });
   return request;
+}
+
+/** 대표만. 접속 방식 바꾸기(대표 2026-11-22). 미니 PC 가 몇 초 안에 받아 direct.sh 를 돌린다. 안 되면 원래 방식으로 저절로 돌아간다 */
+export async function requestModeChange(db: Db, actor: Actor, to: string, now = new Date()) {
+  if (!actor.roles.includes("owner")) throw new UserError("접속 방식 바꾸기는 대표만 합니다");
+  if (to !== "direct" && to !== "tunnel") throw new UserError("알 수 없는 접속 방식입니다");
+  const v = await serverOpsView(db, now.getTime());
+  const st = v.status;
+  if (!st || v.silent) throw new UserError("서버 소식이 끊겨 있어 바꿀 수 없습니다");
+  if (st.mode === to) throw new UserError(`이미 ${MODE_LABEL[to]}입니다`);
+  if (v.mode.pending || v.mode.running) throw new UserError("접속 방식을 바꾸는 중입니다. 끝나면 이 화면에 뜹니다");
+  if (v.running || v.pending) throw new UserError("새 버전을 올리는 중입니다. 끝난 뒤 바꿔 주세요");
+  if (to === "tunnel" && !st.tunnelReady) throw new UserError("서버에 터널 토큰이 없어 터널로 바꿀 수 없습니다(서버 설명서 3단계)");
+  if (!st.cfReady) throw new UserError("서버에 클라우드플레어 API 토큰이 없습니다. 설정 › 도메인에서 먼저 넣어 주세요");
+  const d = await load(db);
+  const modeReq: ModeRequest = { to, at: now.toISOString(), by: actor.id, taken: null };
+  await save(db, { ...d, modeReq }, actor.id);
+  await writeAudit(db, { actorId: actor.id, action: "server.mode_request", entityType: "app_config", entityId: KEY, before: { mode: st.mode }, after: modeReq });
+  return modeReq;
 }
 
 const s = (x: unknown, n = 200) => String(x ?? "").replace(/[\u0000-\u001f]/g, " ").slice(0, n);
@@ -273,6 +307,9 @@ function cleanStatus(b: Record<string, unknown>): ServerStatus {
     siteHost: s(b.siteHost, 120),
     dnsIp: /^[0-9.]{7,15}$/.test(String(b.dnsIp ?? "")) ? String(b.dnsIp) : "",
     certUntil: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/.test(String(b.certUntil ?? "")) ? String(b.certUntil) : "",
+    http80: b.http80 === "ok" || b.http80 === "closed" ? b.http80 : "",
+    tunnelReady: b.tunnelReady === true,
+    cfReady: b.cfReady === true,
   };
 }
 function num(x: unknown, max: number) {
@@ -300,7 +337,7 @@ function cleanEvent(x: unknown): UpdateEvent | null {
  *  돌려주는 update=true 면 agent 가 update.sh 를 돌린다(요청은 가져간 것으로 표시) */
 export async function agentReport(
   db: Db,
-  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[]; hot?: unknown; krRanges?: unknown; ddns?: unknown[]; domainInfo?: unknown; cfTokenResult?: unknown },
+  body: { status?: Record<string, unknown>; result?: { ok?: unknown; message?: unknown }; events?: unknown[]; progress?: { stage?: unknown }; labels?: Record<string, unknown>; poll?: unknown; serverErrors?: unknown[]; hot?: unknown; krRanges?: unknown; ddns?: unknown[]; domainInfo?: unknown; cfTokenResult?: unknown; modeResult?: { ok?: unknown; to?: unknown; message?: unknown } },
   now = new Date(),
 ) {
   // 짧은 확인(대표 2026-11-20 "1분 기다림이 왜 필요한가"): 미니 PC 가 1분 사이사이 5초마다 올리기 요청만 묻는다.
@@ -308,7 +345,9 @@ export async function agentReport(
   if (body.poll) {
     const p = await load(db);
     const r = p.request;
-    if (!r || r.taken || now.getTime() - Date.parse(r.at) >= 60 * 60_000) return { update: false, auto: p.auto ?? AUTO_DEFAULT };
+    const m = p.modeReq;
+    const modeWaiting = !!m && !m.taken && now.getTime() - Date.parse(m.at) < 15 * 60_000;
+    if ((!r || r.taken || now.getTime() - Date.parse(r.at) >= 60 * 60_000) && !modeWaiting) return { update: false, auto: p.auto ?? AUTO_DEFAULT };
     body = {};
   }
   // 서버 오류(대표 2026-11-20 '오류 기록'): 미니 PC 가 앱·DB·관문·시스템 출력에서 고른 오류 줄. 한 번에 50줄까지
@@ -416,6 +455,23 @@ export async function agentReport(
     await writeAudit(db, { actorId: null, action: result.ok ? "server.update_ok" : "server.update_failed", entityType: "app_config", entityId: KEY, after: result });
     if (!result.ok) await notifyRole(db, "owner", `새 버전 올리기 실패: ${result.message}`, `server-update:${result.at.slice(0, 16)}`, "/settings/server");
   }
+  // 접속 방식 바꾸기 결과
+  if (body.modeResult && typeof body.modeResult === "object") {
+    const to: AccessMode = body.modeResult.to === "tunnel" ? "tunnel" : "direct";
+    const mres: ModeResult = { at: now.toISOString(), ok: body.modeResult.ok === true, to, message: s(body.modeResult.message, 300) };
+    next.modeResult = mres;
+    if (mres.ok && next.status) next.status = { ...next.status, mode: to };
+    await writeAudit(db, { actorId: null, action: mres.ok ? "server.mode_ok" : "server.mode_failed", entityType: "app_config", entityId: KEY, after: mres });
+    await notifyRole(db, "owner", mres.ok ? `접속 방식을 ${MODE_LABEL[to]}(으)로 바꿨습니다` : `접속 방식 바꾸기 실패: ${mres.message}. 원래 방식으로 되돌렸습니다`, `server-mode:${mres.at}`, "/settings/server");
+  }
+  let modeTo: AccessMode | null = null;
+  const mreq = d.modeReq;
+  // 새 버전 올리기와 겹치지 않게(올리기 요청이 먼저면 그다음 차례에)
+  const updWaiting = !!d.request && !d.request.taken && now.getTime() - Date.parse(d.request.at) < 60 * 60_000;
+  if (mreq && !mreq.taken && now.getTime() - Date.parse(mreq.at) < 15 * 60_000 && !updWaiting) {
+    next.modeReq = { ...mreq, taken: now.toISOString() };
+    modeTo = mreq.to;
+  }
   let update = false;
   const req = d.request;
   if (req && !req.taken && now.getTime() - Date.parse(req.at) < 60 * 60_000) {
@@ -438,5 +494,5 @@ export async function agentReport(
   const blocked = await blockedIps(db, now.getTime());
   // 대표가 앱에서 넣은 새 클라우드플레어 토큰(이 PC 안에서만 오가는 응답). 미니 PC 가 확인해 .env 에 저장하고 결과를 알린다
   const cfTokenNew = await pendingCfToken(db, now);
-  return { update, auto: d.auto ?? AUTO_DEFAULT, blocked, ...(cfTokenNew ? { cfTokenNew } : {}), ...((await needKr(db, now)) ? { needKr: true } : {}), ...(labelsFor.length && !body.labels ? { labelsFor } : {}) };
+  return { update, auto: d.auto ?? AUTO_DEFAULT, ...(modeTo ? { modeTo } : {}), blocked, ...(cfTokenNew ? { cfTokenNew } : {}), ...((await needKr(db, now)) ? { needKr: true } : {}), ...(labelsFor.length && !body.labels ? { labelsFor } : {}) };
 }

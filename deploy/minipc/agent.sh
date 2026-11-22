@@ -109,7 +109,13 @@ if [ ! -f "$STATE/slow" ] || [ -n "$(find "$STATE/slow" -mmin +9 2>/dev/null)" ]
     certend=$(echo | timeout 10 openssl s_client -connect 127.0.0.1:443 -servername "$SITE_HOST" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | sed -n 's/^notAfter=//p')
     [ -n "$certend" ] && certuntil=$(date -u -d "$certend" +%Y-%m-%dT%H:%MZ 2>/dev/null)
   fi
-  printf 'dnsip=%s\ncertuntil=%s\n' "$dnsip" "$certuntil" > "$STATE/slow.domain"
+  # http:// 넘기기(대표 2026-11-22): 공유기 80번이 이 PC 로 열려 있으면 Caddy 가 https:// 로 넘긴다. 바깥 주소로 다시 들어와 확인
+  http80=""
+  if [ "${DIRECT:-}" = 1 ] && [ -n "${SITE_HOST:-}" ] && [ -n "$pub" ]; then
+    loc=$(curl -s -o /dev/null -m 8 -w '%{redirect_url}' --resolve "$SITE_HOST:80:$pub" "http://$SITE_HOST/login" 2>/dev/null)
+    case "$loc" in "https://$SITE_HOST"*) http80=ok;; *) http80=closed;; esac
+  fi
+  printf 'dnsip=%s\ncertuntil=%s\nhttp80=%s\n' "$dnsip" "$certuntil" "$http80" > "$STATE/slow.domain"
   latestlabel=""; [ -n "$latest" ] && latestlabel=$(verlabel FETCH_HEAD)
   printf 'latestlabel=%s\n' "$latestlabel" > "$STATE/slow.label"
   printf 'latest=%s\nbehind=%s\npub=%s\nssdlife=%s\nssdtemp=%s\nssdok=%s\n' "$latest" "$behind" "$pub" "${ssdlife:--1}" "${ssdtemp:--1}" "${ssdok:-true}" > "$STATE/slow"
@@ -195,7 +201,9 @@ status=$(jq -nc \
 status=$(jq -c --argjson p "$(cat "$STATE/pending.json" 2>/dev/null || echo '[]')" --argjson w "$web" \
   --argjson appMs "$(num "$appms")" --argjson rxBytes "$(num "$rxb")" --argjson txBytes "$(num "$txb")" --argjson netSec "$(num "$netsec")" \
   --arg siteHost "${SITE_HOST:-}" --arg dnsIp "$(sed -n 's/^dnsip=//p' "$STATE/slow.domain" 2>/dev/null)" --arg certUntil "$(sed -n 's/^certuntil=//p' "$STATE/slow.domain" 2>/dev/null)" \
-  '. + {pending: $p} + $w + {appMs: $appMs, rxBytes: $rxBytes, txBytes: $txBytes, netSec: $netSec, siteHost: $siteHost, dnsIp: $dnsIp, certUntil: $certUntil}' <<<"$status")
+  --arg http80 "$(sed -n 's/^http80=//p' "$STATE/slow.domain" 2>/dev/null)" \
+  --argjson tunnelReady "$([ -n "${TUNNEL_TOKEN:-}" ] && echo true || echo false)" --argjson cfReady "$([ -n "${CF_API_TOKEN:-}" ] && echo true || echo false)" \
+  '. + {pending: $p} + $w + {appMs: $appMs, rxBytes: $rxBytes, txBytes: $txBytes, netSec: $netSec, siteHost: $siteHost, dnsIp: $dnsIp, certUntil: $certUntil, http80: $http80, tunnelReady: $tunnelReady, cfReady: $cfReady}' <<<"$status")
 post() { curl -fsS -m 30 -X POST -H "Authorization: Bearer $JOBS_TOKEN" -H 'Content-Type: application/json' -d "$1" "$URL" 2>/dev/null; }
 events=$(history_events)
 # 오류 줄 모으기(대표 2026-11-20 '오류 기록'): 지난번 뒤로 새로 생긴 줄 중 오류만 골라 50줄까지 보낸다.
@@ -306,10 +314,30 @@ fi
 
 # 올리기 요청은 1분을 기다리지 않게(대표 2026-11-20): 할 일이 없으면 이 차례가 끝나기 전(시작 50초까지) 5초마다 요청만 묻는다.
 # 같은 PC 안에서 오가는 짧은 확인이고, 요청이 없으면 앱은 아무것도 저장하지 않는다. 다음 차례와 겹치지 않게 50초에서 멈춘다
-while [ -z "$want" ] && [ "$(jq -r '.update // false' <<<"${res:-null}" 2>/dev/null)" != true ] && [ "$SECONDS" -lt 50 ]; do
+while [ -z "$want" ] && [ "$(jq -r '.update // false' <<<"${res:-null}" 2>/dev/null)" != true ] && [ -z "$(jq -r '.modeTo // empty' <<<"${res:-null}" 2>/dev/null)" ] && [ "$SECONDS" -lt 50 ]; do
   sleep 5
   res=$(post '{"poll":true}') || res=""
 done
+
+# 접속 방식 바꾸기(대표 2026-11-22): 앱 설정 › 서버의 단추. direct.sh 를 묻지 않고(AUTO=1) 돌린다.
+# 안 되면 direct.sh 가 스스로 원래 방식으로 되돌린다. 이 PC 안 주소(127.0.0.1)로 결과를 알리므로 바꾸는 중에도 알릴 수 있다
+mode_to=$(jq -r '.modeTo // empty' <<<"${res:-null}" 2>/dev/null)
+if [ "$mode_to" = direct ] || [ "$mode_to" = tunnel ]; then
+  mlog="$HOME/mode.log"
+  echo "$(TZ=Asia/Seoul date '+%F %R') 앱에서 접속 방식 바꾸기 요청: $mode_to" >> "$mlog"
+  if [ "$mode_to" = direct ]; then AUTO=1 timeout 900 bash "$DEPLOY/minipc/direct.sh" < /dev/null >> "$mlog" 2>&1; rc=$?
+  else AUTO=1 timeout 600 bash "$DEPLOY/minipc/direct.sh" off < /dev/null >> "$mlog" 2>&1; rc=$?; fi
+  lines=$(tail -n 60 "$mlog" | sed 's/\x1b\[[0-9;]*m//g')
+  if [ "$rc" = 0 ]; then mok=true; mmsg=$(grep '✔' <<<"$lines" | tail -n 1)
+  else mok=false; mmsg=$(grep '✘' <<<"$lines" | tail -n 1); [ "$rc" = 124 ] && mmsg="시간이 너무 오래 걸려 멈췄습니다"; fi
+  mmsg=$(sed 's/^ *[✔✘] *//' <<<"${mmsg:-끝남(코드 $rc)}")
+  echo "$(TZ=Asia/Seoul date '+%F %R') 결과: $mok $mmsg" >> "$mlog"
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    post "$(jq -nc --argjson ok $mok --arg to "$mode_to" --arg m "$mmsg" '{modeResult:{ok:$ok,to:$to,message:$m}}')" >/dev/null && break
+    sleep 10
+  done
+  return 0
+fi
 
 if [ "$(jq -r '.update // false' <<<"${res:-null}" 2>/dev/null)" = true ]; then
   # 대표가 '지금 새 버전 올리기'를 눌렀다

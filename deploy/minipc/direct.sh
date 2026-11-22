@@ -5,6 +5,8 @@
 # 사용(관리자 abs 계정 터미널):
 #   bash ~/auto-body-shop/deploy/minipc/direct.sh        켜기
 #   bash ~/auto-body-shop/deploy/minipc/direct.sh off    끄기(터널로 되돌리기)
+# 앱 설정 › 서버의 '접속 방식 바꾸기' 단추(대표 2026-11-22)는 agent.sh 가 AUTO=1 로 돌린다: 아무것도 묻지 않고,
+#   공유기 포트가 열렸는지는 바깥 주소로 다시 들어와(NAT 루프백) 확인한다. 안 되면 원래 방식으로 되돌린다.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 DEPLOY="$PWD"
@@ -38,12 +40,30 @@ back_to_tunnel() {
   ok "터널로 돌아왔습니다. 1~2분 뒤 https://$SITE_HOST 를 열어 보세요."
 }
 
+# 터널이 클라우드플레어에 붙었는지(최대 2분)
+tunnel_up() {
+  for i in $(seq 1 24); do
+    sudo docker compose logs --since 3m tunnel 2>/dev/null | grep -q 'Registered tunnel connection' && return 0
+    sleep 5
+  done
+  return 1
+}
+
 if [ "${1:-}" = off ]; then
-  [ -n "${CF_API_TOKEN:-}" ] || { echo "API 토큰이 없습니다"; exit 1; }
-  back_to_tunnel; exit 0
+  [ -n "${CF_API_TOKEN:-}" ] || { bad "클라우드플레어 API 토큰이 없습니다(설정 › 도메인에서 넣기)"; exit 1; }
+  [ -n "${TUNNEL_TOKEN:-}" ] || { bad "터널 토큰이 없어 터널로 바꿀 수 없습니다(설명서 3단계)"; exit 1; }
+  back_to_tunnel
+  if [ "${AUTO:-}" = 1 ]; then
+    if tunnel_up; then ok "클라우드플레어 터널로 바꿨습니다"; exit 0; fi
+    bad "터널이 클라우드플레어에 붙지 않아 국내 직접 접속으로 되돌렸습니다(터널 토큰 확인)"
+    AUTO=1 bash "$0" < /dev/null >/dev/null 2>&1
+    exit 1
+  fi
+  exit 0
 fi
 
 say "1/6 클라우드플레어 API 토큰"
+if [ -z "${CF_API_TOKEN:-}" ] && [ "${AUTO:-}" = 1 ]; then bad "클라우드플레어 API 토큰이 없습니다. 설정 › 도메인에서 넣어 주세요"; exit 1; fi
 if [ -z "${CF_API_TOKEN:-}" ]; then
   read -r -s -p "  설명서 9-2에서 만든 API 토큰을 붙여 넣고 Enter(화면에 안 보임): " t; echo
   CF_API_TOKEN="${t//[[:space:]]/}"
@@ -51,6 +71,7 @@ fi
 cf GET /user/tokens/verify >/dev/null 2>&1 || { bad "토큰이 맞지 않습니다. 다시 만들어 붙여 넣으세요"; exit 1; }
 setenv "CF_API_TOKEN=$CF_API_TOKEN"   # 토큰은 한 번만 보이므로 맞으면 바로 저장(다음 실행 때 다시 안 물음)
 ZONE_ID=$(cf_zone_id)
+if [ -z "$ZONE_ID" ] && [ "${AUTO:-}" = 1 ]; then bad "토큰으로 ${SITE_HOST#*.} 영역을 찾지 못했습니다. 미니 PC 에서 direct.sh 를 한 번 직접 돌려 주세요"; exit 1; fi
 if [ -z "$ZONE_ID" ]; then
   echo "  영역(Zone) ID 를 자동으로 못 찾았습니다."
   echo "  클라우드플레어 첫 화면 › 도메인(${SITE_HOST#*.}) 누르기 › 오른쪽 아래 'API' 칸의 Zone ID 옆 복사(Click to copy)"
@@ -81,11 +102,14 @@ if [ -n "$con" ]; then
 fi
 case "$pub" in 10.*|100.6[4-9].*|100.[7-9]?.*|100.1[01]?.*|100.12[0-7].*|172.1[6-9].*|172.2?.*|172.3[01].*|192.168.*)
   bad "공인 IP 가 사설 주소입니다. 인터넷 회사 쪽에서 막혀 직접 접속을 쓸 수 없습니다(터널을 계속 쓰세요)"; exit 1;; esac
-echo
-echo "  공유기(KT 기가 와이파이)에서 아래처럼 포트 포워딩을 해 두었나요? (설명서 9-1)"
-echo "     외부 포트 443 → 내부 IP $lan, 내부 포트 443, TCP"
-read -r -p "  해 두었으면 yes: " a
-[ "$a" = yes ] || { echo "  공유기 설정을 먼저 하고 다시 실행하세요."; exit 1; }
+if [ "${AUTO:-}" != 1 ]; then
+  echo
+  echo "  공유기(KT 기가 와이파이)에서 아래처럼 포트 포워딩을 해 두었나요? (설명서 9-1)"
+  echo "     외부 포트 443 → 내부 IP $lan, 내부 포트 443, TCP"
+  echo "     (권장) 외부 포트 80 → 내부 IP $lan, 내부 포트 80, TCP   ← http:// 로 열어도 https:// 로 넘어가게"
+  read -r -p "  해 두었으면 yes: " a
+  [ "$a" = yes ] || { echo "  공유기 설정을 먼저 하고 다시 실행하세요."; exit 1; }
+fi
 
 say "3/6 클라우드플레어 DNS 를 공업사 주소로 바꾸기"
 rec=$(cf_record)
@@ -116,6 +140,8 @@ ok "인증서 받음(밖에서 443 으로 들어오는 길이 열려 있음)"
 hair=$(curl -s -o /dev/null -m 10 -w '%{http_code}' --resolve "$SITE_HOST:443:$pub" "https://$SITE_HOST/login" || true)
 if [ "$hair" = 200 ]; then ok "공업사 안(와이파이)에서도 같은 주소로 열림"; else
   bad "공업사 안에서 바깥 주소로 다시 들어오는 기능(NAT 루프백)이 공유기에서 막혀 있습니다. 와이파이에 연결한 휴대폰은 열리지 않습니다."
+  # 단추로 바꿀 때는 이것으로 공유기 443 이 열렸는지 확인하므로, 안 되면 되돌린다
+  if [ "${AUTO:-}" = 1 ]; then bad "공유기 443 포트 포워딩(→ $lan)이 확인되지 않아 터널로 되돌렸습니다"; back_to_tunnel; exit 1; fi
   read -r -p "  그래도 계속할까요? 아니면 터널로 되돌릴까요? (계속=yes, 되돌리기=Enter): " a
   [ "$a" = yes ] || { back_to_tunnel; exit 1; }
 fi
@@ -129,6 +155,7 @@ sudo chmod 644 /etc/cron.d/auto-body-shop-ddns
 sudo docker compose stop tunnel >/dev/null 2>&1 || true
 ok "등록함(기록 ~/ddns.log)"
 
+if [ "${AUTO:-}" = 1 ]; then ok "국내 직접 접속으로 바꿨습니다"; exit 0; fi
 cat <<DONE
 
 ==================================================================

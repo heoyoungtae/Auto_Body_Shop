@@ -79,6 +79,8 @@ services:
     logging: *log
     ports:
       - "443:443"
+      # http:// 로 열면 https:// 로 넘기기만 한다(대표 2026-11-22). 공유기에서 80 도 이 PC 로 열어야 밖에서 쓰인다
+      - "80:80"
     environment:
       SITE_HOST: ${SITE_HOST}
     volumes:
