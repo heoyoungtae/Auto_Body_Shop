@@ -33,6 +33,14 @@ describe("기술자료", () => {
     await expect(loadArticleStarters(db, tech())).rejects.toThrow(/상담을 쓸 수 있는/);
   });
 
+  it("처음 여는 화면이 글을 동시에 여러 번 읽어도 모두 채워진 목록을 본다", async () => {
+    const [a, b, c] = await Promise.all([publicArticles(db), featuredArticles(db, 3), readArticle(db, "rust-stages")]);
+    expect(a).toHaveLength(ARTICLE_STARTERS.length);
+    expect(b).toHaveLength(3);
+    expect(c).not.toBeNull();
+    expect(await listArticles(db)).toHaveLength(ARTICLE_STARTERS.length);
+  });
+
   it("공개한 글만 보이고, 낱말로 찾고, 분야마다 하나씩 홈에 띄운다", async () => {
     expect((await publicArticles(db)).length).toBe(ARTICLE_STARTERS.length);
     expect((await publicArticles(db, "염화 칼슘")).map((a) => a.slug)).toEqual(["winter-salt"]);

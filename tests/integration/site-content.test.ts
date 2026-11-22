@@ -72,6 +72,13 @@ describe("자주 묻는 질문", () => {
     await expect(loadFaqStarters(db, tech())).rejects.toThrow(/상담을 쓸 수 있는/);
   });
 
+  it("처음 여는 화면이 질문을 동시에 두 번 읽어도 둘 다 채워진 목록을 본다", async () => {
+    const [a, b] = await Promise.all([publicFaqs(db), publicFaqs(db, "보험")]);
+    expect(a).toHaveLength(FAQ_STARTERS.length);
+    expect(b.length).toBeGreaterThan(0);
+    expect(await db.select().from(schema.siteFaq)).toHaveLength(FAQ_STARTERS.length);
+  });
+
   it("예전에 '공개 안 함'으로 불러 둔 초안만 있으면 처음 열 때 공개로 바꾼다", async () => {
     const now = new Date();
     await db.insert(schema.siteFaq).values(FAQ_STARTERS.slice(0, 3).map((x, i) => ({ category: x.category, question: x.q, answer: "답", sort: i, published: false, origin: "starter", starterKey: x.key, createdAt: now, updatedAt: now })));
