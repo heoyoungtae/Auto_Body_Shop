@@ -1,5 +1,5 @@
 // 설정 › 홈페이지 › 첫 화면(대표): 단락 차례·보이기, 배경 어둡기·숫자 칸, 단락마다 머리말·제목·설명·목록 고치기.
-// 처음 문구는 modules/site/page-text.ts, 고친 것만 app_config 'site_pages'에 남는다. 배경 사진 고르기는 홈페이지 글 › 후기·사진·인증.
+// 처음 문구는 modules/site/page-text.ts, 고친 것만 app_config 'site_pages'에 남는다. 배경 사진 고르기는 홈페이지 › 후기·사진·인증.
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
@@ -82,7 +82,7 @@ export default async function SiteHomeSettingsPage({ searchParams }: { searchPar
               <p className="text-xs text-[var(--muted)]">
                 배경 사진은{" "}
                 <Link href="/homepage/trust" className="text-[var(--accent)] underline">
-                  홈페이지 글 › 후기·사진·인증
+                  홈페이지 › 후기·사진·인증
                 </Link>
                 에서 고르고, 큰 글·설명은{" "}
                 <Link href="/settings/site" className="text-[var(--accent)] underline">
