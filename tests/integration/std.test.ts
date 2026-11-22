@@ -90,6 +90,10 @@ describe("사내 표준서", () => {
       expect(rows.find((r) => r.key === "o:13.1")!.history).toEqual([]);
     } finally {
       DRAFT_PATCHES["o:13.1"].pop();
-    }
+    }    // 바뀐 절 제목도 예전 제목 그대로일 때만 새 제목으로(덴트·광택 뺌, 2026-11-22)
+    await db.update(stdSection).set({ title: "작업 표준 절차서(판금·덴트·도장·광택)" }).where(eq(stdSection.key, "p:STD-04"));
+    expect(await patchDraftStd(db)).toBe(1);
+    const [std04] = await db.select().from(stdSection).where(eq(stdSection.key, "p:STD-04"));
+    expect(std04.title).toBe("작업 표준 절차서(판금·도장)");
   });
 });

@@ -72,15 +72,15 @@ export function bodyMark(t: string) {
  */
 export const DRAFT_PATCHES: Record<string, string[]> = {
   // 내 차 수첩(고객용 차계부) 반영 2026-11-21
-  "o:13.1": ["df0b9024"],
+  "o:13.1": ["df0b9024", "be27d963"],
   "o:13.2": ["5a1a34e"],
   "o:13.4": ["8ea2fb1d"],
   "p:STD-13:4": ["89a79ab8"],
   "p:STD-13:5": ["f199ddaa"],
   "p:STD-13:6": ["974bb978"],
-  "p:STD-13:7": ["c98e9d04"],
+  "p:STD-13:7": ["c98e9d04", "6b591734"],
   "p:STD-13:10": ["b79b1a82"],
-  "f:F-13-01": ["88a9d01e"],
+  "f:F-13-01": ["88a9d01e", "90b61995"],
   // 문서·기록관리 개선(공문·수발신 대장 F-Q-11·F-Q-12) 2026-11-21
   "o:Q.5": ["dee70768"],
   "p:STD-Q:7": ["9eb0bfb4"],
@@ -90,6 +90,47 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "a:C": ["5c35e13d"],
   "p:STD-Q:6": ["4f1045f"],
   "p:STD-Q:8": ["c4776d9c"],
+  // 공업사(정비소 아님)·덴트·광택 안 함·소형자동차종합정비업(대표 2026-11-22)
+  "o:info": ["97a7e42d"],
+  "o:0.2": ["d92c91c4"],
+  "o:0.3": ["73c2bc20"],
+  "o:0.5": ["959d7ff0"],
+  "o:2.2": ["fb23a5c0"],
+  "o:4.2": ["93b49b1c"],
+  "o:6.1": ["83c90784"],
+  "o:8.7": ["79cfd28d"],
+  "o:8.8": ["9a987d08"],
+  "a:D": ["7d9454ed"],
+  "p:STD-00:2": ["23f8cf4c"],
+  "p:STD-Q:2": ["a6ad0636"],
+  "p:STD-01:4": ["36087479"],
+  "p:STD-02:5": ["d9f25568"],
+  "p:STD-03:4": ["fb8860fd"],
+  "p:STD-04:2": ["c7b717fb"],
+  "p:STD-04:5": ["91555ae"],
+  "p:STD-04:6": ["165a6e1"],
+  "p:STD-05:4": ["fdff88f6"],
+  "p:STD-05:5": ["2313db16"],
+  "p:STD-06:4": ["fc7376e1"],
+  "p:STD-08:2": ["6d55420a"],
+  "p:STD-08:10": ["bf6a03e9"],
+  "p:STD-09:4": ["eea96614"],
+  "p:STD-11:6": ["b9649166"],
+  "p:STD-13:9": ["d85e0ef1"],
+  "f:F-Q-12": ["316521cc"],
+  "f:F-03-01": ["a8e853c0"],
+  "f:F-03-02": ["5fc88fb8"],
+  "f:F-04-01": ["fe1e92ec"],
+  "f:F-05-01": ["c5c3a3c8"],
+  "f:F-05-02": ["9627a2d1"],
+  "f:F-11-02": ["883a7f11"],
+  "f:F-13-02": ["e498eeef"],
+  "f:F-13-03": ["4e74e776"],
+};
+
+/** 초안에서 바뀐 절 제목: 예전 제목 그대로일 때만 std-seed.json 새 제목으로 바꾼다 */
+export const DRAFT_TITLES: Record<string, string[]> = {
+  "p:STD-04": ["작업 표준 절차서(판금·덴트·도장·광택)"],
 };
 
 /** 초안에 새로 생긴 절: 이미 들어간 서버에 없으면 std-seed.json 에서 넣는다 */
@@ -114,6 +155,14 @@ export async function patchDraftStd(db: Db) {
     const [row] = await db.select({ body: stdSection.body }).from(stdSection).where(eq(stdSection.key, key));
     if (!row || row.body === body || !olds.includes(bodyMark(row.body))) continue;
     await db.update(stdSection).set({ body, updatedAt: new Date() }).where(eq(stdSection.key, key));
+    n++;
+  }
+  for (const [key, olds] of Object.entries(DRAFT_TITLES)) {
+    const title = (SEED as SeedRow[]).find((x) => x.key === key)?.title;
+    if (!title) continue;
+    const [row] = await db.select({ title: stdSection.title }).from(stdSection).where(eq(stdSection.key, key));
+    if (!row || row.title === title || !olds.includes(row.title)) continue;
+    await db.update(stdSection).set({ title, updatedAt: new Date() }).where(eq(stdSection.key, key));
     n++;
   }
   return n;

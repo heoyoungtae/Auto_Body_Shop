@@ -80,7 +80,7 @@ export async function checkoutTool(db: Db, actor: Actor, id: string, note: strin
   const t = await row(db, id);
   if (t.status !== "ok") throw new ToolError(`지금 ${t.status === "repair" ? "수리 중" : t.status === "lost" ? "분실" : "폐기"} 상태라 반출할 수 없습니다`);
   if (t.outAt) throw new ToolError("이미 반출 중입니다. 먼저 반납해야 합니다");
-  if (!note.trim()) throw new ToolError("어디에 쓰는지 적어 주세요(예: 3번 베이 RO-2611-0003 덴트 복원)");
+  if (!note.trim()) throw new ToolError("어디에 쓰는지 적어 주세요(예: 3번 베이 RO-2611-0003 판금 복원)");
   await db.update(tool).set({ outBy: actor.id, outAt: now, outNote: note.trim(), updatedAt: now }).where(eq(tool.id, id));
   await event(db, id, { kind: "out", detail: note.trim() }, actor.id, now);
 }
