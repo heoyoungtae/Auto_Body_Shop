@@ -21,6 +21,7 @@ import { branchDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { seoulDate } from "@/modules/platform/time";
+import { loadPolicy } from "@/modules/platform/policy";
 import { claimView } from "@/modules/repair/claims";
 import { totals } from "@/modules/repair/estimate-rules";
 import { assertOpenDay } from "./lock";
@@ -218,6 +219,7 @@ export async function recordPayment(
     input.receiptKind,
     amount,
     input.receiptNo,
+    (await loadPolicy(db, seoulDate()))["tax.cash_receipt_must"],
   );
   if (prob) throw new MoneyError(prob);
   if (

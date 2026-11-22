@@ -231,6 +231,7 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
                             <div>
                               <SubmitButton variant="secondary">분류</SubmitButton>
                             </div>
+                            {t.kind !== "in" && <p className="w-full text-xs text-[var(--muted)]">분류는 결의서 없는 돈(이자·대출·대표 인출·카드 대금·세금 등)만 합니다. 임차료·렌탈료·공과금처럼 비용으로 잡을 돈은 &apos;결의서 쓰기&apos;에서 지출 계정을 고릅니다.</p>}
                           </form>
                         </div>
                       </div>

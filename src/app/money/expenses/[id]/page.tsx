@@ -13,6 +13,8 @@ import {
   EXP_STATUS,
   SOURCE_KINDS,
 } from "@/modules/money/rules";
+import { EVENT_KINDS, EVENT_TARGETS } from "@/modules/money/rules";
+import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../../_assist";
 import { DateField, SelectField, TextField } from "../../../_input";
@@ -71,6 +73,7 @@ export default async function ExpensePage({
   const warn = evidenceWarning(
     e.evidenceKind as keyof typeof EVIDENCE_KINDS,
     e.amountWon,
+    (await loadPolicy(await getDb()))["tax.simple_receipt_max"],
   );
   const hidden = (intent: string) => (
     <>
@@ -218,6 +221,12 @@ export default async function ExpensePage({
             {e.evidenceNo ? ` ${e.evidenceNo}` : ""}
             {e.evidenceOn ? ` · ${e.evidenceOn}` : ""}
           </p>
+          {e.event && (
+            <p className="mt-1 text-sm">
+              경조사: {EVENT_TARGETS[e.event.target]} {e.event.name}
+              {e.event.relation ? `(${e.event.relation})` : ""} · {EVENT_KINDS[e.event.kind as keyof typeof EVENT_KINDS]?.label ?? e.event.kind} · {e.event.on}
+            </p>
+          )}
           {warn && <p className="mt-1 text-xs text-[var(--warn)]">{warn}</p>}
           {e.files.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-2 text-xs">

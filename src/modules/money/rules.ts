@@ -33,13 +33,15 @@ export function receiptProblem(
   kind: ReceiptKind,
   amount: number,
   receiptNo: string,
+  /** 현금영수증 의무 발행 기준(정책값 tax.cash_receipt_must) */
+  must = CASH_RECEIPT_MUST,
 ): string | null {
   if (method === "card" && kind !== "card_slip" && kind !== "tax_invoice")
     return "카드로 받으면 증빙은 카드 전표입니다(사업자 고객이면 세금계산서)";
   if (method !== "card" && kind === "card_slip")
     return "카드 전표는 카드로 받을 때만 고릅니다";
-  if (method !== "card" && amount >= CASH_RECEIPT_MUST && kind === "none")
-    return `현금·계좌 이체로 ${CASH_RECEIPT_MUST.toLocaleString("ko-KR")}원 이상 받으면 현금영수증을 꼭 발행합니다(자동차 수리업 의무 발행). 고객이 원하지 않으면 국세청 지정 번호(010-000-1234)로 발행하세요`;
+  if (method !== "card" && amount >= must && kind === "none")
+    return `현금·계좌 이체로 ${must.toLocaleString("ko-KR")}원 이상 받으면 현금영수증을 꼭 발행합니다(자동차 수리업 의무 발행). 고객이 원하지 않으면 국세청 지정 번호(010-000-1234)로 발행하세요`;
   if ((kind === "cash_receipt" || kind === "tax_invoice") && !receiptNo.trim())
     return `${RECEIPT_KINDS[kind]} 승인 번호를 적어 주세요`;
   return null;
@@ -49,7 +51,7 @@ export function receiptProblem(
 export const EXP_CATEGORIES = {
   parts: "부품",
   paint: "도료",
-  consumable: "소모품",
+  consumable: "작업 소모품(사포·마스킹 등)",
   outsource: "외주 가공",
   equipment: "설비·공구",
   repair: "설비 수리·유지",
@@ -61,9 +63,17 @@ export const EXP_CATEGORIES = {
   welfare: "복리후생(식대·작업복)",
   vehicle: "차량 유지(유류·통행료)",
   ad: "광고·판촉",
+  office: "사무용품(복사지·문구·잉크)",
+  entertain: "접대비(거래처 식사·선물)",
+  training: "교육훈련(교육비·자격 시험)",
+  travel: "출장·교통비(숙박·대중교통)",
+  freight: "택배·운반비",
   other: "기타",
 } as const;
 export type ExpCategory = keyof typeof EXP_CATEGORIES;
+/** 부가세 매입세액을 공제받지 못하는 지출 계정(부가가치세법 제39조 제1항 제6호: 기업업무추진비). 부가세도 비용으로 잡는다 */
+export const NO_VAT_CREDIT_CATEGORIES = ["entertain"] as const;
+export const noVatCredit = (category: string) => (NO_VAT_CREDIT_CATEGORIES as readonly string[]).includes(category);
 export const isExpCategory = (s: string): s is ExpCategory =>
   s in EXP_CATEGORIES;
 
@@ -93,12 +103,46 @@ export const EVIDENCE_KINDS = {
   card: "카드 전표",
   cash_receipt: "현금영수증(지출 증빙용)",
   bill: "고지서·계약서(임차료·공과금 등)",
+  event_card: "청첩장·부고장(경조사비)",
   receipt: "간이영수증",
   pending: "아직 못 받음(나중에 붙임)",
 } as const;
 export type EvidenceKind = keyof typeof EVIDENCE_KINDS;
 export const isEvidenceKind = (s: string): s is EvidenceKind =>
   s in EVIDENCE_KINDS;
+
+/** 경조사(축의금·부의금 등). staff 는 사내 경조금 기준표(정책값 welfare.event_*)가 있는 것 */
+export const EVENT_KINDS = {
+  wedding: { label: "결혼(본인)", staff: true },
+  wedding_child: { label: "결혼(자녀)", staff: true },
+  birth: { label: "출산·돌", staff: true },
+  funeral: { label: "상(부모·배우자·자녀)", staff: true },
+  funeral_far: { label: "상(조부모·형제자매)", staff: true },
+  opening: { label: "개업·이전", staff: false },
+  other: { label: "기타(용도에 적음)", staff: false },
+} as const;
+export type EventKind = keyof typeof EVENT_KINDS;
+export const isEventKind = (s: string): s is EventKind => s in EVENT_KINDS;
+export const EVENT_TARGETS = { client: "거래처(업체·보험사 등)", staff: "직원" } as const;
+export type EventTarget = keyof typeof EVENT_TARGETS;
+/** 경조사비 계정: 거래처 → 접대비, 직원 → 복리후생 */
+export const EVENT_CATEGORY: Record<EventTarget, ExpCategory> = { client: "entertain", staff: "welfare" };
+/** 직원 경조금 기준표 정책값 키 */
+export const staffEventKey = (k: EventKind) => `welfare.event_${k}` as const;
+
+/**
+ * 경조사비 점검: 거래처 경조사비는 1회 한도(정책값, 법정 20만원)까지만 청첩장·부고장으로 비용 인정.
+ * 넘으면 전액 불인정(법인세법 시행령 제41조 제1항, 소득세법 시행령 제83조 제3항). 문제 문구 또는 null
+ */
+export function eventProblem(e: { target: string; kind: string; on: string; name: string }, amount: number, clientMax: number): string | null {
+  if (!(e.target in EVENT_TARGETS)) return "경조사 상대(거래처·직원)를 골라 주세요";
+  if (!isEventKind(e.kind)) return "경조사 종류를 골라 주세요";
+  if (!e.name.trim()) return "경조사 상대 이름을 적어 주세요";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(e.on)) return "경조사 날짜를 적어 주세요";
+  if (e.target === "client" && amount > clientMax)
+    return `거래처 경조사비는 한 번에 ${clientMax.toLocaleString("ko-KR")}원까지만 청첩장·부고장으로 비용 인정됩니다. 넘으면 전액 인정되지 않습니다`;
+  return null;
+}
 
 /** 이 금액을 넘는 지출에 간이영수증만 있으면 적격 증빙이 아니어서 2% 가산세 대상(법인세법 제76조·소득세법 제81조의6) */
 export const SIMPLE_RECEIPT_MAX = 30_000;
@@ -163,9 +207,11 @@ export function vatProblem(supply: number, vat: number): string | null {
 export function evidenceWarning(
   kind: EvidenceKind,
   amount: number,
+  /** 간이영수증 인정 한도(정책값 tax.simple_receipt_max) */
+  max = SIMPLE_RECEIPT_MAX,
 ): string | null {
-  if (kind === "receipt" && amount > SIMPLE_RECEIPT_MAX)
-    return `${SIMPLE_RECEIPT_MAX.toLocaleString("ko-KR")}원이 넘는 지출을 간이영수증으로만 받으면 적격 증빙이 아니어서 가산세(2%) 대상입니다. 가능하면 세금계산서·카드 전표·현금영수증을 받으세요`;
+  if (kind === "receipt" && amount > max)
+    return `${max.toLocaleString("ko-KR")}원이 넘는 지출을 간이영수증으로만 받으면 적격 증빙이 아니어서 가산세(2%) 대상입니다. 가능하면 세금계산서·카드 전표·현금영수증을 받으세요`;
   if (kind === "pending")
     return "증빙을 받기 전에는 지급할 수 없습니다. 받으면 이 결의서에 붙여 주세요";
   return null;

@@ -37,9 +37,14 @@ import {
   storeFile,
 } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
+import { loadPolicy } from "@/modules/platform/policy";
 import { bankView } from "@/modules/purchase/supplier";
 import { assertOpenMonth } from "./lock";
 import {
+  EVENT_CATEGORY,
+  EVENT_KINDS,
+  EVENT_TARGETS,
+  eventProblem,
   EVIDENCE_KINDS,
   EXP_CATEGORIES,
   EXP_PAY_METHODS,
@@ -303,6 +308,8 @@ export type ExpenseInput = {
   /** 빌린 장비 사용료 결의("fixture:<id>") — 낸 달을 적는다 */
   lease?: string;
   leaseYm?: string;
+  /** 경조사비(축의금·부의금): 상대(거래처·직원)·종류·이름·관계·날짜. 직원이면 userId */
+  event?: { target: string; kind: string; name: string; relation: string; on: string; userId?: string };
 };
 
 async function saveFiles(id: string, actor: Actor, files: Upload[], now: Date) {
@@ -423,6 +430,30 @@ export async function createExpense(
       ? `${src!.supplierName} 외상 대금 ${src!.payables?.length ?? 0}건(${src!.docNo})`
       : `${src!.docNo} ${SOURCE_KINDS[src!.kind]} 대금`);
 
+  // 경조사비: 거래처 → 접대비(1회 한도), 직원 → 복리후생(사내 경조금 기준표). 증빙은 청첩장·부고장 사진
+  let event: (typeof expense.$inferInsert)["event"] = null;
+  if (input.event) {
+    const ev = input.event;
+    if (ev.target === "staff") {
+      if (!ev.userId) throw new ExpenseError("경조사를 맞은 직원을 골라 주세요");
+      const [u] = await db.select({ name: appUser.name }).from(appUser).where(eq(appUser.id, ev.userId));
+      if (!u) throw new ExpenseError("없는 직원입니다");
+      ev.name = u.name;
+    }
+    const pol = await loadPolicy(db, seoulDate(now));
+    const prob = eventProblem(ev, amount, pol["money.event_client_max"]);
+    if (prob) throw new ExpenseError(prob);
+    const t = ev.target as keyof typeof EVENT_TARGETS;
+    if (category !== EVENT_CATEGORY[t])
+      throw new ExpenseError(`${EVENT_TARGETS[t]} 경조사비는 지출 계정 '${EXP_CATEGORIES[EVENT_CATEGORY[t]]}'로 넣습니다`);
+    event = { target: t, kind: ev.kind, name: ev.name.trim().slice(0, 60), relation: ev.relation.trim().slice(0, 60), on: ev.on, ...(t === "staff" ? { userId: ev.userId } : {}) };
+  }
+  if (input.evidenceKind === "event_card") {
+    if (!event) throw new ExpenseError("'청첩장·부고장' 증빙은 경조사비(접대비·복리후생의 경조사 칸)일 때 고릅니다");
+    if (!input.files.length)
+      throw new ExpenseError("청첩장·부고장 사진을 붙여 주세요. 모바일 청첩장은 화면을 캡처해 올립니다(링크는 나중에 사라집니다)");
+  }
+
   const plans = checkPlans(input.assets ?? [], supply);
   const [repairKind, repairId] = (input.repairTarget ?? "").split(":");
   if (input.repairTarget && (category !== "repair" || (repairKind !== "fixture" && repairKind !== "equipment") || !repairId))
@@ -449,6 +480,7 @@ export async function createExpense(
           : SOURCE_KINDS.none,
         supply,
         vat,
+        ...(event ? { event: `${EVENT_TARGETS[event.target]} ${event.name}${event.relation ? `(${event.relation})` : ""} ${EVENT_KINDS[event.kind as keyof typeof EVENT_KINDS]?.label ?? event.kind} ${event.on}` } : {}),
         evidence: `${EVIDENCE_KINDS[input.evidenceKind]}${input.evidenceNo.trim() ? ` ${input.evidenceNo.trim()}` : ""}`,
         payMethod: EXP_PAY_METHODS[input.payMethod],
         dueOn: input.dueOn || null,
@@ -479,6 +511,7 @@ export async function createExpense(
       evidenceOn: input.evidenceOn || null,
       dueOn: input.dueOn || (src?.kind === "settle" ? src.on : null) || null,
       payMethod: input.payMethod,
+      event,
       createdBy: actor.id,
     })
     .returning({ id: expense.id });

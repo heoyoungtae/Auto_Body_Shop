@@ -81,6 +81,7 @@ export function ClassForm({ txId, back, inflow }: { txId: string; back: string; 
       <div>
         <SubmitButton>분류</SubmitButton>
       </div>
+      {!inflow && <p className="w-full text-xs text-[var(--muted)]">임차료·렌탈료·공과금처럼 비용으로 잡을 돈은 여기가 아니라 위의 &apos;새 지출&apos;에서 결의서를 쓰고 지출 계정을 고릅니다.</p>}
     </form>
   );
 }

@@ -8,8 +8,13 @@ import { endSessions, setActive, setRoles } from "@/modules/auth/service";
 import { changeBands, DelegationError, isDelegationTask, type Band } from "@/modules/platform/delegation";
 import { writeAudit } from "@/modules/platform/audit";
 import { changePolicy } from "@/modules/platform/policy";
+import { applyCandidate, dismissCandidate } from "@/modules/money/law-watch";
+import { recordCheck } from "@/modules/platform/policy-check";
+import { isPolicyGroup } from "@/modules/platform/policy-meta";
+import { seoulDate } from "@/modules/platform/time";
+import { UserError } from "@/modules/platform/errors";
 import { assertRevisionRequestNo } from "@/modules/approval/service";
-import { errorUrl, noticeUrl, requireOwner, userMessage } from "../_lib/session";
+import { errorUrl, noticeUrl, requireOwner, requireUser, userMessage } from "../_lib/session";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
 
@@ -29,6 +34,41 @@ export async function changePolicyAction(form: FormData) {
     redirect(errorUrl(`/settings/policies?key=${encodeURIComponent(key)}`, userMessage(e)));
   }
   redirect(noticeUrl(`/settings/policies?key=${encodeURIComponent(key)}`, "바꿨습니다"));
+}
+
+/** 법령 개정 새 값 후보: 적용(대표) 또는 그대로 두기(대표·회계) */
+export async function policyCandidateAction(form: FormData) {
+  const user = await requireUser();
+  const key = s(form, "key");
+  const url = `/settings/policies?key=${encodeURIComponent(key)}`;
+  let msg = "";
+  try {
+    if (s(form, "intent") === "dismiss") {
+      await dismissCandidate(await getDb(), user, key);
+      msg = "후보를 넘겼습니다(값 그대로)";
+    } else {
+      const v = s(form, "value").replace(/[,\s]/g, "");
+      await applyCandidate(await getDb(), user, key, v ? Number(v) : undefined);
+      msg = "새 값을 시행일부터 적용했습니다";
+    }
+  } catch (e) {
+    redirect(errorUrl(url, userMessage(e)));
+  }
+  redirect(noticeUrl(url, msg));
+}
+
+/** 분류 점검 완료(대표·회계) */
+export async function policyCheckAction(form: FormData) {
+  const user = await requireUser();
+  const g = s(form, "g");
+  const url = `/settings/policies?g=${encodeURIComponent(g)}`;
+  try {
+    if (!isPolicyGroup(g)) throw new UserError("분류를 골라 주세요");
+    await recordCheck(await getDb(), user, g, s(form, "agent") === "1", s(form, "note"), seoulDate());
+  } catch (e) {
+    redirect(errorUrl(url, userMessage(e)));
+  }
+  redirect(noticeUrl(url, "점검 완료를 기록했습니다"));
 }
 
 /** 고시된 다음 해 최저임금을 지금 가져오기(대표) */
