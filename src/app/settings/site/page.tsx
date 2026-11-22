@@ -1,4 +1,5 @@
-// 설정 › 홈페이지(대표): 견적 요청 받기, 첫 화면 문구, 개업일, 인사말, 영업시간, 카카오 채널, 개인정보 보호책임자.
+// 설정 › 홈페이지(대표) › 기본 정보: 견적 요청 받기, 첫 화면 문구, 개업일, 인사말, 영업시간, 카카오 채널, 개인정보 보호책임자.
+// 다른 탭: 첫 화면(단락 차례·글), 화면 글(보험·이용 안내·소개·바닥글), 메뉴·바닥글. 질문·공지·사례·기술자료·후기는 홈페이지 글(/homepage).
 // 정비소 이름·전화·주소·대표·사업자번호는 사업장 정보, 로고는 로고·앱 아이콘에서 불러온다(여기서 다시 적지 않음).
 import Link from "next/link";
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
@@ -13,6 +14,7 @@ import { CheckGroup, DateField, TextAreaField, TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { buttonClass, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { saveSiteAction } from "./actions";
+import { SiteSettingsTabs } from "./_tabs";
 
 export default async function SiteSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
@@ -30,7 +32,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
     <>
       <PageTitle
         help="settings.site"
-        sub="누구나 보는 홈페이지(소개·견적 요청·개인정보 처리방침)의 문구와 견적 요청 받기를 정합니다."
+        sub="홈페이지의 모든 문구·메뉴를 여기서 고칩니다. 이 탭은 첫 화면 큰 글·인사말·영업시간·견적 요청 받기 같은 기본 정보입니다."
         actions={
           <Link href={hosts.length ? siteUrl() : "/site"} target="_blank" className={buttonClass("secondary")}>
             홈페이지 열기
@@ -39,6 +41,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
       >
         홈페이지
       </PageTitle>
+      <SiteSettingsTabs on="/settings/site" />
       <div className="mb-4 space-y-2">
         <ErrorBox message={error} />
         {notice && <Notice>{notice}</Notice>}

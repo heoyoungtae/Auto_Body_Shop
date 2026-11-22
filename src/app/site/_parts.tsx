@@ -37,6 +37,21 @@ export function SiteTitle({ help, children, sub, eyebrow }: { help: PageHelpKey;
   );
 }
 
+/** 줄 바꿈(\n)을 그대로 보이는 제목 글(설정에서 두 줄로 적은 제목) */
+export function Lines({ text }: { text: string }) {
+  const xs = text.split("\n");
+  return (
+    <>
+      {xs.map((x, i) => (
+        <span key={i}>
+          {x}
+          {i < xs.length - 1 && <br />}
+        </span>
+      ))}
+    </>
+  );
+}
+
 /** 섹션 머리: 영어 머리말 + 제목 + (오른쪽) 더 보기 */
 export function SectionHead({ eyebrow, title, more, id, dark = false }: { eyebrow: string; title: ReactNode; more?: { href: string; label: string }; id?: string; dark?: boolean }) {
   return (

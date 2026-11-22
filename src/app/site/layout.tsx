@@ -1,5 +1,5 @@
 // 홈페이지(jmotors.co.kr) 틀: 위 로고·메뉴, 개업 준비 띠·공지 띠, 아래 먹색 바닥줄(정비소 정보·처리방침), 휴대폰 아래 고정 단추(전화·견적 요청·길 찾기).
-// 이름·전화·주소·대표·사업자번호는 사업장 정보, 로고는 설정 › 로고·앱 아이콘, 문구는 설정 › 홈페이지에서 불러온다(다시 치지 않음).
+// 이름·전화·주소·대표·사업자번호는 사업장 정보, 로고는 설정 › 로고·앱 아이콘, 문구·메뉴·바닥글은 설정 › 홈페이지에서 불러온다(다시 치지 않음).
 // 모양은 site.css(.site 안에서만): 먹색·흰색·브랜드 빨강, 프리텐다드 글꼴(public/fonts, 필요한 글자 묶음만 받음).
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { daysToOpen, homepageHosts } from "@/modules/site/rules";
 import { siteUrl } from "@/modules/site/service";
 import { bannerNotice, noticeTitle } from "@/modules/site/content";
 import { siteTrust } from "@/modules/site/trust";
+import { sitePages } from "@/modules/site/pages";
 import { homeHref, siteBtn, siteData } from "./_parts";
 import "./site.css";
 
@@ -27,22 +28,15 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const NAV = [
-  { href: "/about", label: "정비소 소개" },
-  { href: "/services", label: "수리 안내" },
-  { href: "/cases", label: "작업 사례" },
-  { href: "/insurance", label: "보험 수리" },
-  { href: "/tech", label: "기술자료" },
-  { href: "/faq", label: "자주 묻는 질문" },
-  { href: "/notice", label: "공지사항" },
-  { href: "/carbook-guide", label: "내 차 수첩", isNew: true },
-] as const;
 
 const NewDot = () => <span className="ml-1 rounded-full bg-[var(--red)] px-1.5 py-px align-[2px] text-[10px] font-bold leading-none text-white">NEW</span>;
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const db = await getDb();
-  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner, trust] = await Promise.all([siteData(), loadBrand(db), homeHref(), bannerNotice(db), siteTrust(db)]);
+  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner, trust, v] = await Promise.all([siteData(), loadBrand(db), homeHref(), bannerNotice(db), siteTrust(db), sitePages(db)]);
+  // 위 메뉴·바닥글 링크는 설정 › 홈페이지 › 메뉴·바닥글에서(이름·차례·숨기기·NEW 표시)
+  const nav = v.nav.filter((n) => n.on);
+  const foot = v.foot.filter((n) => n.on);
   const [w, h] = brandSize(brand, "logo-light");
   const [dw, dh] = brandSize(brand, "logo-dark");
   const dday = daysToOpen(cfg.openOn, seoulDate());
@@ -85,10 +79,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
             </picture>
           </Link>
           <nav aria-label="홈페이지 메뉴" className="ml-auto hidden items-center gap-0.5 xl:flex">
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <Link key={n.href} href={n.href} className="whitespace-nowrap rounded-full px-3 py-2 text-[15px] font-medium text-[var(--fg)]/80 transition hover:bg-[var(--surface-2)] hover:text-[var(--fg)]">
                 {n.label}
-                {"isNew" in n && <NewDot />}
+                {n.isNew && <NewDot />}
               </Link>
             ))}
             {shop.phone && (
@@ -113,10 +107,10 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               <Link href={home} className="block rounded-xl px-4 py-3 font-medium hover:bg-[var(--surface-2)]">
                 홈
               </Link>
-              {NAV.map((n) => (
+              {nav.map((n) => (
                 <Link key={n.href} href={n.href} className="block rounded-xl px-4 py-3 font-medium hover:bg-[var(--surface-2)]">
                   {n.label}
-                  {"isNew" in n && <NewDot />}
+                  {n.isNew && <NewDot />}
                 </Link>
               ))}
               <Link href="/request" className={`${siteBtn("red")} mt-1 w-full`}>
@@ -140,7 +134,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
               {/* eslint-disable-next-line @next/next/no-img-element -- 어두운 바탕용 로고 */}
               <img src={brandUrl(brand, "logo-dark")} alt={shop.name} width={dw} height={dh} className="h-9 w-auto object-contain object-left" />
             </picture>
-            <p className="max-w-sm leading-relaxed">찌그러짐·긁힘·도색 차체 외관 수리. 사내 표준에 따라 기록하고 검사합니다.</p>
+            <p className="max-w-sm whitespace-pre-line leading-relaxed">{v.t("footer.tagline")}</p>
           </div>
           <div className="space-y-1.5">
             <p className="eyebrow mb-3 !text-white/45">CONTACT</p>
@@ -180,36 +174,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
                 개인정보 처리방침
               </Link>
             </p>
-            <p>
-              <Link href="/terms" className="hover:text-white">
-                이용약관
-              </Link>
-            </p>
-            <p>
-              <Link href="/insurance" className="hover:text-white">
-                보험 수리 안내
-              </Link>
-            </p>
-            <p>
-              <Link href="/guide" className="hover:text-white">
-                이용 안내
-              </Link>
-            </p>
-            <p>
-              <Link href="/services" className="hover:text-white">
-                수리 안내
-              </Link>
-            </p>
-            <p>
-              <Link href="/tech" className="hover:text-white">
-                기술자료
-              </Link>
-            </p>
-            <p>
-              <Link href="/carbook-guide" className="hover:text-white">
-                내 차 수첩 사용설명서
-              </Link>
-            </p>
+            {foot.map((n) => (
+              <p key={n.href}>
+                <Link href={n.href} className="hover:text-white">
+                  {n.label}
+                </Link>
+              </p>
+            ))}
             {app && (
               <p>
                 <a href={`${app}/login`} className="hover:text-white">
