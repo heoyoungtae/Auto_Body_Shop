@@ -11,7 +11,13 @@ export const METHOD_FIELDS = [
 ] as const;
 
 export const SERVICE_TEXT: Record<string, ItemDef> = {
-  "services.sub": { kind: "text", label: "수리 안내 화면 설명", def: "차체 외관 수리만 합니다. 분야를 누르면 고치는 방법, 걸리는 기간, 비용이 정해지는 기준을 자세히 볼 수 있습니다.", multi: true, max: 200 },
+  "services.sub": {
+    kind: "text",
+    label: "수리 안내 화면 설명",
+    def: "차체 외관 수리만 합니다. 분야를 누르면 고치는 방법, 걸리는 기간, 비용이 정해지는 기준을 자세히 볼 수 있습니다.",
+    multi: true,
+    max: 200,
+  },
   "services.price.title": { kind: "text", label: "수리비 제목(줄 바꿈 가능)", def: "수리비는\n이렇게 정해집니다", multi: true, max: 60 },
   "services.price.lead": {
     kind: "text",
@@ -24,8 +30,8 @@ export const SERVICE_TEXT: Record<string, ItemDef> = {
     kind: "pairs",
     label: "수리비가 정해지는 것",
     def: [
-      { t: "손상 크기·깊이", d: "같은 문콕이라도 깊이와 꺾임에 따라 덴트로 끝나기도, 판금이 필요하기도 합니다." },
-      { t: "고치는 방법", d: "덴트·광택처럼 도장을 살리는 방법이 가장 빠르고 쌉니다. 도장이 깨지면 칠하는 공정이 더해집니다." },
+      { t: "손상 크기·깊이", d: "같은 문콕이라도 깊이와 꺾임에 따라 작은 판금으로 끝나기도, 판을 바꿔야 하기도 합니다." },
+      { t: "고치는 방법", d: "손상이 작을수록 부분 도색으로 끝나 빠르고 쌉니다. 판이 찢어지거나 늘어나면 바꾸는 공정이 더해집니다." },
       { t: "칠하는 판과 색", d: "판 수, 메탈릭·펄 같은 색 종류, 옆 판까지 번지게 칠해야 하는지에 따라 달라집니다." },
       { t: "부품", d: "고쳐 쓸 수 없으면 바꿉니다. 신품·재제조·인증 대체 부품 가운데 고르실 수 있습니다." },
     ],

@@ -1,4 +1,4 @@
-// 홈페이지(jmotors.co.kr) 공용 부품: 제목 줄(도움말 단추), 홈 주소, 정비소 정보 불러오기
+// 홈페이지(jmotors.co.kr) 공용 부품: 제목 줄(도움말 단추), 홈 주소, 공업사 정보 불러오기
 import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 import { getDb } from "@/db/runtime";
@@ -32,11 +32,17 @@ export async function viewPages() {
   return sitePages(await getDb(), await isPreview());
 }
 
-/** 정비소 이름·전화·주소(사업장 정보)와 홈페이지 설정을 한 번에 */
+/** 공업사 이름·전화·주소(사업장 정보)와 홈페이지 설정을 한 번에 */
 export async function siteData() {
   const db = await getDb();
   const [shop, info, cfg] = await Promise.all([shopCard(db), loadShopInfo(db), siteConfig(db)]);
-  return { shop, ceo: info.ceo, bizNo: info.bizNo ? formatBizNo(info.bizNo) : "", cfg, mapUrl: shop.address ? `https://map.naver.com/p/search/${encodeURIComponent(shop.address.replace(/^\(\d+\)\s*/, ""))}` : "" };
+  return {
+    shop,
+    ceo: info.ceo,
+    bizNo: info.bizNo ? formatBizNo(info.bizNo) : "",
+    cfg,
+    mapUrl: shop.address ? `https://map.naver.com/p/search/${encodeURIComponent(shop.address.replace(/^\(\d+\)\s*/, ""))}` : "",
+  };
 }
 
 /** 홈페이지 화면 제목: 영어 작은 머리말 + 큰 글자 + 도움말 단추(모든 화면 도움말 규칙) */

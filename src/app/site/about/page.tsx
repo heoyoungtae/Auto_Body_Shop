@@ -1,11 +1,11 @@
-// 정비소 소개: 인사말(설정 › 홈페이지), 수리 분야, 작업 기준(사내 표준서 요약), 보증, 오시는 길
+// 공업사 소개: 인사말(설정 › 홈페이지), 수리 분야, 작업 기준(사내 표준서 요약), 보증, 오시는 길
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getDb } from "@/db/runtime";
 import { PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
 import { siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
 
-export const metadata: Metadata = { title: "정비소 소개" };
+export const metadata: Metadata = { title: "공업사 소개" };
 
 export default async function AboutPage() {
   const db = await getDb();
@@ -13,7 +13,7 @@ export default async function AboutPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-20">
       <SiteTitle eyebrow="ABOUT US" help="site.about" sub={shop.name}>
-        정비소 소개
+        공업사 소개
       </SiteTitle>
       {cfg.about && (
         <section className="-mt-8 space-y-5 border-l-2 border-[var(--red)] pl-6 text-lg leading-[1.9] sm:text-xl">
@@ -41,13 +41,13 @@ export default async function AboutPage() {
         <section aria-labelledby="shop">
           <p className="eyebrow mb-2">OUR SHOP</p>
           <h2 id="shop" className="mb-6 text-2xl font-bold sm:text-[2rem]">
-            정비소 둘러보기
+            공업사 둘러보기
           </h2>
           <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {trust.photos.map((ph) => (
               <li key={ph.id}>
                 <figure className="overflow-hidden rounded-2xl bg-[var(--surface-2)]">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- 정비소 사진 그대로 */}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- 공업사 사진 그대로 */}
                   <img src={`/api/site-file/${ph.path}`} alt={ph.caption || PHOTO_KINDS[ph.kind]} width={ph.width} height={ph.height} className="aspect-[4/3] w-full object-cover" loading="lazy" />
                   <figcaption className="px-4 py-2.5 text-sm">
                     <b>{PHOTO_KINDS[ph.kind]}</b>

@@ -1,6 +1,6 @@
 // 설정 › 홈페이지(대표) › 기본 정보: 견적 요청 받기, 첫 화면 문구, 개업일, 인사말, 영업시간, 카카오 채널, 개인정보 보호책임자.
 // 다른 탭: 첫 화면(단락 차례·글), 화면 글(보험·이용 안내·소개·바닥글), 메뉴·바닥글. 질문·공지·사례·기술자료·후기는 홈페이지 글(/homepage).
-// 정비소 이름·전화·주소·대표·사업자번호는 사업장 정보, 로고는 로고·앱 아이콘에서 불러온다(여기서 다시 적지 않음).
+// 공업사 이름·전화·주소·대표·사업자번호는 사업장 정보, 로고는 로고·앱 아이콘에서 불러온다(여기서 다시 적지 않음).
 import Link from "next/link";
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db/runtime";
@@ -24,8 +24,14 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
   const [cfg, shop, [n], [open]] = await Promise.all([
     siteConfig(db),
     shopCard(db),
-    db.select({ n: sql<number>`count(*)::int` }).from(consultation).where(and(eq(consultation.source, "web"), gte(consultation.at, month))),
-    db.select({ n: sql<number>`count(*)::int` }).from(consultation).where(and(eq(consultation.channel, "online"), isNull(consultation.webReplyAt), eq(consultation.result, "open"))),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(consultation)
+      .where(and(eq(consultation.source, "web"), gte(consultation.at, month))),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(consultation)
+      .where(and(eq(consultation.channel, "online"), isNull(consultation.webReplyAt), eq(consultation.result, "open"))),
   ]);
   const hosts = homepageHosts();
   return (
@@ -48,34 +54,34 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
         <div className="xl:row-span-2">
-        <Card title="문구·견적 요청" help={{ kind: "panel", id: "site.settings" }}>
-          <AssistForm id="site-settings" action={saveSiteAction} className="space-y-4">
-            <CheckGroup help="site.cfg.requests" name="requests" options={[{ value: "on", label: "홈페이지에서 견적 요청 받기" }]} defaultChecked={cfg.requests ? ["on"] : []} />
-            <TextField help="site.cfg.headline" name="headline" required defaultValue={cfg.headline} />
-            <TextAreaField help="site.cfg.lead" name="lead" rows={2} defaultValue={cfg.lead} />
-            <DateField help="site.cfg.openOn" name="openOn" defaultValue={cfg.openOn} quick={[]} />
-            <TextAreaField help="site.cfg.about" name="about" rows={8} defaultValue={cfg.about} />
-            <TextField help="site.cfg.hours" name="hours" defaultValue={cfg.hours} />
-            <TextField help="site.cfg.kakao" name="kakao" defaultValue={cfg.kakao} placeholder="https://pf.kakao.com/_xxxx" />
-            <TextField help="site.cfg.privacyOfficer" name="privacyOfficer" defaultValue={cfg.privacyOfficer} />
-            <TextField help="site.cfg.privacyContact" name="privacyContact" defaultValue={cfg.privacyContact} />
-            <DateField help="site.cfg.privacyFrom" name="privacyFrom" defaultValue={cfg.privacyFrom} quick={["today"]} />
-            <TextField help="site.cfg.insurers" name="insurers" defaultValue={cfg.insurers} placeholder="삼성화재, 현대해상, DB손해보험, KB손해보험" />
-            <TextField help="site.cfg.verifyNaver" name="verifyNaver" defaultValue={cfg.verifyNaver} />
-            <TextField help="site.cfg.verifyGoogle" name="verifyGoogle" defaultValue={cfg.verifyGoogle} />
-            <p className="text-xs text-[var(--muted)]">
-              홈페이지에 보이는 정비소: {shop.name} · {shop.phone || "전화 없음"} · {shop.address || "주소 없음"} —{" "}
-              <Link href="/settings/shop" className="text-[var(--accent)] underline">
-                사업장 정보에서 고치기
-              </Link>{" "}
-              ·{" "}
-              <Link href="/settings/brand" className="text-[var(--accent)] underline">
-                로고 바꾸기
-              </Link>
-            </p>
-            <SubmitButton>저장</SubmitButton>
-          </AssistForm>
-        </Card>
+          <Card title="문구·견적 요청" help={{ kind: "panel", id: "site.settings" }}>
+            <AssistForm id="site-settings" action={saveSiteAction} className="space-y-4">
+              <CheckGroup help="site.cfg.requests" name="requests" options={[{ value: "on", label: "홈페이지에서 견적 요청 받기" }]} defaultChecked={cfg.requests ? ["on"] : []} />
+              <TextField help="site.cfg.headline" name="headline" required defaultValue={cfg.headline} />
+              <TextAreaField help="site.cfg.lead" name="lead" rows={2} defaultValue={cfg.lead} />
+              <DateField help="site.cfg.openOn" name="openOn" defaultValue={cfg.openOn} quick={[]} />
+              <TextAreaField help="site.cfg.about" name="about" rows={8} defaultValue={cfg.about} />
+              <TextField help="site.cfg.hours" name="hours" defaultValue={cfg.hours} />
+              <TextField help="site.cfg.kakao" name="kakao" defaultValue={cfg.kakao} placeholder="https://pf.kakao.com/_xxxx" />
+              <TextField help="site.cfg.privacyOfficer" name="privacyOfficer" defaultValue={cfg.privacyOfficer} />
+              <TextField help="site.cfg.privacyContact" name="privacyContact" defaultValue={cfg.privacyContact} />
+              <DateField help="site.cfg.privacyFrom" name="privacyFrom" defaultValue={cfg.privacyFrom} quick={["today"]} />
+              <TextField help="site.cfg.insurers" name="insurers" defaultValue={cfg.insurers} placeholder="삼성화재, 현대해상, DB손해보험, KB손해보험" />
+              <TextField help="site.cfg.verifyNaver" name="verifyNaver" defaultValue={cfg.verifyNaver} />
+              <TextField help="site.cfg.verifyGoogle" name="verifyGoogle" defaultValue={cfg.verifyGoogle} />
+              <p className="text-xs text-[var(--muted)]">
+                홈페이지에 보이는 공업사: {shop.name} · {shop.phone || "전화 없음"} · {shop.address || "주소 없음"} —{" "}
+                <Link href="/settings/shop" className="text-[var(--accent)] underline">
+                  사업장 정보에서 고치기
+                </Link>{" "}
+                ·{" "}
+                <Link href="/settings/brand" className="text-[var(--accent)] underline">
+                  로고 바꾸기
+                </Link>
+              </p>
+              <SubmitButton>저장</SubmitButton>
+            </AssistForm>
+          </Card>
         </div>
         <Card title="주소·요청" help={{ kind: "panel", id: "site.status" }}>
           <dl className="grid grid-cols-[9rem_1fr] gap-y-1.5 text-sm">
@@ -95,7 +101,7 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
             <li>답은 상담 화면의 &lsquo;손님에게 답변(비밀)&rsquo;에서 씁니다. 요청한 손님만 내 차 수첩에서 봅니다.</li>
             <li>홈페이지 주소 연결은 미니 PC에서 한 번 합니다(서버 설명서 &lsquo;홈페이지 주소 연결&rsquo;).</li>
             <li>
-              후기·정비소 사진·자격 인증은{" "}
+              후기·공업사 사진·자격 인증은{" "}
               <Link href="/homepage/trust" className="text-[var(--accent)] underline">
                 홈페이지 글 › 후기·사진·인증
               </Link>
@@ -111,9 +117,13 @@ export default async function SiteSettingsPage({ searchParams }: { searchParams:
               </a>
               에 네이버 아이디로 들어가 사이트 등록 › 홈페이지 주소를 넣습니다.
             </li>
-            <li>소유 확인 방법에서 &lsquo;HTML 태그&rsquo;를 고르고 content=&quot;…&quot; 값을 복사해 왼쪽 &lsquo;네이버 확인 값&rsquo;에 붙여 저장한 뒤, 네이버 화면에서 &lsquo;소유 확인&rsquo;을 누릅니다.</li>
             <li>
-              요청 › 사이트맵 제출에 <code className="break-all rounded bg-[var(--surface-2)] px-1">{hosts.length ? `${siteUrl()}/sitemap.xml` : "(홈페이지 주소 연결 뒤)/sitemap.xml"}</code> 을 넣습니다.
+              소유 확인 방법에서 &lsquo;HTML 태그&rsquo;를 고르고 content=&quot;…&quot; 값을 복사해 왼쪽 &lsquo;네이버 확인 값&rsquo;에 붙여 저장한 뒤, 네이버 화면에서 &lsquo;소유 확인&rsquo;을
+              누릅니다.
+            </li>
+            <li>
+              요청 › 사이트맵 제출에 <code className="break-all rounded bg-[var(--surface-2)] px-1">{hosts.length ? `${siteUrl()}/sitemap.xml` : "(홈페이지 주소 연결 뒤)/sitemap.xml"}</code> 을
+              넣습니다.
             </li>
             <li>
               <a href="https://search.google.com/search-console" target="_blank" rel="noopener" className="text-[var(--accent)] underline">

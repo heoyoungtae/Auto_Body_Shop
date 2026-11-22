@@ -12,7 +12,10 @@ import { maskPersonal } from "./rules";
 import { SiteError } from "./service";
 
 type Actor = { id: string; roles: readonly Role[] };
-const cut = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
+const cut = (s: unknown, n: number) =>
+  String(s ?? "")
+    .trim()
+    .slice(0, n);
 function mustWrite(actor: Actor) {
   if (!can(actor, "consult.write")) throw new SiteError("홈페이지 글은 상담을 쓸 수 있는 사람(상담원·공장장·대표)이 씁니다");
 }
@@ -66,7 +69,17 @@ const order = (c: string) => {
 export async function publicArticles(db: Db, q = "", category = "") {
   await ensureArticleStarters(db);
   const rows = await db
-    .select({ id: siteArticle.id, slug: siteArticle.slug, category: siteArticle.category, title: siteArticle.title, summary: siteArticle.summary, body: siteArticle.body, minutes: siteArticle.minutes, sort: siteArticle.sort, updatedAt: siteArticle.updatedAt })
+    .select({
+      id: siteArticle.id,
+      slug: siteArticle.slug,
+      category: siteArticle.category,
+      title: siteArticle.title,
+      summary: siteArticle.summary,
+      body: siteArticle.body,
+      minutes: siteArticle.minutes,
+      sort: siteArticle.sort,
+      updatedAt: siteArticle.updatedAt,
+    })
     .from(siteArticle)
     .where(eq(siteArticle.published, true))
     .orderBy(asc(siteArticle.sort), asc(siteArticle.createdAt));
@@ -91,9 +104,15 @@ export async function featuredArticles(db: Db, n = 3) {
 export async function readArticle(db: Db, slug: string) {
   if (!SLUG_RE.test(slug)) return null;
   await ensureArticleStarters(db);
-  const [a] = await db.select().from(siteArticle).where(and(eq(siteArticle.slug, slug), eq(siteArticle.published, true)));
+  const [a] = await db
+    .select()
+    .from(siteArticle)
+    .where(and(eq(siteArticle.slug, slug), eq(siteArticle.published, true)));
   if (!a) return null;
-  await db.update(siteArticle).set({ views: sql`${siteArticle.views} + 1` }).where(eq(siteArticle.id, a.id));
+  await db
+    .update(siteArticle)
+    .set({ views: sql`${siteArticle.views} + 1` })
+    .where(eq(siteArticle.id, a.id));
   const related = await db
     .select({ slug: siteArticle.slug, title: siteArticle.title, category: siteArticle.category, minutes: siteArticle.minutes })
     .from(siteArticle)
@@ -112,7 +131,7 @@ export async function saveArticle(db: Db, actor: Actor, input: ArticleInput, now
   const title = cut(input.title, 120);
   const summary = cut(input.summary, 300);
   const body = cut(input.body, 20000);
-  if (!SLUG_RE.test(slug) || slug.length < 3) throw new SiteError("주소 이름은 영문 소문자·숫자·하이픈 3자 이상입니다(예: dent-vs-panel)");
+  if (!SLUG_RE.test(slug) || slug.length < 3) throw new SiteError("주소 이름은 영문 소문자·숫자·하이픈 3자 이상입니다(예: dent-repair)");
   if (!category) throw new SiteError("분야를 골라 주세요");
   if (title.length < 4) throw new SiteError("제목을 적어 주세요");
   if (summary.length < 10) throw new SiteError("목록에 보일 요약을 두세 줄 적어 주세요");
@@ -128,7 +147,10 @@ export async function saveArticle(db: Db, actor: Actor, input: ArticleInput, now
     const [r] = await db.update(siteArticle).set(values).where(eq(siteArticle.id, id)).returning({ id: siteArticle.id });
     if (!r) throw new SiteError("없는 글입니다");
   } else {
-    [{ id }] = await db.insert(siteArticle).values({ ...values, createdAt: now }).returning({ id: siteArticle.id });
+    [{ id }] = await db
+      .insert(siteArticle)
+      .values({ ...values, createdAt: now })
+      .returning({ id: siteArticle.id });
   }
   await writeAudit(db, { actorId: actor.id, action: "site.article", entityType: "site_article", entityId: id!, after: { slug, title, published: input.published } });
   return id!;
@@ -153,6 +175,9 @@ export async function loadArticleStarters(db: Db, actor: Actor, now = new Date()
 /** 화면 제목·검색 설명용(본 횟수 안 올림) */
 export async function articleMeta(db: Db, slug: string) {
   if (!SLUG_RE.test(slug)) return null;
-  const [a] = await db.select({ title: siteArticle.title, summary: siteArticle.summary }).from(siteArticle).where(and(eq(siteArticle.slug, slug), eq(siteArticle.published, true)));
+  const [a] = await db
+    .select({ title: siteArticle.title, summary: siteArticle.summary })
+    .from(siteArticle)
+    .where(and(eq(siteArticle.slug, slug), eq(siteArticle.published, true)));
   return a ?? null;
 }

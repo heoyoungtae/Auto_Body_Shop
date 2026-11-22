@@ -12,8 +12,6 @@ export type Pair = { t: string; d: string };
 /** 글 안에 적는 자리표시: {이름} → 정책값 */
 export const TOKENS: Record<string, { label: string; get: (p: Policy) => string }> = {
   도장보증: { label: "도장·판금 보증(개월)", get: (p) => String(p["warranty.paint_months"]) },
-  덴트보증: { label: "덴트 보증(개월)", get: (p) => String(p["warranty.dent_months"]) },
-  광택보증: { label: "광택 보증(개월)", get: (p) => String(p["warranty.polish_months"]) },
   도막최소: { label: "도막 두께 아래 기준(μm)", get: (p) => String(p["inspect.film_min_um"]) },
   도막최대: { label: "도막 두께 위 기준(μm)", get: (p) => String(p["inspect.film_max_um"]) },
   간극: { label: "패널 간극 좌우 차(mm)", get: (p) => String(p["inspect.gap_mm"]) },
@@ -47,7 +45,7 @@ export const HOME_SECTIONS = [
   { key: "services", label: "수리 분야" },
   { key: "why", label: "고를 이유" },
   { key: "quality", label: "품질 기준·자격 인증" },
-  { key: "photos", label: "정비소 사진", note: "사진을 올렸을 때만 보입니다" },
+  { key: "photos", label: "공업사 사진", note: "사진을 올렸을 때만 보입니다" },
   { key: "process", label: "진행 순서" },
   { key: "carbook", label: "내 차 수첩 홍보" },
   { key: "cases", label: "작업 사례", note: "공개 사례가 없으면 예시 그림" },
@@ -86,9 +84,12 @@ export const PAGE_TEXT = {
   ),
   "home.quality.eyebrow": text("머리말", "QUALITY STANDARD", { max: 30 }),
   "home.quality.title": text("제목(줄 바꿈 가능)", "감으로 하지 않습니다.\n재고, 기록하고, 검사합니다.", { multi: true, max: 60 }),
-  "home.quality.lead": text("설명", "모든 수리는 사내 표준서에 정한 순서와 기준을 따릅니다. 조색 배합과 도막 두께를 기록하고, 출고 전에 작업한 사람이 아닌 검사자가 다시 확인합니다.", { multi: true, max: 300 }),
+  "home.quality.lead": text("설명", "모든 수리는 사내 표준서에 정한 순서와 기준을 따릅니다. 조색 배합과 도막 두께를 기록하고, 출고 전에 작업한 사람이 아닌 검사자가 다시 확인합니다.", {
+    multi: true,
+    max: 300,
+  }),
   "home.photos.eyebrow": text("머리말", "OUR SHOP", { max: 30 }),
-  "home.photos.title": text("제목", "정비소를 미리 둘러보세요", { max: 40 }),
+  "home.photos.title": text("제목", "공업사를 미리 둘러보세요", { max: 40 }),
   "home.process.eyebrow": text("머리말", "PROCESS", { max: 30 }),
   "home.process.title": text("제목", "이렇게 진행합니다", { max: 40 }),
   "home.process.items": pairs(
@@ -106,7 +107,7 @@ export const PAGE_TEXT = {
   ),
   "home.carbook.eyebrow": text("머리말", "MY CAR BOOK", { max: 30 }),
   "home.carbook.title": text("제목(줄 바꿈 가능)", "수리가 끝나도\n기록은 남습니다", { multi: true, max: 60 }),
-  "home.carbook.lead": text("설명", "우리 정비소에서 고친 차는 모두 '내 차 수첩'에 남습니다. 앱을 깔 필요도, 회원가입도 없이 휴대폰 문자 인증 한 번이면 됩니다.", { multi: true, max: 300 }),
+  "home.carbook.lead": text("설명", "제이모터스에서 고친 차는 모두 '내 차 수첩'에 남습니다. 앱을 깔 필요도, 회원가입도 없이 휴대폰 문자 인증 한 번이면 됩니다.", { multi: true, max: 300 }),
   "home.carbook.items": pairs(
     "좋은 점",
     [
@@ -124,7 +125,11 @@ export const PAGE_TEXT = {
   "home.reviews.eyebrow": text("머리말", "REVIEWS", { max: 30 }),
   "home.reviews.title": text("제목", "고객님이 남긴 말", { max: 40 }),
   "home.insurance.title": text("보험 칸 제목", "보험 수리, 맡겨 주세요", { max: 40 }),
-  "home.insurance.lead": text("보험 칸 설명", "내 보험(자차)·상대 보험(대물) 모두 됩니다. 사고 접수번호와 보험사만 알려 주시면 보험사 협의는 정비소가 진행합니다. 견적 금액을 보고 자비 수리와 비교해 고르셔도 됩니다.", { multi: true, max: 300 }),
+  "home.insurance.lead": text(
+    "보험 칸 설명",
+    "내 보험(자차)·상대 보험(대물) 모두 됩니다. 사고 접수번호와 보험사만 알려 주시면 보험사 협의는 저희가 진행합니다. 견적 금액을 보고 자비 수리와 비교해 고르셔도 됩니다.",
+    { multi: true, max: 300 },
+  ),
   "home.insurance.warrantyTitle": text("보증 칸 제목", "고친 곳은 끝까지 책임집니다", { max: 40 }),
   "home.insurance.warrantyNote": text("보증 칸 설명", "보증 기간과 내용은 내 차 수첩에 남고, 문제가 생기면 사진과 함께 바로 신청하실 수 있습니다.", { multi: true, max: 200 }),
   "home.tech.eyebrow": text("머리말", "KNOWLEDGE", { max: 30 }),
@@ -136,7 +141,7 @@ export const PAGE_TEXT = {
   "home.cta.lead": text("설명", "다친 곳 사진을 보내 주시면 영업일 {회신일}일 안에 대략 금액과 기간을 알려 드립니다. 회원가입은 필요 없습니다.", { multi: true, max: 200 }),
 
   // ── 보험 수리 안내 ──
-  "insurance.sub": text("화면 설명", "내 보험(자차)이든 상대 보험(대물)이든, 접수번호만 알려 주시면 보험사 협의는 정비소가 합니다.", { multi: true, max: 200 }),
+  "insurance.sub": text("화면 설명", "내 보험(자차)이든 상대 보험(대물)이든, 접수번호만 알려 주시면 보험사 협의는 저희가 합니다.", { multi: true, max: 200 }),
   "insurance.after.title": text("사고 직후 제목", "사고가 났다면", { max: 40 }),
   "insurance.after.items": pairs(
     "사고 직후 할 일",
@@ -144,13 +149,13 @@ export const PAGE_TEXT = {
       { t: "안전 먼저", d: "비상등을 켜고 차를 안전한 곳으로 옮깁니다. 다친 사람이 있으면 119에 먼저 연락합니다." },
       { t: "사진 남기기", d: "두 차의 위치, 다친 곳 가까이·멀리, 상대 차 번호판을 찍어 둡니다." },
       { t: "보험사 접수", d: "내 보험사(또는 상대 보험사)에 사고 접수를 하고 접수번호를 받아 둡니다." },
-      { t: "정비소에 알리기", d: "접수번호와 보험사를 알려 주시면 그다음은 정비소가 이어서 진행합니다." },
+      { t: "제이모터스에 알리기", d: "접수번호와 보험사를 알려 주시면 그다음은 저희가 이어서 진행합니다." },
     ],
     6,
   ),
   "insurance.own": text("자차 설명", "내 과실이 있거나 상대가 없는 사고(혼자 긁음 등)에 씁니다. 약관에 따라 자기부담금이 있고, 보험료가 오를 수 있습니다.", { multi: true, max: 300 }),
   "insurance.property": text("대물 설명", "상대 과실로 난 사고에 상대 보험사가 수리비를 냅니다. 과실 100%면 자기부담금이 없고, 수리 동안 대차를 받을 수 있습니다.", { multi: true, max: 300 }),
-  "insurance.wedo.title": text("대신 하는 일 제목", "정비소가 대신 해 드리는 일", { max: 40 }),
+  "insurance.wedo.title": text("대신 하는 일 제목", "저희가 대신 해 드리는 일", { max: 40 }),
   "insurance.wedo.items": lines(
     "대신 하는 일",
     [
@@ -163,14 +168,27 @@ export const PAGE_TEXT = {
   ),
   "insurance.partners.title": text("보험사 목록 제목", "보험 수리를 해 온 보험사", { max: 40 }),
   "insurance.compare.title": text("자비 비교 제목", "보험으로 할까, 자비로 할까?", { max: 40 }),
-  "insurance.compare.lead": text("자비 비교 설명", "수리비가 적으면 보험료가 오르는 것보다 자비가 나을 때가 있습니다. 견적 금액을 먼저 보고 고르셔도 됩니다. 보험료 할증은 보험사에 직접 확인해 주세요.", { multi: true, max: 300 }),
+  "insurance.compare.lead": text(
+    "자비 비교 설명",
+    "수리비가 적으면 보험료가 오르는 것보다 자비가 나을 때가 있습니다. 견적 금액을 먼저 보고 고르셔도 됩니다. 보험료 할증은 보험사에 직접 확인해 주세요.",
+    { multi: true, max: 300 },
+  ),
 
   // ── 이용 안내 ──
   "guide.sub": text("화면 설명", "처음 맡기셔도 헷갈리지 않게, 맡기기 전부터 출고 뒤까지 정리했습니다.", { multi: true, max: 200 }),
   "guide.before.title": text("맡기기 전 제목", "맡기기 전에", { max: 30 }),
-  "guide.before.items": lines("맡기기 전", ["차 안 귀중품·하이패스 카드·블랙박스 메모리는 챙겨 가세요.", "열쇠(스마트키)를 하나 맡겨 주세요. 작업 중 차를 옮겨야 합니다.", "보험 수리면 사고 접수번호와 보험사를 알려 주세요.", "입고할 때 차를 한 바퀴 돌며 사진을 찍고 지금 상태를 함께 확인합니다."]),
+  "guide.before.items": lines("맡기기 전", [
+    "차 안 귀중품·하이패스 카드·블랙박스 메모리는 챙겨 가세요.",
+    "열쇠(스마트키)를 하나 맡겨 주세요. 작업 중 차를 옮겨야 합니다.",
+    "보험 수리면 사고 접수번호와 보험사를 알려 주세요.",
+    "입고할 때 차를 한 바퀴 돌며 사진을 찍고 지금 상태를 함께 확인합니다.",
+  ]),
   "guide.during.title": text("맡긴 동안 제목", "맡긴 동안", { max: 30 }),
-  "guide.during.items": lines("맡긴 동안", ["진행 단계(진단·견적·작업·검사·출고)는 내 차 수첩에서 바로 보입니다.", "뜯어 보니 손상이 더 있으면 작업을 멈추고 사진과 추가 견적을 먼저 보내 드립니다.", "승인하신 작업만 합니다. 승인 없이 금액이 오르지 않습니다."]),
+  "guide.during.items": lines("맡긴 동안", [
+    "진행 단계(진단·견적·작업·검사·출고)는 내 차 수첩에서 바로 보입니다.",
+    "뜯어 보니 손상이 더 있으면 작업을 멈추고 사진과 추가 견적을 먼저 보내 드립니다.",
+    "승인하신 작업만 합니다. 승인 없이 금액이 오르지 않습니다.",
+  ]),
   "guide.pickup.title": text("찾아갈 때 제목", "찾아가실 때", { max: 30 }),
   "guide.pickup.items": lines("찾아가실 때", ["밝은 곳에서 고친 곳을 함께 보고 확인합니다.", "정비명세서·영수증을 드리고, 사진·보증 기간은 내 차 수첩에 남습니다."]),
   "guide.after.title": text("출고 뒤 제목", "출고 뒤 관리", { max: 30 }),
@@ -178,15 +196,15 @@ export const PAGE_TEXT = {
     "출고 뒤 {세차금지일}일 동안은 자동 세차·고압 세차·왁스를 피해 주세요(도막이 굳는 동안).",
     "새 도장 위에 스티커·테이프를 붙이지 마세요.",
     "새·나무 수액·벌레 자국은 바로 물로 닦아 주세요.",
-    "문제가 생기면 보증 기간(도장·판금 {도장보증}개월, 덴트 {덴트보증}개월) 안에 내 차 수첩에서 사진과 함께 신청하세요.",
+    "문제가 생기면 보증 기간(도장·판금 {도장보증}개월) 안에 내 차 수첩에서 사진과 함께 신청하세요.",
   ]),
 
-  // ── 정비소 소개 ──
+  // ── 공업사 소개 ──
   "about.services": pairs(
     "수리 분야",
     [
-      { t: "찌그러짐", d: "도장을 살리는 덴트부터 판금까지. 문콕·우박·주차 사고 자국을 원래 모양으로 펴 드립니다." },
-      { t: "긁힘", d: "광택으로 될지, 부분 도색이 필요한지 먼저 보고 알맞은 방법으로 고칩니다." },
+      { t: "찌그러짐", d: "찌그러진 철판을 판금으로 펴고 다시 칠해 원래 모양을 되살립니다. 문콕·주차 사고 자국부터 크게 눌린 곳까지 고칩니다." },
+      { t: "긁힘", d: "긁힌 깊이와 넓이를 보고 필요한 만큼만 부분 도색합니다. 경계가 보이지 않게 번지게 칠합니다." },
       { t: "도색", d: "색상 코드와 배합 기록으로 같은 색을 맞추고, 도막 두께를 재서 검사합니다." },
     ],
     6,
@@ -244,7 +262,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   },
   { id: "insurance", title: "보험 수리 안내", path: "/insurance" },
   { id: "guide", title: "이용 안내", path: "/guide" },
-  { id: "about", title: "정비소 소개", path: "/about" },
+  { id: "about", title: "공업사 소개", path: "/about" },
   { id: "footer", title: "바닥글", path: "/" },
 ];
 
@@ -254,7 +272,7 @@ export const groupKeys = (g: string) => keysOf(g);
 // ── 메뉴·바닥글 ──
 /** 위 메뉴에 넣을 수 있는 화면 */
 export const NAV_PAGES = [
-  { href: "/about", name: "정비소 소개" },
+  { href: "/about", name: "공업사 소개" },
   { href: "/services", name: "수리 안내" },
   { href: "/cases", name: "작업 사례" },
   { href: "/insurance", name: "보험 수리" },
@@ -277,7 +295,7 @@ export const FOOT_PAGES = [
   { href: "/services", name: "수리 안내" },
   { href: "/tech", name: "기술자료" },
   { href: "/carbook-guide", name: "내 차 수첩 사용설명서" },
-  { href: "/about", name: "정비소 소개" },
+  { href: "/about", name: "공업사 소개" },
   { href: "/cases", name: "작업 사례" },
   { href: "/faq", name: "자주 묻는 질문" },
   { href: "/notice", name: "공지사항" },
@@ -302,17 +320,22 @@ export function normalizeOrder(order: readonly string[] | undefined): SectionKey
   const seen = (order ?? []).filter((k, i, a): k is SectionKey => (SECTION_KEYS as string[]).includes(k) && a.indexOf(k) === i);
   for (const k of SECTION_KEYS) {
     if (seen.includes(k)) continue;
-    const before = SECTION_KEYS.slice(0, SECTION_KEYS.indexOf(k)).reverse().find((x) => seen.includes(x));
+    const before = SECTION_KEYS.slice(0, SECTION_KEYS.indexOf(k))
+      .reverse()
+      .find((x) => seen.includes(x));
     seen.splice(before ? seen.indexOf(before) + 1 : 0, 0, k);
   }
   return seen;
 }
 
 /** 메뉴·바닥글 목록 고르게: 정해진 화면만, 빠진 화면은 끝에(숨김으로) 붙인다 */
+/** 예전 화면 이름(대표 2026-11-22 정비소→공업사). 이 이름이 그대로 저장돼 있으면 지금 화면 이름으로 */
+const LEGACY_LINK_NAMES: Record<string, string> = { "/about": "정비소 소개" };
+
 export function normalizeLinks<T extends { href: string; label: string; on: boolean }>(saved: readonly T[] | undefined, pages: readonly { href: string; name: string }[], defaults: readonly T[]): T[] {
   if (!saved?.length) return defaults.map((d) => ({ ...d }));
   const ok = new Set(pages.map((p) => p.href));
-  const out = saved.filter((x, i, a) => ok.has(x.href) && a.findIndex((y) => y.href === x.href) === i).map((x) => ({ ...x, label: x.label.trim() || pages.find((p) => p.href === x.href)!.name }));
+  const out = saved.filter((x, i, a) => ok.has(x.href) && a.findIndex((y) => y.href === x.href) === i).map((x) => ({ ...x, label: (x.label.trim() !== LEGACY_LINK_NAMES[x.href] && x.label.trim()) || pages.find((p) => p.href === x.href)!.name }));
   for (const d of defaults) if (!out.some((x) => x.href === d.href)) out.push({ ...d, on: false });
   return out;
 }

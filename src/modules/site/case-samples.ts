@@ -5,7 +5,7 @@
 export type CaseSample = { key: string; category: "찌그러짐" | "긁힘" | "도색"; service: string; title: string; body: string };
 
 export const CASE_SAMPLES: CaseSample[] = [
-  { key: "door-dent", category: "찌그러짐", service: "dent", title: "앞문 문콕 · 덴트 복원", body: "도장이 깨지지 않은 둥근 찌그러짐은 안쪽에서 밀어 펴 공장 도장을 그대로 살립니다." },
+  { key: "door-dent", category: "찌그러짐", service: "dent", title: "앞문 문콕 · 판금 도색", body: "눌린 철판을 판금으로 펴고 면을 잡은 뒤, 경계가 보이지 않게 번지게 칠합니다." },
   { key: "fender-dent", category: "찌그러짐", service: "dent", title: "뒤 펜더 주차 사고 · 판금", body: "꺾인 선이 날카로운 찌그러짐은 판금으로 면을 되살린 뒤 칠합니다." },
   { key: "door-scratch", category: "긁힘", service: "scratch", title: "옆문 긁힘 · 부분 도색", body: "손톱이 걸리는 긁힘은 갈아내고 부분 도색한 뒤 경계를 번지게 칠합니다." },
   { key: "bumper-scuff", category: "긁힘", service: "scratch", title: "앞 범퍼 모서리 쓸림 · 복원", body: "쓸려 일어난 범퍼 플라스틱을 다듬고 메운 뒤 칠합니다." },

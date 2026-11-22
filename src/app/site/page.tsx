@@ -1,6 +1,6 @@
 // 홈페이지 첫 화면(고급·전문 컨셉): 배경 사진 첫 화면(한 줄 소개·견적 요청·내 차 수첩, 믿을 근거 숫자) → 수리 분야(4) → 고를 이유 → 품질 기준 →
-// 정비소 사진 → 진행 순서 → 내 차 수첩(홍보 중심, 휴대폰 그림) → 작업 사례 → 후기 → 보험·보증 → 기술자료 → 자주 묻는 질문 → 공지·오시는 길 → 마무리 띠.
-// 숫자(보증 기간·검사 기준·회신 기한)는 정책값에서 불러와 정비소 기준이 바뀌면 함께 바뀐다.
+// 공업사 사진 → 진행 순서 → 내 차 수첩(홍보 중심, 휴대폰 그림) → 작업 사례 → 후기 → 보험·보증 → 기술자료 → 자주 묻는 질문 → 공지·오시는 길 → 마무리 띠.
+// 숫자(보증 기간·검사 기준·회신 기한)는 정책값에서 불러와 공업사 기준이 바뀌면 함께 바뀐다.
 // 배경 단락 다음 단락의 차례·보이기·문구는 설정 › 홈페이지 › 첫 화면에서 정한다(modules/site/page-text.ts 처음 문구 + site_pages 고친 것).
 import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
@@ -39,7 +39,7 @@ export default async function SiteHome() {
     ["카카오맵 후기", trust.links.kakao],
     ["구글 후기", trust.links.google],
   ].filter(([, u]) => u);
-  const warrantyTop = Math.max(p["warranty.paint_months"], p["warranty.dent_months"]);
+  const warrantyTop = p["warranty.paint_months"];
   const TRUST = [
     { n: "6", u: "단계", d: "표준 공정" },
     {
@@ -163,14 +163,14 @@ export default async function SiteHome() {
     ),
     photos: (
       <>
-        {/* 정비소 사진 */}
+        {/* 공업사 사진 */}
         {trust.photos.length > 0 && (
           <section aria-labelledby="shop">
-            <SectionHead eyebrow={v.t("home.photos.eyebrow")} id="shop" title={v.t("home.photos.title")} more={{ href: "/about", label: "정비소 소개" }} />
+            <SectionHead eyebrow={v.t("home.photos.eyebrow")} id="shop" title={v.t("home.photos.title")} more={{ href: "/about", label: "공업사 소개" }} />
             <ul className="grid auto-rows-[11rem] grid-cols-2 gap-3 sm:auto-rows-[14rem] md:grid-cols-4">
               {trust.photos.slice(0, 6).map((ph, i) => (
                 <li key={ph.id} className={`group relative overflow-hidden rounded-2xl bg-[var(--surface-2)] ${i === 0 ? "col-span-2 row-span-2" : ""}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- 정비소 사진 그대로 */}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- 공업사 사진 그대로 */}
                   <img src={`/api/site-file/${ph.path}`} alt={ph.caption || PHOTO_KINDS[ph.kind]} className="size-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" />
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-8 text-sm font-medium text-white">{ph.caption || PHOTO_KINDS[ph.kind]}</span>
                 </li>
@@ -379,16 +379,15 @@ export default async function SiteHome() {
           <div className="rounded-2xl bg-[var(--ink)] p-8 text-white">
             <p className="eyebrow mb-2 !text-white/50">WARRANTY</p>
             <h2 className="text-2xl font-bold">{v.t("home.insurance.warrantyTitle")}</h2>
-            <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
+            <dl className="mt-5 grid grid-cols-2 gap-3 text-center">
               {[
-                ["도장·판금", p["warranty.paint_months"]],
-                ["덴트", p["warranty.dent_months"]],
-                ["광택", p["warranty.polish_months"]],
-              ].map(([k, v]) => (
+                ["도장·판금", p["warranty.paint_months"], "개월"],
+                ["바꾼 부품", "제조사", "보증"],
+              ].map(([k, v, u]) => (
                 <div key={k} className="rounded-xl border border-white/12 py-4">
                   <dd className="text-2xl font-bold tabular-nums">
                     {v}
-                    <span className="ml-0.5 text-sm font-medium text-white/60">개월</span>
+                    <span className="ml-0.5 text-sm font-medium text-white/60">{u}</span>
                   </dd>
                   <dt className="mt-1 text-sm text-white/60">{k}</dt>
                 </div>
@@ -510,7 +509,7 @@ export default async function SiteHome() {
     <div className="space-y-24 sm:space-y-32">
       {/* 첫 화면 */}
       <section className="relative -mx-5 -mt-12 overflow-hidden bg-[var(--ink)] px-5 pb-16 pt-20 text-white sm:-mt-16 sm:pb-20 sm:pt-28 lg:mx-[calc(50%-50vw)] lg:px-[calc(50vw-50%+1.25rem)]">
-        {/* 배경: 고른 정비소 사진, 없으면 기본 그림(차체 곡면). 글자가 읽히게 왼쪽·아래를 어둡게 덮는다 */}
+        {/* 배경: 고른 공업사 사진, 없으면 기본 그림(차체 곡면). 글자가 읽히게 왼쪽·아래를 어둡게 덮는다 */}
         {/* eslint-disable-next-line @next/next/no-img-element -- 배경 그림 그대로 */}
         <img src={hero} alt="" aria-hidden className="hero-photo absolute inset-0 size-full object-cover" fetchPriority="high" />
         {/* 어둡게 덮는 정도는 설정 › 홈페이지 › 첫 화면에서(밝은 사진이면 높이고, 사진을 더 보이려면 낮춘다) */}

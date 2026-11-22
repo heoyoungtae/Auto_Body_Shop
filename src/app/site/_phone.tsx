@@ -2,13 +2,7 @@
 import type { ReactNode } from "react";
 
 /** 휴대폰 틀 안의 줄인 화면 */
-export function Phone({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+export function Phone({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div
       aria-hidden
@@ -22,43 +16,17 @@ export function Phone({
     </div>
   );
 }
-export const Bar = ({
-  w = "100%",
-  tone = "line",
-}: {
-  w?: string;
-  tone?: "line" | "red" | "ink" | "ok";
-}) => (
+export const Bar = ({ w = "100%", tone = "line" }: { w?: string; tone?: "line" | "red" | "ink" | "ok" }) => (
   <div
     className={`h-2 rounded-full ${tone === "red" ? "bg-[var(--red)]" : tone === "ink" ? "bg-[var(--ink)] dark:bg-white" : tone === "ok" ? "bg-[#0f9d58]" : "bg-[var(--line)]"}`}
     style={{ width: w }}
   />
 );
-export const Box = ({
-  children,
-  tone = "line",
-}: {
-  children: ReactNode;
-  tone?: "line" | "paper";
-}) => (
-  <div
-    className={`rounded-lg p-2.5 ${tone === "paper" ? "bg-[var(--paper)]" : "border border-[var(--line)]"}`}
-  >
-    {children}
-  </div>
+export const Box = ({ children, tone = "line" }: { children: ReactNode; tone?: "line" | "paper" }) => (
+  <div className={`rounded-lg p-2.5 ${tone === "paper" ? "bg-[var(--paper)]" : "border border-[var(--line)]"}`}>{children}</div>
 );
-export const Btn = ({
-  children,
-  red,
-}: {
-  children: ReactNode;
-  red?: boolean;
-}) => (
-  <div
-    className={`rounded-full py-2 text-center text-[11px] font-semibold ${red ? "bg-[var(--red)] text-white" : "bg-[var(--ink)] text-white dark:bg-white dark:text-[var(--ink)]"}`}
-  >
-    {children}
-  </div>
+export const Btn = ({ children, red }: { children: ReactNode; red?: boolean }) => (
+  <div className={`rounded-full py-2 text-center text-[11px] font-semibold ${red ? "bg-[var(--red)] text-white" : "bg-[var(--ink)] text-white dark:bg-white dark:text-[var(--ink)]"}`}>{children}</div>
 );
 
 export function PhoneProgress() {
@@ -67,62 +35,18 @@ export function PhoneProgress() {
       <div className="flex items-center gap-1">
         {["접수", "진단", "견적", "작업", "검사", "출고"].map((s, i) => (
           <div key={s} className="flex-1 text-center">
-            <div
-              className={`mx-auto mb-1 size-3 rounded-full ${i < 3 ? "bg-[var(--ink)] dark:bg-white" : i === 3 ? "bg-[var(--red)]" : "bg-[var(--line)]"}`}
-            />
-            <span
-              className={`text-[9px] ${i === 3 ? "font-bold text-[var(--red)]" : "text-[var(--muted)]"}`}
-            >
-              {s}
-            </span>
+            <div className={`mx-auto mb-1 size-3 rounded-full ${i < 3 ? "bg-[var(--ink)] dark:bg-white" : i === 3 ? "bg-[var(--red)]" : "bg-[var(--line)]"}`} />
+            <span className={`text-[9px] ${i === 3 ? "font-bold text-[var(--red)]" : "text-[var(--muted)]"}`}>{s}</span>
           </div>
         ))}
       </div>
       <Box>
         <svg viewBox="0 0 120 50" className="w-full">
-          <rect
-            x="10"
-            y="18"
-            width="100"
-            height="18"
-            rx="6"
-            fill="none"
-            stroke="currentColor"
-            strokeOpacity=".35"
-          />
-          <path
-            d="M28 18 38 8h40l12 10"
-            fill="none"
-            stroke="currentColor"
-            strokeOpacity=".35"
-          />
-          <rect
-            x="14"
-            y="20"
-            width="22"
-            height="14"
-            rx="3"
-            fill="#0f9d58"
-            fillOpacity=".7"
-          />
-          <rect
-            x="40"
-            y="20"
-            width="24"
-            height="14"
-            rx="3"
-            fill="#e69f00"
-            fillOpacity=".8"
-          />
-          <rect
-            x="68"
-            y="20"
-            width="24"
-            height="14"
-            rx="3"
-            fill="currentColor"
-            fillOpacity=".12"
-          />
+          <rect x="10" y="18" width="100" height="18" rx="6" fill="none" stroke="currentColor" strokeOpacity=".35" />
+          <path d="M28 18 38 8h40l12 10" fill="none" stroke="currentColor" strokeOpacity=".35" />
+          <rect x="14" y="20" width="22" height="14" rx="3" fill="#0f9d58" fillOpacity=".7" />
+          <rect x="40" y="20" width="24" height="14" rx="3" fill="#e69f00" fillOpacity=".8" />
+          <rect x="68" y="20" width="24" height="14" rx="3" fill="currentColor" fillOpacity=".12" />
           <circle cx="30" cy="38" r="6" fill="currentColor" fillOpacity=".5" />
           <circle cx="90" cy="38" r="6" fill="currentColor" fillOpacity=".5" />
         </svg>
@@ -138,23 +62,17 @@ export function PhoneEstimate() {
     <Phone title="견적 승인">
       {[
         ["앞 범퍼 긁힘 · 부분 도색", true],
-        ["앞 펜더 찌그러짐 · 덴트", true],
+        ["앞 펜더 찌그러짐 · 판금", true],
         ["사이드미러 교환", false],
       ].map(([t, on]) => (
         <Box key={String(t)}>
           <div className="flex items-center gap-2">
-            <span
-              className={`grid size-4 place-items-center rounded border text-[9px] ${on ? "border-[var(--red)] bg-[var(--red)] text-white" : "border-[var(--line-strong)]"}`}
-            >
-              {on ? "✓" : ""}
-            </span>
+            <span className={`grid size-4 place-items-center rounded border text-[9px] ${on ? "border-[var(--red)] bg-[var(--red)] text-white" : "border-[var(--line-strong)]"}`}>{on ? "✓" : ""}</span>
             <span className="flex-1">{t}</span>
           </div>
         </Box>
       ))}
-      <div className="rounded-lg border border-dashed border-[var(--line-strong)] p-2 text-center italic text-[var(--muted)]">
-        서명
-      </div>
+      <div className="rounded-lg border border-dashed border-[var(--line-strong)] p-2 text-center italic text-[var(--muted)]">서명</div>
       <Btn red>보내기</Btn>
     </Phone>
   );

@@ -2,8 +2,23 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
 import { loadPolicy } from "@/modules/platform/policy";
-import { discardDraft, draftState, loadEditing, loadSitePages, orderFromNumbers, pagesHistory, pagesView, publishPages, resetTexts, restoreVersion, saveHomeLayout, saveMenu, saveTexts, sitePages } from "@/modules/site/pages";
-import { ALL_TEXT, DEFAULT_FOOT, DEFAULT_NAV, fillTokens, groupKeys, HOME_SECTIONS, normalizeOrder, PAGE_TEXT, SECTION_KEYS, TEXT_GROUPS, unknownTokens } from "@/modules/site/page-text";
+import {
+  discardDraft,
+  draftState,
+  loadEditing,
+  loadSitePages,
+  orderFromNumbers,
+  pagesHistory,
+  pagesView,
+  publishPages,
+  resetTexts,
+  restoreVersion,
+  saveHomeLayout,
+  saveMenu,
+  saveTexts,
+  sitePages,
+} from "@/modules/site/pages";
+import { ALL_TEXT, DEFAULT_FOOT, DEFAULT_NAV, fillTokens, groupKeys, HOME_SECTIONS, NAV_PAGES, normalizeLinks, normalizeOrder, PAGE_TEXT, SECTION_KEYS, TEXT_GROUPS, unknownTokens } from "@/modules/site/page-text";
 import { servicePagesView } from "@/modules/site/service-text";
 import { seedShop, testDb } from "./db";
 
@@ -19,7 +34,8 @@ const advisor = () => ({ id: ids.advisor, roles: ["advisor"] as const });
 describe("화면 글", () => {
   it("처음 문구에는 모르는 자리표시가 없고, 단락마다 고칠 글이 있다", () => {
     for (const [k, d] of Object.entries(ALL_TEXT)) {
-      const all = d.kind === "text" ? d.def : d.kind === "lines" ? d.def.join(" ") : d.kind === "rows" ? d.def.map((x) => Object.values(x).join(" ")).join(" ") : d.def.map((x) => `${x.t} ${x.d}`).join(" ");
+      const all =
+        d.kind === "text" ? d.def : d.kind === "lines" ? d.def.join(" ") : d.kind === "rows" ? d.def.map((x) => Object.values(x).join(" ")).join(" ") : d.def.map((x) => `${x.t} ${x.d}`).join(" ");
       expect(unknownTokens(all), k).toEqual([]);
     }
     for (const s of HOME_SECTIONS) expect(groupKeys(`home.${s.key}`).length, s.key).toBeGreaterThan(0);
@@ -36,7 +52,13 @@ describe("화면 글", () => {
 
     const n = await saveTexts(db, owner(), {
       text: { "home.why.title": "꼼꼼하게\n고칩니다", "home.services.title": PAGE_TEXT["home.services.title"].def },
-      pairs: { "home.why.items": [{ t: "보증 {도장보증}개월", d: "도장 보증" }, { t: "", d: "" }, { t: "기록", d: "" }] },
+      pairs: {
+        "home.why.items": [
+          { t: "보증 {도장보증}개월", d: "도장 보증" },
+          { t: "", d: "" },
+          { t: "기록", d: "" },
+        ],
+      },
       lines: { "insurance.wedo.items": ["보험사 협의", "", "대차 요청"] },
     });
     expect(n).toBe(3); // 처음 문구와 같은 칸은 '고친 것'이 아니다
@@ -45,7 +67,10 @@ describe("화면 글", () => {
     expect(Object.keys(raw.text ?? {})).toEqual(["home.why.title"]);
     const v = pagesView(raw, p);
     expect(v.t("home.why.title")).toBe("꼼꼼하게\n고칩니다");
-    expect(v.pairs("home.why.items")).toEqual([{ t: `보증 ${p["warranty.paint_months"]}개월`, d: "도장 보증" }, { t: "기록", d: "" }]);
+    expect(v.pairs("home.why.items")).toEqual([
+      { t: `보증 ${p["warranty.paint_months"]}개월`, d: "도장 보증" },
+      { t: "기록", d: "" },
+    ]);
     expect(v.lines("insurance.wedo.items")).toEqual(["보험사 협의", "대차 요청"]);
 
     await saveTexts(db, owner(), { text: { "home.why.title": "  " } });
@@ -58,7 +83,16 @@ describe("화면 글", () => {
     await expect(saveTexts(db, owner(), { text: { "home.cta.lead": "{보증기간}개월" } })).rejects.toThrow(/모르는 자리표시 \{보증기간\}/);
     await expect(saveTexts(db, owner(), { pairs: { "home.why.items": [{ t: "", d: "설명만" }] } })).rejects.toThrow(/1번째 줄에 제목/);
     await expect(saveTexts(db, owner(), { text: { "home.services.title": "가".repeat(41) } })).rejects.toThrow(/40자까지/);
-    await expect(saveTexts(db, owner(), { pairs: { "home.process.items": [{ t: "상담", d: "" }, { t: "출고", d: "" }] } })).rejects.toThrow(/3개 이상/);
+    await expect(
+      saveTexts(db, owner(), {
+        pairs: {
+          "home.process.items": [
+            { t: "상담", d: "" },
+            { t: "출고", d: "" },
+          ],
+        },
+      }),
+    ).rejects.toThrow(/3개 이상/);
     await expect(saveTexts(db, owner(), { text: { "nope.key": "x" } })).rejects.toThrow(/없는 칸/);
     await expect(saveTexts(db, advisor(), { text: { "home.services.title": "수리" } })).rejects.toThrow(/대표만/);
     expect(fillTokens("{모름} {도장보증}", await loadPolicy(db))).toMatch(/^\{모름\} \d+$/);
@@ -79,7 +113,21 @@ describe("첫 화면 단락", () => {
     expect(v.shows("tech")).toBe(false);
     expect(v.home.order.filter(v.shows)).not.toContain("reviews");
     // 모르는 단락·겹친 단락은 빼고, 빠진 단락은 처음 차례에서 바로 앞 단락 뒤에 끼운다
-    expect(normalizeOrder(["faq", "없는단락", "services", "faq"])).toEqual(["faq", "notice", "cta", "services", "why", "quality", "photos", "process", "carbook", "cases", "reviews", "insurance", "tech"]);
+    expect(normalizeOrder(["faq", "없는단락", "services", "faq"])).toEqual([
+      "faq",
+      "notice",
+      "cta",
+      "services",
+      "why",
+      "quality",
+      "photos",
+      "process",
+      "carbook",
+      "cases",
+      "reviews",
+      "insurance",
+      "tech",
+    ]);
     await expect(saveHomeLayout(db, owner(), { order, off: [...SECTION_KEYS], shade: 100, stats: true })).rejects.toThrow(/하나 이상/);
   });
 });
@@ -87,12 +135,16 @@ describe("첫 화면 단락", () => {
 describe("메뉴·바닥글", () => {
   it("이름·차례·숨기기·NEW, 비운 이름은 화면 이름, 위 메뉴는 8개까지", async () => {
     expect((await sitePages(db)).nav).toEqual(DEFAULT_NAV);
-    const nav = DEFAULT_NAV.map((x) => (x.href === "/faq" ? { ...x, label: "궁금해요", isNew: true } : x.href === "/notice" ? { ...x, on: false, isNew: true } : x.href === "/about" ? { ...x, label: " " } : x));
+    const nav = DEFAULT_NAV.map((x) =>
+      x.href === "/faq" ? { ...x, label: "궁금해요", isNew: true } : x.href === "/notice" ? { ...x, on: false, isNew: true } : x.href === "/about" ? { ...x, label: " " } : x,
+    );
     await saveMenu(db, owner(), { nav: [nav[5], ...nav.filter((_, i) => i !== 5)], foot: DEFAULT_FOOT.map((x) => ({ ...x, on: x.href === "/terms" })) });
     const v = await sitePages(db, true);
     expect(v.nav[0]).toEqual({ href: "/faq", label: "궁금해요", on: true, isNew: true });
     expect(v.nav.find((x) => x.href === "/notice")).toMatchObject({ on: false, isNew: false }); // 숨긴 메뉴엔 NEW 없음
-    expect(v.nav.find((x) => x.href === "/about")!.label).toBe("정비소 소개");
+    expect(v.nav.find((x) => x.href === "/about")!.label).toBe("공업사 소개");
+    // 예전 이름(정비소 소개)이 저장돼 있어도 지금 이름으로
+    expect(normalizeLinks([{ href: "/about", label: "정비소 소개", on: true, isNew: false }], NAV_PAGES, DEFAULT_NAV)[0].label).toBe("공업사 소개");
     expect(v.foot.filter((x) => x.on).map((x) => x.href)).toEqual(["/terms"]);
     await expect(saveMenu(db, owner(), { nav: DEFAULT_NAV.map((x) => ({ ...x, on: true })), foot: DEFAULT_FOOT })).rejects.toThrow(/8개까지/);
     await expect(saveMenu(db, owner(), { nav: DEFAULT_NAV.map((x) => ({ ...x, on: false })), foot: DEFAULT_FOOT })).rejects.toThrow(/하나 이상/);
@@ -104,7 +156,14 @@ describe("수리 안내·공개하기·이력", () => {
     const p = await loadPolicy(db);
     const base = servicePagesView(await sitePages(db));
     expect(base.find((s) => s.slug === "paint")!.warranty).toBe(`도장 ${p["warranty.paint_months"]}개월 보증 · 도막 ${p["inspect.film_min_um"]}~${p["inspect.film_max_um"]}μm 검사`);
-    await saveTexts(db, owner(), { rows: { "services.rust.methods": [{ name: "녹 제거 도색", when: "녹이 보일 때", how: "갈아내고 칠합니다", time: "보통 {도장보증}일" }, { name: "", when: "", how: "", time: "" }] } });
+    await saveTexts(db, owner(), {
+      rows: {
+        "services.rust.methods": [
+          { name: "녹 제거 도색", when: "녹이 보일 때", how: "갈아내고 칠합니다", time: "보통 {도장보증}일" },
+          { name: "", when: "", how: "", time: "" },
+        ],
+      },
+    });
     const rust = servicePagesView(await sitePages(db, true)).find((s) => s.slug === "rust")!;
     expect(rust.methods).toEqual([{ name: "녹 제거 도색", when: "녹이 보일 때", how: "갈아내고 칠합니다", time: `보통 ${p["warranty.paint_months"]}일` }]);
     await expect(saveTexts(db, owner(), { rows: { "services.rust.methods": [{ name: "", when: "설명만", how: "", time: "" }] } })).rejects.toThrow(/1번째 줄에 방법/);

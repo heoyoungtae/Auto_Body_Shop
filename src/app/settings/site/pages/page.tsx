@@ -1,4 +1,4 @@
-// 설정 › 홈페이지 › 화면 글(대표): 수리 안내(분야마다)·내 차 수첩 설명서(장마다)·보험 수리 안내·이용 안내·정비소 소개·바닥글의 문구와 목록을 고친다(첫 화면은 '첫 화면' 탭).
+// 설정 › 홈페이지 › 화면 글(대표): 수리 안내(분야마다)·내 차 수첩 설명서(장마다)·보험 수리 안내·이용 안내·공업사 소개·바닥글의 문구와 목록을 고친다(첫 화면은 '첫 화면' 탭).
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
@@ -35,7 +35,12 @@ export default async function SitePagesSettingsPage({ searchParams }: { searchPa
       <SiteSettingsTabs on="/settings/site/pages" back={back} />
       <nav aria-label="화면 고르기" className="mb-4 flex flex-wrap gap-1.5">
         {TEXT_GROUPS.map((x) => (
-          <Link key={x.id} href={`/settings/site/pages?g=${x.id}`} aria-current={x.id === group.id ? "page" : undefined} className={`rounded-full border px-3 py-1.5 text-sm ${x.id === group.id ? "border-[var(--accent)] bg-[var(--accent-soft)] font-semibold text-[var(--accent)]" : "border-[var(--line)] hover:border-[var(--fg)]"}`}>
+          <Link
+            key={x.id}
+            href={`/settings/site/pages?g=${x.id}`}
+            aria-current={x.id === group.id ? "page" : undefined}
+            className={`rounded-full border px-3 py-1.5 text-sm ${x.id === group.id ? "border-[var(--accent)] bg-[var(--accent-soft)] font-semibold text-[var(--accent)]" : "border-[var(--line)] hover:border-[var(--fg)]"}`}
+          >
             {x.title}
           </Link>
         ))}

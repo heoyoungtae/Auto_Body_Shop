@@ -14,18 +14,26 @@ export default async function TechPage({ searchParams }: { searchParams: Promise
   const db = await getDb();
   const [{ shop, cfg }, all, list] = await Promise.all([siteData(), publicArticles(db), publicArticles(db, query, c)]);
   const cats = ARTICLE_CATEGORIES.filter((x) => all.some((a) => a.category === x));
-  const chip = (on: boolean) => `rounded-full border px-4 py-2 text-sm font-medium ${on ? "border-[var(--ink)] bg-[var(--ink)] text-white dark:border-white dark:bg-white dark:text-[var(--ink)]" : "border-[var(--line)] hover:bg-[var(--surface-2)]"}`;
+  const chip = (on: boolean) =>
+    `rounded-full border px-4 py-2 text-sm font-medium ${on ? "border-[var(--ink)] bg-[var(--ink)] text-white dark:border-white dark:bg-white dark:text-[var(--ink)]" : "border-[var(--line)] hover:bg-[var(--surface-2)]"}`;
   const href = (cat: string) => `?${new URLSearchParams({ ...(query ? { q: query } : {}), ...(cat ? { c: cat } : {}) })}`;
   const [lead, ...rest] = list;
   return (
     <div className="space-y-16">
       <div>
-        <SiteTitle eyebrow="KNOWLEDGE" help="site.tech" sub="차를 오래 아끼는 방법, 녹이 생기는 이유, 수리 방법과 견적서 읽는 법까지. 정비소에서 날마다 보는 것을 손님 말로 옮겼습니다.">
+        <SiteTitle eyebrow="KNOWLEDGE" help="site.tech" sub="차를 오래 아끼는 방법, 녹이 생기는 이유, 수리 방법과 견적서 읽는 법까지. 공업사에서 날마다 보는 것을 손님 말로 옮겼습니다.">
           기술자료
         </SiteTitle>
         <form className="-mt-4 mb-4 flex max-w-2xl gap-2" role="search">
           {c && <input type="hidden" name="c" value={c} />}
-          <input type="search" name="q" defaultValue={query} placeholder="낱말로 찾기 (예: 녹, 세차, 겨울, 견적서)" aria-label="글 찾기" className="min-h-12 min-w-0 flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] px-4 text-base" />
+          <input
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="낱말로 찾기 (예: 녹, 세차, 겨울, 견적서)"
+            aria-label="글 찾기"
+            className="min-h-12 min-w-0 flex-1 rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] px-4 text-base"
+          />
           <button className={siteBtn("navy")}>찾기</button>
         </form>
         {cats.length > 1 && (

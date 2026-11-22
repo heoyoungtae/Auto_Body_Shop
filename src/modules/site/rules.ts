@@ -30,7 +30,26 @@ export const SITE_PATHS: Record<string, string> = {
 const SITE_PREFIXES = ["/notice/", "/cases/", "/services/", "/tech/"];
 
 /** 홈페이지 주소에서 그대로 열어 주는 손님용 화면(나머지 직원 화면은 앱 주소로 보낸다) */
-const PUBLIC_BASES = ["/site", "/my", "/estimate", "/consent", "/survey", "/verify", "/brand", "/brand-default", "/fonts", "/site-art", "/api/my", "/api/site-file", "/_next", "/icons", "/favicon", "/robots", "/sitemap", "/manifest"];
+const PUBLIC_BASES = [
+  "/site",
+  "/my",
+  "/estimate",
+  "/consent",
+  "/survey",
+  "/verify",
+  "/brand",
+  "/brand-default",
+  "/fonts",
+  "/site-art",
+  "/api/my",
+  "/api/site-file",
+  "/_next",
+  "/icons",
+  "/favicon",
+  "/robots",
+  "/sitemap",
+  "/manifest",
+];
 
 export type SiteRoute = { kind: "rewrite"; to: string } | { kind: "pass" } | { kind: "app" };
 
@@ -39,7 +58,8 @@ export function routeFor(path: string, onHomepage: boolean): SiteRoute {
   const clean = path.length > 1 ? path.replace(/\/$/, "") : path;
   if (onHomepage && clean === "/") return { kind: "rewrite", to: "/site" };
   if (SITE_PATHS[clean]) return { kind: "rewrite", to: SITE_PATHS[clean] };
-  if (SITE_PREFIXES.some((p) => clean.startsWith(p)) && (/^\/(notice|cases)\/[0-9a-f-]{36}$/i.test(clean) || /^\/(services|tech)\/[a-z0-9]+(-[a-z0-9]+)*$/.test(clean))) return { kind: "rewrite", to: `/site${clean}` };
+  if (SITE_PREFIXES.some((p) => clean.startsWith(p)) && (/^\/(notice|cases)\/[0-9a-f-]{36}$/i.test(clean) || /^\/(services|tech)\/[a-z0-9]+(-[a-z0-9]+)*$/.test(clean)))
+    return { kind: "rewrite", to: `/site${clean}` };
   if (!onHomepage) return { kind: "pass" };
   return PUBLIC_BASES.some((b) => clean === b || clean.startsWith(`${b}/`) || clean.startsWith(`${b}.`)) ? { kind: "pass" } : { kind: "app" };
 }
@@ -54,7 +74,7 @@ export type SiteConfig = {
   lead: string;
   /** 개업일(YYYY-MM-DD). 이날 전에는 '개업 준비 중' 띠를 보인다 */
   openOn: string;
-  /** 정비소 소개(인사말). 빈 줄로 문단을 나눈다 */
+  /** 공업사 소개(인사말). 빈 줄로 문단을 나눈다 */
   about: string;
   /** 영업시간 안내 한 줄 */
   hours: string;
@@ -72,13 +92,26 @@ export type SiteConfig = {
   verifyGoogle: string;
 };
 
+const SITE_LEAD = "판금·도장으로 고치는 차체 수리 전문 공업사입니다. 사진 몇 장이면 대략 견적을 먼저 알려 드립니다.";
+const SITE_ABOUT_HEAD = "제이모터스는 찌그러짐·긁힘을 판금과 도장으로 고치는 차체 수리 전문 공업사입니다.";
+const ABOUT_TAIL =
+  "모든 작업은 사내 표준서(ISO 방식 업무 표준)에 따라 상담·진단·견적·작업·검사·출고 순서로 진행하고, 단계마다 사진과 기록을 남깁니다. 고객님은 '내 차 수첩'에서 수리 진행·사진·명세서·보증 기간을 언제든 보실 수 있습니다.";
+
+/**
+ * 예전 처음 문구(대표 2026-11-22 "정비소가 아니라 공업사, 덴트·광택은 하지 않는다"로 바뀌기 전).
+ * 기본 정보를 한 번 저장해 이 문구가 그대로 남아 있으면 새 처음 문구로 본다(대표가 고친 글은 그대로).
+ */
+export const LEGACY_SITE: Partial<Record<keyof SiteConfig, string[]>> = {
+  lead: ["차체 외관 수리 전문 정비소입니다. 사진 몇 장이면 대략 견적을 먼저 알려 드립니다."],
+  about: [`제이모터스는 찌그러짐(덴트·판금), 긁힘, 도색을 전문으로 하는 차체 외관 수리 정비소입니다.\n\n${ABOUT_TAIL}`],
+};
+
 export const DEFAULT_SITE: SiteConfig = {
   requests: true,
   headline: "찌그러짐·긁힘·도색, 표준대로 고칩니다",
-  lead: "차체 외관 수리 전문 정비소입니다. 사진 몇 장이면 대략 견적을 먼저 알려 드립니다.",
+  lead: SITE_LEAD,
   openOn: "",
-  about:
-    "제이모터스는 찌그러짐(덴트·판금), 긁힘, 도색을 전문으로 하는 차체 외관 수리 정비소입니다.\n\n모든 작업은 사내 표준서(ISO 방식 업무 표준)에 따라 상담·진단·견적·작업·검사·출고 순서로 진행하고, 단계마다 사진과 기록을 남깁니다. 고객님은 '내 차 수첩'에서 수리 진행·사진·명세서·보증 기간을 언제든 보실 수 있습니다.",
+  about: `${SITE_ABOUT_HEAD}\n\n${ABOUT_TAIL}`,
   hours: "평일 09:00~18:00 · 토요일 09:00~13:00 · 일요일·공휴일 휴무",
   kakao: "",
   privacyOfficer: "",
@@ -91,8 +124,8 @@ export const DEFAULT_SITE: SiteConfig = {
 
 /** 수리 분야(홈·소개에 보이는 세 칸) */
 export const SERVICES = [
-  { title: "찌그러짐", body: "도장을 살리는 덴트부터 판금까지. 문콕·우박·주차 사고 자국을 원래 모양으로 펴 드립니다." },
-  { title: "긁힘", body: "광택으로 될지, 부분 도색이 필요한지 먼저 보고 알맞은 방법으로 고칩니다." },
+  { title: "찌그러짐", body: "찌그러진 철판을 판금으로 펴고 다시 칠해 원래 모양을 되살립니다. 문콕·주차 사고 자국부터 크게 눌린 곳까지 고칩니다." },
+  { title: "긁힘", body: "긁힌 깊이와 넓이를 보고 필요한 만큼만 부분 도색합니다. 경계가 보이지 않게 번지게 칠합니다." },
   { title: "도색", body: "색상 코드와 배합 기록으로 같은 색을 맞추고, 도막 두께를 재서 검사합니다." },
 ] as const;
 
@@ -103,9 +136,7 @@ export const WEB_COOKIE = "abs_web";
 
 /** 공개 글에 섞인 전화번호·차량번호 가리기(관리 화면 미리 보기·공지 등에 쓴다) */
 export function maskPersonal(text: string): string {
-  return text
-    .replace(/(01[016789])[-\s.]?(\d{3,4})[-\s.]?(\d{4})/g, (_m, a: string, _b: string, c: string) => `${a}-****-${c}`)
-    .replace(/(\d{2,3}[가-힣])\s?(\d{2})(\d{2})/g, "$1**$3");
+  return text.replace(/(01[016789])[-\s.]?(\d{3,4})[-\s.]?(\d{4})/g, (_m, a: string, _b: string, c: string) => `${a}-****-${c}`).replace(/(\d{2,3}[가-힣])\s?(\d{2})(\d{2})/g, "$1**$3");
 }
 
 /** 개업 전이면 남은 날 수(오늘 포함 안 함), 지났거나 비었으면 null */

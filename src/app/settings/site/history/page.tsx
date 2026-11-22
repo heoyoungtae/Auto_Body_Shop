@@ -17,7 +17,19 @@ function placeName(k: string) {
   if (k === "nav") return "위 메뉴";
   if (k === "foot") return "바닥글 링크";
   const d = pageTextDef(k);
-  const area = k.startsWith("home.") ? "첫 화면" : k.startsWith("services.") ? "수리 안내" : k.startsWith("carbook.") ? "내 차 수첩 설명서" : k.startsWith("insurance.") ? "보험 수리 안내" : k.startsWith("guide.") ? "이용 안내" : k.startsWith("about.") ? "정비소 소개" : "바닥글";
+  const area = k.startsWith("home.")
+    ? "첫 화면"
+    : k.startsWith("services.")
+      ? "수리 안내"
+      : k.startsWith("carbook.")
+        ? "내 차 수첩 설명서"
+        : k.startsWith("insurance.")
+          ? "보험 수리 안내"
+          : k.startsWith("guide.")
+            ? "이용 안내"
+            : k.startsWith("about.")
+              ? "공업사 소개"
+              : "바닥글";
   return `${area} › ${d?.label ?? k}`;
 }
 
