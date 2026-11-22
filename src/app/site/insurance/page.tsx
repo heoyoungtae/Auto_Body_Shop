@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
+import { EditFab, siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
 
 export const metadata: Metadata = { title: "보험 수리 안내", description: "자차·대물 보험 수리 절차와 저희가 대신 해 드리는 일" };
 
@@ -14,6 +14,7 @@ export default async function InsurancePage() {
     .filter(Boolean);
   return (
     <div className="mx-auto max-w-4xl space-y-16">
+      <EditFab to={"/settings/site/pages?g=insurance"} label="보험 수리 안내 고치기" />
       <SiteTitle eyebrow="INSURANCE" help="site.insurance" sub={v.t("insurance.sub")}>
         보험 수리 안내
       </SiteTitle>

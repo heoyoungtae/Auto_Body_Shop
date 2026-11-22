@@ -27,6 +27,26 @@ export async function isPreview() {
   return !!(await currentUser())?.roles.includes("owner");
 }
 
+/** 미리 보기 중 대표에게만 보이는 연필 단추: 누르면 설정 › 홈페이지의 그 칸으로 간다(새 탭) */
+export function EditPin({ to, label, float = false }: { to: string; label: string; float?: boolean }) {
+  return (
+    <a
+      href={to}
+      target="_blank"
+      rel="noopener"
+      data-edit-pin
+      className={`${float ? "fixed right-4 bottom-24 sm:bottom-6" : "absolute top-2 right-2"} z-30 inline-flex items-center gap-1 rounded-full bg-[var(--warn)] px-3 py-1.5 text-sm font-semibold text-black shadow-lg hover:brightness-95`}
+    >
+      <span aria-hidden>✎</span> {label}
+    </a>
+  );
+}
+
+/** 화면 하나에 연필 단추 하나(미리 보기 중일 때만) */
+export async function EditFab({ to, label }: { to: string; label: string }) {
+  return (await isPreview()) ? <EditPin to={to} label={label} float /> : null;
+}
+
 /** 화면 글(미리 보기면 공개 전 고침까지) */
 export async function viewPages() {
   return sitePages(await getDb(), await isPreview());

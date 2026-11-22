@@ -29,7 +29,9 @@ function placeName(k: string) {
             ? "이용 안내"
             : k.startsWith("about.")
               ? "공업사 소개"
-              : "바닥글";
+              : k.startsWith("terms.")
+                ? "이용약관"
+                : "바닥글";
   return `${area} › ${d?.label ?? k}`;
 }
 

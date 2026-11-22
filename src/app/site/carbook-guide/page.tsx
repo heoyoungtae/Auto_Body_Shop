@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
-import { siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
+import { EditFab, siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
 import { Bar, Box, Btn, Phone, PhoneEstimate, PhoneProgress, PhoneWarranty } from "../_phone";
 
 export const metadata: Metadata = {
@@ -214,6 +214,7 @@ export default async function CarbookGuidePage() {
     <div className="space-y-20">
       <div className="grid gap-10 lg:grid-cols-[1.3fr_1fr] lg:items-center">
         <div>
+          <EditFab to={"/settings/site/pages?g=carbook"} label="수첩 설명서 고치기" />
           <SiteTitle eyebrow="MY CAR BOOK" help="site.carbookGuide" sub={v.t("carbook.sub")}>
             내 차 수첩 사용설명서
           </SiteTitle>

@@ -442,6 +442,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "site.publish": "홈페이지 고침 공개",
   "site.draft_discard": "홈페이지 공개 전 고침 버림",
   "site.pages_restore": "홈페이지 지난 판 가져옴",
+  "site.legal": "이용약관·처리방침 새 판 시행",
+  "site.legal_cancel": "이용약관·처리방침 예정 판 거둠",
   "site.article": "기술자료 저장",
   "site.article_delete": "기술자료 지움",
   "site.article_starters": "기술자료 처음 초안 넣음",

@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getDb } from "@/db/runtime";
 import { PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
-import { siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
+import { EditFab, siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
 
 export const metadata: Metadata = { title: "공업사 소개" };
 
@@ -12,6 +12,7 @@ export default async function AboutPage() {
   const [{ shop, cfg, mapUrl }, trust, v] = await Promise.all([siteData(), siteTrust(db), viewPages()]);
   return (
     <div className="mx-auto max-w-4xl space-y-20">
+      <EditFab to={"/settings/site/pages?g=about"} label="공업사 소개 고치기" />
       <SiteTitle eyebrow="ABOUT US" help="site.about" sub={shop.name}>
         공업사 소개
       </SiteTitle>

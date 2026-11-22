@@ -65,7 +65,7 @@ export const SECTION_KEYS = HOME_SECTIONS.map((s) => s.key) as SectionKey[];
  */
 export const PAGE_TEXT = {
   // ── 첫 화면 ──
-  "home.hero.eyebrow": text("맨 위 작은 머리말", "COLLISION · DENT · PAINT", { max: 40 }),
+  "home.hero.eyebrow": text("맨 위 작은 머리말", "COLLISION · PANEL · PAINT", { max: 40 }),
   "home.hero.button": text("둘째 단추", "내 차 수첩 둘러보기", { max: 20 }),
   "home.services.eyebrow": text("머리말", "SERVICES", { max: 30 }),
   "home.services.title": text("제목", "이런 수리를 합니다", { max: 40 }),
@@ -223,6 +223,23 @@ export const PAGE_TEXT = {
     10,
   ),
 
+  // ── 이용약관(조항 제목+내용. 고쳐 공개한 뒤 설정 › 홈페이지 › 약관에서 새 판으로 시행) ──
+  "terms.items": pairs(
+    "조항",
+    [
+      { t: "목적", d: "이 약관은 제이모터스 홈페이지, 견적 요청, 내 차 수첩을 쓰실 때의 규칙을 정합니다." },
+      { t: "견적 요청 답변", d: "사진만 보고 드리는 답은 대략 금액입니다. 정식 견적은 차를 직접 진단한 뒤 법정 견적서로 드리며, 승인하신 작업만 합니다." },
+      { t: "본인 확인", d: "견적 요청과 내 차 수첩은 휴대폰 문자 인증으로 본인을 확인합니다. 다른 사람의 번호로 요청하면 안 됩니다." },
+      { t: "사진", d: "보내 주신 사진은 견적과 수리 기록에만 씁니다. 홍보에는 따로 동의하신 경우에만 번호판·얼굴을 가려 씁니다." },
+      { t: "금지 행위", d: "광고·욕설·다른 사람 정보가 담긴 내용, 자동 프로그램으로 반복 요청하는 것은 막고 지울 수 있습니다." },
+      { t: "서비스 중단", d: "점검·정전·통신 장애로 잠시 열리지 않을 수 있습니다. 급한 일은 전화로 연락해 주세요." },
+      { t: "책임", d: "제이모터스는 수리 결과에 대해 보증 기간 동안 책임집니다. 홈페이지 정보는 안내용이며, 계약 내용은 견적서·정비명세서를 따릅니다." },
+      { t: "분쟁", d: "분쟁은 서로 협의하며, 자동차 정비 관련 분쟁은 한국소비자원 등의 조정을 받을 수 있습니다." },
+    ],
+    15,
+    3,
+  ),
+
   // ── 바닥글 ──
   "footer.tagline": text("바닥글 소개 한 줄", "찌그러짐·긁힘·도색 차체 외관 수리. 사내 표준에 따라 기록하고 검사합니다.", { multi: true, max: 150 }),
 } as const satisfies Record<string, ItemDef>;
@@ -263,6 +280,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   { id: "insurance", title: "보험 수리 안내", path: "/insurance" },
   { id: "guide", title: "이용 안내", path: "/guide" },
   { id: "about", title: "공업사 소개", path: "/about" },
+  { id: "terms", title: "이용약관", path: "/terms" },
   { id: "footer", title: "바닥글", path: "/" },
 ];
 
@@ -335,7 +353,9 @@ const LEGACY_LINK_NAMES: Record<string, string> = { "/about": "정비소 소개"
 export function normalizeLinks<T extends { href: string; label: string; on: boolean }>(saved: readonly T[] | undefined, pages: readonly { href: string; name: string }[], defaults: readonly T[]): T[] {
   if (!saved?.length) return defaults.map((d) => ({ ...d }));
   const ok = new Set(pages.map((p) => p.href));
-  const out = saved.filter((x, i, a) => ok.has(x.href) && a.findIndex((y) => y.href === x.href) === i).map((x) => ({ ...x, label: (x.label.trim() !== LEGACY_LINK_NAMES[x.href] && x.label.trim()) || pages.find((p) => p.href === x.href)!.name }));
+  const out = saved
+    .filter((x, i, a) => ok.has(x.href) && a.findIndex((y) => y.href === x.href) === i)
+    .map((x) => ({ ...x, label: (x.label.trim() !== LEGACY_LINK_NAMES[x.href] && x.label.trim()) || pages.find((p) => p.href === x.href)!.name }));
   for (const d of defaults) if (!out.some((x) => x.href === d.href)) out.push({ ...d, on: false });
   return out;
 }

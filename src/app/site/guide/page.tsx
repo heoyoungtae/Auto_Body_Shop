@@ -2,16 +2,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { siteBtn, SiteTitle, viewPages } from "../_parts";
+import { EditFab, siteBtn, SiteTitle, viewPages } from "../_parts";
 
 export const metadata: Metadata = { title: "이용 안내", description: "차를 맡기기 전 준비할 것과 출고 뒤 관리 방법" };
 
 export default async function GuidePage() {
   const v = await viewPages();
   // 문구는 설정 › 홈페이지 › 화면 글(숫자는 {세차금지일}·{도장보증} 같은 자리표시로 정책값이 들어간다)
-  const BLOCKS = (["before", "during", "pickup", "after"] as const).map((k, i) => ({ e: ["BEFORE", "DURING", "PICK UP", "AFTER CARE"][i], t: v.t(`guide.${k}.title`), items: v.lines(`guide.${k}.items`) }));
+  const BLOCKS = (["before", "during", "pickup", "after"] as const).map((k, i) => ({
+    e: ["BEFORE", "DURING", "PICK UP", "AFTER CARE"][i],
+    t: v.t(`guide.${k}.title`),
+    items: v.lines(`guide.${k}.items`),
+  }));
   return (
     <div className="mx-auto max-w-4xl">
+      <EditFab to={"/settings/site/pages?g=guide"} label="이용 안내 고치기" />
       <SiteTitle eyebrow="GUIDE" help="site.guide" sub={v.t("guide.sub")}>
         이용 안내
       </SiteTitle>

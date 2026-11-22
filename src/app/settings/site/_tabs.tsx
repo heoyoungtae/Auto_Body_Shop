@@ -1,4 +1,4 @@
-// 설정 › 홈페이지 위 탭: 기본 정보 · 첫 화면 · 화면 글 · 메뉴·바닥글 · 이력 · 글·사진(홈페이지 글 화면으로)
+// 설정 › 홈페이지 위 탭: 기본 정보 · 첫 화면 · 화면 글 · 메뉴·바닥글 · 이력 · 약관·처리방침 · 글·사진(홈페이지 글 화면으로)
 // 탭 아래 '공개 전 고침' 줄: 첫 화면·화면 글·메뉴에서 고친 것은 미리 보기로 확인하고 '공개하기'를 눌러야 손님에게 보인다.
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
@@ -12,6 +12,7 @@ const TABS = [
   { href: "/settings/site/pages", label: "화면 글" },
   { href: "/settings/site/menu", label: "메뉴·바닥글" },
   { href: "/settings/site/history", label: "공개·이력" },
+  { href: "/settings/site/legal", label: "약관·처리방침" },
   { href: "/homepage/faq", label: "질문·공지·사례·기술자료·후기 ↗" },
 ] as const;
 
@@ -22,7 +23,12 @@ export async function SiteSettingsTabs({ on, back }: { on: (typeof TABS)[number]
     <>
       <nav aria-label="홈페이지 설정" className="mb-3 flex flex-wrap gap-1 border-b border-[var(--line)]">
         {TABS.map((t) => (
-          <Link key={t.href} href={t.href} aria-current={t.href === on ? "page" : undefined} className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${t.href === on ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--muted)] hover:text-[var(--fg)]"}`}>
+          <Link
+            key={t.href}
+            href={t.href}
+            aria-current={t.href === on ? "page" : undefined}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${t.href === on ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--muted)] hover:text-[var(--fg)]"}`}
+          >
             {t.label}
           </Link>
         ))}
