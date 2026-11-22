@@ -12,17 +12,23 @@ import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
 import { seoulDate } from "@/modules/platform/time";
+import { LEGAL_BASIS, pickValue } from "@/modules/platform/policy-meta";
+import { changePolicy, DEFAULT_POLICY, isPolicyKey, loadPolicy, type PolicyKey } from "@/modules/platform/policy";
 
 export const LAW_API = "https://www.law.go.kr/DRF/lawSearch.do";
+/** 법령 본문(조문) 조회 */
+export const LAW_SERVICE = "https://www.law.go.kr/DRF/lawService.do";
 export const LAW_API_GUIDE = "https://open.law.go.kr/LSO/openApi/guideList.do";
 const CFG = "law.watch";
 
 /** 지켜보는 법령과, 바뀌면 확인할 정책값 */
 export const WATCHED_LAWS: { name: string; keys: string[] }[] = [
-  { name: "소득세법", keys: ["tax.meal_exempt", "tax.childcare_exempt", "tax.ot_exempt_annual"] },
-  { name: "소득세법 시행령", keys: ["tax.table_pension_rate", "tax.child_one", "tax.child_two", "tax.child_more", "tax.ot_exempt_pay_cap", "tax.car_exempt"] },
+  { name: "소득세법", keys: ["tax.childcare_exempt", "tax.ot_exempt_annual", "tax.cash_receipt_must"] },
+  { name: "소득세법 시행령", keys: ["tax.table_pension_rate", "tax.child_one", "tax.child_two", "tax.child_more", "tax.ot_exempt_pay_cap", "tax.car_exempt", "tax.meal_exempt"] },
   { name: "조세특례제한법", keys: [] },
-  { name: "법인세법", keys: [] },
+  { name: "법인세법", keys: ["money.entertain_base", "tax.car_dep_cap"] },
+  { name: "법인세법 시행령", keys: ["money.event_client_max", "tax.simple_receipt_max", "tax.car_expense_cap", "asset.immediate_max"] },
+  { name: "국민연금법", keys: ["ins.pension_rate"] },
   { name: "국민연금법 시행령", keys: ["ins.pension_rate", "ins.pension_cap", "ins.pension_floor"] },
   { name: "국민건강보험법 시행령", keys: ["ins.health_rate"] },
   { name: "노인장기요양보험법 시행령", keys: ["ins.ltc_ratio"] },
@@ -30,7 +36,9 @@ export const WATCHED_LAWS: { name: string; keys: string[] }[] = [
   { name: "고용보험 및 산업재해보상보험의 보험료징수 등에 관한 법률 시행령", keys: ["ins.employment_rate", "ins.employment_employer_rate", "ins.durunuri_pay_cap"] },
 ];
 
-export type LawStamp = { promulgated: string; effective: string };
+export type LawStamp = { promulgated: string; effective: string; /** 법령일련번호(본문 조회용) */ mst?: string };
+/** 법령이 바뀌어 근거 조문에서 읽은 새 값 후보(value 없으면 숫자를 못 읽어 직접 확인할 것) */
+export type PolicyCandidate = { key: string; law: string; effective: string; on: string; value?: number; current: number };
 /** 법규 대장 법령 개정 감지(2026-11-21): 바뀐 법령과 감지한 날. 대장의 그 법령 줄을 감지일 이후에 '개정 확인'하면 할 일에서 빠진다 */
 /** 법규 대장(대상·확인 필요 줄)의 정식 법령명 */
 export async function legalLawNames(db: Db) {
@@ -46,6 +54,7 @@ type Cfg = {
   keyEnc?: string | null;
   seen?: Record<string, LawStamp>;
   pending?: { name: string; promulgated: string; effective: string }[];
+  candidates?: PolicyCandidate[];
   lastAt?: string | null;
   lastStatus?: string | null;
   lastMessage?: string | null;
@@ -72,6 +81,7 @@ export async function lawWatchStatus(db: Db) {
     seen: c.seen ?? {},
     pending: c.pending ?? [],
     legalPending: c.legalPending ?? [],
+    candidates: c.candidates ?? [],
   };
 }
 
@@ -106,7 +116,8 @@ export function parseLawSearch(body: unknown, name: string, loose = false): LawS
   let best: LawStamp | null = null;
   for (const l of list) {
     if (k(String(l["법령명한글"] ?? "").trim()) !== k(name)) continue;
-    const s = { promulgated: d8(l["공포일자"]), effective: d8(l["시행일자"]) };
+    const mst = String(l["법령일련번호"] ?? "").trim();
+    const s: LawStamp = { promulgated: d8(l["공포일자"]), effective: d8(l["시행일자"]), ...(mst ? { mst } : {}) };
     if (!s.promulgated) continue;
     if (!best || s.promulgated > best.promulgated || (s.promulgated === best.promulgated && s.effective > best.effective)) best = s;
   }
@@ -184,6 +195,31 @@ export async function checkLaws(
         return !a || a.promulgated !== b.promulgated || a.effective !== b.effective;
       }).map((l) => l.name);
   const pending = [...(cfg.pending ?? []).filter((p) => !changed.includes(p.name)), ...changed.map((name) => ({ name, ...found[name] }))];
+  // 바뀐 법령의 근거 조문에서 정책값 숫자를 읽어 '새 값 후보'로 둔다(대표가 적용). 못 읽으면 직접 확인 후보
+  let candidates = cfg.candidates ?? [];
+  if (changed.length) {
+    const pol = await loadPolicy(db, today);
+    for (const name of changed) {
+      const st = found[name];
+      for (const [k, b] of Object.entries(LEGAL_BASIS)) {
+        if (!b || b.law !== name || b.via !== "law" || !isPolicyKey(k)) continue;
+        let value: number | null = null;
+        if (b.jo && st.mst) {
+          const [n, g] = b.jo.split("의");
+          const qs = new URLSearchParams({ OC: oc, target: "law", type: "JSON", MST: st.mst, JO: `${n.padStart(4, "0")}${(g ?? "0").padStart(2, "0")}` });
+          try {
+            const res = await f(`${LAW_SERVICE}?${qs}`, { signal: AbortSignal.timeout(20_000) });
+            if (res.ok) value = pickValue(k, lawText(JSON.parse(await res.text())));
+          } catch {
+            value = null;
+          }
+        }
+        const current = pol[k];
+        if (value === current) continue;
+        candidates = [...candidates.filter((c) => c.key !== k), { key: k, law: name, effective: st.effective || today, on: today, current, ...(value != null ? { value } : {}) }];
+      }
+    }
+  }
   if (changed.length) {
     await writeAudit(db, { actorId: opts.actorId ?? null, action: "law.changed", entityType: "config", entityId: CFG, after: { changed } });
     for (const role of ["owner", "accounting"] as const)
@@ -191,7 +227,7 @@ export async function checkLaws(
   }
   return finish(
     { status: "done", changed, message: first ? `기준 저장(${WATCHED_LAWS.length}개 법령)` : changed.length ? `바뀐 법령: ${changed.join(", ")}` : "바뀐 법령 없음" },
-    { seen: found, pending, legalSeen: legalFound, legalPending },
+    { seen: found, pending, legalSeen: legalFound, legalPending, candidates },
   );
 }
 
@@ -216,4 +252,54 @@ export async function lawTodos(db: Db, actor: { roles: string[] }) {
 /** 법령이 바뀌면 확인할 정책값 목록 */
 export function keysFor(names: string[]) {
   return [...new Set(WATCHED_LAWS.filter((l) => names.includes(l.name)).flatMap((l) => l.keys))];
+}
+
+/** 조문 JSON(lawService.do)의 글자를 모두 이어 붙인다(형식이 조금 달라도 읽히게) */
+export function lawText(body: unknown): string {
+  const out: string[] = [];
+  const walk = (v: unknown) => {
+    if (typeof v === "string") out.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(body);
+  return out.join(" ").replace(/\s+/g, " ");
+}
+
+/** 새 값 후보 적용(대표): 법령 시행일(지났으면 오늘)부터 그 값으로. value 를 넘기면 그 값(직접 확인 후보) */
+export async function applyCandidate(db: Db, actor: { id: string; roles: string[] }, key: string, value?: number, today = seoulDate()) {
+  if (!actor.roles.includes("owner")) throw new UserError("정책값은 대표만 바꿉니다");
+  const c = await loadCfg(db);
+  const cand = (c.candidates ?? []).find((x) => x.key === key);
+  if (!cand || !isPolicyKey(key)) throw new UserError("이미 처리한 후보입니다");
+  const v = value ?? cand.value;
+  if (v == null) throw new UserError("조문에서 숫자를 읽지 못한 후보입니다. 조문을 보고 값을 적어 주세요");
+  const k: PolicyKey = key;
+  await changePolicy(db, actor.id, { key: k, value: v, effectiveFrom: cand.effective > today ? cand.effective : today, reason: `${cand.law} 개정(${cand.effective} 시행)에 따라 ${LEGAL_BASIS[k]?.article ?? ""}` }, today);
+  await saveCfg(db, { ...c, candidates: (c.candidates ?? []).filter((x) => x.key !== key) }, actor.id);
+}
+
+/** 후보 넘기기(값이 그대로라고 확인함) */
+export async function dismissCandidate(db: Db, actor: { id: string; roles: string[] }, key: string) {
+  if (!actor.roles.includes("owner") && !actor.roles.includes("accounting")) throw new UserError("대표·회계 담당만 처리합니다");
+  const c = await loadCfg(db);
+  await saveCfg(db, { ...c, candidates: (c.candidates ?? []).filter((x) => x.key !== key) }, actor.id);
+  await writeAudit(db, { actorId: actor.id, action: "law.candidate.dismiss", entityType: "policy", entityId: key });
+}
+
+/** 대표·회계 할 일: 새 값 후보 */
+export async function candidateTodos(db: Db, actor: { roles: string[] }) {
+  if (!actor.roles.includes("owner") && !actor.roles.includes("accounting")) return [];
+  const s = await lawWatchStatus(db);
+  return s.candidates.map((c) => {
+    const def = isPolicyKey(c.key) ? DEFAULT_POLICY[c.key] : null;
+    return {
+      key: `policy-cand-${c.key}-${c.on}`,
+      when: "today" as const,
+      what: c.value != null ? `새 값 후보: ${def?.label ?? c.key} ${c.current.toLocaleString("ko-KR")} → ${c.value.toLocaleString("ko-KR")}` : `법령 개정 확인: ${def?.label ?? c.key}`,
+      detail: `${c.law} ${c.effective} 시행${c.value == null ? " · 조문에서 숫자를 읽지 못해 직접 확인" : ""}`,
+      href: `/settings/policies?key=${encodeURIComponent(c.key)}`,
+      action: actor.roles.includes("owner") ? (c.value != null ? "적용" : "확인") : "보기",
+    };
+  });
 }

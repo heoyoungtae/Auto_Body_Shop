@@ -154,6 +154,17 @@ export const FIELD_HELP = {
   },
   "policy.effectiveFrom": EFFECTIVE_FROM,
   "policy.revisionRequestNo": REVISION_NO,
+  "policy.checkAgent": {
+    label: "세무사 확인",
+    hint: "세무사가 값을 봐 줬으면 켭니다",
+    detail: "세무사(세무 대리인)가 이 분류의 법정 값이 지금 법령과 맞다고 확인했으면 켭니다. 점검 기록에 '세무사 확인'으로 남습니다.",
+  },
+  "policy.checkNote": {
+    label: "점검 메모",
+    hint: "바꾼 값·확인한 자료",
+    example: "2027 요율 고시 확인, 건강보험 7.19%로 바꿈",
+    detail: "무엇을 보고 확인했는지 짧게 적습니다. 비워도 됩니다.",
+  },
   "policy.reason": {
     label: "변경 사유",
     hint: "왜 바꾸는지 한 줄로",

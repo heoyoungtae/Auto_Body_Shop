@@ -130,7 +130,7 @@ export default async function TaxPage({
           <p className="mt-2 text-xs text-[var(--muted)]">
             한도 = 기본 {won(ent.base)} × {ent.months}/12달 + 올해 매출 {won(ent.sales)} × 0.3%(100억 이하). 거래처 경조사비(1회 20만원 이하)도 포함됩니다. 한도를 넘은 접대비는 비용으로 인정되지 않습니다.
             {" "}
-            <Link href="/settings/policies?key=money.entertain_base" className="text-[var(--accent)]">기본 한도 고치기</Link> ·{" "}
+            <Link href="/settings/policies?g=tax" className="text-[var(--accent)]">세무 한도(정책값)</Link> ·{" "}
             <Link href="/money/expenses?s=접대비" className="text-[var(--accent)]">접대비 결의 보기</Link>
           </p>
         </Card>
@@ -172,7 +172,7 @@ export default async function TaxPage({
         <Card title="업무용 차량" help={{ kind: "panel", id: "tax.vehicle" }}>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             <li>화물차(트럭·밴)·9인승 이상 승합·경차: 업무용 승용차 규제 없이 비용 처리</li>
-            <li>일반 승용차: 운행기록부 없으면 연 1,500만 원까지만 비용, 감가상각비는 1대 연 800만 원까지</li>
+            <li>일반 승용차: 운행기록부 없으면 연 {won(pol["tax.car_expense_cap"])}까지만 비용, 감가상각비는 1대 연 {won(pol["tax.car_dep_cap"])}까지</li>
             <li>법인: 임직원 전용 자동차보험 필수, 8,000만 원 이상 차는 연두색 번호판</li>
           </ul>
           <p className="mt-2 text-xs text-[var(--muted)]">

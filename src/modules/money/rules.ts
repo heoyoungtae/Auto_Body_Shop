@@ -33,13 +33,15 @@ export function receiptProblem(
   kind: ReceiptKind,
   amount: number,
   receiptNo: string,
+  /** 현금영수증 의무 발행 기준(정책값 tax.cash_receipt_must) */
+  must = CASH_RECEIPT_MUST,
 ): string | null {
   if (method === "card" && kind !== "card_slip" && kind !== "tax_invoice")
     return "카드로 받으면 증빙은 카드 전표입니다(사업자 고객이면 세금계산서)";
   if (method !== "card" && kind === "card_slip")
     return "카드 전표는 카드로 받을 때만 고릅니다";
-  if (method !== "card" && amount >= CASH_RECEIPT_MUST && kind === "none")
-    return `현금·계좌 이체로 ${CASH_RECEIPT_MUST.toLocaleString("ko-KR")}원 이상 받으면 현금영수증을 꼭 발행합니다(자동차 수리업 의무 발행). 고객이 원하지 않으면 국세청 지정 번호(010-000-1234)로 발행하세요`;
+  if (method !== "card" && amount >= must && kind === "none")
+    return `현금·계좌 이체로 ${must.toLocaleString("ko-KR")}원 이상 받으면 현금영수증을 꼭 발행합니다(자동차 수리업 의무 발행). 고객이 원하지 않으면 국세청 지정 번호(010-000-1234)로 발행하세요`;
   if ((kind === "cash_receipt" || kind === "tax_invoice") && !receiptNo.trim())
     return `${RECEIPT_KINDS[kind]} 승인 번호를 적어 주세요`;
   return null;
@@ -205,9 +207,11 @@ export function vatProblem(supply: number, vat: number): string | null {
 export function evidenceWarning(
   kind: EvidenceKind,
   amount: number,
+  /** 간이영수증 인정 한도(정책값 tax.simple_receipt_max) */
+  max = SIMPLE_RECEIPT_MAX,
 ): string | null {
-  if (kind === "receipt" && amount > SIMPLE_RECEIPT_MAX)
-    return `${SIMPLE_RECEIPT_MAX.toLocaleString("ko-KR")}원이 넘는 지출을 간이영수증으로만 받으면 적격 증빙이 아니어서 가산세(2%) 대상입니다. 가능하면 세금계산서·카드 전표·현금영수증을 받으세요`;
+  if (kind === "receipt" && amount > max)
+    return `${max.toLocaleString("ko-KR")}원이 넘는 지출을 간이영수증으로만 받으면 적격 증빙이 아니어서 가산세(2%) 대상입니다. 가능하면 세금계산서·카드 전표·현금영수증을 받으세요`;
   if (kind === "pending")
     return "증빙을 받기 전에는 지급할 수 없습니다. 받으면 이 결의서에 붙여 주세요";
   return null;

@@ -6,7 +6,6 @@ import {
   EVIDENCE_KINDS,
   EXP_CATEGORIES,
   EXP_PAY_METHODS,
-  SIMPLE_RECEIPT_MAX,
   SOURCE_KINDS,
   vatOf,
 } from "@/modules/money/rules";
@@ -358,7 +357,7 @@ export default async function NewExpensePage({
             <EvidenceFiles />
           </div>
           <p className="text-xs text-[var(--muted)] md:col-span-2">
-            {won(SIMPLE_RECEIPT_MAX)}이 넘는데 간이영수증만 있으면 적격 증빙이
+            {won(pol["tax.simple_receipt_max"])}이 넘는데 간이영수증만 있으면 적격 증빙이
             아니어서 가산세(2%) 대상입니다. 증빙을 아직 못 받았으면 &apos;아직
             못 받음&apos;으로 올리고, 받으면 붙여야 지급됩니다. 업체 계좌 이체는
             전화로 확인한 계좌로만 보냅니다.

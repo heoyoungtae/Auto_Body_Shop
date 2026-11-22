@@ -13,11 +13,16 @@ import { buttonClass, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_
 import { changePolicyAction, syncMinWageAction } from "../actions";
 import { MIN_WAGE_SOURCE } from "@/modules/staff/min-wage";
 import { PolicyTable } from "./policy-table";
+import { isPolicyGroup, LEGAL_BASIS, lawLink, POLICY_GROUPS, policyGroup, type PolicyGroup } from "@/modules/platform/policy-meta";
+import { lastChecks } from "@/modules/platform/policy-check";
+import { lawWatchStatus } from "@/modules/money/law-watch";
+import { CheckGroup } from "../../_input";
+import { policyCandidateAction, policyCheckAction } from "../actions";
 
 type Def = { value: number; unit: string; label: string; clause: string; min?: number; max?: number };
 
-export default async function PoliciesPage({ searchParams }: { searchParams: Promise<{ key?: string; from?: string; error?: string; notice?: string }> }) {
-  const { key, from, error, notice } = await searchParams;
+export default async function PoliciesPage({ searchParams }: { searchParams: Promise<{ key?: string; from?: string; error?: string; notice?: string; g?: string }> }) {
+  const { key, from, error, notice, g } = await searchParams;
   const user = await requireUser();
   const db = await getDb();
   const rows = await policyOverview(db);
@@ -38,6 +43,17 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
       /* 없는 문서 */
     }
   }
+  const group: PolicyGroup | null = g && isPolicyGroup(g) ? g : sel ? policyGroup(sel) : null;
+  const checks = await lastChecks(db);
+  const law = await lawWatchStatus(db);
+  const cand = sel ? law.candidates.find((c) => c.key === sel) : undefined;
+  const accounting = user.roles.includes("accounting");
+  const basis = sel ? LEGAL_BASIS[sel] : undefined;
+  const groupHasLegal = group ? rows.some((r) => policyGroup(r.key as PolicyKey) === group && LEGAL_BASIS[r.key as PolicyKey]) : false;
+  const tabs = (Object.keys(POLICY_GROUPS) as PolicyGroup[]).map((k) => {
+    const rs = rows.filter((r) => policyGroup(r.key as PolicyKey) === k);
+    return { k, n: rs.length, changed: rs.filter((r) => r.value !== r.defaultValue).length, scheduled: rs.filter((r) => r.scheduled.length).length, cand: law.candidates.filter((c) => rs.some((r) => r.key === c.key)).length };
+  });
   const def: Def | null = sel ? DEFAULT_POLICY[sel] : null;
   const cur = sel ? rows.find((r) => r.key === sel)! : null;
   return (
@@ -51,6 +67,42 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
         <div className="my-4">
           <Card title={`${def.label}`} help={{ kind: "policy", id: sel, title: def.label, note: `부록 D ${def.clause} · 표준서 제안 ${def.value.toLocaleString("ko-KR")} ${def.unit}` }} actions={<Link href="/settings/policies" className="text-sm text-[var(--accent)]">닫기</Link>}>
             <p className="mb-1 text-sm">{POLICY_HELP[sel]}</p>
+            {basis && (
+              <p className="mb-1 text-xs">
+                <span className="rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-[var(--accent)]">{basis.via === "law" ? "법정 값" : basis.via === "notice" ? "법정 값(고시)" : "법정 값(자동 갱신)"}</span> 근거:{" "}
+                <a href={lawLink(basis.law)} target="_blank" rel="noreferrer" className="text-[var(--accent)]">
+                  {basis.article}
+                </a>
+              </p>
+            )}
+            {cand && (
+              <div className="mb-3 rounded-md border border-[var(--warn)] p-3 text-sm">
+                <p className="font-medium">
+                  {cand.value != null
+                    ? `새 값 후보: ${cand.current.toLocaleString("ko-KR")} → ${cand.value.toLocaleString("ko-KR")} ${def?.unit ?? ""}`
+                    : "법령이 바뀌었는데 조문에서 숫자를 읽지 못했습니다. 조문을 보고 값을 적어 주세요"}
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  {cand.law} {cand.effective} 시행(감지 {cand.on}). 적용하면 시행일(지났으면 오늘)부터 바뀌고 이력이 남습니다.
+                </p>
+                {owner || accounting ? (
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    {owner && (
+                      <AssistForm id={`cand-${sel}`} action={policyCandidateAction} className="flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="key" value={sel ?? ""} />
+                        {cand.value == null && <NumberField help="policy.value" name="value" required unit={def?.unit ?? ""} current={cur?.value} />}
+                        <SubmitButton>{cand.value != null ? "이 값으로 적용" : "적용"}</SubmitButton>
+                      </AssistForm>
+                    )}
+                    <AssistForm id={`cand-x-${sel}`} action={policyCandidateAction} guard={false}>
+                      <input type="hidden" name="key" value={sel ?? ""} />
+                      <input type="hidden" name="intent" value="dismiss" />
+                      <SubmitButton variant="secondary">값 그대로(넘기기)</SubmitButton>
+                    </AssistForm>
+                  </div>
+                ) : null}
+              </div>
+            )}
             <p className="mb-3 text-xs text-[var(--muted)]">
               지금 {cur.value.toLocaleString("ko-KR")} {def.unit} · 표준서 제안 {def.value.toLocaleString("ko-KR")} · 범위 {def.min ?? 0}~{def.max ?? "제한 없음"} · 근거 부록 D({def.clause})
             </p>
@@ -138,7 +190,38 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
           </Card>
         </div>
       )}
+      <nav className="mb-3 flex flex-wrap gap-1.5 text-sm" aria-label="정책값 분류">
+        <Link href="/settings/policies" aria-current={!group ? "page" : undefined} className={`rounded-md border px-2.5 py-1.5 ${!group ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+          전체 {rows.length}
+        </Link>
+        {tabs.map((t) => (
+          <Link key={t.k} href={`/settings/policies?g=${t.k}`} aria-current={group === t.k ? "page" : undefined} className={`rounded-md border px-2.5 py-1.5 ${group === t.k ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+            {POLICY_GROUPS[t.k]} {t.n}
+            {t.changed > 0 && <span className="ml-1 text-xs text-[var(--accent)]">변경 {t.changed}</span>}
+            {t.scheduled > 0 && <span className="ml-1 text-xs text-[var(--warn)]">예정 {t.scheduled}</span>}
+            {t.cand > 0 && <span className="ml-1 text-xs text-[var(--danger)]">후보 {t.cand}</span>}
+          </Link>
+        ))}
+      </nav>
+      {group && groupHasLegal && (
+        <div className="mb-3 rounded-md border border-[var(--line)] p-3 text-sm">
+          <p>
+            {POLICY_GROUPS[group]} 마지막 점검:{" "}
+            {checks[group] ? `${checks[group]!.on} ${checks[group]!.byName}${checks[group]!.agent ? " · 세무사 확인" : ""}${checks[group]!.note ? ` · ${checks[group]!.note}` : ""}` : "아직 없음"}
+          </p>
+          <p className="text-xs text-[var(--muted)]">법정 값은 법령이 바뀌면 근거 조문에서 숫자를 읽어 새 값 후보로 올립니다(매달 1일, 세금·절세 화면의 법제처 OC 값 필요). 1월·7월에는 점검 할 일이 뜹니다{group === "payroll" ? ", 12월에는 내년 4대보험·산재 요율 확인 할 일이 뜹니다" : ""}.</p>
+          {(owner || accounting) && (
+            <AssistForm id={`policy-check-${group}`} action={policyCheckAction} className="mt-2 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="g" value={group} />
+              <CheckGroup help="policy.checkAgent" name="agent" options={[{ value: "1", label: "세무사 확인" }]} />
+              <TextField help="policy.checkNote" name="note" />
+              <SubmitButton variant="secondary">점검 완료</SubmitButton>
+            </AssistForm>
+          )}
+        </div>
+      )}
       <PolicyTable
+        group={group}
         owner={owner}
         rows={rows.map((r) => ({
           key: r.key,
@@ -149,6 +232,9 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
           defaultValue: r.defaultValue,
           scheduled: r.scheduled.map((p) => ({ effectiveFrom: p.effectiveFrom, value: Number(p.value) })),
           help: POLICY_HELP[r.key as PolicyKey],
+          group: policyGroup(r.key as PolicyKey),
+          legal: LEGAL_BASIS[r.key as PolicyKey] ? { via: LEGAL_BASIS[r.key as PolicyKey]!.via, article: LEGAL_BASIS[r.key as PolicyKey]!.article, href: lawLink(LEGAL_BASIS[r.key as PolicyKey]!.law) } : null,
+          cand: law.candidates.some((c) => c.key === r.key),
         }))}
       />
     </>

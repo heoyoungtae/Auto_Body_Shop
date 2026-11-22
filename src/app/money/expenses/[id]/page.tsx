@@ -14,6 +14,7 @@ import {
   SOURCE_KINDS,
 } from "@/modules/money/rules";
 import { EVENT_KINDS, EVENT_TARGETS } from "@/modules/money/rules";
+import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { AssistForm } from "../../../_assist";
 import { DateField, SelectField, TextField } from "../../../_input";
@@ -72,6 +73,7 @@ export default async function ExpensePage({
   const warn = evidenceWarning(
     e.evidenceKind as keyof typeof EVIDENCE_KINDS,
     e.amountWon,
+    (await loadPolicy(await getDb()))["tax.simple_receipt_max"],
   );
   const hidden = (intent: string) => (
     <>
