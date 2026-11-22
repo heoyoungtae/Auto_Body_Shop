@@ -121,6 +121,11 @@ export async function createExpenseAction(form: FormData) {
       repairCapital: s("repairCapital") === "1",
       lease: s("lease") || undefined,
       leaseYm: s("leaseYm") || undefined,
+      // 경조사 칸은 접대비(거래처)·복리후생(직원)에서만 보인다
+      event:
+        s("hasEvent") === "1" && (s("category") === "entertain" || s("category") === "welfare")
+          ? { target: s("category") === "entertain" ? "client" : "staff", kind: s("eventKind"), name: s("eventName"), relation: s("eventRelation"), on: s("eventOn"), userId: s("eventUserId") || undefined }
+          : undefined,
     });
     id = r.id;
     docNo = r.docNo;

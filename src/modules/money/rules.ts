@@ -101,12 +101,46 @@ export const EVIDENCE_KINDS = {
   card: "카드 전표",
   cash_receipt: "현금영수증(지출 증빙용)",
   bill: "고지서·계약서(임차료·공과금 등)",
+  event_card: "청첩장·부고장(경조사비)",
   receipt: "간이영수증",
   pending: "아직 못 받음(나중에 붙임)",
 } as const;
 export type EvidenceKind = keyof typeof EVIDENCE_KINDS;
 export const isEvidenceKind = (s: string): s is EvidenceKind =>
   s in EVIDENCE_KINDS;
+
+/** 경조사(축의금·부의금 등). staff 는 사내 경조금 기준표(정책값 welfare.event_*)가 있는 것 */
+export const EVENT_KINDS = {
+  wedding: { label: "결혼(본인)", staff: true },
+  wedding_child: { label: "결혼(자녀)", staff: true },
+  birth: { label: "출산·돌", staff: true },
+  funeral: { label: "상(부모·배우자·자녀)", staff: true },
+  funeral_far: { label: "상(조부모·형제자매)", staff: true },
+  opening: { label: "개업·이전", staff: false },
+  other: { label: "기타(용도에 적음)", staff: false },
+} as const;
+export type EventKind = keyof typeof EVENT_KINDS;
+export const isEventKind = (s: string): s is EventKind => s in EVENT_KINDS;
+export const EVENT_TARGETS = { client: "거래처(업체·보험사 등)", staff: "직원" } as const;
+export type EventTarget = keyof typeof EVENT_TARGETS;
+/** 경조사비 계정: 거래처 → 접대비, 직원 → 복리후생 */
+export const EVENT_CATEGORY: Record<EventTarget, ExpCategory> = { client: "entertain", staff: "welfare" };
+/** 직원 경조금 기준표 정책값 키 */
+export const staffEventKey = (k: EventKind) => `welfare.event_${k}` as const;
+
+/**
+ * 경조사비 점검: 거래처 경조사비는 1회 한도(정책값, 법정 20만원)까지만 청첩장·부고장으로 비용 인정.
+ * 넘으면 전액 불인정(법인세법 시행령 제41조 제1항, 소득세법 시행령 제83조 제3항). 문제 문구 또는 null
+ */
+export function eventProblem(e: { target: string; kind: string; on: string; name: string }, amount: number, clientMax: number): string | null {
+  if (!(e.target in EVENT_TARGETS)) return "경조사 상대(거래처·직원)를 골라 주세요";
+  if (!isEventKind(e.kind)) return "경조사 종류를 골라 주세요";
+  if (!e.name.trim()) return "경조사 상대 이름을 적어 주세요";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(e.on)) return "경조사 날짜를 적어 주세요";
+  if (e.target === "client" && amount > clientMax)
+    return `거래처 경조사비는 한 번에 ${clientMax.toLocaleString("ko-KR")}원까지만 청첩장·부고장으로 비용 인정됩니다. 넘으면 전액 인정되지 않습니다`;
+  return null;
+}
 
 /** 이 금액을 넘는 지출에 간이영수증만 있으면 적격 증빙이 아니어서 2% 가산세 대상(법인세법 제76조·소득세법 제81조의6) */
 export const SIMPLE_RECEIPT_MAX = 30_000;

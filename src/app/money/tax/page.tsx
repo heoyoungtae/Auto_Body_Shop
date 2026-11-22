@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { taxCalendar, taxOverview } from "@/modules/money/tax-profile";
+import { entertainStatus } from "@/modules/money/entertain";
 import { keysFor, lawWatchStatus, LAW_API_GUIDE } from "@/modules/money/law-watch";
 import { BIZ_FORMS, entityCompare, REGIONS, RELIEF_KINDS } from "@/modules/money/tax-rules";
 import { DEFAULT_POLICY, isPolicyKey, loadPolicy } from "@/modules/platform/policy";
@@ -35,6 +36,7 @@ export default async function TaxPage({
   const cal = await taxCalendar(db, today);
   const pol = await loadPolicy(db, today);
   const law = await lawWatchStatus(db);
+  const ent = await entertainStatus(db, today);
   const owner = user.roles.includes("owner");
   const profit = num(q.profit);
   const salary = num(q.salary);
@@ -114,6 +116,23 @@ export default async function TaxPage({
               ))}
             </ul>
           )}
+        </Card>
+      </div>
+      <div className="mt-4" id="entertain">
+        <Card title={`접대비 한도(${ent.year}년)`} help={{ kind: "panel", id: "tax.entertain" }}>
+          <p className="text-sm">
+            사용 <b className="tabular-nums">{won(ent.used)}</b>({ent.count}건) / 한도(어림) <b className="tabular-nums">{won(ent.limit)}</b>{" "}
+            <Badge tone={ent.pct >= 100 ? "danger" : ent.pct >= ent.alertPct ? "warn" : "neutral"}>{ent.pct}%</Badge>
+          </p>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded bg-[var(--line)]" role="img" aria-label={`한도의 ${ent.pct}%`}>
+            <div className={`h-full ${ent.pct >= 100 ? "bg-[var(--danger)]" : ent.pct >= ent.alertPct ? "bg-[var(--warn)]" : "bg-[var(--accent)]"}`} style={{ width: `${Math.min(100, ent.pct)}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            한도 = 기본 {won(ent.base)} × {ent.months}/12달 + 올해 매출 {won(ent.sales)} × 0.3%(100억 이하). 거래처 경조사비(1회 20만원 이하)도 포함됩니다. 한도를 넘은 접대비는 비용으로 인정되지 않습니다.
+            {" "}
+            <Link href="/settings/policies?key=money.entertain_base" className="text-[var(--accent)]">기본 한도 고치기</Link> ·{" "}
+            <Link href="/money/expenses?s=접대비" className="text-[var(--accent)]">접대비 결의 보기</Link>
+          </p>
         </Card>
       </div>
       <div className="mt-4">

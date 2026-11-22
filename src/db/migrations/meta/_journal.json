@@ -491,6 +491,13 @@
       "when": 1795278473042,
       "tag": "0069_site3",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1795313390292,
+      "tag": "0070_expense_event",
+      "breakpoints": true
     }
   ]
 }

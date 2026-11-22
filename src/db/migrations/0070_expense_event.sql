@@ -1,0 +1,1 @@
+ALTER TABLE "expense" ADD COLUMN "event" jsonb;

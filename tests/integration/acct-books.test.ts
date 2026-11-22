@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
-import { approvalDoc, bankTx, repairOrder, repairStatement } from "@/db/schema";
+import { approvalDoc, bankTx, expense, repairOrder, repairStatement } from "@/db/schema";
 import { ACCOUNTS, EXP_ACCOUNT, FUND_KINDS } from "@/modules/acct/accounts";
 import { buildJournal, unbalanced } from "@/modules/acct/journal";
 import { cancelFundSlip, createFundSlip, fundSeedFromTx, getOpening, saveOpening, txNeedingFund } from "@/modules/acct/service";
@@ -17,7 +17,8 @@ import { saveItem, useStock } from "@/modules/purchase/stock";
 import { customPeriod } from "@/modules/report/period";
 import { runReport } from "@/modules/report/run";
 import { seedShop, testDb } from "./db";
-import { approvedRepair } from "./flow";
+import { approvedRepair, PNG } from "./flow";
+import { entertainLimit, entertainStatus } from "@/modules/money/entertain";
 
 beforeAll(() => {
   process.env.STORAGE_DIR = mkdtempSync(join(tmpdir(), "abs-files-"));
@@ -58,6 +59,33 @@ describe("접대비(기업업무추진비)", () => {
     expect(lines.some((l) => l.code === "135")).toBe(false);
     const v = await runReport(db, owner(), "vat", customPeriod("2026-10-01", "2026-12-31"), "prev", now);
     expect(kpi(v).in).toBe(0);
+  });
+});
+
+describe("경조사비", () => {
+  const base = { supplierId: "", payeeName: "", sourceKind: "none", sourceId: "", purpose: "", supplyWon: 0, vatWon: 0, evidenceKind: "event_card", evidenceNo: "", evidenceOn: "2026-11-05", dueOn: "", payMethod: "transfer", files: [] as { name: string; bytes: Uint8Array }[] };
+  it("거래처는 접대비·1회 20만원까지, 청첩장 사진 필수, 직원은 복리후생, 한도 현황에 모인다", async () => {
+    const ev = { target: "client", kind: "wedding", name: "○○화재 김 과장", relation: "보험사 담당자", on: "2026-11-08" };
+    const pic = [{ name: "청첩장.png", bytes: PNG }];
+    await expect(createExpense(db, acct(), { ...base, category: "entertain", payeeName: "김 과장", purpose: "축의금", supplyWon: 250_000, files: pic, event: ev }, at("2026-11-05"))).rejects.toThrow(/전액/);
+    await expect(createExpense(db, acct(), { ...base, category: "entertain", payeeName: "김 과장", purpose: "축의금", supplyWon: 100_000, event: ev }, at("2026-11-05"))).rejects.toThrow(/사진/);
+    await expect(createExpense(db, acct(), { ...base, category: "welfare", payeeName: "김 과장", purpose: "축의금", supplyWon: 100_000, files: pic, event: ev }, at("2026-11-05"))).rejects.toThrow(/접대비/);
+    await expect(createExpense(db, acct(), { ...base, category: "rent", payeeName: "x", purpose: "x", supplyWon: 100_000, files: pic }, at("2026-11-05"))).rejects.toThrow(/경조사비/);
+    const x = await createExpense(db, acct(), { ...base, category: "entertain", payeeName: "김 과장", purpose: "축의금", supplyWon: 200_000, files: pic, event: ev }, at("2026-11-05"));
+    const [doc] = await db.select().from(approvalDoc).where(eq(approvalDoc.id, x.approvalDocId));
+    for (const st of doc.steps as { kind: string; candidates: string[] }[]) if (st.kind === "approve") await act(db, x.approvalDocId, st.candidates[0], "approve", null, at("2026-11-06"));
+    const s = await entertainStatus(db, "2026-11-30");
+    expect(s).toMatchObject({ used: 200_000, count: 1 });
+    expect(s.limit).toBe(entertainLimit(36_000_000, s.months, s.sales));
+    const y = await createExpense(db, acct(), { ...base, category: "welfare", payeeName: "직원", purpose: "결혼 축하금", supplyWon: 300_000, files: pic, event: { target: "staff", kind: "wedding", name: "", relation: "본인", on: "2026-11-08", userId: ids.tech1 } }, at("2026-11-05"));
+    const [row] = await db.select().from(expense).where(eq(expense.id, y.id));
+    expect(row.event).toMatchObject({ target: "staff", userId: ids.tech1 });
+    expect(row.event?.name).toBeTruthy();
+  });
+  it("한도 계산: 기본 × 달수/12 + 매출 구간 비율", () => {
+    expect(entertainLimit(36_000_000, 12, 1_000_000_000)).toBe(36_000_000 + 3_000_000);
+    expect(entertainLimit(36_000_000, 6, 0)).toBe(18_000_000);
+    expect(entertainLimit(0, 12, 20_000_000_000)).toBe(30_000_000 + 20_000_000);
   });
 });
 

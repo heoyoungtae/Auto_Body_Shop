@@ -27,6 +27,9 @@ import { Badge, Card, ErrorBox, PageTitle } from "../../../_ui";
 import { createExpenseAction } from "../../actions";
 import { EvidenceFiles } from "../../evidence-files";
 import { AssetRows } from "../../asset-rows";
+import { EventFields } from "../../event-fields";
+import { EVENT_KINDS, staffEventKey } from "@/modules/money/rules";
+import { loadPolicy, type PolicyKey } from "@/modules/platform/policy";
 import { ShowWhen } from "../../../consults/show-when";
 import { assetOptions, leaseFeePrefill } from "@/modules/asset/service";
 import { lastToolPrice } from "@/modules/equipment/tools";
@@ -77,6 +80,12 @@ export default async function NewExpensePage({
   const defaultEqManager = staff.find((u) => u.roles.includes("plant_manager"))?.id;
   const defaultFxManager = staff.find((u) => u.roles.includes("accounting"))?.id;
   const sups = await listSuppliers(db, "registered");
+  const pol = await loadPolicy(db);
+  const staffTable = Object.entries(EVENT_KINDS)
+    .filter(([, k]) => k.staff)
+    .map(([kind, k]) => ({ kind, label: k.label, won: pol[staffEventKey(kind as keyof typeof EVENT_KINDS) as PolicyKey] ?? 0 }));
+  const oldEvent = old?.event ?? null;
+  const ev = (target: "client" | "staff") => <EventFields target={target} people={people} clientMax={pol["money.event_client_max"]} staffTable={staffTable} old={oldEvent && oldEvent.target === target ? oldEvent : null} />;
   const remain = src ? src.remainWon : 0;
   const supply = src
     ? src.remainWon === src.totalWon
@@ -246,7 +255,13 @@ export default async function NewExpensePage({
                 cases={{
                   equipment: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} defaults={toolPick ? { name: toolPick.name, kind: "tool", qty: toolPick.qty, unitWon: toolLast } : undefined} />,
                   other: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
-                  welfare: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
+                  welfare: (
+                    <>
+                      {ev("staff")}
+                      <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />
+                    </>
+                  ),
+                  entertain: ev("client"),
                   repair: (
                     <div className="flex flex-wrap items-end gap-3">
                       <SelectField help="asset.repairTarget" name="repairTarget" placeholder="고르지 않음" options={assetOpts} />
