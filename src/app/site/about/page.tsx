@@ -3,14 +3,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getDb } from "@/db/runtime";
 import { PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
-import { sitePages } from "@/modules/site/pages";
-import { siteBtn, siteData, SiteTitle } from "../_parts";
+import { siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
 
 export const metadata: Metadata = { title: "정비소 소개" };
 
 export default async function AboutPage() {
   const db = await getDb();
-  const [{ shop, cfg, mapUrl }, trust, v] = await Promise.all([siteData(), siteTrust(db), sitePages(db)]);
+  const [{ shop, cfg, mapUrl }, trust, v] = await Promise.all([siteData(), siteTrust(db), viewPages()]);
   return (
     <div className="mx-auto max-w-4xl space-y-20">
       <SiteTitle eyebrow="ABOUT US" help="site.about" sub={shop.name}>

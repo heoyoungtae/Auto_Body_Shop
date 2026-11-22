@@ -3,6 +3,9 @@
 // 고친 적 없는 칸은 늘 처음 문구를 쓰므로, 처음 문구를 다듬으면 고치지 않은 홈페이지에도 그대로 들어간다.
 // 숫자 기준(보증 기간·도막 두께 등)은 {도장보증}처럼 적으면 정책값이 들어간다 → 정책을 바꾸면 홈페이지도 함께 바뀐다.
 import type { Policy } from "@/modules/platform/policy";
+import { CARBOOK_CHAPTERS, CARBOOK_TEXT } from "./carbook-guide-text";
+import { SERVICE_PAGES } from "./service-pages";
+import { SERVICE_TEXT } from "./service-text";
 
 export type Pair = { t: string; d: string };
 
@@ -17,6 +20,7 @@ export const TOKENS: Record<string, { label: string; get: (p: Policy) => string 
   사진장수: { label: "작업 후 사진(장)", get: (p) => String(p["inspect.after_photos"]) },
   회신일: { label: "사진 견적 회신(영업일)", get: (p) => String(p["consult.reply_business_days"]) },
   세차금지일: { label: "출고 뒤 세차 피할 날(일)", get: (p) => String(p["delivery.no_wash_days"]) },
+  견적유효일: { label: "견적서 유효 기간(일)", get: (p) => String(p["estimate.valid_days"]) },
 };
 
 const TOKEN_RE = /\{([^{}\s]{1,10})\}/g;
@@ -30,7 +34,9 @@ export const unknownTokens = (s: string) => [...s.matchAll(TOKEN_RE)].map((m) =>
 type TextDef = { kind: "text"; label: string; def: string; multi?: boolean; max?: number };
 type PairsDef = { kind: "pairs"; label: string; def: Pair[]; max: number; min?: number };
 type LinesDef = { kind: "lines"; label: string; def: string[]; max: number; min?: number };
-export type ItemDef = TextDef | PairsDef | LinesDef;
+/** 칸이 여럿인 목록(예: 수리 방법 = 방법·이럴 때·이렇게·기간) */
+type RowsDef = { kind: "rows"; label: string; fields: readonly { k: string; label: string; max: number }[]; def: Record<string, string>[]; max: number; min?: number };
+export type ItemDef = TextDef | PairsDef | LinesDef | RowsDef;
 
 const text = (label: string, def: string, o: { multi?: boolean; max?: number } = {}): TextDef => ({ kind: "text", label, def, ...o });
 const pairs = (label: string, def: Pair[], max = 8, min = 1): PairsDef => ({ kind: "pairs", label, def, max, min });
@@ -208,19 +214,42 @@ export type PairsKey = { [K in keyof typeof PAGE_TEXT]: (typeof PAGE_TEXT)[K]["k
 export type LinesKey = { [K in keyof typeof PAGE_TEXT]: (typeof PAGE_TEXT)[K]["kind"] extends "lines" ? K : never }[keyof typeof PAGE_TEXT];
 export type PageTextKey = keyof typeof PAGE_TEXT;
 
-export const pageTextDef = (k: string): ItemDef | undefined => (PAGE_TEXT as Record<string, ItemDef>)[k];
+/** 모든 화면 글: 위 목록 + 수리 안내(service-text.ts) + 내 차 수첩 설명서(carbook-guide-text.ts) */
+export const ALL_TEXT: Record<string, ItemDef> = { ...PAGE_TEXT, ...SERVICE_TEXT, ...CARBOOK_TEXT };
 
-/** 설정 화면 '화면 글' 묶음 */
-export const TEXT_GROUPS = [
+export const pageTextDef = (k: string): ItemDef | undefined => ALL_TEXT[k];
+
+/** 설정 화면 '화면 글' 묶음. parts 가 있으면 묶음 안을 칸 묶음 여러 개로 나눠 보인다 */
+export type TextGroup = { id: string; title: string; path: string; parts?: { id: string; title: string; keys: string[] }[] };
+const keysOf = (prefix: string) => Object.keys(ALL_TEXT).filter((k) => k.startsWith(`${prefix}.`));
+export const TEXT_GROUPS: TextGroup[] = [
+  {
+    id: "services",
+    title: "수리 안내",
+    path: "/services",
+    parts: [
+      { id: "services", title: "수리 안내(모아 보기)", keys: ["services.sub", ...keysOf("services.price"), "services.cta", "services.ctaOne"] },
+      ...SERVICE_PAGES.map((s) => ({ id: s.slug, title: `수리 안내 › ${s.title}`, keys: keysOf(`services.${s.slug}`) })),
+    ],
+  },
+  {
+    id: "carbook",
+    title: "내 차 수첩 설명서",
+    path: "/carbook-guide",
+    parts: [
+      { id: "carbook-sub", title: "화면 설명", keys: ["carbook.sub"] },
+      ...CARBOOK_CHAPTERS.map((c) => ({ id: c.id, title: `${c.en} · ${c.name}`, keys: keysOf(`carbook.${c.id}`) })),
+      { id: "carbook-faq", title: "자주 묻는 질문", keys: ["carbook.faq"] },
+    ],
+  },
   { id: "insurance", title: "보험 수리 안내", path: "/insurance" },
   { id: "guide", title: "이용 안내", path: "/guide" },
   { id: "about", title: "정비소 소개", path: "/about" },
   { id: "footer", title: "바닥글", path: "/" },
-] as const;
-export type TextGroupId = (typeof TEXT_GROUPS)[number]["id"] | `home.${SectionKey | "hero"}`;
+];
 
 /** 묶음에 든 글 key(적은 차례대로). 'home.why' 처럼 단락까지 적으면 그 단락 글만 */
-export const groupKeys = (g: string) => (Object.keys(PAGE_TEXT) as PageTextKey[]).filter((k) => k.startsWith(`${g}.`));
+export const groupKeys = (g: string) => keysOf(g);
 
 // ── 메뉴·바닥글 ──
 /** 위 메뉴에 넣을 수 있는 화면 */

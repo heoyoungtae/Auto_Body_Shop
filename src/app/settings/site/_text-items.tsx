@@ -51,6 +51,25 @@ export function TextItems({ id, title, keys, raw, back, aside }: { id: string; t
               </div>
             );
           }
+          if (d.kind === "rows") {
+            // 칸이 여럿인 목록(수리 방법): 지금 줄 + 빈 줄 1개. 모든 칸을 비운 줄은 지운다
+            const rs = value as Record<string, string>[];
+            const n = Math.min(d.max, rs.length + 1);
+            return (
+              <fieldset key={k} className="space-y-2 rounded-md border border-[var(--line)] p-3">
+                <legend className="px-1 text-sm font-semibold">
+                  {label}({d.max}개까지){own && <Edited />}
+                </legend>
+                {Array.from({ length: n }, (_, i) => (
+                  <div key={i} className="grid gap-2 border-b border-dashed border-[var(--line)] pb-2 last:border-0 last:pb-0">
+                    {d.fields.map((f) => (
+                      <TextField key={f.k} help="site.list.cell" name={`r:${k}:${i}:${f.k}`} label={`${i + 1}. ${f.label}`} defaultValue={rs[i]?.[f.k] ?? ""} maxLength={f.max} />
+                    ))}
+                  </div>
+                ))}
+              </fieldset>
+            );
+          }
           // 제목+설명 목록: 지금 줄 + 빈 줄 2개(최대 개수까지). 둘 다 비운 줄은 지운다
           const xs = value as Pair[];
           const n = Math.min(d.max, xs.length + 2);

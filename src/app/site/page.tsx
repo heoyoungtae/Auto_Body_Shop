@@ -9,12 +9,11 @@ import { loadPolicy } from "@/modules/platform/policy";
 import { noticeTitle, publicCases, publicFaqs, publicNotices } from "@/modules/site/content";
 import { featuredArticles } from "@/modules/site/articles";
 import { caseSamples, SAMPLE_LABEL, sampleImg } from "@/modules/site/case-samples";
-import { SERVICE_PAGES } from "@/modules/site/service-pages";
+import { servicePagesView } from "@/modules/site/service-text";
 import { heroImage, PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
-import { sitePages } from "@/modules/site/pages";
 import type { SectionKey } from "@/modules/site/page-text";
 import { ServiceIcon } from "./_icons";
-import { Lines, SectionHead, siteBtn, siteData, SiteTitle } from "./_parts";
+import { Lines, SectionHead, siteBtn, siteData, SiteTitle, viewPages } from "./_parts";
 import { PhoneEstimate, PhoneProgress, PhoneWarranty } from "./_phone";
 
 /** 진행 단계 개수에 맞춘 넓은 화면 칸 수 */
@@ -30,7 +29,7 @@ export default async function SiteHome() {
     publicFaqs(db),
     siteTrust(db),
     featuredArticles(db, 3),
-    sitePages(db),
+    viewPages(),
   ]);
   const hero = heroImage(trust);
   // 실제 공개 사례가 없으면 예시 그림 3장(분야마다 하나, '예시(실제 작업사진 준비중)' 표시)
@@ -73,7 +72,7 @@ export default async function SiteHome() {
         <section aria-labelledby="svc">
           <SectionHead eyebrow={v.t("home.services.eyebrow")} id="svc" title={v.t("home.services.title")} more={{ href: "/services", label: "수리 안내 모두 보기" }} />
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {SERVICE_PAGES.map((s, i) => (
+            {servicePagesView(v).map((s, i) => (
               <Link key={s.slug} href={`/services/${s.slug}`} className="lift group flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-7">
                 <div className="mb-8 flex items-center justify-between">
                   <ServiceIcon name={s.slug} />

@@ -11,8 +11,8 @@ import { daysToOpen, homepageHosts } from "@/modules/site/rules";
 import { siteUrl } from "@/modules/site/service";
 import { bannerNotice, noticeTitle } from "@/modules/site/content";
 import { siteTrust } from "@/modules/site/trust";
-import { sitePages } from "@/modules/site/pages";
-import { homeHref, siteBtn, siteData } from "./_parts";
+import { homeHref, isPreview, siteBtn, siteData, viewPages } from "./_parts";
+import { previewOffAction, publishAction } from "../settings/site/actions";
 import "./site.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -33,7 +33,7 @@ const NewDot = () => <span className="ml-1 rounded-full bg-[var(--red)] px-1.5 p
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const db = await getDb();
-  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner, trust, v] = await Promise.all([siteData(), loadBrand(db), homeHref(), bannerNotice(db), siteTrust(db), sitePages(db)]);
+  const [{ shop, ceo, bizNo, cfg, mapUrl }, brand, home, banner, trust, v, preview] = await Promise.all([siteData(), loadBrand(db), homeHref(), bannerNotice(db), siteTrust(db), viewPages(), isPreview()]);
   // 위 메뉴·바닥글 링크는 설정 › 홈페이지 › 메뉴·바닥글에서(이름·차례·숨기기·NEW 표시)
   const nav = v.nav.filter((n) => n.on);
   const foot = v.foot.filter((n) => n.on);
@@ -63,6 +63,21 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           }).replace(/</g, "\\u003c"),
         }}
       />
+      {preview && (
+        // 대표가 설정 › 홈페이지에서 '미리 보기'를 켰을 때만(이 브라우저, 2시간). 손님에게는 보이지 않는다
+        <div role="status" className="relative z-40 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 bg-[#b45309] px-4 py-2 text-center text-[13px] text-white">
+          <span>
+            <b>미리 보기</b> · 공개 전 고침이 보이는 화면입니다. 손님에게는 아직 보이지 않습니다.
+          </span>
+          <form action={publishAction}>
+            <input type="hidden" name="back" value="/settings/site/history" />
+            <button className="rounded-full bg-white px-3 py-1 font-semibold text-[#b45309]">공개하기</button>
+          </form>
+          <form action={previewOffAction}>
+            <button className="rounded-full border border-white/60 px-3 py-1 font-semibold">미리 보기 끄기</button>
+          </form>
+        </div>
+      )}
       {dday != null && (
         <p className="bg-[var(--ink)] px-4 py-2 text-center text-[13px] text-white/85">
           <span className="mr-2 font-semibold text-white">GRAND OPENING</span>

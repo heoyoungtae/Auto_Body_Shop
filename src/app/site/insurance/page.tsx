@@ -2,13 +2,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { sitePages } from "@/modules/site/pages";
-import { siteBtn, siteData, SiteTitle } from "../_parts";
+import { siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
 
 export const metadata: Metadata = { title: "보험 수리 안내", description: "자차·대물 보험 수리 절차와 정비소가 대신 해 드리는 일" };
 
 export default async function InsurancePage() {
-  const [{ shop, cfg }, v] = await Promise.all([siteData(), sitePages(await getDb())]);
+  const [{ shop, cfg }, v] = await Promise.all([siteData(), viewPages()]);
   const insurers = cfg.insurers
     .split(/[,·\n]/)
     .map((s) => s.trim())

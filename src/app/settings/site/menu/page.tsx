@@ -66,7 +66,7 @@ function LinkRows({ prefix, rows, pages, withNew }: { prefix: "nav" | "foot"; ro
 export default async function SiteMenuSettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const { error, notice } = await searchParams;
   await requireUser(["owner"]);
-  const v = await sitePages(await getDb());
+  const v = await sitePages(await getDb(), true);
   const open = homepageHosts().length ? siteUrl() : "/site";
   return (
     <>

@@ -1,7 +1,6 @@
 // 홈페이지 › 수리 안내(분야별 화면) 내용: 찌그러짐·긁힘·도색·부식. 손상 알아보기, 고치는 방법, 순서, 걸리는 기간, 비용이 정해지는 기준, 알아 둘 점.
-// 기간은 '보통'의 눈대중이고 정확한 날짜는 차를 보고 견적서에 적는다. 숫자 기준(도막 두께·보증 기간 등)은 정책값에서 넣는다.
-import type { Policy } from "@/modules/platform/policy";
-
+// 기간은 '보통'의 눈대중이고 정확한 날짜는 차를 보고 견적서에 적는다. 숫자 기준(도막 두께·보증 기간 등)은 {자리표시}로 정책값을 넣는다.
+// 여기 글은 '처음 문구'이고, 설정 › 홈페이지 › 화면 글 › 수리 안내에서 고친 것이 있으면 그것을 쓴다(service-text.ts).
 export type ServicePage = {
   slug: string;
   title: string;
@@ -13,7 +12,8 @@ export type ServicePage = {
   steps: { t: string; d: string }[];
   costs: string[];
   tips: string[];
-  warranty: (p: Policy) => string;
+  /** 보증 한 줄. {도장보증}처럼 적은 자리표시에 정책값이 들어간다(page-text.ts TOKENS) */
+  warranty: string;
   /** 같이 읽으면 좋은 기술자료(주소 이름) */
   articles: string[];
 };
@@ -38,7 +38,7 @@ export const SERVICE_PAGES: ServicePage[] = [
     ],
     costs: ["손상 크기와 깊이", "꺾인 선이 패널 가장자리(프레스 라인)에 걸쳤는지", "안쪽 부품을 떼어 내야 하는지(문 내장, 램프 등)", "도장까지 해야 하는지"],
     tips: ["덴트로 될 손상을 판금하면 원래 도장을 잃습니다. 중고차 가치를 생각해 먼저 덴트가 되는지 물어보세요.", "알루미늄 패널(일부 수입차·대형차 보닛·문)은 철판보다 펴기 어려워 방법과 비용이 다릅니다."],
-    warranty: (p) => `덴트 ${p["warranty.dent_months"]}개월 · 판금 도색 ${p["warranty.paint_months"]}개월 보증`,
+    warranty: "덴트 {덴트보증}개월 · 판금 도색 {도장보증}개월 보증",
     articles: ["dent-vs-panel", "repair-or-replace", "parking-dent"],
   },
   {
@@ -60,7 +60,7 @@ export const SERVICE_PAGES: ServicePage[] = [
     ],
     costs: ["긁힘 깊이(투명층·색층·바탕·철판)", "긁힌 판의 수와 길이", "색 종류(일반·메탈릭·펄)", "옆 판까지 번지게 칠해야 하는지"],
     tips: ["바탕색이나 철판이 보이는 긁힘은 녹이 생기기 전에 고치는 것이 가장 쌉니다.", "터치업 펜은 녹을 막는 응급 처치일 뿐 완전한 복원은 아닙니다."],
-    warranty: (p) => `광택 ${p["warranty.polish_months"]}개월 · 부분 도색 ${p["warranty.paint_months"]}개월 보증`,
+    warranty: "광택 {광택보증}개월 · 부분 도색 {도장보증}개월 보증",
     articles: ["scratch-depth", "stone-chip", "washing"],
   },
   {
@@ -82,7 +82,7 @@ export const SERVICE_PAGES: ServicePage[] = [
     ],
     costs: ["칠하는 판의 수와 크기", "색 종류(일반·메탈릭·펄·3코트)", "옆 판 번지게 칠하기가 필요한지", "떼었다 붙일 부품(손잡이·몰딩·램프)이 있는지"],
     tips: ["펄·3코트 색(흰 펄 등)은 색 맞추기가 어려워 시간과 비용이 더 듭니다.", "새로 칠한 곳은 한 달 동안 왁스를 바르지 말고, 정해진 기간 동안 자동 세차를 피해 주세요."],
-    warranty: (p) => `도장 ${p["warranty.paint_months"]}개월 보증 · 도막 ${p["inspect.film_min_um"]}~${p["inspect.film_max_um"]}μm 검사`,
+    warranty: "도장 {도장보증}개월 보증 · 도막 {도막최소}~{도막최대}μm 검사",
     articles: ["paint-process", "color-match", "after-care"],
   },
   {
@@ -104,7 +104,7 @@ export const SERVICE_PAGES: ServicePage[] = [
     ],
     costs: ["녹의 단계(표면·들뜬 녹·관통)", "번진 넓이", "철판을 잘라 붙여야 하는지", "안쪽 부품을 떼어 내야 하는지"],
     tips: ["녹은 단계가 하나 올라갈 때마다 비용이 크게 늘어납니다. 갈색 점이 보이면 바로 보여 주세요.", "녹 위에 칠만 덧바르면 몇 달 안에 다시 올라옵니다. 저희는 녹을 끝까지 없애고 칠합니다."],
-    warranty: (p) => `도장 ${p["warranty.paint_months"]}개월 보증(관통 녹 수리는 차를 보고 따로 안내)`,
+    warranty: "도장 {도장보증}개월 보증(관통 녹 수리는 차를 보고 따로 안내)",
     articles: ["rust-stages", "winter-salt", "drain-holes"],
   },
 ];

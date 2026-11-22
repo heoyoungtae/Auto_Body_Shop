@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { loadPolicy } from "@/modules/platform/policy";
-import { loadSitePages, pagesView } from "@/modules/site/pages";
+import { loadEditing, pagesView } from "@/modules/site/pages";
 import { groupKeys, HOME_SECTIONS, TOKENS } from "@/modules/site/page-text";
 import { siteUrl } from "@/modules/site/service";
 import { homepageHosts } from "@/modules/site/rules";
@@ -21,7 +21,7 @@ export default async function SiteHomeSettingsPage({ searchParams }: { searchPar
   const { error, notice } = await searchParams;
   await requireUser(["owner"]);
   const db = await getDb();
-  const [raw, p] = await Promise.all([loadSitePages(db), loadPolicy(db)]);
+  const [raw, p] = await Promise.all([loadEditing(db), loadPolicy(db)]);
   const v = pagesView(raw, p);
   const info = Object.fromEntries(HOME_SECTIONS.map((s) => [s.key, s]));
   const open = homepageHosts().length ? siteUrl() : "/site";
