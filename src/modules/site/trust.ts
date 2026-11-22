@@ -109,7 +109,7 @@ export async function addCert(db: Db, actor: Actor, input: { name: string; desc:
   const name = cut(input.name, 40);
   const desc = cut(input.desc, 120);
   if (name.length < 2) throw new SiteError("자격·인증 이름을 적어 주세요");
-  if (desc.length < 5) throw new SiteError("손님이 알아듣게 한 줄 설명을 적어 주세요(예: 국토교통부에 등록한 자동차 정비업체입니다)");
+  if (desc.length < 5) throw new SiteError("손님이 알아듣게 한 줄 설명을 적어 주세요(예: 구청에 소형자동차종합정비업으로 등록한 공업사입니다)");
   await put(db, actor, { ...t, certs: [...t.certs, { id: randomUUID(), name, desc }] }, "site.cert", { name });
 }
 
