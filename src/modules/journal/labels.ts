@@ -498,6 +498,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "law.key.set": "법령 개정 알림 OC 값 넣음",
   "law.key.clear": "법령 개정 알림 OC 값 지움",
   "law.ack": "법령 개정 확인함",
+  "law.candidate.dismiss": "법령 개정 새 값 후보 넘김(값 그대로)",
+  "policy.check": "정책값 분류 점검 완료",
   "policy.change": "정책값 바꿈",
   "delegation.change": "전결 규정 바꿈",
   "proxy.add": "대리 결재자 지정",

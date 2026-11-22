@@ -5,7 +5,9 @@ import type { Db } from "@/db/client";
 import { appConfig } from "@/db/schema";
 import { myTodos } from "@/modules/dashboard/todo";
 import { loadTaxProfile, saveTaxProfile, taxCalendar, taxOverview, type TaxInput } from "@/modules/money/tax-profile";
-import { checkLaws, lawTodos, saveLawKey, WATCHED_LAWS, ackLawChanges } from "@/modules/money/law-watch";
+import { applyCandidate, candidateTodos, checkLaws, dismissCandidate, lawTodos, lawWatchStatus, saveLawKey, WATCHED_LAWS, ackLawChanges } from "@/modules/money/law-watch";
+import { loadPolicy } from "@/modules/platform/policy";
+import { policyCheckTodos, recordCheck } from "@/modules/platform/policy-check";
 import { saveShopInfo } from "@/modules/platform/shop";
 import { seedShop, testDb } from "./db";
 
@@ -113,5 +115,41 @@ describe("법령 개정 알림", () => {
     expect(fail.status).toBe("failed");
     expect((await lawTodos(db, owner())).map((t) => t.key)).toEqual(["law-failed"]);
     expect(WATCHED_LAWS.length).toBeGreaterThan(5);
+  });
+});
+
+describe("법정 값 새 값 후보·점검", () => {
+  it("바뀐 법령의 조문에서 숫자를 읽어 후보를 올리고, 대표가 적용하면 시행일부터 바뀐다", async () => {
+    const fake = (stamp: string, article: string) =>
+      (async (url: string | URL | Request) => {
+        const u = new URL(String(url));
+        if (u.pathname.endsWith("lawService.do")) return new Response(JSON.stringify({ 법령: { 조문: { 조문단위: [{ 조문내용: article }] } } }), { status: 200 });
+        const name = u.searchParams.get("query")!;
+        return new Response(JSON.stringify({ LawSearch: { law: [{ 법령명한글: name, 법령일련번호: "123", 공포일자: name === "법인세법 시행령" ? stamp : "20251223", 시행일자: "20270101" }] } }), { status: 200 });
+      }) as typeof fetch;
+    await saveLawKey(db, owner(), "myshop");
+    await checkLaws(db, new Date("2026-12-01T00:00:00Z"), { f: fake("20251223", "") });
+    await checkLaws(db, new Date("2027-01-01T00:00:00Z"), { f: fake("20261231", "경조금의 경우 30만원을 초과하는 것") });
+    const st = await lawWatchStatus(db);
+    const c = st.candidates.find((x) => x.key === "money.event_client_max");
+    expect(c).toMatchObject({ value: 300_000, current: 200_000, effective: "2027-01-01" });
+    // 같은 조문을 쓰는 다른 값(정규식이 안 맞음)은 직접 확인 후보
+    expect(st.candidates.find((x) => x.key === "asset.immediate_max")?.value).toBeUndefined();
+    expect((await candidateTodos(db, owner())).some((t) => t.key.startsWith("policy-cand-money.event_client_max"))).toBe(true);
+    await expect(applyCandidate(db, acct(), "money.event_client_max", undefined, "2027-01-01")).rejects.toThrow(/대표/);
+    await applyCandidate(db, owner(), "money.event_client_max", undefined, "2027-01-01");
+    expect((await loadPolicy(db, "2027-01-01"))["money.event_client_max"]).toBe(300_000);
+    await expect(applyCandidate(db, owner(), "asset.immediate_max", undefined, "2027-01-01")).rejects.toThrow(/숫자/);
+    await dismissCandidate(db, acct(), "asset.immediate_max");
+    expect((await lawWatchStatus(db)).candidates.some((x) => x.key === "asset.immediate_max")).toBe(false);
+  });
+  it("1월·7월 점검 할 일, 12월 요율 확인, 점검 완료하면 사라진다", async () => {
+    expect(await policyCheckTodos(db, owner(), "2027-03-10")).toEqual([]);
+    expect((await policyCheckTodos(db, acct(), "2027-01-10")).map((t) => t.key)).toEqual(["policy-check-tax-2027-01-01", "policy-check-payroll-2027-01-01"]);
+    await recordCheck(db, acct(), "tax", true, "세무사 확인", "2027-01-11");
+    expect((await policyCheckTodos(db, acct(), "2027-01-12")).map((t) => t.key)).toEqual(["policy-check-payroll-2027-01-01"]);
+    expect((await policyCheckTodos(db, owner(), "2027-12-05")).map((t) => t.key)).toEqual(["policy-rates-2027"]);
+    await recordCheck(db, owner(), "payroll", false, "", "2027-12-06");
+    expect(await policyCheckTodos(db, owner(), "2027-12-07")).toEqual([]);
   });
 });

@@ -99,7 +99,7 @@ export function trafficSummary(st: ServerStatus | null, series: Sample[], now = 
 
 export type Health = { level: "ok" | "warn" | "danger"; reasons: string[] };
 /** 한눈 상태: 위험(빨강)·주의(노랑)·정상(초록)과 이유. 팬 없는 미니 PC 라 온도를 특히 본다 */
-export function serverHealth(st: (ServerStatus & { at?: string }) | null, silentMin: number | null): Health {
+export function serverHealth(st: (ServerStatus & { at?: string }) | null, silentMin: number | null, now = Date.now()): Health {
   const danger: string[] = [];
   const warn: string[] = [];
   if (!st) return { level: "danger", reasons: ["서버가 아직 상태를 알려 오지 않았습니다"] };
@@ -133,7 +133,7 @@ export function serverHealth(st: (ServerStatus & { at?: string }) | null, silent
   if (er != null && rq != null && er >= 5 && er * 20 >= rq) warn.push(`서버 오류 잦음(최근 1분 ${er}건)`);
   // 도메인: 앱 주소가 옛 인터넷 주소를 가리키거나, 인증서가 곧 끝나는데 갱신이 안 됨
   if (st.dnsIp && st.publicIp && st.dnsIp !== st.publicIp) warn.push(`앱 주소가 옛 인터넷 주소(${st.dnsIp})를 가리킴: 밖에서 안 열릴 수 있음`);
-  const cd = certDays(st);
+  const cd = certDays(st, now);
   if (cd != null && cd < 3) danger.push(`보안 접속 인증서 ${cd < 0 ? "만료됨" : `${cd}일 남음`}`);
   else if (cd != null && cd < 14) warn.push(`보안 접속 인증서 ${cd}일 남음(저절로 갱신되지 않음)`);
   if (st.rebootNeeded) warn.push("보안 업데이트 뒤 다시 켜야 합니다(새벽 4시에 저절로)");
@@ -202,7 +202,7 @@ export async function serverOpsView(db: Db, now = Date.now()) {
   const series = d.series ?? [];
   // 새 버전이 없으면 올릴 것이 없다(대표 2026-11-20). 미니 PC 가 1분마다 GitHub 끝 번호를 보므로 최신인지 바로 안다
   const upToDate = !!d.status?.latest && d.status.behind === 0;
-  return { ddns: d.ddns ?? [], upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin), auto: d.auto ?? AUTO_DEFAULT, history: (d.history ?? []).map((e) => ({ ...e, changes: e.changes.filter((c) => isChangeTitle(c.title)) })), status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
+  return { ddns: d.ddns ?? [], upToDate, series, traffic: trafficSummary(d.status ?? null, series, now), progress, health: serverHealth(d.status ?? null, silentMin, now), auto: d.auto ?? AUTO_DEFAULT, history: (d.history ?? []).map((e) => ({ ...e, changes: e.changes.filter((c) => isChangeTitle(c.title)) })), status: d.status ?? null, silentMin, silent: silentMin == null || silentMin > SILENT_MIN, request: req, pending, running, result: d.result ?? null };
 }
 
 /** 대표만. 자동 올리기 켜기·끄기와 시각 */
@@ -372,8 +372,8 @@ export async function agentReport(
     if (cd != null && cd < 14)
       await notifyRole(db, "owner", `앱 보안 접속 인증서가 ${cd < 0 ? "만료되었습니다" : `${cd}일 뒤 끝납니다`}. 저절로 갱신되지 않고 있으니 Claude에게 알려 주세요`, `cert:${now.toISOString().slice(0, 10)}`, "/settings/server");
     // 위험이 되면 대표에게 알린다(같은 이유는 하루 한 번)
-    const h = serverHealth(next.status, 0);
-    if (h.level === "danger" && d.status && serverHealth(d.status, 0).level !== "danger")
+    const h = serverHealth(next.status, 0, now.getTime());
+    if (h.level === "danger" && d.status && serverHealth(d.status, 0, now.getTime()).level !== "danger")
       await notifyRole(db, "owner", `서버 위험: ${h.reasons.join(", ")}`, `server-danger:${now.toISOString().slice(0, 10)}:${h.reasons[0]}`, "/settings/server");
     // 새 버전이 생기면 대표에게 바로 알린다(같은 버전은 한 번만). 미니 PC 가 1분마다 GitHub 끝 번호를 본다
     const st = next.status;

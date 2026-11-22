@@ -103,6 +103,8 @@ export const expense = pgTable(
       .notNull()
       .default([]),
     dueOn: text("due_on"),
+    /** 경조사비(축의금·부의금 등): 거래처면 접대비, 직원이면 복리후생. 증빙은 청첩장·부고장 사진(files) */
+    event: jsonb("event").$type<{ target: "client" | "staff"; kind: string; name: string; relation: string; on: string; userId?: string; overLimit?: boolean }>(),
     /** 지급 방법(예정): transfer 계좌 이체 · card 법인카드 · cash 현금 · auto 자동이체 */
     payMethod: text("pay_method").notNull(),
     paidOn: text("paid_on"),

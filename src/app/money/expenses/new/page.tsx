@@ -6,7 +6,6 @@ import {
   EVIDENCE_KINDS,
   EXP_CATEGORIES,
   EXP_PAY_METHODS,
-  SIMPLE_RECEIPT_MAX,
   SOURCE_KINDS,
   vatOf,
 } from "@/modules/money/rules";
@@ -27,6 +26,9 @@ import { Badge, Card, ErrorBox, PageTitle } from "../../../_ui";
 import { createExpenseAction } from "../../actions";
 import { EvidenceFiles } from "../../evidence-files";
 import { AssetRows } from "../../asset-rows";
+import { EventFields } from "../../event-fields";
+import { EVENT_KINDS, staffEventKey } from "@/modules/money/rules";
+import { loadPolicy, type PolicyKey } from "@/modules/platform/policy";
 import { ShowWhen } from "../../../consults/show-when";
 import { assetOptions, leaseFeePrefill } from "@/modules/asset/service";
 import { lastToolPrice } from "@/modules/equipment/tools";
@@ -77,6 +79,12 @@ export default async function NewExpensePage({
   const defaultEqManager = staff.find((u) => u.roles.includes("plant_manager"))?.id;
   const defaultFxManager = staff.find((u) => u.roles.includes("accounting"))?.id;
   const sups = await listSuppliers(db, "registered");
+  const pol = await loadPolicy(db);
+  const staffTable = Object.entries(EVENT_KINDS)
+    .filter(([, k]) => k.staff)
+    .map(([kind, k]) => ({ kind, label: k.label, won: pol[staffEventKey(kind as keyof typeof EVENT_KINDS) as PolicyKey] ?? 0 }));
+  const oldEvent = old?.event ?? null;
+  const ev = (target: "client" | "staff") => <EventFields target={target} people={people} clientMax={pol["money.event_client_max"]} staffTable={staffTable} old={oldEvent && oldEvent.target === target ? oldEvent : null} />;
   const remain = src ? src.remainWon : 0;
   const supply = src
     ? src.remainWon === src.totalWon
@@ -246,7 +254,13 @@ export default async function NewExpensePage({
                 cases={{
                   equipment: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} defaults={toolPick ? { name: toolPick.name, kind: "tool", qty: toolPick.qty, unitWon: toolLast } : undefined} />,
                   other: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
-                  welfare: <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />,
+                  welfare: (
+                    <>
+                      {ev("staff")}
+                      <AssetRows fxCats={fxCats} eqKinds={eqKinds} users={people} defaultManager={{ fixture: defaultFxManager, equipment: defaultEqManager }} optional />
+                    </>
+                  ),
+                  entertain: ev("client"),
                   repair: (
                     <div className="flex flex-wrap items-end gap-3">
                       <SelectField help="asset.repairTarget" name="repairTarget" placeholder="고르지 않음" options={assetOpts} />
@@ -343,7 +357,7 @@ export default async function NewExpensePage({
             <EvidenceFiles />
           </div>
           <p className="text-xs text-[var(--muted)] md:col-span-2">
-            {won(SIMPLE_RECEIPT_MAX)}이 넘는데 간이영수증만 있으면 적격 증빙이
+            {won(pol["tax.simple_receipt_max"])}이 넘는데 간이영수증만 있으면 적격 증빙이
             아니어서 가산세(2%) 대상입니다. 증빙을 아직 못 받았으면 &apos;아직
             못 받음&apos;으로 올리고, 받으면 붙여야 지급됩니다. 업체 계좌 이체는
             전화로 확인한 계좌로만 보냅니다.

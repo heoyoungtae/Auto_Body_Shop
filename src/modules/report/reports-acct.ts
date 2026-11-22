@@ -7,7 +7,7 @@ import { loadTaxProfile } from "@/modules/money/tax-profile";
 import { VAT_UNITS } from "@/modules/money/tax-rules";
 import { accruedIn, balancesAt, listPayables } from "@/modules/money/payable";
 import { customerReceivables, insurerReceivables } from "@/modules/money/receipts";
-import { EVIDENCE_KINDS, EXP_CATEGORIES, PAYABLE_KINDS, RECEIPT_KINDS } from "@/modules/money/rules";
+import { EVIDENCE_KINDS, EXP_CATEGORIES, noVatCredit, PAYABLE_KINDS, RECEIPT_KINDS } from "@/modules/money/rules";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { PAY_METHODS } from "@/modules/repair/inspect-rules";
 import { type Builder, type Row, avg, both, daysBetween, groupBy, m, sum } from "./kit";
@@ -155,10 +155,13 @@ export const vat: Builder = async (c) => {
     const pays = await c.db.select().from(payment).where(and(gte(payment.receivedOn, p.from), lte(payment.receivedOn, p.to), eq(payment.payer, "customer")));
     const pay = await c.db.select().from(payable).where(and(gte(payable.accruedOn, p.from), lte(payable.accruedOn, p.to), ne(payable.kind, "prepay")));
     // 채무를 거치지 않고 바로 낸 지출(설비·임차료 등): 적격 증빙만 매입세액
-    const ex = await c.db
-      .select()
-      .from(expense)
-      .where(and(eq(expense.sourceKind, "none"), isNull(expense.cancelledAt), isNotNull(expense.paidOn), gte(expense.paidOn, p.from), lte(expense.paidOn, p.to), inArray(expense.evidenceKind, ["tax_invoice", "card", "cash_receipt"])));
+    // 접대비(기업업무추진비)는 매입세액 불공제라 뺀다
+    const ex = (
+      await c.db
+        .select()
+        .from(expense)
+        .where(and(eq(expense.sourceKind, "none"), isNull(expense.cancelledAt), isNotNull(expense.paidOn), gte(expense.paidOn, p.from), lte(expense.paidOn, p.to), inArray(expense.evidenceKind, ["tax_invoice", "card", "cash_receipt"])))
+    ).filter((r) => !(r.split?.length ? false : noVatCredit(r.category)));
     const outVat = sum(st, (r) => r.s.vatWon);
     const inVat = sum(pay, (r) => r.vatWon) + sum(ex, (r) => r.vatWon);
     return { st, pays, pay, ex, outVat, inVat };

@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
+import { loadPolicy } from "@/modules/platform/policy";
 import { can } from "@/modules/auth/permissions";
 import { receiptView } from "@/modules/money/receipts";
 import { receiptPrefill } from "@/modules/bank/service";
 import {
   AR_DUN_DAYS,
-  CASH_RECEIPT_MUST,
   daysBetween,
   PAY_IN_METHODS,
   RECEIPT_KINDS,
@@ -61,6 +61,7 @@ export default async function RoMoneyPage({
   const may = can(user, "money.receive");
   // 통장 입금에서 왔으면(?tx=) 금액·날짜·입금자를 그 입금에서 채운다
   const txPre = q.tx ? await receiptPrefill(await getDb(), user, q.tx) : null;
+  const cashMust = (await loadPolicy(await getDb()))["tax.cash_receipt_must"];
   const method = (
     txPre
       ? "transfer"
@@ -205,7 +206,7 @@ export default async function RoMoneyPage({
               <TextField help="money.note" name="note" />
             </div>
             <p className="text-xs text-[var(--muted)] md:col-span-2">
-              현금·계좌 이체로 {won(CASH_RECEIPT_MUST)} 이상 받으면 현금영수증을
+              현금·계좌 이체로 {won(cashMust)} 이상 받으면 현금영수증을
               꼭 발행합니다(고객이 원하지 않으면 국세청 지정 번호 010-000-1234).
               그날 일일 마감을 했으면 그 날짜로는 적을 수 없습니다.
             </p>
