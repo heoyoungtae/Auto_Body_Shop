@@ -34,7 +34,7 @@ export default async function RequestPage({ searchParams }: { searchParams: Prom
       {shop.phone}
     </a>
   ) : (
-    "정비소"
+    "제이모터스"
   );
 
   return (
@@ -45,7 +45,11 @@ export default async function RequestPage({ searchParams }: { searchParams: Prom
       <ErrorBox message={q.error} />
       {q.sent && (
         <Notice>
-          보냈습니다(요청 번호 {q.sent}). {q.due ? `${q.due}까지` : "곧"} 답을 드리고 알림톡(또는 문자)으로 알려 드립니다. 답은 <Link href="/my/consult" className="underline">내 차 수첩</Link>에서 휴대폰 문자 인증 뒤 보실 수 있습니다.
+          보냈습니다(요청 번호 {q.sent}). {q.due ? `${q.due}까지` : "곧"} 답을 드리고 알림톡(또는 문자)으로 알려 드립니다. 답은{" "}
+          <Link href="/my/consult" className="underline">
+            내 차 수첩
+          </Link>
+          에서 휴대폰 문자 인증 뒤 보실 수 있습니다.
         </Notice>
       )}
       {!cfg.requests ? (
@@ -88,7 +92,7 @@ export default async function RequestPage({ searchParams }: { searchParams: Prom
             <p className="flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--muted)]">
               <span>
                 확인한 번호 <b className="text-[var(--fg)]">{who.phoneMasked}</b>
-                {who.name && " · 우리 정비소 고객이시네요. 이름과 차를 불러왔습니다."}
+                {who.name && " · 제이모터스 고객이시네요. 이름과 차를 불러왔습니다."}
               </span>
               <button formAction={webResetAction} formNoValidate className="text-[var(--accent)] underline">
                 다른 번호로
@@ -96,7 +100,12 @@ export default async function RequestPage({ searchParams }: { searchParams: Prom
             </p>
             <TextField help="site.name" name="name" required defaultValue={who.name} autoComplete="name" />
             {who.cars.length > 0 && (
-              <SelectField help="site.vehicle" name="vehicleId" options={[...who.cars.map((c) => ({ value: c.id, label: c.label })), { value: "", label: "다른 차(아래에 적기)" }]} defaultValue={who.cars[0].id} />
+              <SelectField
+                help="site.vehicle"
+                name="vehicleId"
+                options={[...who.cars.map((c) => ({ value: c.id, label: c.label })), { value: "", label: "다른 차(아래에 적기)" }]}
+                defaultValue={who.cars[0].id}
+              />
             )}
             <TextField help="site.plateNo" name="plateNo" required={!who.cars.length} placeholder="12가3456" />
             <TextField help="site.model" name="model" placeholder="예: 아반떼, 쏘렌토" />

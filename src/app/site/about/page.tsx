@@ -1,27 +1,19 @@
-// 정비소 소개: 인사말(설정 › 홈페이지), 수리 분야, 작업 기준(사내 표준서 요약), 보증, 오시는 길
+// 공업사 소개: 인사말(설정 › 홈페이지), 수리 분야, 작업 기준(사내 표준서 요약), 보증, 오시는 길
 import Link from "next/link";
 import type { Metadata } from "next";
-import { SERVICES } from "@/modules/site/rules";
 import { getDb } from "@/db/runtime";
 import { PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
-import { siteBtn, siteData, SiteTitle } from "../_parts";
+import { siteBtn, siteData, SiteTitle, viewPages } from "../_parts";
 
-export const metadata: Metadata = { title: "정비소 소개" };
-
-const RULES = [
-  "작업 전 법정 견적서로 금액을 먼저 알려 드리고, 승인하신 작업만 합니다.",
-  "부품은 순정·품질인증 대체부품·재제조 중에서 고르실 수 있습니다.",
-  "조색 배합과 도막 두께를 기록하고, 출고 전 단차·색상·광택을 검사합니다.",
-  "수리 전·중·후 사진을 남겨 내 차 수첩에서 언제든 보실 수 있습니다.",
-  "출고한 수리에는 보증 기간을 드리고, 기간 안에 문제가 생기면 내 차 수첩에서 바로 신청합니다.",
-];
+export const metadata: Metadata = { title: "공업사 소개" };
 
 export default async function AboutPage() {
-  const [{ shop, cfg, mapUrl }, trust] = await Promise.all([siteData(), siteTrust(await getDb())]);
+  const db = await getDb();
+  const [{ shop, cfg, mapUrl }, trust, v] = await Promise.all([siteData(), siteTrust(db), viewPages()]);
   return (
     <div className="mx-auto max-w-4xl space-y-20">
       <SiteTitle eyebrow="ABOUT US" help="site.about" sub={shop.name}>
-        정비소 소개
+        공업사 소개
       </SiteTitle>
       {cfg.about && (
         <section className="-mt-8 space-y-5 border-l-2 border-[var(--red)] pl-6 text-lg leading-[1.9] sm:text-xl">
@@ -36,11 +28,11 @@ export default async function AboutPage() {
         <p className="eyebrow mb-2">SERVICES</p>
         <h2 className="mb-6 text-2xl font-bold sm:text-[2rem]">수리 분야</h2>
         <ul className="grid gap-5 sm:grid-cols-3">
-          {SERVICES.map((s, i) => (
-            <li key={s.title} className="rounded-2xl border border-[var(--line)] p-6">
+          {v.pairs("about.services").map((s, i) => (
+            <li key={i} className="rounded-2xl border border-[var(--line)] p-6">
               <p className="text-sm font-semibold tabular-nums text-[var(--red)]">0{i + 1}</p>
-              <p className="mt-3 text-lg font-bold">{s.title}</p>
-              <p className="mt-2 leading-relaxed text-[var(--muted)]">{s.body}</p>
+              <p className="mt-3 text-lg font-bold">{s.t}</p>
+              <p className="mt-2 leading-relaxed text-[var(--muted)]">{s.d}</p>
             </li>
           ))}
         </ul>
@@ -49,13 +41,13 @@ export default async function AboutPage() {
         <section aria-labelledby="shop">
           <p className="eyebrow mb-2">OUR SHOP</p>
           <h2 id="shop" className="mb-6 text-2xl font-bold sm:text-[2rem]">
-            정비소 둘러보기
+            공업사 둘러보기
           </h2>
           <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {trust.photos.map((ph) => (
               <li key={ph.id}>
                 <figure className="overflow-hidden rounded-2xl bg-[var(--surface-2)]">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- 정비소 사진 그대로 */}
+                  {/* eslint-disable-next-line @next/next/no-img-element -- 공업사 사진 그대로 */}
                   <img src={`/api/site-file/${ph.path}`} alt={ph.caption || PHOTO_KINDS[ph.kind]} width={ph.width} height={ph.height} className="aspect-[4/3] w-full object-cover" loading="lazy" />
                   <figcaption className="px-4 py-2.5 text-sm">
                     <b>{PHOTO_KINDS[ph.kind]}</b>
@@ -85,11 +77,11 @@ export default async function AboutPage() {
       )}
       <section className="-mx-5 bg-[var(--paper)] px-5 py-14 sm:rounded-3xl sm:px-10">
         <p className="eyebrow mb-2">OUR STANDARD</p>
-        <h2 className="text-2xl font-bold sm:text-[2rem]">작업 기준</h2>
-        <p className="mt-3 text-[var(--muted)]">모든 수리는 사내 표준서에 정한 순서와 기준을 따릅니다.</p>
+        <h2 className="text-2xl font-bold sm:text-[2rem]">{v.t("about.rules.title")}</h2>
+        <p className="mt-3 whitespace-pre-line text-[var(--muted)]">{v.t("about.rules.lead")}</p>
         <ol className="mt-8 space-y-5">
-          {RULES.map((r, i) => (
-            <li key={r} className="flex gap-5">
+          {v.lines("about.rules.items").map((r, i) => (
+            <li key={i} className="flex gap-5">
               <span className="w-8 shrink-0 text-lg font-bold tabular-nums text-[var(--red)]">{String(i + 1).padStart(2, "0")}</span>
               <span className="text-lg leading-relaxed">{r}</span>
             </li>

@@ -3,27 +3,36 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { loadPolicy } from "@/modules/platform/policy";
 import { publicArticles } from "@/modules/site/articles";
 import { publicCases } from "@/modules/site/content";
-import { SERVICE_PAGES, servicePage } from "@/modules/site/service-pages";
+import { servicePage } from "@/modules/site/service-pages";
+import { servicePagesView } from "@/modules/site/service-text";
 import { ServiceIcon } from "../../_icons";
-import { CtaBand, siteData, SiteTitle } from "../../_parts";
+import { CtaBand, siteData, SiteTitle, viewPages } from "../../_parts";
 
 const CASE_CAT: Record<string, string> = { dent: "찌그러짐", scratch: "긁힘", paint: "도색" };
 
+/** 분야 한 곳(설정 › 홈페이지 › 화면 글에서 고친 글) */
+async function load(slug: string) {
+  if (!servicePage(slug)) return null;
+  const v = await viewPages();
+  const all = servicePagesView(v);
+  return { s: all.find((x) => x.slug === slug)!, all, v };
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const s = servicePage((await params).slug);
-  return s ? { title: s.title, description: s.lead } : {};
+  const r = await load((await params).slug);
+  return r ? { title: r.s.title, description: r.s.lead } : {};
 }
 
 export default async function ServicePage({ params }: { params: Promise<{ slug: string }> }) {
-  const s = servicePage((await params).slug);
-  if (!s) notFound();
+  const r = await load((await params).slug);
+  if (!r) notFound();
+  const { s, all, v } = r;
   const db = await getDb();
-  const [{ shop, cfg }, p, arts, cases] = await Promise.all([siteData(), loadPolicy(db), publicArticles(db), CASE_CAT[s.slug] ? publicCases(db, CASE_CAT[s.slug], 3) : Promise.resolve([])]);
+  const [{ shop, cfg }, arts, cases] = await Promise.all([siteData(), publicArticles(db), CASE_CAT[s.slug] ? publicCases(db, CASE_CAT[s.slug], 3) : Promise.resolve([])]);
   const related = s.articles.map((k) => arts.find((a) => a.slug === k)).filter((a) => !!a);
-  const others = SERVICE_PAGES.filter((x) => x.slug !== s.slug);
+  const others = all.filter((x) => x.slug !== s.slug);
   return (
     <div className="space-y-20">
       <div>
@@ -39,7 +48,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
             {s.title}
           </SiteTitle>
         </div>
-        <p className="-mt-4 inline-flex rounded-full bg-[var(--ink)] px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-[var(--ink)]">{s.warranty(p)}</p>
+        <p className="-mt-4 inline-flex rounded-full bg-[var(--ink)] px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-[var(--ink)]">{s.warranty}</p>
       </div>
 
       <section aria-labelledby="signs" className="grid gap-8 lg:grid-cols-[1fr_1.6fr] lg:items-start">
@@ -50,8 +59,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           </h2>
         </div>
         <ul className="grid gap-3 sm:grid-cols-2">
-          {s.signs.map((x) => (
-            <li key={x} className="flex gap-3 rounded-xl border border-[var(--line)] p-4">
+          {s.signs.map((x, i) => (
+            <li key={i} className="flex gap-3 rounded-xl border border-[var(--line)] p-4">
               <span aria-hidden className="mt-0.5 text-[var(--red)]">
                 ✓
               </span>
@@ -68,7 +77,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         </h2>
         <ul className="grid gap-5 md:grid-cols-3">
           {s.methods.map((m, i) => (
-            <li key={m.name} className="flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-7">
+            <li key={i} className="flex flex-col rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-7">
               <p className="text-sm font-semibold tabular-nums text-[var(--red)]">METHOD 0{i + 1}</p>
               <p className="mt-1 text-xl font-bold">{m.name}</p>
               <dl className="mt-4 flex-1 space-y-3 text-[15px] leading-relaxed">
@@ -98,7 +107,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         </h2>
         <ol className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {s.steps.map((x, i) => (
-            <li key={x.t} className="border-t-2 border-[var(--line-strong)] pt-4 first:border-[var(--red)]">
+            <li key={i} className="border-t-2 border-[var(--line-strong)] pt-4 first:border-[var(--red)]">
               <p className="text-sm font-semibold tabular-nums text-[var(--red)]">STEP 0{i + 1}</p>
               <p className="mt-1 text-lg font-bold">{x.t}</p>
               <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{x.d}</p>
@@ -112,8 +121,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           <p className="eyebrow mb-2">PRICING</p>
           <h2 className="mb-4 text-xl font-bold">비용은 이것으로 정해집니다</h2>
           <ul className="space-y-2.5">
-            {s.costs.map((x) => (
-              <li key={x} className="flex gap-3">
+            {s.costs.map((x, i) => (
+              <li key={i} className="flex gap-3">
                 <span aria-hidden className="mt-[0.6em] size-1.5 shrink-0 rounded-full bg-[var(--red)]" />
                 {x}
               </li>
@@ -124,8 +133,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           <p className="eyebrow mb-2 !text-white/50">GOOD TO KNOW</p>
           <h2 className="mb-4 text-xl font-bold">맡기기 전에 알아 두세요</h2>
           <ul className="space-y-3 text-white/80">
-            {s.tips.map((x) => (
-              <li key={x} className="leading-relaxed">
+            {s.tips.map((x, i) => (
+              <li key={i} className="leading-relaxed">
                 {x}
               </li>
             ))}
@@ -192,7 +201,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         ))}
       </nav>
 
-      <CtaBand requests={cfg.requests} phone={shop.phone} tel={shop.tel} title={`${s.title}, 사진으로 먼저 물어보세요`} body={`영업일 ${p["consult.reply_business_days"]}일 안에 방법과 대략 금액, 기간을 알려 드립니다.`} />
+      <CtaBand requests={cfg.requests} phone={shop.phone} tel={shop.tel} title={`${s.title}, 사진으로 먼저 물어보세요`} body={v.t("services.ctaOne")} />
     </div>
   );
 }
