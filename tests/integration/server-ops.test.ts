@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { notification } from "@/db/schema";
-import { agentReport, progressPct, requestUpdate, serverHealth, serverOpsView, setAutoUpdate } from "@/modules/platform/server-ops";
+import { agentReport, progressPct, requestModeChange, requestUpdate, serverHealth, serverOpsView, setAutoUpdate } from "@/modules/platform/server-ops";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -200,5 +200,29 @@ describe("서버 상태·지금 새 버전 올리기", () => {
     const v = await serverOpsView(db, t(2).getTime());
     expect(v.history[0]).toMatchObject({ fromLabel: "26.11.18-3", toLabel: "bbb2222" });
     expect(await agentReport(db, {}, t(3))).not.toHaveProperty("labelsFor");
+  });
+
+  it("접속 방식 바꾸기(대표 2026-11-22): 대표 요청을 미니 PC 가 짧은 확인에서도 받아 가고, 결과를 알린다", async () => {
+    const owner = { id: ids.owner, roles: ["owner" as const] };
+    const base = { host: "abs-server", mode: "direct", version: "abc1234", latest: "abc1234", behind: 0 };
+    await agentReport(db, { status: { ...base, tunnelReady: false, cfReady: true, http80: "closed" } }, t(0));
+    expect((await serverOpsView(db, t(0).getTime())).status).toMatchObject({ http80: "closed", tunnelReady: false, cfReady: true });
+    await expect(requestModeChange(db, owner, "direct", t(0))).rejects.toThrow(/이미/);
+    await expect(requestModeChange(db, owner, "tunnel", t(0))).rejects.toThrow(/터널 토큰/);
+    await expect(requestModeChange(db, { id: ids.manager, roles: ["plant_manager"] }, "tunnel", t(0))).rejects.toThrow(/대표/);
+    await agentReport(db, { status: { ...base, tunnelReady: true, cfReady: true } }, t(1));
+    await requestModeChange(db, owner, "tunnel", t(1));
+    await expect(requestModeChange(db, owner, "tunnel", t(1))).rejects.toThrow(/바꾸는 중/);
+    expect((await serverOpsView(db, t(1).getTime())).mode.pending).toBe(true);
+    const r = (await agentReport(db, { poll: true }, t(1.1))) as { modeTo?: string };
+    expect(r.modeTo).toBe("tunnel");
+    expect(((await agentReport(db, { poll: true }, t(1.2))) as { modeTo?: string }).modeTo).toBeUndefined();
+    expect((await serverOpsView(db, t(2).getTime())).mode.running).toBe(true);
+    await agentReport(db, { modeResult: { ok: true, to: "tunnel", message: "클라우드플레어 터널로 바꿨습니다" } }, t(4));
+    const v = await serverOpsView(db, t(4).getTime());
+    expect(v.mode).toMatchObject({ running: false, pending: false, result: { ok: true, to: "tunnel" } });
+    expect(v.status?.mode).toBe("tunnel");
+    const notes = (await db.select().from(notification).where(eq(notification.userId, ids.owner))).map((n) => n.title);
+    expect(notes.some((n) => n.includes("터널(으)로 바꿨습니다"))).toBe(true);
   });
 });

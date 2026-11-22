@@ -2,7 +2,7 @@
 // 설정 › 서버: 지금 새 버전 올리기(대표)
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { requestUpdate, setAutoUpdate } from "@/modules/platform/server-ops";
+import { MODE_LABEL, requestModeChange, requestUpdate, setAutoUpdate } from "@/modules/platform/server-ops";
 import { blockIpManually, setGeoBlock, unblockIp } from "@/modules/platform/security";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../../_lib/session";
 
@@ -60,4 +60,16 @@ export async function blockIpAction(form: FormData) {
     redirect(errorUrl("/settings/server#security", userMessage(e)));
   }
   redirect(noticeUrl("/settings/server", `${ip} 를 막았습니다`));
+}
+
+/** 접속 방식 바꾸기(대표 2026-11-22). 서버가 몇 초 안에 받아 1~5분 걸려 바꾼다 */
+export async function requestModeAction(form: FormData) {
+  const user = await requireUser();
+  const to = String(form.get("to") ?? "");
+  try {
+    await requestModeChange(await getDb(), user, to);
+  } catch (e) {
+    redirect(errorUrl("/settings/server#mode", userMessage(e)));
+  }
+  redirect(noticeUrl("/settings/server", `${MODE_LABEL[to as "direct" | "tunnel"]}(으)로 바꾸기를 요청했습니다. 1~5분 걸리고, 그동안 앱이 잠시 안 열릴 수 있습니다. 결과는 알림으로도 옵니다`));
 }
