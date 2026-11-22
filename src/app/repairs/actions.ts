@@ -3,7 +3,7 @@ import { rolesFor } from "@/modules/auth/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { addDamagePhoto, addPhoto, confirmDiagnosis, removeDamagePhoto, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
+import { addDamagePhoto, addPhoto, confirmDiagnosis, removeDamagePhoto, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, TechbayCheckNeeded, type DamageInput, type IntakeInput } from "@/modules/repair/service";
 import { parseCells } from "@/modules/repair/body-map";
 import { createEstimate, issueEstimate, removeLine, reviewEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
 import { approveInStore, recordInsurerApproval, sendApprovalLink } from "@/modules/repair/estimate-approval";
@@ -61,6 +61,8 @@ export async function startRepairAction(form: FormData) {
   try {
     res = await startRepair(await getDb(), user.id, consultId);
   } catch (e) {
+    // 테크베이 주문은 작업 내용을 줄마다 확인한 뒤 입고한다
+    if (e instanceof TechbayCheckNeeded) redirect(`/consults/${consultId}/techbay-check`);
     redirect(errorUrl(back, userMessage(e)));
   }
   redirect(noticeUrl(`/repairs/${res.id}`, res.created ? "수리 건을 열었습니다. 상담의 고객·차량·보험을 불러왔습니다. 차를 한 바퀴 돌며 점검하세요" : "이미 열린 수리 건입니다"));

@@ -8,14 +8,16 @@ import { TextAreaField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { buttonClass, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
-import { saveSubPartsAction } from "./actions";
+import { removeTbWordAction, saveSubPartsAction } from "./actions";
+import { loadWords } from "@/modules/partner/techbay-check";
 
 /** 차 부위·세부 부위: 그림의 큰 부위는 고정이고, 그 안의 세부 부품 이름만 공업사가 더한다 */
 export default async function BodyPartsPage({ searchParams }: { searchParams: Promise<{ part?: string; error?: string; notice?: string }> }) {
   const { part, error, notice } = await searchParams;
   const user = await requireUser();
   const canEdit = can(user, "diag.confirm");
-  const extras = await loadSubParts(await getDb());
+  const db = await getDb();
+  const [extras, words] = await Promise.all([loadSubParts(db), loadWords(db)]);
   const pick = canEdit && part && isPart(part) ? part : null;
   return (
     <>
@@ -58,6 +60,29 @@ export default async function BodyPartsPage({ searchParams }: { searchParams: Pr
           </div>
         </Card>
         <div id="edit" className="space-y-4">
+          <div id="tb-words">
+            <Card title="테크베이 작업 내용에서 기억한 말" help={{ kind: "panel", id: "set.tbWords" }}>
+              {words.length ? (
+                <ul className="divide-y divide-[var(--line)] text-sm">
+                  {words.map((w) => (
+                    <li key={w.word} className="flex flex-wrap items-center gap-2 py-1.5">
+                      <span className="flex-1">
+                        &lsquo;{w.word}&rsquo; → <b>{w.means}</b>
+                      </span>
+                      {canEdit && (
+                        <form action={removeTbWordAction}>
+                          <input type="hidden" name="word" value={w.word} />
+                          <SubmitButton variant="secondary">지우기</SubmitButton>
+                        </form>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[var(--muted)]">아직 없습니다. 테크베이 작업 내용 확인 화면에서 고쳐 적은 줄의 &lsquo;다음부터 알아듣기&rsquo;를 체크하면 여기에 모입니다.</p>
+              )}
+            </Card>
+          </div>
           {pick ? (
             <Card title={`${partLabel(pick)}에 더할 세부 부위`} help={{ kind: "panel", id: "set.bodyParts" }}>
               <p className="mb-3 text-sm text-[var(--muted)]">기본 목록: {(SUB_PARTS[pick] ?? []).join(", ") || "없음"}</p>

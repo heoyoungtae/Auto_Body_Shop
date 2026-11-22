@@ -208,8 +208,21 @@ describe("업체 주문 앱(테크베이)", () => {
     // 입고 전에는 등록할 일 없음 → 수리 건 생기면 '입고' 등록할 일
     let v = (await portalOrderView(db, { consultationId: cs.id }))!;
     expect(v.todo).toEqual([]);
-    const { startRepair } = await import("@/modules/repair/service");
+    const { startRepair, seedDiagnosis } = await import("@/modules/repair/service");
+    const { confirmTechbayCheck, techbayCheckView } = await import("@/modules/partner/techbay-check");
+    // 테크베이 주문은 작업 내용을 줄마다 확인해야 입고된다(2026-11-22)
+    await expect(startRepair(db, ids.advisor, cs.id, now)).rejects.toThrow(/줄마다 확인/);
+    const view = (await techbayCheckView(db, cs.id))!;
+    expect(view.lines.map((l) => l.status)).toEqual(["ok", "check"]);
+    await expect(confirmTechbayCheck(db, advisor(), cs.id, {}, [], now)).rejects.toThrow(/2번/);
+    expect(await confirmTechbayCheck(db, advisor(), cs.id, { 2: { asPartial: true } }, [], now)).toMatchObject({ total: 2, damage: 2, other: 0 });
+    const [cs2] = await db.select().from(consultation).where(eq(consultation.id, cs.id));
+    expect(cs2.damageZones.map((z) => z.part)).toEqual(["f_bumper", "l_f_door"]);
+    expect(cs2.damageParts).toMatch(/① 앞범퍼 긁힘/);
+    expect(cs2.methods).toContain("판금·도장");
     const { id: roId } = await startRepair(db, ids.advisor, cs.id, now);
+    // 진단 줄: 요청 한 줄마다
+    expect(await seedDiagnosis(db, ids.advisor, roId)).toBe(2);
     v = (await portalOrderView(db, { consultationId: cs.id }))!;
     expect(v.ro?.id).toBe(roId);
     expect(v.todo).toEqual(["intake"]);

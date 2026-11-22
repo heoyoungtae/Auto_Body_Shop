@@ -400,6 +400,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "techbay.settings": "테크베이 연결 설정",
   "techbay.login": "테크베이 로그인",
   "techbay.logout": "테크베이 연결 끊음",
+  "techbay.check": "테크베이 작업 내용 확인함",
+  "techbay.word_remove": "테크베이 기억한 말 지움",
   "portal.import": "테크베이 주문 불러옴",
   "portal.link": "업체 앱 주문번호 이음",
   "portal.step": "업체 앱에 진행 상태 등록함",

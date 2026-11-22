@@ -512,6 +512,13 @@
       "when": 1795322645074,
       "tag": "0072_damage_from_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795324024972,
+      "tag": "0073_techbay_check",
+      "breakpoints": true
     }
   ]
 }
