@@ -5270,7 +5270,7 @@ export const FIELD_HELP = {
   },
   "site.cfg.privacyFrom": {
     label: "처리방침 시행일",
-    detail: "처리방침·이용약관을 언제부터 적용하는지입니다. 내용을 바꾸면 7일 뒤 날짜로 고치고 공지합니다.",
+    detail: "처음 판을 시행하기 전(개업 전)에 처리방침·이용약관 아래에 보일 시행일입니다. 판을 시행한 뒤로는 설정 › 홈페이지 › 약관·처리방침의 판 시행일이 보입니다.",
   },
   "site.cfg.insurers": {
     label: "거래 보험사",
@@ -5322,6 +5322,11 @@ export const FIELD_HELP = {
   "site.section.on": {
     label: "보임",
     detail: "끄면 홈페이지에서 숨깁니다. 글은 지워지지 않아 다시 켜면 그대로 보입니다.",
+  },
+  "site.legal.from": {
+    label: "시행일",
+    hint: "바꿀 때는 7일 뒤부터",
+    detail: "이 판이 손님에게 효력을 갖기 시작하는 날입니다. 이미 시행 중인 판이 있으면 손님에게 미리 알리도록 오늘부터 7일 뒤 이후만 고를 수 있습니다.",
   },
   "site.home.shade": {
     label: "배경 어둡기",

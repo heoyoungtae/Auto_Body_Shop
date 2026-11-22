@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { servicePagesView } from "@/modules/site/service-text";
 import { ServiceIcon } from "../_icons";
-import { CtaBand, Lines, siteData, SiteTitle, viewPages } from "../_parts";
+import { CtaBand, EditFab, Lines, siteData, SiteTitle, viewPages } from "../_parts";
 
 export const metadata: Metadata = { title: "수리 안내", description: "찌그러짐·긁힘·도색·부식(녹) 수리 방법과 기간, 비용이 정해지는 기준" };
 
@@ -13,6 +13,7 @@ export default async function ServicesPage() {
   const services = servicePagesView(v);
   return (
     <div className="space-y-20">
+      <EditFab to={"/settings/site/pages?g=services#edit-services"} label="수리 안내 글 고치기" />
       <SiteTitle eyebrow="SERVICES" help="site.services" sub={v.t("services.sub")}>
         수리 안내
       </SiteTitle>

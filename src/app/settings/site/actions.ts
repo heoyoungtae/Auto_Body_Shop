@@ -7,6 +7,9 @@ import { saveSiteConfig } from "@/modules/site/service";
 import { discardDraft, loadEditing, orderFromNumbers, pagesView, publishPages, resetTexts, restoreVersion, saveHomeLayout, saveMenu, saveTexts, type TextsInput } from "@/modules/site/pages";
 import { loadPolicy } from "@/modules/platform/policy";
 import { FOOT_PAGES, NAV_PAGES, pageTextDef, SECTION_KEYS } from "@/modules/site/page-text";
+import { cancelLegal, issueLegal, title, type LegalKind } from "@/modules/site/legal";
+import { liveLegalDoc } from "@/modules/site/legal-live";
+import { seoulDate } from "@/modules/platform/time";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../../_lib/session";
 
 export async function saveSiteAction(form: FormData) {
@@ -45,7 +48,9 @@ export async function saveTextsAction(form: FormData) {
   const user = await requireUser(["owner"]);
   const back = backOf(form);
   const input: TextsInput = { text: {}, pairs: {}, lines: {}, rows: {} };
-  for (const k of String(form.get("keys") ?? "").split(",").filter(Boolean)) {
+  for (const k of String(form.get("keys") ?? "")
+    .split(",")
+    .filter(Boolean)) {
     const d = pageTextDef(k);
     if (d?.kind === "text") input.text![k] = String(form.get(`t:${k}`) ?? "");
     else if (d?.kind === "pairs") input.pairs![k] = Array.from({ length: d.max }, (_, i) => ({ t: String(form.get(`p:${k}:${i}:t`) ?? ""), d: String(form.get(`p:${k}:${i}:d`) ?? "") }));
@@ -66,7 +71,13 @@ export async function resetTextsAction(form: FormData) {
   const back = backOf(form);
   let n = 0;
   try {
-    n = await resetTexts(await getDb(), user, String(form.get("keys") ?? "").split(",").filter(Boolean));
+    n = await resetTexts(
+      await getDb(),
+      user,
+      String(form.get("keys") ?? "")
+        .split(",")
+        .filter(Boolean),
+    );
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }
@@ -96,7 +107,14 @@ export async function saveMenuAction(form: FormData) {
   const user = await requireUser(["owner"]);
   const rows = (prefix: string, pages: readonly { href: string }[]) =>
     pages
-      .map((p, i) => ({ href: p.href, label: String(form.get(`${prefix}:label:${p.href}`) ?? ""), on: form.getAll(`${prefix}:on`).includes(p.href), isNew: form.getAll(`${prefix}:new`).includes(p.href), n: Number(form.get(`${prefix}:ord:${p.href}`) || i + 1), i }))
+      .map((p, i) => ({
+        href: p.href,
+        label: String(form.get(`${prefix}:label:${p.href}`) ?? ""),
+        on: form.getAll(`${prefix}:on`).includes(p.href),
+        isNew: form.getAll(`${prefix}:new`).includes(p.href),
+        n: Number(form.get(`${prefix}:ord:${p.href}`) || i + 1),
+        i,
+      }))
       .sort((a, b) => a.n - b.n || a.i - b.i);
   try {
     await saveMenu(await getDb(), user, { nav: rows("nav", NAV_PAGES), foot: rows("foot", FOOT_PAGES) });
@@ -151,4 +169,31 @@ export async function restoreAction(form: FormData) {
     redirect(errorUrl("/settings/site/history", userMessage(e)));
   }
   redirect(noticeUrl("/settings/site/history", "그 판을 공개 전 고침으로 가져왔습니다. 미리 보기로 확인하고 '공개하기'를 누르면 되돌아갑니다"));
+}
+
+const LEGAL_BACK = "/settings/site/legal";
+
+/** 이용약관·처리방침: 지금 내용을 새 판으로 시행(시행 예정 판이 있으면 바꾼다) */
+export async function issueLegalAction(form: FormData) {
+  const user = await requireUser(["owner"]);
+  const kind: LegalKind = form.get("kind") === "privacy" ? "privacy" : "terms";
+  const from = String(form.get("from") ?? "");
+  const today = seoulDate();
+  try {
+    const db = await getDb();
+    await issueLegal(db, user, kind, from, await liveLegalDoc(db, kind), today);
+  } catch (e) {
+    redirect(errorUrl(LEGAL_BACK, userMessage(e)));
+  }
+  redirect(noticeUrl(LEGAL_BACK, from > today ? `${title(kind)} 새 판을 ${from}부터 시행합니다. 그때까지 손님 화면에 '바뀌는 내용 보기'가 뜹니다` : `${title(kind)} 새 판을 오늘부터 시행했습니다`));
+}
+
+export async function cancelLegalAction(form: FormData) {
+  const user = await requireUser(["owner"]);
+  try {
+    await cancelLegal(await getDb(), user, String(form.get("id") ?? ""), seoulDate());
+  } catch (e) {
+    redirect(errorUrl(LEGAL_BACK, userMessage(e)));
+  }
+  redirect(noticeUrl(LEGAL_BACK, "시행 예정 판을 거뒀습니다"));
 }

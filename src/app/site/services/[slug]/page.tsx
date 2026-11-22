@@ -8,7 +8,7 @@ import { publicCases } from "@/modules/site/content";
 import { servicePage } from "@/modules/site/service-pages";
 import { servicePagesView } from "@/modules/site/service-text";
 import { ServiceIcon } from "../../_icons";
-import { CtaBand, siteData, SiteTitle, viewPages } from "../../_parts";
+import { CtaBand, EditFab, siteData, SiteTitle, viewPages } from "../../_parts";
 
 const CASE_CAT: Record<string, string> = { dent: "찌그러짐", scratch: "긁힘", paint: "도색" };
 
@@ -44,6 +44,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         </nav>
         <div className="flex items-start gap-5">
           <ServiceIcon name={s.slug} className="mt-2 hidden size-14 shrink-0 sm:block" />
+          <EditFab to={`/settings/site/pages?g=services#edit-${s.slug}`} label="이 수리 안내 고치기" />
           <SiteTitle eyebrow={s.en} help="site.services" sub={s.lead}>
             {s.title}
           </SiteTitle>

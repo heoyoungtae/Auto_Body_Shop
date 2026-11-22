@@ -11,9 +11,9 @@ import { featuredArticles } from "@/modules/site/articles";
 import { caseSamples, SAMPLE_LABEL, sampleImg } from "@/modules/site/case-samples";
 import { servicePagesView } from "@/modules/site/service-text";
 import { heroImage, PHOTO_KINDS, siteTrust } from "@/modules/site/trust";
-import type { SectionKey } from "@/modules/site/page-text";
 import { ServiceIcon } from "./_icons";
-import { Lines, SectionHead, siteBtn, siteData, SiteTitle, viewPages } from "./_parts";
+import { HOME_SECTIONS, type SectionKey } from "@/modules/site/page-text";
+import { EditPin, isPreview, Lines, SectionHead, siteBtn, siteData, SiteTitle, viewPages } from "./_parts";
 import { PhoneEstimate, PhoneProgress, PhoneWarranty } from "./_phone";
 
 /** 진행 단계 개수에 맞춘 넓은 화면 칸 수 */
@@ -31,6 +31,7 @@ export default async function SiteHome() {
     featuredArticles(db, 3),
     viewPages(),
   ]);
+  const edit = await isPreview();
   const hero = heroImage(trust);
   // 실제 공개 사례가 없으면 예시 그림 3장(분야마다 하나, '예시(실제 작업사진 준비중)' 표시)
   const samples = caseSamples(cases.length).filter((_, i) => i % 2 === 0);
@@ -517,6 +518,7 @@ export default async function SiteHome() {
           <div className="absolute inset-0 bg-gradient-to-r from-[var(--ink)]/95 via-[var(--ink)]/70 to-[var(--ink)]/20" />
           <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-[var(--ink)] to-transparent" />
         </div>
+        {edit && <EditPin to="/settings/site/home#edit-hero" label="맨 위 배경 단락 고치기" />}
         <div className="relative mx-auto max-w-6xl">
           <p className="eyebrow mb-5 !text-white/55">{v.t("home.hero.eyebrow")}</p>
           <div className="max-w-3xl [&_h1]:text-[2.4rem] [&_h1]:leading-[1.15] sm:[&_h1]:text-6xl [&_button]:text-white/60 [&_h1]:mb-0">
@@ -555,9 +557,16 @@ export default async function SiteHome() {
         </div>
       </section>
 
-      {shown.map((k) => (
-        <Fragment key={k}>{blocks[k]}</Fragment>
-      ))}
+      {shown.map((k) =>
+        edit ? (
+          <div key={k} className="relative">
+            <EditPin to={`/settings/site/home#edit-${k}`} label={`${HOME_SECTIONS.find((x) => x.key === k)!.label} 고치기`} />
+            {blocks[k]}
+          </div>
+        ) : (
+          <Fragment key={k}>{blocks[k]}</Fragment>
+        ),
+      )}
     </div>
   );
 }

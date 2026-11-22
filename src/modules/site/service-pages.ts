@@ -22,7 +22,7 @@ export const SERVICE_PAGES: ServicePage[] = [
   {
     slug: "dent",
     title: "찌그러짐 수리",
-    en: "DENT REPAIR",
+    en: "PANEL REPAIR",
     lead: "문콕부터 주차 사고, 우박 자국까지. 찌그러진 철판을 판금으로 펴고 다시 칠해 원래 면을 되살립니다.",
     signs: ["문을 열다 옆 차에 찍힌 문콕", "주차하다 기둥·벽에 닿아 들어간 자국", "우박·낙하물로 생긴 여러 개의 작은 자국", "범퍼가 눌리거나 모양이 틀어짐"],
     methods: [
