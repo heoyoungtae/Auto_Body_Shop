@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { addDamagePhoto, addPhoto, confirmDiagnosis, removeDamagePhoto, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, type DamageInput, type IntakeInput } from "@/modules/repair/service";
-import { parseFilm } from "@/modules/repair/rules";
 import { parseCells } from "@/modules/repair/body-map";
 import { createEstimate, issueEstimate, removeLine, reviewEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
 import { approveInStore, recordInsurerApproval, sendApprovalLink } from "@/modules/repair/estimate-approval";
@@ -182,8 +181,6 @@ function readDamage(form: FormData): DamageInput {
     crease: flags.includes("crease"),
     broken: flags.includes("broken"),
     structural: flags.includes("structural"),
-    filmPanel: parseFilm(str("filmPanel")),
-    filmAdjacent: parseFilm(str("filmAdjacent")),
     method: str("method") || undefined,
     methodReason: str("methodReason"),
     calibrate: cal === "" ? undefined : cal === "1",

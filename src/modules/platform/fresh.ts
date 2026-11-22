@@ -45,7 +45,7 @@ export const FRESH = {
   },
   "repair.damage": {
     table: roDamage,
-    cols: ["part", "view", "cells", "subPart", "kind", "sizeCm", "depthMm", "paintLayer", "crease", "broken", "structural", "filmPanel", "filmAdjacent", "method", "methodReason", "calibrate", "note"],
+    cols: ["part", "view", "cells", "subPart", "kind", "sizeCm", "depthMm", "paintLayer", "crease", "broken", "structural", "method", "methodReason", "calibrate", "note"],
     audit: "repair_order",
     auditIds: parentDocNo(repairOrder, "repairOrderId"),
     doc: (r) => `repair:${r.repairOrderId}`,

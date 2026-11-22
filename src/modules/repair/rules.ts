@@ -196,15 +196,7 @@ export function needsCalibration(part: string, options: string[]): string | null
   return null;
 }
 
-/** 도막 두께 문자열("95, 102 110") → 숫자 목록 */
-export function parseFilm(s: string): number[] {
-  return (s.match(/\d+/g) ?? []).map(Number).filter((n) => n > 0 && n < 5000).slice(0, 12);
-}
-
-/** 재도장 이력: 하나라도 기준(μm)을 넘으면 */
-export const repainted = (vals: number[], limit: number) => vals.some((v) => v > limit);
-
-export type DiagLine = { part: string; method: string; filmPanel: number[]; filmAdjacent: number[]; suggested: string; methodReason: string | null };
+export type DiagLine = { part: string; method: string; suggested: string; methodReason: string | null };
 
 /** 진단 확인(공장장) 전에 빠진 것 */
 export function diagnosisIssues(lines: DiagLine[]): Issue[] {
@@ -212,7 +204,6 @@ export function diagnosisIssues(lines: DiagLine[]): Issue[] {
   if (!lines.length) out.push({ field: "lines", msg: "진단한 손상이 없습니다. 수리할 부위를 하나 이상 넣어야 합니다" });
   for (const l of lines) {
     const name = partLabel(l.part);
-    if (l.method !== "none" && l.method !== "outsource" && (l.filmPanel.length < 3 || l.filmAdjacent.length < 3)) out.push({ field: "lines", msg: `${name}: 도막 두께를 손상 패널·인접 패널 각 3곳 이상 재어야 합니다` });
     if (l.method !== l.suggested && !l.methodReason?.trim()) out.push({ field: "lines", msg: `${name}: 기준표 제안과 다른 방법을 골랐으면 사유를 적어야 합니다` });
   }
   return out;

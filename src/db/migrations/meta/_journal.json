@@ -505,6 +505,13 @@
       "when": 1795319278518,
       "tag": "0071_no_dent_polish",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795322645074,
+      "tag": "0072_damage_from_intake",
+      "breakpoints": true
     }
   ]
 }
