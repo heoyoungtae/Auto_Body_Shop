@@ -770,7 +770,6 @@ export default async function RepairDetail({
                 damages={r.damages}
                 canDiagnose={canDiagnose}
                 canConfirm={canConfirm}
-                repaintUm={policy["diagnosis.repaint_um"]}
                 options={v.options ?? []}
                 diagNote={r.diagNote}
                 photos={r.damagePhotos}

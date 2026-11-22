@@ -132,6 +132,8 @@ export const roDamage = pgTable(
     methodReason: text("method_reason"),
     calibrate: boolean("calibrate").notNull().default(false),
     note: text("note"),
+    /** 입고 도면 O 표시에서 저절로 만든 줄. 다시 점검으로 도면을 고치면 서명 때 도면에 맞춰 고치거나 지운다 */
+    fromIntake: boolean("from_intake").notNull().default(false),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

@@ -39,9 +39,8 @@ async function estimating() {
   for (const s of [...DIRECTION_SLOTS, "dash"]) await addPhoto(db, ids.advisor, id, s, WEBP);
   await signIntake(db, ids.advisor, id, { mileage: 45000, fuelPct: 50, bodyNotes: [], warningLights: "", marks: [], valuables: "", valuablesNone: true, devices: [], keyCount: 1, keyTag: "", coversOn: true, parkSpot: "", delivered: false, driverName: "", intakeNote: "", agreeChecked: true, agreeMove: true, signerName: "홍길동", signaturePng: PNG, consentNow: false }, now);
   const tech = { id: ids.tech1, roles: ["technician" as const] };
-  const film = { filmPanel: [100, 110, 105], filmAdjacent: [100, 100, 100] };
-  await saveDamage(db, tech, id, { part: "f_bumper", kind: "D", sizeCm: 30, depthMm: 5, paintLayer: "base", crease: false, broken: true, structural: false, ...film });
-  await saveDamage(db, tech, id, { part: "l_f_door", kind: "D", sizeCm: 8, depthMm: 2, paintLayer: "none", crease: false, broken: false, structural: false, ...film });
+  await saveDamage(db, tech, id, { part: "f_bumper", kind: "D", sizeCm: 30, depthMm: 5, paintLayer: "base", crease: false, broken: true, structural: false });
+  await saveDamage(db, tech, id, { part: "l_f_door", kind: "D", sizeCm: 8, depthMm: 2, paintLayer: "none", crease: false, broken: false, structural: false });
   await confirmDiagnosis(db, boss(), id, "", now);
   return id;
 }

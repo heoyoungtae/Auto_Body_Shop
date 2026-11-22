@@ -41,12 +41,6 @@ export const DEFAULT_POLICY = {
     label: "입고 사진 최소(8방향)",
     clause: "2.1",
   },
-  "diagnosis.repaint_um": {
-    value: 200,
-    unit: "μm 초과",
-    label: "재도장 이력 판정 도막 두께",
-    clause: "2.5",
-  },
   "estimate.valid_days": {
     value: 30,
     unit: "일",
