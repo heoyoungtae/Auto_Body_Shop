@@ -23,6 +23,8 @@ import {
   PageTitle,
 } from "../../_ui";
 import { sendGiftAction } from "../actions";
+import { APP_NAME } from "@/modules/platform/brand";
+import { LiveGiftPreview } from "../gift-preview";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
@@ -140,73 +142,106 @@ export default async function SendGiftPage({
             <AssistForm
               id={`gift-send-${t.id}`}
               action={sendGiftAction}
-              className="grid gap-3 md:grid-cols-2"
+              className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(280px,2fr)] xl:items-start"
             >
-              <input type="hidden" name="customerId" value={t.id} />
-              <div className="md:col-span-2">
-                <RadioRow
-                  help="gift.purpose"
-                  name="purpose"
-                  required
-                  defaultValue={
-                    t.marketing
-                      ? "event"
-                      : t.complaints.length && can(user, "complaint.compensate")
-                        ? "complaint"
-                        : undefined
-                  }
-                  options={purposes.map(([value, label]) => ({ value, label }))}
-                />
-              </div>
-              {t.complaints.length > 0 && can(user, "complaint.compensate") && (
-                <SelectField
-                  help="gift.complaintId"
-                  name="complaintId"
-                  placeholder="불만 보상일 때 고르기"
-                  options={t.complaints.map((c) => ({
-                    value: c.id,
-                    label: `${c.docNo}`,
-                  }))}
-                />
-              )}
-              <TextField help="gift.reason" name="reason" required />
-              <div className="md:col-span-2">
-                <SelectField
-                  help="gift.goodsCode"
-                  name="goodsCode"
-                  required
-                  placeholder="상품 고르기"
-                  options={goods.list
-                    .filter(
-                      (g) =>
-                        owner || !data.unitLimit || g.price <= data.unitLimit,
-                    )
-                    .sort((a, b) => a.price - b.price)
-                    .map((g) => ({
-                      value: g.code,
-                      label: `${g.brand ? `${g.brand} · ` : ""}${g.name} — ${won(g.price)}${data.unitLimit && g.price > data.unitLimit ? " (상한 초과·대표)" : ""}`,
-                    }))}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <TextAreaField help="gift.message" name="message" rows={2} />
-              </div>
-              {t.recent.length > 0 && (
+              <div className="grid gap-3 md:grid-cols-2">
+                <input type="hidden" name="customerId" value={t.id} />
                 <div className="md:col-span-2">
                   <RadioRow
-                    help="gift.dupOk"
-                    name="dupOk"
+                    help="gift.purpose"
+                    name="purpose"
                     required
-                    options={[
-                      { value: "1", label: "알고 보냄", tone: "warn" },
-                      { value: "0", label: "보내지 않음" },
-                    ]}
+                    defaultValue={
+                      t.marketing
+                        ? "event"
+                        : t.complaints.length &&
+                            can(user, "complaint.compensate")
+                          ? "complaint"
+                          : undefined
+                    }
+                    options={purposes.map(([value, label]) => ({
+                      value,
+                      label,
+                    }))}
                   />
                 </div>
-              )}
-              <div className="md:col-span-2">
-                <SubmitButton>보내기</SubmitButton>
+                {t.complaints.length > 0 &&
+                  can(user, "complaint.compensate") && (
+                    <SelectField
+                      help="gift.complaintId"
+                      name="complaintId"
+                      placeholder="불만 보상일 때 고르기"
+                      options={t.complaints.map((c) => ({
+                        value: c.id,
+                        label: `${c.docNo}`,
+                      }))}
+                    />
+                  )}
+                <TextField help="gift.reason" name="reason" required />
+                <div className="md:col-span-2">
+                  <SelectField
+                    help="gift.goodsCode"
+                    name="goodsCode"
+                    required
+                    placeholder="상품 고르기"
+                    options={goods.list
+                      .filter(
+                        (g) =>
+                          owner || !data.unitLimit || g.price <= data.unitLimit,
+                      )
+                      .sort((a, b) => a.price - b.price)
+                      .map((g) => ({
+                        value: g.code,
+                        label: `${g.brand ? `${g.brand} · ` : ""}${g.name} — ${won(g.price)}${data.unitLimit && g.price > data.unitLimit ? " (상한 초과·대표)" : ""}`,
+                      }))}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <TextAreaField help="gift.message" name="message" rows={2} />
+                </div>
+                {t.recent.length > 0 && (
+                  <div className="md:col-span-2">
+                    <RadioRow
+                      help="gift.dupOk"
+                      name="dupOk"
+                      required
+                      options={[
+                        { value: "1", label: "알고 보냄", tone: "warn" },
+                        { value: "0", label: "보내지 않음" },
+                      ]}
+                    />
+                  </div>
+                )}
+                <div className="md:col-span-2">
+                  <SubmitButton>보내기</SubmitButton>
+                </div>
               </div>
+              <Card
+                title="받는 사람 미리보기"
+                help={{ kind: "panel", id: "gift.preview" }}
+              >
+                <LiveGiftPreview
+                  mode="send"
+                  look={{
+                    shop: APP_NAME,
+                    callback:
+                      data.provider === "demo" && !data.callback
+                        ? "15886474"
+                        : data.callback,
+                    title: data.title,
+                    template: data.defaultMessage,
+                    bannerUrl: data.images?.banner
+                      ? `/api/files/${data.images.banner.path}`
+                      : undefined,
+                    cardUrl: data.images?.card
+                      ? `/api/files/${data.images.card.path}`
+                      : undefined,
+                  }}
+                  goods={goods.list}
+                  customer={t.name}
+                  purposes={GIFT_PURPOSES}
+                />
+              </Card>
             </AssistForm>
           ) : (
             <Empty>

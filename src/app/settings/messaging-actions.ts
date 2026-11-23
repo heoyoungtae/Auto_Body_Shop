@@ -2,7 +2,8 @@
 // 문자관리 설정 화면의 동작. 바꾸기·시험 발송·잔액 조회는 대표만.
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { giftBalance, kakaoTest, saveGift, saveKakao, saveSms, smsBalance, smsTest } from "@/modules/messaging/service";
+import { GIFT_IMAGE_KINDS, GIFT_IMAGE_RULES, type GiftImageKind } from "@/modules/messaging/gift";
+import { giftBalance, kakaoTest, saveGift, saveGiftImage, saveKakao, saveSms, smsBalance, smsTest } from "@/modules/messaging/service";
 import { KAKAO_KEYS } from "@/modules/messaging/kakao";
 import { UserError } from "@/modules/platform/errors";
 import { errorUrl, noticeUrl, requireOwner, userMessage } from "../_lib/session";
@@ -89,6 +90,10 @@ export async function saveGiftAction(form: FormData) {
     await saveGift(await getDb(), user.id, {
       provider,
       callback: s(form, "callback"),
+      title: s(form, "title"),
+      defaultMessage: s(form, "defaultMessage"),
+      templateId: s(form, "templateId"),
+      bannerId: s(form, "bannerId"),
       monthLimit: n(form, "monthLimit"),
       unitLimit: n(form, "unitLimit"),
       dupDays: n(form, "dupDays"),
@@ -99,6 +104,31 @@ export async function saveGiftAction(form: FormData) {
     redirect(errorUrl("/settings/gift", userMessage(e)));
   }
   redirect(noticeUrl("/settings/gift", "저장했습니다"));
+}
+
+/** 미리보기용 카드·배너 그림 올리기·빼기(대표) */
+export async function giftImageAction(form: FormData) {
+  const user = await requireOwner();
+  const kind = s(form, "kind") as GiftImageKind;
+  const remove = s(form, "intent") === "remove";
+  const back = "/settings/gift#gift-images";
+  let msg = "";
+  try {
+    if (!(GIFT_IMAGE_KINDS as readonly string[]).includes(kind)) throw new UserError("어느 그림인지 알 수 없습니다");
+    const rule = GIFT_IMAGE_RULES[kind];
+    if (remove) {
+      await saveGiftImage(await getDb(), user.id, kind, null);
+      msg = `${rule.label}을(를) 뺐습니다. 미리보기에 기본 모양이 보입니다`;
+    } else {
+      const f = form.get("file");
+      if (!(f instanceof File) || f.size === 0) throw new UserError("올릴 그림 파일을 골라 주세요");
+      await saveGiftImage(await getDb(), user.id, kind, { bytes: new Uint8Array(await f.arrayBuffer()), fileName: f.name });
+      msg = `${rule.label}을(를) 올렸습니다`;
+    }
+  } catch (e) {
+    redirect(errorUrl(back, userMessage(e)));
+  }
+  redirect(noticeUrl("/settings/gift", msg) + "#gift-images");
 }
 
 export async function giftBalanceAction() {

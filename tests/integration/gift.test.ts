@@ -9,9 +9,10 @@ import {
   giftTarget,
   listGifts,
   monthSpent,
+  resetGiftCache,
   sendGift,
 } from "@/modules/messaging/gift-send";
-import { saveGift } from "@/modules/messaging/service";
+import { giftConfig, saveGift, saveGiftImage } from "@/modules/messaging/service";
 import { seedShop, testDb } from "./db";
 
 let db: Db;
@@ -207,5 +208,74 @@ describe("기프티콘", () => {
     expect(await monthSpent(db, day)).toBe(0);
     const list = await listGifts(db, "2026-11");
     expect(JSON.stringify(list)).toContain("cancelled");
+  });
+
+  it("받는 사람에게 보이는 모양: 카드·배너 아이디·제목·기본 문구가 발송에 실림", async () => {
+    const c = await two();
+    const base = {
+      provider: "giftishow",
+      callback: "1588-6474",
+      monthLimit: 0,
+      unitLimit: 0,
+      dupDays: 30,
+      fields: { userId: "shop", authCode: "code", authToken: "token" },
+      checklist: [],
+    };
+    await expect(
+      saveGift(db, ids.owner, { ...base, title: "가".repeat(21) }),
+    ).rejects.toThrow(/20자/);
+    await expect(
+      saveGift(db, ids.owner, { ...base, templateId: "카드 하나" }),
+    ).rejects.toThrow(/카드 아이디/);
+    // 그림을 먼저 올려 두면 설정을 다시 저장해도 남는다
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    await saveGiftImage(db, ids.owner, "banner", { bytes: png, fileName: "banner.png" });
+    await expect(
+      saveGiftImage(db, ids.owner, "card", { bytes: new Uint8Array([1, 2, 3]), fileName: "x.gif" }),
+    ).rejects.toThrow(/PNG/);
+    await saveGift(db, ids.owner, {
+      ...base,
+      title: "제이모터스 감사 선물",
+      defaultMessage: "{고객}님 {목적} 고맙습니다",
+      templateId: "202006010057417",
+      bannerId: " 202006010058067 ",
+    });
+    const { data } = await giftConfig(db);
+    expect(data.bannerId).toBe("202006010058067");
+    expect(data.images.banner?.fileName).toBe("banner.png");
+
+    const sent: Record<string, string>[] = [];
+    const f = (async (url: string, init?: RequestInit) => {
+      const p = Object.fromEntries(new URLSearchParams(String(init?.body)));
+      sent.push(p);
+      if (String(url).endsWith("/goods"))
+        return new Response(
+          JSON.stringify({
+            code: "0000",
+            result: {
+              goodsList: [
+                {
+                  goodsCode: "G1",
+                  goodsName: "아메리카노",
+                  brandName: "카페",
+                  salePrice: 4500,
+                  mmsGoodsImg: "http://img.example/g1.jpg",
+                  limitDay: 30,
+                },
+              ],
+            },
+          }),
+        );
+      return new Response(JSON.stringify({ code: "0000", result: { code: "0000", result: { orderNo: "O1" } } }));
+    }) as typeof fetch;
+    resetGiftCache();
+    await sendGift(db, adv(), gi(c.mkt, { goodsCode: "G1" }), day, f);
+    resetGiftCache();
+    const send = sent.find((p) => p.api_code === "0204")!;
+    expect(send.template_id).toBe("202006010057417");
+    expect(send.banner_id).toBe("202006010058067");
+    expect(send.callback_no).toBe("15886474");
+    expect(send.mms_title).toBe("제이모터스 감사 선물");
+    expect(send.mms_msg).toBe("마바사님 감사(소개·후기) 고맙습니다");
   });
 });

@@ -8,11 +8,23 @@ import { decrypt, encrypt, maskPhone } from "@/modules/auth/crypto";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
 import {
+  GIFT_ID_RE,
+  GIFT_IMAGE_KINDS,
   GIFT_PROVIDERS,
+  GIFT_MSG_MAX,
+  GIFT_TITLE_MAX,
   giftishowBalance,
   isGiftProviderId,
+  MAX_GIFT_IMAGE_BYTES,
+  type GiftImageKind,
   type GiftProviderId,
 } from "./gift";
+import {
+  IMAGE_TYPES,
+  removeStored,
+  sniffImage,
+  storeFile,
+} from "@/modules/platform/storage";
 import {
   KAKAO_KEYS,
   kakaoTextMark,
@@ -49,9 +61,23 @@ export type KakaoData = {
   /** 대표가 '이 문구로 카카오 검수 받음'이라 표시한 문구의 표시값(kakaoTextMark). 문구가 바뀌면 다시 검수 */
   reviewed?: Partial<Record<KakaoKey, string>>;
 };
+export type GiftImage = {
+  path: string;
+  fileName: string;
+  updatedAt: string;
+};
 export type GiftData = {
   provider: GiftProviderId;
   callback: string;
+  /** 문자 제목(20자까지). 비우면 '앱 이름 선물' */
+  title: string;
+  /** 기본 문구({고객}·{목적}·{가게}). 비우면 앱 기본 문구 */
+  defaultMessage: string;
+  /** 기프티쇼 비즈 카드 아이디(template_id)·배너 아이디(banner_id). 비우면 공급사 기본 모양 */
+  templateId: string;
+  bannerId: string;
+  /** 미리보기용 카드·배너 그림(공급사에 올린 것과 같은 그림) */
+  images: Partial<Record<GiftImageKind, GiftImage>>;
   monthLimit: number;
   unitLimit: number;
   dupDays: number;
@@ -71,6 +97,11 @@ const DEFAULTS = {
   gift: {
     provider: "demo",
     callback: "",
+    title: "",
+    defaultMessage: "",
+    templateId: "",
+    bannerId: "",
+    images: {},
     monthLimit: 0,
     unitLimit: 0,
     dupDays: 30,
@@ -509,6 +540,10 @@ export async function saveGift(
   input: {
     provider: string;
     callback: string;
+    title?: string;
+    defaultMessage?: string;
+    templateId?: string;
+    bannerId?: string;
     monthLimit: number;
     unitLimit: number;
     dupDays: number;
@@ -527,6 +562,26 @@ export async function saveGift(
     throw new MessagingError(
       "실제 발송에는 공급사에 등록된 발신번호가 필요합니다",
     );
+  const title = (input.title ?? "").trim();
+  if (title.length > GIFT_TITLE_MAX)
+    throw new MessagingError(
+      `문자 제목은 ${GIFT_TITLE_MAX}자까지입니다(지금 ${title.length}자)`,
+    );
+  const defaultMessage = (input.defaultMessage ?? "").trim();
+  if (defaultMessage.length > GIFT_MSG_MAX)
+    throw new MessagingError(
+      `기본 문구는 ${GIFT_MSG_MAX}자까지입니다(기프티쇼 비즈는 문자 본문을 ${GIFT_MSG_MAX}자까지만 보냄)`,
+    );
+  const templateId = (input.templateId ?? "").replace(/\s/g, "");
+  const bannerId = (input.bannerId ?? "").replace(/\s/g, "");
+  for (const [v, label] of [
+    [templateId, "카드 아이디"],
+    [bannerId, "배너 아이디"],
+  ] as const)
+    if (v && !GIFT_ID_RE.test(v))
+      throw new MessagingError(
+        `${label}는 기프티쇼 비즈 [오픈API > 서비스 관리]에 나온 번호를 그대로 적어 주세요(예: 202006010058067)`,
+      );
   for (const [v, label, max] of [
     [input.monthLimit, "월 예산 한도", 1e9],
     [input.unitLimit, "건당 상한", 1e7],
@@ -553,8 +608,13 @@ export async function saveGift(
       `${GIFT_PROVIDERS[input.provider].label}: ${missing.map((f) => f.label).join(", ")}을(를) 적어 주세요`,
     );
   const data: GiftData = {
+    ...prev.data,
     provider: input.provider,
     callback,
+    title,
+    defaultMessage,
+    templateId,
+    bannerId,
     monthLimit: input.monthLimit,
     unitLimit: input.unitLimit,
     dupDays: input.dupDays,
@@ -569,6 +629,45 @@ export async function saveGift(
     { ...prev.secrets, [input.provider]: secret },
     { ...data, fields: undefined },
   );
+}
+
+/** 미리보기용 카드·배너 그림 올리기(file 있음) 또는 빼기(file 없음). 권한(대표)은 화면 계층에서 */
+export async function saveGiftImage(
+  db: Db,
+  actorId: string,
+  kind: GiftImageKind,
+  file: { bytes: Uint8Array; fileName: string } | null,
+  now = new Date(),
+) {
+  if (!(GIFT_IMAGE_KINDS as readonly string[]).includes(kind))
+    throw new MessagingError("어느 그림인지 알 수 없습니다");
+  const prev = await load(db, "gift");
+  const images = { ...(prev.data.images ?? {}) };
+  const old = images[kind]?.path;
+  if (file) {
+    if (!file.bytes.length)
+      throw new MessagingError("올릴 그림 파일을 골라 주세요");
+    if (file.bytes.length > MAX_GIFT_IMAGE_BYTES)
+      throw new MessagingError(
+        "그림이 500KB보다 큽니다. 기프티쇼 규격(배너 700×280, 카드 330×330)으로 줄여 다시 저장해 주세요",
+      );
+    const type = sniffImage(file.bytes);
+    if (!type)
+      throw new MessagingError("PNG·JPG·WEBP 그림 파일만 받습니다");
+    const path = await storeFile("gift", file.bytes, IMAGE_TYPES[type]);
+    images[kind] = {
+      path,
+      fileName: file.fileName.slice(0, 120),
+      updatedAt: now.toISOString(),
+    };
+  } else delete images[kind];
+  const data: GiftData = { ...prev.data, images };
+  await save(db, actorId, "gift", data, prev.secrets, {
+    ...data,
+    fields: undefined,
+  });
+  if (old && old !== images[kind]?.path)
+    await removeStored(old).catch(() => {});
 }
 
 export async function giftBalance(

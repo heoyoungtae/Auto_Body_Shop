@@ -19,7 +19,9 @@ import { nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { seoulDate } from "@/modules/platform/time";
 import {
+  defaultGiftTitle,
   DEMO_GOODS,
+  giftMessage,
   giftishowCancel,
   giftishowGoods,
   giftishowSend,
@@ -206,10 +208,11 @@ export async function sendGift(
   const phone = decrypt(c.phoneEnc!).replace(/\D/g, "");
   const docNo = await nextDocNo(db, "GF", now);
   const trId = `abs${docNo.replace(/\D/g, "")}${Math.random().toString(36).slice(2, 6)}`;
-  const message = (
-    input.message.trim() ||
-    `${t.name}님, ${APP_NAME}입니다. ${GIFT_PURPOSES[purpose]}으로 작은 선물을 보내 드립니다. 감사합니다.`
-  ).slice(0, 1000);
+  const message = giftMessage(input.message, data.defaultMessage, {
+    customer: t.name,
+    purpose: GIFT_PURPOSES[purpose],
+    shop: APP_NAME,
+  });
   let orderNo: string | null = null;
   let error: string | null = null;
   if (data.provider !== "demo") {
@@ -221,9 +224,11 @@ export async function sendGift(
             goodsCode: g.code,
             phone,
             trId,
-            title: `${APP_NAME} 선물`,
+            title: data.title || defaultGiftTitle(APP_NAME),
             message,
             callback: data.callback,
+            templateId: data.templateId,
+            bannerId: data.bannerId,
           },
           f,
         )
