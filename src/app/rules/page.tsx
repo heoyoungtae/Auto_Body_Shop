@@ -70,7 +70,7 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
               </a>
             ))}
           </nav>
-          <div className="text-sm leading-relaxed">
+          <div className="read-col text-sm leading-relaxed">
             <RulesBody text={RULES_TEXT} />
           </div>
         </Card>

@@ -24,15 +24,16 @@ export default async function ServerGuidePage() {
       {!parts.length ? (
         <Notice>설명서를 읽지 못했습니다. 서버의 deploy/minipc/README.md 를 확인하세요.</Notice>
       ) : (
-        <>
-          <nav className="mb-4 flex flex-wrap gap-2 text-sm" aria-label="설명서 차례">
+        <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_15rem] xl:items-start xl:gap-5">
+          <nav className="mb-4 flex flex-wrap gap-2 text-sm xl:sticky xl:top-[4.5rem] xl:col-start-2 xl:row-start-1 xl:max-h-[calc(100vh-5.5rem)] xl:flex-col xl:flex-nowrap xl:gap-0.5 xl:overflow-y-auto xl:border-l xl:border-[var(--line)] xl:pl-3" aria-label="설명서 차례">
+            <span className="hidden text-xs text-[var(--muted)] xl:mb-1 xl:block">차례</span>
             {parts.map((p) => (
-              <a key={p.id} href={`#${p.id}`} className="rounded-md border border-[var(--line)] px-3 py-1.5 hover:border-[var(--accent)]">
+              <a key={p.id} href={`#${p.id}`} className="rounded-md border border-[var(--line)] px-3 py-1.5 hover:border-[var(--accent)] xl:border-0 xl:px-2 xl:py-1 xl:hover:bg-[var(--surface-2)]">
                 {p.title.replace(/\(.*\)$/, "")}
               </a>
             ))}
           </nav>
-          <div className="space-y-4">
+          <div className="read-col space-y-4 xl:col-start-1 xl:row-start-1">
             {intro && (
               <Card>
                 <div className="space-y-3">
@@ -50,7 +51,7 @@ export default async function ServerGuidePage() {
               </section>
             ))}
           </div>
-        </>
+        </div>
       )}
     </>
   );

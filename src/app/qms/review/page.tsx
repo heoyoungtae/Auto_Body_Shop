@@ -111,6 +111,8 @@ export default async function ReviewPage({
             </p>
           )}
         </Card>
+        {/* 넓은 PC: 검토 입력 사항을 두 칸으로(대표 결정 2026-11-23 PC 화면 개선) */}
+        <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
         {(Object.keys(REVIEW_INPUTS) as ReviewInputKey[]).map((k) => (
           <Card
             key={k}
@@ -144,6 +146,7 @@ export default async function ReviewPage({
             )}
           </Card>
         ))}
+        </div>
         <Card title="결정" help={{ kind: "panel", id: "mr.output" }}>
           {edit ? (
             <div className="space-y-3">

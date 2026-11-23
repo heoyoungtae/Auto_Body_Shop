@@ -80,7 +80,7 @@ export default async function LaborPage({ searchParams }: { searchParams: Promis
             </Card>
           ))}
         </div>
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
           {owner && (
             <Card title={sel ? `바꾸기: ${sel.section} › ${sel.name}` : "바꾸기"} help={{ kind: "panel", id: "labor.change" }}>
               {sel ? (

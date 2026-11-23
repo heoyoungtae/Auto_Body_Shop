@@ -315,6 +315,8 @@ export async function listRepairs(db: Db, filter: "open" | "intake" | "checked" 
       plateNo: vehicle.plateNo,
       model: vehicle.model,
       consultId: repairOrder.consultationId,
+      /** 담당 상담원 이름(목록 '담당' 칸) */
+      advisor: sql<string | null>`(select ${appUser.name} from ${appUser} where ${appUser.id} = ${repairOrder.advisorId})`,
       photos: sql<number>`(select count(*)::int from ${roPhoto} where ${roPhoto.repairOrderId} = ${repairOrder.id} and ${roPhoto.damageId} is null)`,
       damages: sql<number>`(select count(*)::int from ${roDamage} where ${roDamage.repairOrderId} = ${repairOrder.id})`,
       outAt: sql<Date | null>`(select max(${repairStatement.deliveredAt}) from ${repairStatement} where ${repairStatement.repairOrderId} = ${repairOrder.id})`.mapWith(repairStatement.deliveredAt),

@@ -145,7 +145,7 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
             </Card>
           )}
         </div>
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
           {biz && (
             <Card title="업체 외상 현황" help={{ kind: "panel", id: "dl.credit" }}>
               <div className="space-y-1 text-sm">

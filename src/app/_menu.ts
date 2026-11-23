@@ -11,16 +11,17 @@ export type MenuItem = {
   std?: string;
   roles?: Role[];
   perm?: PermKey[];
+  /** 이 메뉴 앞에 작은 소제목을 붙인다(긴 묶음 나누기, 대표 결정 2026-11-23) */
+  section?: string;
+  /** 다른 묶음에 원래 자리가 있고, 업무 흐름 때문에 여기에도 보여 주는 바로가기. 메뉴 찾기·묶음 펼침은 원래 자리를 따른다 */
+  also?: true;
 };
 export type MenuGroup = { id: string; label: string; items: MenuItem[] };
 
-/** 메뉴 맨 위에 따로 두는 화면(묶음 밖) */
+/** 메뉴 맨 위에 따로 두는 화면(묶음 밖). TV 현황판은 TV에 한 번 띄우면 되는 화면이라 설정 묶음으로, 표준서·기록 보관함은 '표준서·문서' 묶음으로 옮김(대표 결정 2026-11-23) */
 export const TOP: MenuItem[] = [
   { label: "대시보드", href: "/home" },
-  { label: "TV 현황판", href: "/tv" },
-  { label: "TV 현황판(테크베이)", href: "/tv/techbay" },
-  { label: "사내 표준서", href: "/std", std: "STD-00" },
-  { label: "기록 보관함", href: "/records", std: "STD-Q.5" },
+  { label: "내 할 일", href: "/todo" },
   { label: "통계·보고서", href: "/reports", perm: ["report.mgmt", "report.acct", "report.quality", "report.stock", "report.people", "report.safety"] },
 ];
 
@@ -29,12 +30,13 @@ export const MENU: MenuGroup[] = [
     id: "my",
     label: "내 업무",
     items: [
-      { label: "내 할 일", href: "/todo" },
       { label: "일정표", href: "/schedule" },
       { label: "업무지시", href: "/tasks" },
       { label: "업무일지", href: "/journal" },
       { label: "결재", href: "/approvals" },
       { label: "알림", href: "/notifications" },
+      // 직원 누구나 보는 것이라 인사·급여에서 옮김(대표 결정 2026-11-23)
+      { label: "내 임금명세서", href: "/payroll/me", std: "STD-11.5" },
     ],
   },
   {
@@ -47,6 +49,8 @@ export const MENU: MenuGroup[] = [
         href: "/consults",
         std: "STD-01",
       },
+      // 홈페이지로 들어온 견적 요청도 상담의 시작이라 여기에도 보인다(원래 자리는 홈페이지 묶음)
+      { label: "견적 요청함", perm: ["consult.write"], href: "/consults?f=online", std: "STD-01", also: true },
       {
         label: "업체 주문 앱(테크베이)",
         perm: ["portal.order"],
@@ -54,7 +58,7 @@ export const MENU: MenuGroup[] = [
         std: "STD-01",
       },
       {
-        label: "접수·입고",
+        label: "입고·진단",
         perm: ["repair.write", "diag.write", "diag.confirm"],
         href: "/repairs",
         std: "STD-02",
@@ -77,6 +81,8 @@ export const MENU: MenuGroup[] = [
         href: "/repairs?f=qc",
         std: "STD-05",
       },
+      // 출고 다음은 돈 받기. 원래 자리는 회계 › 청구·수납(대표 결정 2026-11-23)
+      { label: "수납", perm: ["money.view"], href: "/money", std: "STD-12", also: true },
       {
         label: "보험 청구",
         perm: ["claim.desk", "claim.money"],
@@ -87,7 +93,8 @@ export const MENU: MenuGroup[] = [
   },
   {
     id: "customer",
-    label: "고객",
+    // 출고 뒤 손님 일(문자·기프티콘·만족도·보증)을 한 묶음으로(대표 결정 2026-11-23, 문자관리 묶음과 합침)
+    label: "고객 관리",
     items: [
       {
         label: "고객·차량",
@@ -102,13 +109,8 @@ export const MENU: MenuGroup[] = [
         std: "STD-06.4",
       },
       { label: "만족도·불만", href: "/complaints", std: "STD-06" },
-    ],
-  },
-  {
-    id: "messages",
-    label: "문자관리",
-    items: [
       {
+        section: "문자·선물",
         label: "문자 발송",
         perm: ["consult.write"],
         href: "/messages/send",
@@ -158,6 +160,7 @@ export const MENU: MenuGroup[] = [
         href: "/equipment",
         std: "STD-08.1",
       },
+      { label: "설비 라벨", perm: ["equip.manage"], href: "/equipment/labels", std: "STD-08.1" },
       {
         label: "일상 점검",
         perm: ["equip.check"],
@@ -203,20 +206,6 @@ export const MENU: MenuGroup[] = [
         std: "STD-Q.3",
       },
       { label: "부적합·시정 조치", href: "/nc", std: "STD-Q.9" },
-      { label: "문서 목록", href: "/qms/docs", std: "STD-Q.5" },
-      {
-        label: "문서 수발신·공문",
-        perm: ["corr.write"],
-        href: "/corr",
-        std: "STD-Q.5",
-      },
-      { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
-      {
-        label: "법규 대장",
-        perm: ["legal.manage", "legal.confirm"],
-        href: "/legal",
-        std: "STD-Q.6",
-      },
       { label: "리스크·기회", href: "/risks", std: "STD-Q.4" },
       {
         label: "내부 심사",
@@ -235,6 +224,29 @@ export const MENU: MenuGroup[] = [
         perm: ["qms.review", "qms.docs"],
         href: "/qms/review",
         std: "STD-Q.8",
+      },
+    ],
+  },
+  {
+    // 흩어져 있던 표준서·문서 화면을 한 묶음으로(대표 결정 2026-11-23)
+    id: "docs",
+    label: "표준서·문서",
+    items: [
+      { label: "사내 표준서", href: "/std", std: "STD-00" },
+      { label: "기록 보관함", href: "/records", std: "STD-Q.5" },
+      { label: "문서 목록", href: "/qms/docs", std: "STD-Q.5" },
+      {
+        label: "문서 수발신·공문",
+        perm: ["corr.write"],
+        href: "/corr",
+        std: "STD-Q.5",
+      },
+      { label: "문서 개정 요청", href: "/approvals/new", std: "STD-Q.5" },
+      {
+        label: "법규 대장",
+        perm: ["legal.manage", "legal.confirm"],
+        href: "/legal",
+        std: "STD-Q.6",
       },
     ],
   },
@@ -267,7 +279,6 @@ export const MENU: MenuGroup[] = [
         std: "STD-07.8",
       },
       { label: "비품·자산", href: "/fixtures", std: "STD-07.9" },
-      { label: "설비 라벨", perm: ["equip.manage"], href: "/equipment/labels", std: "STD-08.1" },
     ],
   },
   {
@@ -316,7 +327,6 @@ export const MENU: MenuGroup[] = [
         href: "/payroll",
         std: "STD-11.5",
       },
-      { label: "내 임금명세서", href: "/payroll/me", std: "STD-11.5" },
     ],
   },
   {
@@ -324,6 +334,7 @@ export const MENU: MenuGroup[] = [
     label: "회계",
     items: [
       {
+        section: "받을 돈",
         label: "입출금",
         perm: ["money.view", "expense.draft", "expense.pay", "bank.view"],
         href: "/money/cash",
@@ -342,6 +353,7 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
+        section: "낼 돈",
         label: "지출 결의",
         perm: ["expense.draft", "expense.pay"],
         href: "/money/expenses",
@@ -354,6 +366,7 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
+        section: "장부·마감",
         label: "감가상각 대장",
         perm: ["expense.pay", "fixture.manage"],
         href: "/money/depreciation",
@@ -378,12 +391,6 @@ export const MENU: MenuGroup[] = [
         std: "STD-12",
       },
       {
-        label: "월간 경영보고서",
-        perm: ["money.close_month"],
-        href: "/reports/monthly",
-        std: "STD-Q Q.10",
-      },
-      {
         label: "마감",
         perm: ["money.close_day", "money.close_month"],
         href: "/money/close",
@@ -398,100 +405,33 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
+    // 20개를 소제목 4개로 나눔(대표 결정 2026-11-23)
     id: "settings",
     label: "설정",
     items: [
-      { label: "사업장 정보", perm: ["settings.edit"], href: "/settings/shop" },
-      {
-        label: "공임 기준표",
-        perm: ["settings.edit"],
-        href: "/settings/labor",
-        std: "F-03-01",
-      },
-      {
-        label: "정책값",
-        perm: ["settings.edit"],
-        href: "/settings/policies",
-        std: "부록 D",
-      },
-      {
-        label: "전결 규정",
-        perm: ["settings.edit"],
-        href: "/settings/delegation",
-        std: "부록 B",
-      },
+      { section: "우리 공업사", label: "사업장 정보", perm: ["settings.edit"], href: "/settings/shop" },
+      { label: "본점·지점", href: "/settings/branches" },
+      { label: "작업장", href: "/settings/workplaces" },
+      { label: "영업일·휴무일", perm: ["settings.edit"], href: "/settings/calendar" },
+      { label: "로고·앱 아이콘", href: "/settings/brand" },
+      { section: "업무 기준", label: "공임 기준표", perm: ["settings.edit"], href: "/settings/labor", std: "F-03-01" },
+      { label: "정책값", perm: ["settings.edit"], href: "/settings/policies", std: "부록 D" },
+      { label: "전결 규정", perm: ["settings.edit"], href: "/settings/delegation", std: "부록 B" },
+      { label: "권한표", perm: ["settings.edit"], href: "/settings/permissions" },
       { label: "로그인 계정", perm: ["account.manage"], href: "/settings/users" },
-      {
-        label: "권한표",
-        perm: ["settings.edit"],
-        href: "/settings/permissions",
-      },
-      {
-        label: "문자 발송 서비스",
-        perm: ["settings.edit"],
-        href: "/settings/messaging",
-      },
-      {
-        label: "카카오 알림톡",
-        perm: ["settings.edit"],
-        href: "/settings/kakao",
-      },
-      {
-        label: "기프티콘 공급사",
-        perm: ["settings.edit"],
-        href: "/settings/gift",
-      },
-      {
-        label: "영업일·휴무일",
-        perm: ["settings.edit"],
-        href: "/settings/calendar",
-      },
-      {
-        label: "본점·지점",
-        href: "/settings/branches",
-      },
-      {
-        label: "작업장",
-        href: "/settings/workplaces",
-      },
-      {
-        label: "차 부위·세부 부위",
-        perm: ["diag.confirm"],
-        href: "/settings/body-parts",
-      },
-      {
-        label: "출퇴근 장소(와이파이)",
-        roles: ["owner"],
-        href: "/settings/punch",
-      },
-      {
-        label: "TV 현황판 연결",
-        href: "/settings/tv",
-      },
-      {
-        label: "로고·앱 아이콘",
-        href: "/settings/brand",
-      },
-      {
-        label: "내 차 수첩(고객용)",
-        roles: ["owner"],
-        href: "/settings/carbook",
-      },
-      {
-        label: "홈페이지 꾸미기",
-        roles: ["owner"],
-        href: "/settings/site",
-      },
-      {
-        label: "서버·새 버전 올리기",
-        roles: ["owner"],
-        href: "/settings/server",
-      },
-      {
-        label: "도메인(앱 주소)",
-        roles: ["owner"],
-        href: "/settings/domain",
-      },
+      { label: "차 부위·세부 부위", perm: ["diag.confirm"], href: "/settings/body-parts" },
+      { section: "바깥 연결", label: "문자 발송 서비스", perm: ["settings.edit"], href: "/settings/messaging" },
+      { label: "카카오 알림톡", perm: ["settings.edit"], href: "/settings/kakao" },
+      { label: "기프티콘 공급사", perm: ["settings.edit"], href: "/settings/gift" },
+      { label: "출퇴근 장소(와이파이)", roles: ["owner"], href: "/settings/punch" },
+      { label: "TV 현황판 연결", href: "/settings/tv" },
+      // TV에 띄우는 화면. 맨 위에서 옮김(대표 결정 2026-11-23)
+      { label: "TV 현황판", href: "/tv" },
+      { label: "TV 현황판(테크베이)", href: "/tv/techbay" },
+      { section: "홈페이지·서버", label: "홈페이지 꾸미기", roles: ["owner"], href: "/settings/site" },
+      { label: "내 차 수첩(고객용)", roles: ["owner"], href: "/settings/carbook" },
+      { label: "서버·새 버전 올리기", roles: ["owner"], href: "/settings/server" },
+      { label: "도메인(앱 주소)", roles: ["owner"], href: "/settings/domain" },
     ],
   },
   {

@@ -190,12 +190,14 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
           </Card>
         </div>
       )}
-      <nav className="mb-3 flex flex-wrap gap-1.5 text-sm" aria-label="정책값 분류">
-        <Link href="/settings/policies" aria-current={!group ? "page" : undefined} className={`rounded-md border px-2.5 py-1.5 ${!group ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+      {/* 넓은 PC: 분류를 왼쪽 세로 목록으로, 정책값은 오른쪽 표로(대표 결정 2026-11-23 PC 화면 개선) */}
+      <div className="xl:grid xl:grid-cols-[13rem_minmax(0,1fr)] xl:items-start xl:gap-5">
+      <nav className="mb-3 flex flex-wrap gap-1.5 text-sm xl:sticky xl:top-[4.5rem] xl:flex-col xl:flex-nowrap" aria-label="정책값 분류">
+        <Link href="/settings/policies" aria-current={!group ? "page" : undefined} className={`rounded-md border px-2.5 py-1.5 xl:border-transparent ${!group ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
           전체 {rows.length}
         </Link>
         {tabs.map((t) => (
-          <Link key={t.k} href={`/settings/policies?g=${t.k}`} aria-current={group === t.k ? "page" : undefined} className={`rounded-md border px-2.5 py-1.5 ${group === t.k ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+          <Link key={t.k} href={`/settings/policies?g=${t.k}`} aria-current={group === t.k ? "page" : undefined} className={`rounded-md border px-2.5 py-1.5 xl:border-transparent ${group === t.k ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
             {POLICY_GROUPS[t.k]} {t.n}
             {t.changed > 0 && <span className="ml-1 text-xs text-[var(--accent)]">변경 {t.changed}</span>}
             {t.scheduled > 0 && <span className="ml-1 text-xs text-[var(--warn)]">예정 {t.scheduled}</span>}
@@ -203,6 +205,7 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
           </Link>
         ))}
       </nav>
+      <div className="min-w-0">
       {group && groupHasLegal && (
         <div className="mb-3 rounded-md border border-[var(--line)] p-3 text-sm">
           <p>
@@ -237,6 +240,8 @@ export default async function PoliciesPage({ searchParams }: { searchParams: Pro
           cand: law.candidates.some((c) => c.key === r.key),
         }))}
       />
+      </div>
+      </div>
     </>
   );
 }

@@ -25,10 +25,16 @@ export function PolicyTable({ rows, owner, group }: { rows: Row[]; owner: boolea
         />
       </label>
       {shown.length === 0 && <p className="text-sm text-[var(--muted)]">&lsquo;{q}&rsquo;에 맞는 정책값이 없습니다.</p>}
+      <div aria-hidden className="hidden border-b border-[var(--line)] pb-1.5 text-xs text-[var(--muted)] lg:grid lg:grid-cols-[minmax(11rem,17rem)_9.5rem_minmax(0,1fr)_7rem] lg:gap-x-4">
+        <span>이름·조항</span>
+        <span>지금 값</span>
+        <span>설명</span>
+        <span className="text-right">바꾸기</span>
+      </div>
       <ul className="divide-y divide-[var(--line)] text-sm">
         {shown.map((r) => (
-          <li key={r.key} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-2.5">
-            <div className="min-w-0 flex-1">
+          <li key={r.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1 py-2.5 lg:grid-cols-[minmax(11rem,17rem)_9.5rem_minmax(0,1fr)_7rem]">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-1.5 font-medium">
                 {r.label} <HelpButton topic={{ kind: "policy", id: r.key as PolicyKey, title: r.label, note: `부록 D ${r.clause} · 표준서 제안 ${r.defaultValue.toLocaleString("ko-KR")} ${r.unit}` }} name={r.label} />
                 <span className="text-xs font-normal whitespace-nowrap text-[var(--muted)]">부록 D {r.clause}</span>
@@ -40,9 +46,8 @@ export function PolicyTable({ rows, owner, group }: { rows: Row[]; owner: boolea
                   {r.legal.article}
                 </a>
               )}
-              <p className="text-xs text-[var(--muted)]">{r.help}</p>
             </div>
-            <div className="text-right">
+            <div className="text-right lg:text-left">
               <div>
                 <b className="tabular-nums">{r.value.toLocaleString("ko-KR")}</b> {r.unit}
                 {r.value !== r.defaultValue && (
@@ -56,14 +61,15 @@ export function PolicyTable({ rows, owner, group }: { rows: Row[]; owner: boolea
                   {p.effectiveFrom}부터 {p.value.toLocaleString("ko-KR")} (시행 예정)
                 </div>
               ))}
-              <div className="mt-0.5 flex justify-end gap-3 text-xs">
-                <Link href={`/settings/policies?key=${encodeURIComponent(r.key)}`} className="text-[var(--accent)]">
-                  {owner ? "바꾸기·이력" : "설명·이력"}
-                </Link>
-                <Link href={`/approvals/new?policy=${encodeURIComponent(r.key)}`} className="text-[var(--accent)]">
-                  개정 요청
-                </Link>
-              </div>
+            </div>
+            <p className="col-span-2 text-xs text-[var(--muted)] lg:col-span-1">{r.help}</p>
+            <div className="col-span-2 flex justify-end gap-3 text-xs lg:col-span-1 lg:flex-col lg:items-end lg:gap-1">
+              <Link href={`/settings/policies?key=${encodeURIComponent(r.key)}`} className="text-[var(--accent)]">
+                {owner ? "바꾸기·이력" : "설명·이력"}
+              </Link>
+              <Link href={`/approvals/new?policy=${encodeURIComponent(r.key)}`} className="text-[var(--accent)]">
+                개정 요청
+              </Link>
             </div>
           </li>
         ))}

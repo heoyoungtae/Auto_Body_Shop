@@ -167,7 +167,7 @@ export function TechbayCheckForm({ consultId, items, words, car, action }: { con
           })}
         </ol>
       </Card>
-      <div className="space-y-4 xl:sticky xl:top-4">
+      <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
         <Card title="차 그림" help={{ kind: "panel", id: "tb.map" }}>
           <CarMap pins={pins} car={car} label="테크베이 작업 항목 손상 부위" />
           <p className="mt-2 text-xs text-[var(--muted)]">번호는 손상 부위 줄의 순서입니다. 입고 도면에는 수리할 곳(O)으로 찍히고, 진단 줄은 요청 한 줄마다 따로 만들어집니다.</p>

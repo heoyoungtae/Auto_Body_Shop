@@ -9,7 +9,7 @@ import {
   EXP_STATUS,
 } from "@/modules/money/rules";
 import { requireUser } from "../../_lib/session";
-import { ListBar, ListPager, ListTabs } from "../../_list-bar";
+import { ListBar, ListPager } from "../../_list-bar";
 import {
   Badge,
   buttonClass,
@@ -68,7 +68,6 @@ export default async function ExpensesPage({
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
-      <ListTabs r={r} />
       <ListBar r={r} />
       <Card title="결의서" help={{ kind: "panel", id: "exp.list" }}>
         {list.length ? (

@@ -3,9 +3,11 @@ import Link from "next/link";
 import type { RoStep } from "@/modules/repair/steps";
 import { buttonClass } from "../_ui";
 
-export function RoSteps({ steps, next }: { steps: RoStep[]; next?: { label: string; href: string } }) {
+// PC(마우스·넓은 화면)에서는 화면 위에 붙어 있어 아래로 내려도 수리 건 번호·차·다음 단추가 보인다(대표 결정 2026-11-23 PC 화면 개선).
+export function RoSteps({ steps, next, who }: { steps: RoStep[]; next?: { label: string; href: string }; who?: string }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[var(--shadow)]">
+    <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[var(--shadow)] pointer-fine:lg:sticky pointer-fine:lg:top-[3.75rem] pointer-fine:lg:z-10 print:static">
+      {who && <span className="hidden shrink-0 text-sm font-semibold pointer-fine:lg:inline">{who}</span>}
       <ol aria-label="진행 단계" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto text-xs sm:text-sm">
         {steps.map((s, i) => (
           <li key={s.key} className="flex shrink-0 items-center gap-1" aria-current={s.state === "now" ? "step" : undefined}>

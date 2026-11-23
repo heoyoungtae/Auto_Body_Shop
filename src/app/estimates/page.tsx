@@ -5,7 +5,7 @@ import { estimatesList } from "@/modules/listq/defs/repair";
 import { ESTIMATE_KIND, ESTIMATE_STATUS_LABEL } from "@/modules/repair/estimate-rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
-import { ListBar, ListPager, ListTabs } from "../_list-bar";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, Card, Empty, PageTitle, fmtTime } from "../_ui";
 
 const TONE: Record<string, "neutral" | "ok" | "warn" | "danger" | "accent"> = { draft: "warn", review: "accent", approved: "accent", sent: "neutral", accepted: "ok", partial: "warn", declined: "danger" };
@@ -24,7 +24,6 @@ export default async function EstimatesPage({ searchParams }: { searchParams: Pr
         견적·고객 승인
       </PageTitle>
       <div className="mt-4 space-y-3">
-        <ListTabs r={r} />
         <ListBar r={r} />
         <Card title="견적" help={{ kind: "panel", id: "estimates.list" }}>
           {rows.length ? (

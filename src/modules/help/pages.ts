@@ -1257,7 +1257,7 @@ export const PAGE_HELP = {
     refs: ["사내 표준서 STD-03"],
   },
   repairs: {
-    title: "접수·입고",
+    title: "입고·진단",
     purpose:
       "입고 예정 차량을 받아 수리 건을 열고, 입고 점검이 끝나지 않은 수리 건을 챙깁니다(STD-02).",
     who: "상담원·공장장·대표(다른 직원은 보기만)",

@@ -217,7 +217,7 @@ export default async function RepairDetail({
       >
         수리 건 {r.docNo}
       </PageTitle>
-      <RoSteps steps={roSteps(r.status, r.insurance !== "self", claim?.status === "paid")} next={nextStep} />
+      <RoSteps steps={roSteps(r.status, r.insurance !== "self", claim?.status === "paid")} next={nextStep} who={`${r.docNo} · ${r.customer.name} · ${v.plateNo}`} />
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
 
@@ -402,7 +402,7 @@ export default async function RepairDetail({
               </div>
             </Card>
           </div>
-          <div className="space-y-4 xl:sticky xl:top-4">
+          <div className="space-y-4 xl:sticky xl:top-[8.5rem]">
             <Card
               title="고객 확인·서명"
               help={{ kind: "panel", id: "ro.sign" }}

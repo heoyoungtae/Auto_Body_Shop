@@ -333,7 +333,7 @@ export default async function EstimatePage({ params, searchParams }: { params: P
           </Card>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
           <Card title="검토·발급" help={{ kind: "panel", id: "est.flow" }}>
             <div className="space-y-3 text-sm">
               <p>
