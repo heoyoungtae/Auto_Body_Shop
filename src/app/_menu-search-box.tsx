@@ -44,11 +44,8 @@ export function MenuSearch({
   future,
   onWake,
   fav = [],
-  pinned,
   children,
 }: {
-  /** 찾기 칸 아래에 늘 붙어 있는 것(★자주 쓰는 메뉴). 찾기 목록이 열리면 숨긴다(목록에 같은 메뉴가 먼저 나온다) */
-  pinned?: ReactNode;
   /** ★자주 쓰는 메뉴(최근 메뉴보다 앞에 보인다) */
   fav?: string[];
   /** 이 사람에게 보이는 메뉴인가(권한표·역할) */
@@ -106,7 +103,8 @@ export function MenuSearch({
   // 맞는 메뉴는 있지만 권한이 없어 숨긴 경우(못 찾은 까닭을 알려 준다)
   const hidden = q.trim() && !hits.length && searchMenu(q).some((h) => !allowed(h));
   const searching = !!q.trim();
-  const listOpen = searching || (focus && hits.length > 0);
+  // 칸만 눌렀을 때: 자주 쓰는 메뉴가 없어도 고르는 법을 알려 주려고 연다
+  const listOpen = searching || focus;
 
   useEffect(() => setActive(0), [q]);
   const menuEmpty = !!q.trim() && !hits.length;
@@ -192,7 +190,6 @@ export function MenuSearch({
           </div>
           <HelpButton topic={{ kind: "panel", id: "menu.search" }} name="메뉴 찾기" />
         </div>
-        {!listOpen && pinned}
       </div>
 
       {listOpen ? (
@@ -200,6 +197,13 @@ export function MenuSearch({
           {searching && (
             <p className="px-2 pb-1 text-xs text-[var(--muted)]" aria-live="polite">
               {hits.length || found.length ? `${hits.length + found.length}개 · Enter로 열기` : hidden ? "내 권한으로 열 수 있는 메뉴가 없습니다. 필요하면 대표에게 권한을 요청하세요." : "맞는 메뉴가 없습니다"}
+            </p>
+          )}
+          {!searching && !hits.some((h) => h.pin) && (
+            <p className="px-2 pb-2 text-xs text-[var(--muted)]">
+              <b className="font-semibold">★ 자주 쓰는 메뉴</b>
+              <br />
+              메뉴 이름 옆 ☆ 를 누르면 여기에 모입니다.
             </p>
           )}
           <ul id={listId} role="listbox" aria-label="찾은 메뉴" className="space-y-0.5">

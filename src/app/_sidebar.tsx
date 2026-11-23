@@ -71,8 +71,6 @@ const activeHref = (path: string, search: string) => pickActive(HREFS, path, sea
 // 바로가기(also)가 아닌 원래 자리 묶음을 펼친다
 const groupOf = (h: string | undefined) =>
   h ? MENU.find((g) => g.items.some((i) => i.href === h && !i.also))?.id : undefined;
-/** ★ 자주 쓰는 메뉴로 고를 수 있는 메뉴(원래 자리 하나씩) */
-const PICKABLE = MENU.flatMap((g) => g.items).filter((i) => i.href && !i.also);
 const FAV_MAX = 8;
 
 export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
@@ -166,41 +164,8 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             ×
           </button>
         </div>
-        <MenuSearch
-          allowed={allowed}
-          future={future}
-          onWake={wake}
-          fav={fav}
-          // ★ 자주 쓰는 메뉴: 찾기 칸 바로 아래에 붙여, 메뉴를 내려도 늘 보인다(대표 지시 2026-11-23). 고른 것이 없으면 고르는 법만 한 줄
-          pinned={
-        <div className="-mx-2 mt-2 border-t border-[var(--line)] px-2 pt-1.5" data-menu>
-          <p className="flex items-center justify-between px-2 text-xs text-[var(--muted)]">
-            <span>★ 자주 쓰는 메뉴</span>
-          </p>
-          {fav.filter((h) => PICKABLE.some((i) => i.href === h && allowed(i))).length === 0 ? (
-            <p className="px-2 py-1 text-xs text-[var(--muted)]">메뉴 이름 옆 ☆ 를 누르면 여기에 모입니다.</p>
-          ) : (
-            <ul className="mt-0.5 space-y-0.5">
-              {fav
-                .map((h) => PICKABLE.find((i) => i.href === h))
-                .filter((i): i is MenuItem => !!i && allowed(i))
-                .map((i) => (
-                  <li key={i.href} className="group flex items-center">
-                    <Link
-                      href={i.href!}
-                      aria-current={current === i.href ? "page" : undefined}
-                      className="flex min-h-9 flex-1 items-center rounded-md px-2.5 text-sm hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:font-semibold aria-[current=page]:text-[var(--accent)] pointer-fine:lg:min-h-8"
-                    >
-                      {i.label}
-                    </Link>
-                    <FavStar on onClick={() => toggleFav(i.href!)} label={i.label} />
-                  </li>
-                ))}
-            </ul>
-          )}
-        </div>
-          }
-        >
+        {/* ★ 자주 쓰는 메뉴는 사이드 메뉴에 따로 두지 않고, 찾기 칸을 누르면 최근에 연 메뉴 위에 나온다(대표 지시 2026-11-23) */}
+        <MenuSearch allowed={allowed} future={future} onWake={wake} fav={fav}>
         <ul className="space-y-0.5 px-2 pt-2 pb-1" data-menu>
           {TOP.filter(allowed).map((i) => (
             <li key={i.label}>
