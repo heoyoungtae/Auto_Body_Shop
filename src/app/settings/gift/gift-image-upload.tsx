@@ -3,19 +3,22 @@
 import { useState } from "react";
 import { buttonClass } from "../../_ui";
 
-const OK_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const OK_TYPES = ["image/png", "image/jpeg"];
 
-export function GiftImageUpload({ kind, advice }: { kind: string; advice: string }) {
-  const [pick, setPick] = useState<{ url: string; name: string; w: number; h: number; problem: string } | null>(null);
+export function GiftImageUpload({ kind, advice, size }: { kind: string; advice: string; size: [number, number] }) {
+  const [pick, setPick] = useState<{ url: string; name: string; w: number; h: number; problem: string; warn?: string } | null>(null);
   const onFile = (f: File | undefined) => {
     if (!f) return setPick(null);
     const url = URL.createObjectURL(f);
     const img = new Image();
     img.onload = () => {
       let problem = "";
-      if (!OK_TYPES.includes(f.type)) problem = "PNG·JPG·WEBP 그림이 아닙니다.";
-      else if (f.size > 3 * 1024 * 1024) problem = "3MB보다 큽니다. 그림 크기를 줄여 주세요.";
-      setPick({ url, name: f.name, w: img.naturalWidth, h: img.naturalHeight, problem });
+      if (!OK_TYPES.includes(f.type)) problem = "PNG·JPG 그림이 아닙니다.";
+      else if (f.size > 500 * 1024) problem = "500KB보다 큽니다. 그림 크기를 줄여 주세요.";
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const warn = w !== size[0] || h !== size[1] ? `크기가 ${w}×${h}입니다. 기프티쇼 규격은 ${size[0]}×${size[1]}px입니다(올리기는 됩니다).` : undefined;
+      setPick({ url, name: f.name, w, h, problem, warn });
     };
     img.onerror = () => setPick({ url: "", name: f.name, w: 0, h: 0, problem: "그림을 읽지 못했습니다. PNG·JPG 파일을 골라 주세요." });
     img.src = url;
@@ -30,7 +33,7 @@ export function GiftImageUpload({ kind, advice }: { kind: string; advice: string
           id={`gift-file-${kind}`}
           name="file"
           type="file"
-          accept="image/png,image/jpeg,image/webp"
+          accept="image/png,image/jpeg"
           required
           data-assist="upload"
           className="sr-only"
@@ -55,7 +58,7 @@ export function GiftImageUpload({ kind, advice }: { kind: string; advice: string
                 {pick.problem} 권장: {advice}
               </p>
             ) : (
-              <p className="text-[var(--muted)]">&apos;올리기&apos;를 누르면 미리보기에 바로 쓰입니다.</p>
+              <p className={pick.warn ? "text-[var(--warn,#b45309)]" : "text-[var(--muted)]"}>{pick.warn ?? "규격에 맞습니다."} &apos;올리기&apos;를 누르면 미리보기에 바로 쓰입니다.</p>
             )}
           </div>
         </div>

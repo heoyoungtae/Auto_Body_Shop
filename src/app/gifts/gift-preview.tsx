@@ -3,7 +3,7 @@
 // 보내기 화면·설정 화면이 같이 쓴다. 문구는 보내기와 같은 giftMessage 로 만든다.
 // 같은 양식 안의 칸(상품·문구·목적, 설정의 발신번호·제목·기본 문구)이 바뀌면 바로 따라 바뀐다.
 import { useEffect, useRef, useState } from "react";
-import { defaultGiftTitle, giftMessage } from "@/modules/messaging/gift";
+import { defaultGiftTitle, GIFT_MSG_MAX, giftMessage, giftMessageFull } from "@/modules/messaging/gift";
 
 export type PreviewGoods = {
   code: string;
@@ -12,6 +12,7 @@ export type PreviewGoods = {
   price: number;
   image?: string;
   limitDay?: number;
+  affiliate?: string;
 };
 
 type Look = {
@@ -32,78 +33,79 @@ export function fmtSender(n: string) {
   return d || "발신번호 없음";
 }
 
-const until = (days: number, now = new Date()) => {
-  const t = new Date(now.getTime() + days * 864e5);
-  return `${t.getFullYear()}.${String(t.getMonth() + 1).padStart(2, "0")}.${String(t.getDate()).padStart(2, "0")}`;
-};
+const until = (days: number, now = new Date()) =>
+  new Date(now.getTime() + days * 864e5 + 9 * 3600e3).toISOString().slice(0, 10);
 
-function Placeholder({ text, className }: { text: string; className: string }) {
-  return (
-    <div className={`flex items-center justify-center border border-dashed border-[var(--line)] bg-[var(--surface-2)] text-center text-[11px] text-[var(--muted)] ${className}`}>
-      {text}
-    </div>
-  );
-}
+const ph = "grid place-items-center bg-[#eef0f3] p-1.5 text-center text-[11px] text-[#8a8f98]";
 
-/** 휴대폰 화면 모양의 미리보기 한 장 */
-export function GiftPreview({ look, goods, message }: { look: Look; goods?: PreviewGoods; message: string }) {
+/**
+ * 휴대폰 문자 모양의 미리보기(미래모터스 앱의 '받는 메시지 미리보기'와 같은 차례).
+ * 배너 → 상품 그림·카드(나란히) → 바코드 샘플 → 상품명·교환처·유효기간 → 문구
+ */
+export function GiftPreview({ look, goods, message, full, customer, picked }: { look: Look; goods?: PreviewGoods; message: string; full?: number; customer?: string; picked?: boolean }) {
   const title = look.title.trim() || defaultGiftTitle(look.shop);
+  const len = full ?? message.length;
+  const cut = len > GIFT_MSG_MAX;
   return (
-    <figure className="mx-auto w-full max-w-[300px]" aria-label="받는 사람에게 보이는 기프티콘 미리보기">
-      <div className="rounded-[28px] border-4 border-neutral-700 bg-[var(--surface)] p-2 shadow-md">
-        <div className="mb-2 flex items-center justify-between rounded-t-[20px] bg-[var(--surface-2)] px-3 py-2 text-xs">
-          <span className="font-semibold">{fmtSender(look.callback)}</span>
-          <span className="text-[var(--muted)]">문자 메시지</span>
+    <figure className="mx-auto w-full max-w-[340px]" aria-label="받는 사람에게 보이는 기프티콘 미리보기">
+      <div className="rounded-[22px] bg-[#e9edf5] p-3.5 text-[#222]">
+        <div className="mb-2 flex justify-between gap-2 text-xs text-[#5b6372]">
+          <b className="text-[#222]">{look.shop}</b>
+          <span>{fmtSender(look.callback)}</span>
         </div>
-        <div className="space-y-2 rounded-2xl bg-[var(--surface-2)] p-2.5 text-[13px] leading-relaxed">
-          <p className="font-semibold">{title}</p>
-          <p className="whitespace-pre-wrap break-words">{message}</p>
-          <div className="overflow-hidden rounded-lg border border-[var(--line)] bg-white text-[#222]">
-            {look.bannerUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- 설정에 올린 배너 그림
-              <img src={look.bannerUrl} alt="배너" className="block max-h-24 w-full object-cover" />
-            ) : (
-              <Placeholder text="배너(기프티쇼 기본 배너)" className="h-12 border-x-0 border-t-0" />
-            )}
-            <div className="space-y-2 p-2.5">
-              {look.cardUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- 설정에 올린 카드 그림
-                <img src={look.cardUrl} alt="카드" className="block max-h-40 w-full rounded object-contain" />
+        <div className="overflow-hidden rounded-xl bg-white text-[13px] shadow-sm">
+          {look.bannerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- 설정에 올린 배너 그림
+            <img src={look.bannerUrl} alt="배너" className="block h-auto w-full" />
+          ) : (
+            <div className={`${ph} aspect-[700/280]`}>배너 그림 없음(기프티쇼 기본 배너)</div>
+          )}
+          <div className="grid grid-cols-2 border-b border-[#e3e6eb]">
+            <div className="flex aspect-square min-w-0 flex-col bg-white">
+              {goods?.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- 공급사 상품 그림
+                <img src={goods.image} alt="" referrerPolicy="no-referrer" className="min-h-0 w-full flex-[0_0_70%] object-contain p-[8%]" />
               ) : (
-                <Placeholder text="카드(기프티쇼 기본 카드)" className="h-16 rounded" />
+                <div className={`${ph} min-h-0 flex-[0_0_70%]`}>{goods ? "상품 사진" : "상품을 고르세요"}</div>
               )}
-              {goods ? (
-                <>
-                  {goods.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- 공급사 상품 그림
-                    <img src={goods.image} alt={goods.name} referrerPolicy="no-referrer" className="mx-auto block max-h-40 object-contain" />
-                  ) : (
-                    <Placeholder text={`🎁 상품 그림${goods.code.startsWith("DEMO") ? "(데모 상품은 그림 없음)" : ""}`} className="h-28 rounded" />
-                  )}
-                  <div className="text-center">
-                    {goods.brand && <p className="text-[11px] text-[#666]">{goods.brand}</p>}
-                    <p className="font-semibold">{goods.name}</p>
-                  </div>
-                  <div
-                    aria-hidden
-                    className="mx-auto h-10 w-4/5"
-                    style={{ background: "repeating-linear-gradient(90deg,#222 0 2px,transparent 2px 4px,#222 4px 5px,transparent 5px 8px)" }}
-                  />
-                  <p className="text-center text-[11px] text-[#666]">
-                    쿠폰 번호는 실제 쿠폰에만 나옵니다
-                    <br />
-                    유효기간 {until(goods.limitDay || 30)}까지
-                  </p>
-                </>
-              ) : (
-                <Placeholder text="상품을 고르면 여기에 나옵니다" className="h-28 rounded" />
-              )}
+              <div className="grid flex-[0_0_30%] place-items-center overflow-hidden bg-[#e9e9e9] px-1 text-center text-[11px] font-bold leading-tight text-[#9a9a9a] [word-break:keep-all]">
+                {goods?.brand || "BRAND"}
+              </div>
             </div>
+            {look.cardUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- 설정에 올린 카드 그림
+              <img src={look.cardUrl} alt="카드" className="block aspect-square h-full w-full object-cover" />
+            ) : (
+              <div className={`${ph} aspect-square`}>카드 그림 없음(기프티쇼 기본 카드)</div>
+            )}
+          </div>
+          <div className="px-3.5 pt-2.5 pb-1 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element -- 바코드 샘플 그림 */}
+            <img src="/gift/barcode-sample.png" alt="바코드 샘플" width={544} height={203} className="mx-auto block h-auto w-[82%]" />
+          </div>
+          <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 px-3.5 pt-1.5 pb-2.5">
+            <dt className="text-[#7a808a]">상품명</dt>
+            <dd className="m-0 font-semibold [word-break:keep-all]">{goods ? goods.name : "-"}</dd>
+            <dt className="text-[#7a808a]">교환처</dt>
+            <dd className="m-0 font-semibold [word-break:keep-all]">{goods ? goods.affiliate || goods.brand || "-" : "-"}</dd>
+            <dt className="text-[#7a808a]">유효기간</dt>
+            <dd className="m-0 font-semibold">{goods ? `~ ${until(goods.limitDay || 30)}` : "-"}</dd>
+          </dl>
+          <div className="border-t border-[#e3e6eb] px-3.5 pt-2.5 pb-3.5 leading-normal">
+            <p className="mb-1 font-semibold">{title}</p>
+            <p className="whitespace-pre-wrap break-words">{message || <span className="text-[#8a8f98]">문구를 입력하세요.</span>}</p>
           </div>
         </div>
       </div>
-      <figcaption className="mt-2 text-center text-xs text-[var(--muted)]">
-        실제 쿠폰 모양은 기프티쇼 비즈가 만들어 조금 다를 수 있습니다.
+      <figcaption className="mt-2 space-y-1 text-xs">
+        <p className={cut ? "text-[var(--danger)]" : "text-[var(--muted)]"}>
+          {len}/{GIFT_MSG_MAX}자{cut ? " — 넘는 뒷부분은 잘려서 갑니다" : ""}
+          {customer ? ` · 받는 분 예시: ${customer}` : ""}
+        </p>
+        <p className="text-[var(--muted)]">
+          바코드·번호는 샘플입니다. 실제 바코드는 보낼 때 기프티쇼가 만들어 붙입니다.
+          {picked === false ? " 배너·카드 그림은 설정 › 기프티콘 공급사에서 올리면 여기에 나옵니다." : ""}
+        </p>
       </figcaption>
     </figure>
   );
@@ -155,14 +157,13 @@ export function LiveGiftPreview({
   const now: Look = settings ? { ...look, callback: v.callback ?? look.callback, title: v.title ?? look.title, template: v.defaultMessage ?? look.template } : look;
   const g = settings ? goods[0] : goods.find((x) => x.code === v.goodsCode);
   const firstPurpose = Object.values(purposes)[0] ?? "감사";
-  const message = giftMessage(settings ? "" : (v.message ?? ""), now.template, {
-    customer,
-    purpose: purposes[v.purpose ?? ""] ?? firstPurpose,
-    shop: look.shop,
-  });
+  const vars = { customer, purpose: purposes[v.purpose ?? ""] ?? firstPurpose, shop: look.shop };
+  const typed = settings ? "" : (v.message ?? "");
+  const message = giftMessage(typed, now.template, vars);
+  const full = giftMessageFull(typed, now.template, vars).length;
   return (
     <div ref={ref}>
-      <GiftPreview look={now} goods={g} message={message} />
+      <GiftPreview look={now} goods={g} message={message} full={full} customer={customer} picked={!!(look.bannerUrl && look.cardUrl)} />
     </div>
   );
 }

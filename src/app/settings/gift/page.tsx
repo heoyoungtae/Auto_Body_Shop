@@ -201,7 +201,7 @@ export default async function GiftSettingsPage({
                     className="space-y-2 rounded-md border border-[var(--line)] p-3"
                   >
                     <p className="text-sm font-medium">
-                      {r.label}{" "}
+                      {r.label} ({r.size[0]}×{r.size[1]}){" "}
                       <span className="text-xs font-normal text-[var(--muted)]">
                         · {r.where}
                       </span>
@@ -230,7 +230,7 @@ export default async function GiftSettingsPage({
                     )}
                     <form action={giftImageAction}>
                       <input type="hidden" name="kind" value={k} />
-                      <GiftImageUpload kind={k} advice={r.advice} />
+                      <GiftImageUpload kind={k} advice={r.advice} size={r.size} />
                     </form>
                   </div>
                 );

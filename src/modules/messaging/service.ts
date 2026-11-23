@@ -11,6 +11,7 @@ import {
   GIFT_ID_RE,
   GIFT_IMAGE_KINDS,
   GIFT_PROVIDERS,
+  GIFT_MSG_MAX,
   GIFT_TITLE_MAX,
   giftishowBalance,
   isGiftProviderId,
@@ -567,8 +568,10 @@ export async function saveGift(
       `문자 제목은 ${GIFT_TITLE_MAX}자까지입니다(지금 ${title.length}자)`,
     );
   const defaultMessage = (input.defaultMessage ?? "").trim();
-  if (defaultMessage.length > 1000)
-    throw new MessagingError("기본 문구는 1000자까지입니다");
+  if (defaultMessage.length > GIFT_MSG_MAX)
+    throw new MessagingError(
+      `기본 문구는 ${GIFT_MSG_MAX}자까지입니다(기프티쇼 비즈는 문자 본문을 ${GIFT_MSG_MAX}자까지만 보냄)`,
+    );
   const templateId = (input.templateId ?? "").replace(/\s/g, "");
   const bannerId = (input.bannerId ?? "").replace(/\s/g, "");
   for (const [v, label] of [
@@ -577,7 +580,7 @@ export async function saveGift(
   ] as const)
     if (v && !GIFT_ID_RE.test(v))
       throw new MessagingError(
-        `${label}는 기프티쇼 비즈 [쿠폰 꾸미기]에 나온 번호를 그대로 적어 주세요(예: 202006010058067)`,
+        `${label}는 기프티쇼 비즈 [오픈API > 서비스 관리]에 나온 번호를 그대로 적어 주세요(예: 202006010058067)`,
       );
   for (const [v, label, max] of [
     [input.monthLimit, "월 예산 한도", 1e9],
@@ -646,7 +649,7 @@ export async function saveGiftImage(
       throw new MessagingError("올릴 그림 파일을 골라 주세요");
     if (file.bytes.length > MAX_GIFT_IMAGE_BYTES)
       throw new MessagingError(
-        "그림이 3MB보다 큽니다. 크기를 줄여 다시 저장해 주세요",
+        "그림이 500KB보다 큽니다. 기프티쇼 규격(배너 700×280, 카드 330×330)으로 줄여 다시 저장해 주세요",
       );
     const type = sniffImage(file.bytes);
     if (!type)

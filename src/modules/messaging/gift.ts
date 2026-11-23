@@ -60,9 +60,9 @@ export const GIFT_PROVIDERS: Record<
       },
       {
         id: "decorate",
-        title: "카드·배너 만들기(쿠폰 꾸미기)",
+        title: "배너·카드 등록",
         detail:
-          "기프티쇼 비즈에서 쿠폰 위에 붙는 배너(가게 이름·로고 띠)와 상품 옆에 붙는 카드 그림을 등록하면 카드 아이디·배너 아이디가 나옵니다. 그 번호와 같은 그림을 아래에 넣으면 보내기 화면에서 받는 사람이 보게 될 모양을 미리 볼 수 있습니다. 안 넣으면 기프티쇼 기본 모양으로 갑니다.",
+          "기프티쇼 비즈 [메시지 관리]에 배너(700×280)·카드(330×330) 그림을 등록하면 [오픈API > 서비스 관리]에 배너 아이디·카드 아이디가 나옵니다. 그 번호를 아래에 적고, 같은 그림을 올려 두면 보내기 화면에서 받는 사람이 보게 될 모양을 미리 볼 수 있습니다. 안 넣으면 기프티쇼 기본 모양으로 갑니다.",
         link: "https://biz.giftishow.com",
       },
       {
@@ -148,8 +148,12 @@ export type GiftGoods = {
   image?: string;
   /** 쿠폰 유효기간(받은 날부터 며칠) */
   limitDay?: number;
+  /** 교환처(쓸 수 있는 곳) */
+  affiliate?: string;
 };
 
+/** 기프티쇼 비즈 문자 본문은 200자까지만 보낸다(넘으면 뒤가 잘림) */
+export const GIFT_MSG_MAX = 200;
 /** 문자 제목 기본값(기프티쇼 MMS 제목은 20자까지) */
 export const GIFT_TITLE_MAX = 20;
 export const defaultGiftTitle = (shop: string) =>
@@ -158,8 +162,8 @@ export const defaultGiftTitle = (shop: string) =>
 export const GIFT_VARS = ["{고객}", "{목적}", "{가게}"] as const;
 export const BUILTIN_GIFT_MESSAGE =
   "{고객}님, {가게}입니다. {목적}으로 작은 선물을 보내 드립니다. 감사합니다.";
-/** 문구 만들기: 직원이 적은 문구 → 설정의 기본 문구 → 앱 기본 문구 순서. 보내기와 미리보기가 같은 것을 쓴다 */
-export function giftMessage(
+/** 문구 만들기(자르기 전): 직원이 적은 문구 → 설정의 기본 문구 → 앱 기본 문구 순서. 보내기와 미리보기가 같은 것을 쓴다 */
+export function giftMessageFull(
   typed: string,
   template: string,
   v: { customer: string; purpose: string; shop: string },
@@ -168,9 +172,14 @@ export function giftMessage(
   return t
     .replaceAll("{고객}", v.customer)
     .replaceAll("{목적}", v.purpose)
-    .replaceAll("{가게}", v.shop)
-    .slice(0, 1000);
+    .replaceAll("{가게}", v.shop);
 }
+/** 실제로 가는 문구(200자에서 자름) */
+export const giftMessage = (
+  typed: string,
+  template: string,
+  v: { customer: string; purpose: string; shop: string },
+) => giftMessageFull(typed, template, v).slice(0, GIFT_MSG_MAX);
 
 /** 카드·배너 아이디: 기프티쇼 비즈가 주는 번호(보기 202006010058067) */
 export const GIFT_ID_RE = /^[0-9A-Za-z_-]{1,40}$/;
@@ -180,20 +189,22 @@ export const GIFT_IMAGE_KINDS = ["banner", "card"] as const;
 export type GiftImageKind = (typeof GIFT_IMAGE_KINDS)[number];
 export const GIFT_IMAGE_RULES: Record<
   GiftImageKind,
-  { label: string; where: string; advice: string }
+  { label: string; where: string; advice: string; size: [number, number] }
 > = {
   banner: {
     label: "배너 그림",
     where: "쿠폰 맨 위에 붙는 가로로 긴 띠(가게 이름·로고)",
-    advice: "기프티쇼 비즈 [쿠폰 꾸미기]에 올린 배너와 같은 그림. 가로로 긴 PNG·JPG",
+    advice: "기프티쇼 비즈 [메시지 관리]에 등록한 배너와 같은 그림. 700×280, PNG·JPG 500KB 이하",
+    size: [700, 280],
   },
   card: {
     label: "카드 그림",
-    where: "상품 그림 옆(위)에 붙는 인사 카드",
-    advice: "기프티쇼 비즈 [쿠폰 꾸미기]에 올린 카드와 같은 그림. PNG·JPG",
+    where: "상품 그림 오른쪽에 나란히 붙는 정사각형 카드",
+    advice: "기프티쇼 비즈 [메시지 관리]에 등록한 카드와 같은 그림. 330×330, PNG·JPG 500KB 이하",
+    size: [330, 330],
   },
 };
-export const MAX_GIFT_IMAGE_BYTES = 3 * 1024 * 1024;
+export const MAX_GIFT_IMAGE_BYTES = 500 * 1024;
 
 /** 데모 상품(실제 발송 안 됨) */
 export const DEMO_GOODS: GiftGoods[] = [
@@ -299,6 +310,7 @@ export async function giftishowGoods(
       price: Number(g.salePrice ?? g.discountPrice ?? g.realPrice ?? 0),
       image: httpsUrl(g.mmsGoodsImg ?? g.goodsImgB ?? g.goodsImgS),
       limitDay: Number(g.limitDay ?? g.limit_day ?? 0) || undefined,
+      affiliate: String(g.affiliate ?? "") || undefined,
     }))
     .filter((g) => g.code && g.name && g.price > 0);
 }
@@ -313,7 +325,7 @@ export async function giftishowSend(
     title: string;
     message: string;
     callback: string;
-    /** 카드 아이디(기프티쇼 비즈 쿠폰 꾸미기). 비우면 기본 카드 */
+    /** 카드 아이디(기프티쇼 비즈 오픈API > 서비스 관리). 비우면 기본 카드 */
     templateId?: string;
     /** 배너 아이디. 비우면 기본 배너 */
     bannerId?: string;
@@ -329,7 +341,7 @@ export async function giftishowSend(
       phone_no: input.phone,
       tr_id: input.trId,
       mms_title: input.title.slice(0, 20),
-      mms_msg: input.message.slice(0, 1000),
+      mms_msg: input.message.slice(0, GIFT_MSG_MAX),
       callback_no: input.callback,
       ...(input.templateId ? { template_id: input.templateId } : {}),
       ...(input.bannerId ? { banner_id: input.bannerId } : {}),
