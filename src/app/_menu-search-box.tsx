@@ -44,8 +44,11 @@ export function MenuSearch({
   future,
   onWake,
   fav = [],
+  pinned,
   children,
 }: {
+  /** 찾기 칸 아래에 늘 붙어 있는 것(★자주 쓰는 메뉴). 찾기 목록이 열리면 숨긴다(목록에 같은 메뉴가 먼저 나온다) */
+  pinned?: ReactNode;
   /** ★자주 쓰는 메뉴(최근 메뉴보다 앞에 보인다) */
   fav?: string[];
   /** 이 사람에게 보이는 메뉴인가(권한표·역할) */
@@ -189,6 +192,7 @@ export function MenuSearch({
           </div>
           <HelpButton topic={{ kind: "panel", id: "menu.search" }} name="메뉴 찾기" />
         </div>
+        {!listOpen && pinned}
       </div>
 
       {listOpen ? (
