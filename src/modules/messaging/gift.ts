@@ -56,7 +56,14 @@ export const GIFT_PROVIDERS: Record<
         id: "callback",
         title: "발신번호 등록",
         detail:
-          "[마이비즈 > 발신번호 관리]에 등록한 번호(또는 기본번호 1588-6474)만 쓸 수 있습니다.",
+          "[마이비즈 > 발신번호 관리]에 등록한 번호(또는 기본번호 1588-6474)만 쓸 수 있습니다. 아래 '받는 사람에게 보이는 모양'의 발신번호 칸에 적습니다.",
+      },
+      {
+        id: "decorate",
+        title: "카드·배너 만들기(쿠폰 꾸미기)",
+        detail:
+          "기프티쇼 비즈에서 쿠폰 위에 붙는 배너(가게 이름·로고 띠)와 상품 옆에 붙는 카드 그림을 등록하면 카드 아이디·배너 아이디가 나옵니다. 그 번호와 같은 그림을 아래에 넣으면 보내기 화면에서 받는 사람이 보게 될 모양을 미리 볼 수 있습니다. 안 넣으면 기프티쇼 기본 모양으로 갑니다.",
+        link: "https://biz.giftishow.com",
       },
       {
         id: "charge",
@@ -137,7 +144,56 @@ export type GiftGoods = {
   name: string;
   brand: string;
   price: number;
+  /** 상품 그림 주소(공급사가 주는 것. 데모는 없음) */
+  image?: string;
+  /** 쿠폰 유효기간(받은 날부터 며칠) */
+  limitDay?: number;
 };
+
+/** 문자 제목 기본값(기프티쇼 MMS 제목은 20자까지) */
+export const GIFT_TITLE_MAX = 20;
+export const defaultGiftTitle = (shop: string) =>
+  `${shop} 선물`.slice(0, GIFT_TITLE_MAX);
+/** 기본 문구 안 바꿔 넣는 말 */
+export const GIFT_VARS = ["{고객}", "{목적}", "{가게}"] as const;
+export const BUILTIN_GIFT_MESSAGE =
+  "{고객}님, {가게}입니다. {목적}으로 작은 선물을 보내 드립니다. 감사합니다.";
+/** 문구 만들기: 직원이 적은 문구 → 설정의 기본 문구 → 앱 기본 문구 순서. 보내기와 미리보기가 같은 것을 쓴다 */
+export function giftMessage(
+  typed: string,
+  template: string,
+  v: { customer: string; purpose: string; shop: string },
+) {
+  const t = typed.trim() || template.trim() || BUILTIN_GIFT_MESSAGE;
+  return t
+    .replaceAll("{고객}", v.customer)
+    .replaceAll("{목적}", v.purpose)
+    .replaceAll("{가게}", v.shop)
+    .slice(0, 1000);
+}
+
+/** 카드·배너 아이디: 기프티쇼 비즈가 주는 번호(보기 202006010058067) */
+export const GIFT_ID_RE = /^[0-9A-Za-z_-]{1,40}$/;
+
+/** 카드·배너 그림(미리보기용으로 앱에 넣어 두는 것) */
+export const GIFT_IMAGE_KINDS = ["banner", "card"] as const;
+export type GiftImageKind = (typeof GIFT_IMAGE_KINDS)[number];
+export const GIFT_IMAGE_RULES: Record<
+  GiftImageKind,
+  { label: string; where: string; advice: string }
+> = {
+  banner: {
+    label: "배너 그림",
+    where: "쿠폰 맨 위에 붙는 가로로 긴 띠(가게 이름·로고)",
+    advice: "기프티쇼 비즈 [쿠폰 꾸미기]에 올린 배너와 같은 그림. 가로로 긴 PNG·JPG",
+  },
+  card: {
+    label: "카드 그림",
+    where: "상품 그림 옆(위)에 붙는 인사 카드",
+    advice: "기프티쇼 비즈 [쿠폰 꾸미기]에 올린 카드와 같은 그림. PNG·JPG",
+  },
+};
+export const MAX_GIFT_IMAGE_BYTES = 3 * 1024 * 1024;
 
 /** 데모 상품(실제 발송 안 됨) */
 export const DEMO_GOODS: GiftGoods[] = [
@@ -146,6 +202,7 @@ export const DEMO_GOODS: GiftGoods[] = [
     name: "아메리카노 Tall",
     brand: "보기 카페",
     price: 4700,
+    limitDay: 30,
   },
   {
     code: "DEMO-CAKE",
@@ -212,6 +269,14 @@ async function call(
   return (inner?.result ?? d.result ?? d) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
+/** 공급사가 준 그림 주소는 https 만 쓴다(http 는 https 로 바꿔 본다) */
+function httpsUrl(v: unknown): string | undefined {
+  const u = String(v ?? "").trim();
+  if (/^https:\/\//i.test(u)) return u;
+  if (/^http:\/\//i.test(u)) return u.replace(/^http:/i, "https:");
+  return undefined;
+}
+
 /** 상품 목록(판매 중) */
 export async function giftishowGoods(
   cfg: Cfg,
@@ -232,6 +297,8 @@ export async function giftishowGoods(
       name: String(g.goodsName ?? g.goods_name ?? ""),
       brand: String(g.brandName ?? g.brand_name ?? ""),
       price: Number(g.salePrice ?? g.discountPrice ?? g.realPrice ?? 0),
+      image: httpsUrl(g.mmsGoodsImg ?? g.goodsImgB ?? g.goodsImgS),
+      limitDay: Number(g.limitDay ?? g.limit_day ?? 0) || undefined,
     }))
     .filter((g) => g.code && g.name && g.price > 0);
 }
@@ -246,6 +313,10 @@ export async function giftishowSend(
     title: string;
     message: string;
     callback: string;
+    /** 카드 아이디(기프티쇼 비즈 쿠폰 꾸미기). 비우면 기본 카드 */
+    templateId?: string;
+    /** 배너 아이디. 비우면 기본 배너 */
+    bannerId?: string;
   },
   f: typeof fetch = fetch,
 ) {
@@ -260,6 +331,8 @@ export async function giftishowSend(
       mms_title: input.title.slice(0, 20),
       mms_msg: input.message.slice(0, 1000),
       callback_no: input.callback,
+      ...(input.templateId ? { template_id: input.templateId } : {}),
+      ...(input.bannerId ? { banner_id: input.bannerId } : {}),
       gubun: "N",
     },
     f,
