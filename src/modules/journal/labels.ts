@@ -296,6 +296,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "supplier.annual_confirm": "협력업체 연간 평가 확인",
   "supplier.bank": "협력업체 계좌 입력·변경",
   "supplier.bank_verify": "협력업체 계좌 전화 확인",
+  "supplier.nts": "협력업체 국세청 상태 바뀜",
+  "supplier.nts_ack": "협력업체 휴·폐업 확인",
   "supplier.doc_upload": "협력업체 서류 올림",
   "supplier.doc_remove": "협력업체 서류 지움",
   "outsource.create": "외주 의뢰서 작성",

@@ -18,6 +18,7 @@ import { stockDailyAlerts } from "@/modules/purchase/stock";
 import { scheduleDailyAlerts } from "@/modules/schedule/service";
 import { syncHolidays } from "./holidays";
 import { ntsMonthly } from "./biz-reg";
+import { supplierNtsDaily } from "@/modules/purchase/supplier-nts";
 import { checkLaws } from "@/modules/money/law-watch";
 import { legalDailyAlerts } from "@/modules/quality/legal";
 import { corrDailyAlerts } from "@/modules/quality/corr";
@@ -58,9 +59,10 @@ export const JOBS: Record<string, JobFn> = {
     const tr = await trainingDailyAlerts(db, now);
     const law = await checkLaws(db, now);
     const nts = await ntsMonthly(db, now);
+    const supNts = await supplierNtsDaily(db, now);
     const cbIdle = await carbookIdleJob(db, now);
     const corr = await corrDailyAlerts(db, now);
-    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal} · ${tr} · ${law.message} · ${nts} · ${cbIdle} · ${corr}`;
+    return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal} · ${tr} · ${law.message} · ${nts} · ${supNts} · ${cbIdle} · ${corr}`;
   },
   /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계), 내 차 수첩 알림(정기검사·보증·소모품·보험), 오늘부터 게시하는 홈페이지 공지 알림 */
   reminders: async (db, _today, now) => `${await sendReminders(db, now)} · ${await carbookAlertsJob(db, now)} · ${await noticeNotifyJob(db, now)}`,

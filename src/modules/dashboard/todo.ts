@@ -25,6 +25,7 @@ import { taskTodos } from "@/modules/task/service";
 import { journalTodos } from "@/modules/journal/entry";
 import { punchTodos } from "@/modules/staff/punch";
 import { supplierBankTodos, supplierTodos } from "@/modules/purchase/supplier";
+import { supplierNtsTodos } from "@/modules/purchase/supplier-nts";
 import { orderTodos } from "@/modules/purchase/order";
 import { stockTodos } from "@/modules/purchase/stock";
 import { outsourceTodos } from "@/modules/purchase/outsource";
@@ -644,6 +645,7 @@ export async function myTodos(
   out.push(
     ...(await supplierTodos(db, user, today)),
     ...(await supplierBankTodos(db, user)),
+    ...(await supplierNtsTodos(db, user)),
     ...(await orderTodos(db, user, today)),
     ...(await stockTodos(db, user, today, now)),
     ...(await outsourceTodos(db, user, today)),

@@ -7,6 +7,7 @@ import { SUPPLIER_KINDS, SUPPLIER_STATUS, SUPPLIER_TONE, type SupplierStatus } f
 import { listSuppliers, type SupplierFilter } from "@/modules/purchase/supplier";
 import { requireUser } from "../_lib/session";
 import { ListBar, ListPager } from "../_list-bar";
+import { ntsBad, ntsLabel } from "@/modules/purchase/supplier-nts";
 import { Badge, buttonClass, Card, Empty, Notice, PageTitle } from "../_ui";
 
 const TABS: [SupplierFilter, string][] = [
@@ -70,6 +71,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
                         {s.name}
                       </Link>
                       {s.emergencyOn && s.status !== "registered" && <Badge tone="warn">긴급 사용</Badge>}
+                      {ntsBad(s.nts) && <Badge tone="danger">{ntsLabel(s.nts)}</Badge>}
                     </td>
                     <td className="pr-2 text-xs">{s.kinds.map((k) => SUPPLIER_KINDS[k as keyof typeof SUPPLIER_KINDS]).join("·")}</td>
                     <td className="pr-2 text-xs text-[var(--muted)]">{s.items ?? "-"}</td>

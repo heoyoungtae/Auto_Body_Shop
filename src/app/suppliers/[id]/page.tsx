@@ -23,7 +23,8 @@ import { NumberField, RadioRow, TextAreaField, TextField } from "../../_input";
 import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Badge, Card, ErrorBox, fmtTime, Notice, PageTitle } from "../../_ui";
-import { supplierAction } from "../actions";
+import { supplierAction, supplierNtsAction } from "../actions";
+import { ntsBad, ntsLabel, ntsWarning, NTS_GUIDE } from "@/modules/purchase/supplier-nts";
 import { SupplierFields } from "../_form";
 import { BankFields } from "../bank-fields";
 import { BankLine } from "../bank-line";
@@ -222,6 +223,63 @@ export default async function SupplierPage({
                   </AssistForm>
                 )}
               </details>
+            )}
+          </Card>
+        </div>
+
+        <div id="nts" className="scroll-mt-4">
+          <Card title="국세청 사업자 상태" help={{ kind: "panel", id: "sup.nts" }}>
+            {!s.bizNo ? (
+              <p className="text-sm text-[var(--muted)]">사업자등록번호가 없어 확인하지 않습니다. &apos;정보·서류 고치기&apos;에서 번호를 넣으면 바로 확인합니다.</p>
+            ) : (
+              <>
+                <dl className="text-sm">
+                  {row(
+                    "상태",
+                    s.nts?.cd ? (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Badge tone={ntsBad(s.nts) ? "danger" : "ok"}>{ntsLabel(s.nts)}</Badge>
+                        {s.nts.taxType && <span className="text-[var(--muted)]">{s.nts.taxType}</span>}
+                      </span>
+                    ) : (
+                      "아직 확인 전"
+                    ),
+                  )}
+                  {row("확인한 때", s.nts?.at ? `${fmtTime(new Date(s.nts.at))}${s.nts.since && s.nts.since !== s.nts.at ? ` · 이 상태는 ${fmtTime(new Date(s.nts.since))}부터` : ""}` : null)}
+                  {s.nts?.tryAt && (!s.nts.at || s.nts.tryAt > s.nts.at) &&
+                    row("못 받음", `${fmtTime(new Date(s.nts.tryAt))} · ${s.nts.tryMsg ?? ""}`)}
+                  {s.nts?.ackAt && row("확인 기록", `${nm(s.nts.ackBy ?? null)} · ${fmtTime(new Date(s.nts.ackAt))} · ${s.nts.ackNote ?? ""}`)}
+                </dl>
+                {ntsBad(s.nts) && (
+                  <p className="mt-2 rounded-md bg-[var(--danger-soft)] p-2 text-sm">{ntsWarning(s.name, s.nts)}</p>
+                )}
+                {ntsBad(s.nts) && !s.nts?.ackAt && bankPerm && (
+                  <AssistForm id={`sup-ntsack-${id}`} action={supplierNtsAction} className="mt-3 flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="intent" value="ack" />
+                    <div className="min-w-64 flex-1">
+                      <TextField help="sup.ntsAckNote" name="ackNote" required />
+                    </div>
+                    <SubmitButton>확인함</SubmitButton>
+                  </AssistForm>
+                )}
+                {ntsBad(s.nts) && approve && status === "registered" && (
+                  <p className="mt-2 text-xs text-[var(--muted)]">거래를 그만두려면 아래 &apos;거래 중지&apos;를 누르세요.</p>
+                )}
+                {(manage || bankPerm) && (
+                  <form action={supplierNtsAction} className="mt-3 flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="intent" value="check" />
+                    <SubmitButton variant="secondary">지금 국세청 확인</SubmitButton>
+                    <span className="text-xs text-[var(--muted)]">
+                      매달 1일 자동으로 다시 확인합니다 ·{" "}
+                      <a href={NTS_GUIDE} target="_blank" rel="noreferrer" className="text-[var(--accent)] underline">
+                        활용신청 안내
+                      </a>
+                    </span>
+                  </form>
+                )}
+              </>
             )}
           </Card>
         </div>

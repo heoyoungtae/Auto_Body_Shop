@@ -8,6 +8,8 @@ import { seoulDate } from "@/modules/platform/time";
 import { CheckGroup } from "../../../_input";
 import { requireUser } from "../../../_lib/session";
 import { Badge, buttonClass, Card, Empty, PageTitle } from "../../../_ui";
+import { freshenSupplierNts, ntsWarning } from "@/modules/purchase/supplier-nts";
+import { NtsWarn } from "../../../suppliers/nts-warn";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
@@ -17,8 +19,11 @@ export default async function SupplierPayablePage({ params }: { params: Promise<
   const user = await requireUser();
   if (!can(user, "expense.draft") && !can(user, "expense.pay"))
     return <p className="text-sm text-[var(--muted)]">외상매입금·미지급금은 공장장·회계 담당·대표가 봅니다.</p>;
-  const r = await supplierLedger(await getDb(), id);
+  const db = await getDb();
+  const r = await supplierLedger(db, id);
   if (!r) notFound();
+  // 돈을 주기 전: 국세청 결과가 7일보다 오래됐으면 다시 묻는다(못 받아도 조용히)
+  const nts = r.open.length ? await freshenSupplierNts(db, id) : r.s.nts;
   const today = seoulDate();
   const draft = can(user, "expense.draft");
   const dueIds = r.open.filter((x) => x.dueOn <= today || x.dueOn.slice(0, 7) === today.slice(0, 7)).map((x) => x.id);
@@ -41,6 +46,7 @@ export default async function SupplierPayablePage({ params }: { params: Promise<
       >
         {r.s.name} 거래처 원장
       </PageTitle>
+      <NtsWarn text={ntsWarning(r.s.name, nts)} supplierId={id} />
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="지급 결의할 것" help={{ kind: "panel", id: "pay.settle" }}>
           {r.open.length ? (
