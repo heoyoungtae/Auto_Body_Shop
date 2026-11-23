@@ -2,7 +2,7 @@
 // 사이드 메뉴 맨 위의 '메뉴 찾기' 칸(사용자 확정 2026-11-11). 2026-11-12부터 차량번호·전화번호·이름으로 수리 건·고객 바로 가기도 함(_quick-find-action.ts).
 // 글자를 치면 묶음과 상관없이 맞는 메뉴만 평평하게 보이고, 비우면 원래 메뉴(children)로 돌아간다.
 // 어느 화면에서든 / 또는 Ctrl+K(맥은 ⌘K)로 바로 칸에 간다. ↑↓로 고르고 Enter로 열고, Esc로 지운다.
-// 칸을 누르기만 하면 최근에 연 메뉴 5개가 나온다(이 기기에만 기억). 권한 없는 메뉴는 부르는 쪽(allowed)에서 걸러 준다.
+// 칸을 누르기만 하면 ★자주 쓰는 메뉴(사이드 메뉴 ☆로 고른 것)를 먼저, 그 아래 최근에 연 메뉴 5개가 나온다(이 기기에만 기억, 대표 지시 2026-11-23 자주 쓰는 메뉴를 최근 메뉴 앞에). 권한 없는 메뉴는 부르는 쪽(allowed)에서 걸러 준다.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
@@ -43,8 +43,11 @@ export function MenuSearch({
   allowed,
   future,
   onWake,
+  fav = [],
   children,
 }: {
+  /** ★자주 쓰는 메뉴(최근 메뉴보다 앞에 보인다) */
+  fav?: string[];
   /** 이 사람에게 보이는 메뉴인가(권한표·역할) */
   allowed: (i: MenuItem) => boolean;
   /** '개발 예정 메뉴도 보기'를 켰는가 */
@@ -85,15 +88,17 @@ export function MenuSearch({
   }, [onWake]);
 
   const shown = (i: MenuItem) => allowed(i) && (future || !!i.href);
-  const hits: MenuHit[] = useMemo(() => {
+  const hits: (MenuHit & { pin?: boolean })[] = useMemo(() => {
     if (q.trim()) return searchMenu(q).filter(shown);
     if (!focus) return [];
-    return recent
-      .map((h) => ALL_ENTRIES.find((e) => e.href === h))
-      .filter((e): e is (typeof ALL_ENTRIES)[number] => !!e && shown(e))
-      .map((e) => ({ ...e, score: 0 }));
+    const pick = (list: string[], pin: boolean) =>
+      list
+        .map((h) => ALL_ENTRIES.find((e) => e.href === h))
+        .filter((e): e is (typeof ALL_ENTRIES)[number] => !!e && shown(e))
+        .map((e) => ({ ...e, score: 0, pin }));
+    return [...pick(fav, true), ...pick(recent.filter((h) => !fav.includes(h)), false)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, focus, recent, future, allowed]);
+  }, [q, focus, recent, fav, future, allowed]);
   const openable = hits.filter((h) => h.href);
   // 맞는 메뉴는 있지만 권한이 없어 숨긴 경우(못 찾은 까닭을 알려 준다)
   const hidden = q.trim() && !hits.length && searchMenu(q).some((h) => !allowed(h));
@@ -188,7 +193,6 @@ export function MenuSearch({
 
       {listOpen ? (
         <div className="px-2 pt-2">
-          {!searching && <p className="px-2 pb-1 text-xs font-semibold text-[var(--muted)]">최근에 연 메뉴</p>}
           {searching && (
             <p className="px-2 pb-1 text-xs text-[var(--muted)]" aria-live="polite">
               {hits.length || found.length ? `${hits.length + found.length}개 · Enter로 열기` : hidden ? "내 권한으로 열 수 있는 메뉴가 없습니다. 필요하면 대표에게 권한을 요청하세요." : "맞는 메뉴가 없습니다"}
@@ -214,7 +218,13 @@ export function MenuSearch({
                   </Link>
                 </li>
               ))}
-            {hits.map((h) =>
+            {hits.map((h, i) => [
+              // 비운 칸: '★ 자주 쓰는 메뉴' 다음에 '최근에 연 메뉴'
+              !searching && (i === 0 || hits[i - 1].pin !== h.pin) && (
+                <li key={`head-${h.pin ? "fav" : "recent"}`} role="presentation" className={`px-2 pb-1 text-xs font-semibold text-[var(--muted)] ${i ? "pt-2" : ""}`}>
+                  {h.pin ? "★ 자주 쓰는 메뉴" : "최근에 연 메뉴"}
+                </li>
+              ),
               h.href ? (
                 <li key={h.href} id={optId(h.href)} role="option" aria-selected={h.href === activeHref}>
                   <Link
@@ -238,7 +248,7 @@ export function MenuSearch({
                   <Where h={h} />
                 </li>
               ),
-            )}
+            ])}
           </ul>
           {searching && (
             <Link

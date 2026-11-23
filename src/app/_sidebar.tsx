@@ -165,7 +165,7 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             ×
           </button>
         </div>
-        <MenuSearch allowed={allowed} future={future} onWake={wake}>
+        <MenuSearch allowed={allowed} future={future} onWake={wake} fav={fav}>
         <ul className="space-y-0.5 px-2 pt-2 pb-1" data-menu>
           {TOP.filter(allowed).map((i) => (
             <li key={i.label}>
