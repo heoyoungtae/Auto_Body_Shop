@@ -13,8 +13,19 @@ import { dayLabel } from "../_format";
 import { SubmitButton } from "../_submit";
 import { requireUser } from "../_lib/session";
 import { Badge, buttonClass, Card, Empty, ErrorBox, PageTitle, fmtTime } from "../_ui";
+import { HelpButton } from "../_help-drawer";
 import { startRepairAction } from "./actions";
-import { ListBar, ListPager, ListTabs } from "../_list-bar";
+import { ListBar, ListPager } from "../_list-bar";
+
+/** 상태별 다음 할 일(수리 건 화면의 '다음' 단추와 같은 순서) */
+const NEXT_STEP: Partial<Record<keyof typeof RO_STATUS_LABEL, { label: string; path: string }>> = {
+  intake: { label: "입고 점검 마치기", path: "" },
+  checked: { label: "손상 진단", path: "" },
+  estimating: { label: "견적·고객 승인", path: "" },
+  working: { label: "작업 진행 보기", path: "" },
+  inspecting: { label: "검사하기", path: "/inspect" },
+  ready: { label: "출고하기", path: "/delivery" },
+};
 
 export default async function RepairsPage({ searchParams }: { searchParams: Promise<Q> }) {
   const q = await searchParams;
@@ -43,10 +54,22 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
           )
         }
       >
-        접수·입고
+        입고·진단
       </PageTitle>
       <ErrorBox message={q.error} />
-      <div className="mt-4 grid gap-4 xl:grid-cols-5 xl:items-start">
+      {/* 입고 예정이 없으면 한 줄 안내만 두고 목록이 화면 폭을 다 쓴다(대표 결정 2026-11-23 PC 화면 개선) */}
+      {!arrivals.length && (
+        <p className="mt-2 mb-3 flex flex-wrap items-center gap-1 text-sm text-[var(--muted)]">
+          <HelpButton topic={{ kind: "panel", id: "repairs.arrivals" }} name="입고 예정" />
+          입고 예정: 오늘·{dayLabel(panel.next, today)} 입고 예약이 없습니다. 예약 없이 온 차는{" "}
+          <Link href="/consults/new" className="text-[var(--accent)]">
+            새 상담
+          </Link>
+          을 먼저 씁니다.
+        </p>
+      )}
+      <div className={`mt-4 grid gap-4 xl:items-start ${arrivals.length ? "xl:grid-cols-5" : ""}`}>
+        {arrivals.length > 0 && (
         <div className="xl:col-span-2">
           <Card title="입고 예정" help={{ kind: "panel", id: "repairs.arrivals" }}>
             {arrivals.length ? (
@@ -78,18 +101,12 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
                   );
                 })}
               </ul>
-            ) : (
-              <Empty>
-                오늘·{dayLabel(panel.next, today)} 입고 예약이 없습니다. 예약 없이 온 차는 <Link href="/consults/new" className="text-[var(--accent)]">새 상담</Link>을 먼저 씁니다.
-              </Empty>
-            )}
+            ) : null}
           </Card>
         </div>
-        <div className="xl:col-span-3">
-          <div className="mb-3 space-y-3">
-            <ListTabs r={r} />
-            <ListBar r={r} />
-          </div>
+        )}
+        <div className={arrivals.length ? "xl:col-span-3" : ""}>
+          <ListBar r={r} />
           <Card title="수리 건" help={{ kind: "panel", id: "repairs.list" }}>
             {repairs.length ? (
               <div className="overflow-x-auto">
@@ -99,8 +116,10 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
                       <th className="py-1.5 pr-3 font-medium">번호</th>
                       <th className="py-1.5 pr-3 font-medium">고객·차량</th>
                       <th className="py-1.5 pr-3 font-medium">상태</th>
+                      <th className="py-1.5 pr-3 font-medium">담당</th>
                       <th className="py-1.5 pr-3 font-medium">입고</th>
-                      <th className="py-1.5 font-medium">점검</th>
+                      <th className="py-1.5 pr-3 font-medium">점검</th>
+                      <th className="py-1.5 font-medium">다음 할 일</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
@@ -116,20 +135,19 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
                         </td>
                         <td className="py-2 pr-3">
                           <Badge tone={r.status === "intake" ? "warn" : r.status === "checked" ? "accent" : "neutral"}>{RO_STATUS_LABEL[r.status]}</Badge>
-                          {r.status === "inspecting" && (
-                            <Link href={`/repairs/${r.id}/inspect`} className="ml-2 text-xs text-[var(--accent)]">
-                              검사하기
-                            </Link>
-                          )}
-                          {r.status === "ready" && (
-                            <Link href={`/repairs/${r.id}/delivery`} className="ml-2 text-xs text-[var(--accent)]">
-                              출고하기
-                            </Link>
-                          )}
                         </td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{r.advisor ?? "—"}</td>
                         <td className="py-2 pr-3 whitespace-nowrap">{fmtTime(r.inAt)}</td>
-                        <td className="py-2 text-xs">
+                        <td className="py-2 pr-3 text-xs">
                           {r.signedAt ? <Badge tone="ok">서명 {fmtTime(r.signedAt)}</Badge> : <span className={r.photos >= minPhotos ? "" : "text-[var(--warn)]"}>사진 {r.photos}장 · 서명 전</span>}
+                        </td>
+                        <td className="py-2 text-sm whitespace-nowrap">
+                          {/* 목록에서 바로 다음 일로(대표 결정 2026-11-23) */}
+                          {NEXT_STEP[r.status] && (
+                            <Link href={`/repairs/${r.id}${NEXT_STEP[r.status]!.path}`} className="text-[var(--accent)] hover:underline">
+                              {NEXT_STEP[r.status]!.label} →
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -137,7 +155,7 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
                 </table>
               </div>
             ) : (
-              <Empty>{r.loaded && r.count === 0 ? "조건에 맞는 수리 건이 없습니다." : all ? "수리 건이 없습니다." : "진행 중인 수리 건이 없습니다. 왼쪽 입고 예정에서 '입고 시작'을 누르면 생깁니다."}</Empty>
+              <Empty>{r.loaded && r.count === 0 ? "조건에 맞는 수리 건이 없습니다." : all ? "수리 건이 없습니다." : "진행 중인 수리 건이 없습니다. 입고 예정에서 '입고 시작'을 누르면 생깁니다."}</Empty>
             )}
             <ListPager r={r} />
           </Card>

@@ -57,7 +57,7 @@ export default async function SitePagesSettingsPage({ searchParams }: { searchPa
             <TextItems id={group.id} title={group.title} keys={groupKeys(group.id)} raw={raw} back={back} />
           )}
         </div>
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
           <TokenList tokens={Object.entries(TOKENS).map(([name, t]) => ({ name, label: t.label, now: t.get(p) }))} />
         </div>
       </div>

@@ -1,6 +1,7 @@
 // 통계·보고서 센터: 분류별 탭(사용자 결정 2026-11-13 "분류별 탭으로 분리"). 볼 수 있는 분류만 탭으로 나오고,
 // 탭 안에는 그 분류 보고서와 이번 달 대표 숫자 미리보기, 아직 만들지 않은 보고서는 흐리게 단계와 함께. 마지막 탭은 대장·전표 현황(목록 화면) 목차.
 import Link from "next/link";
+import { can } from "@/modules/auth/permissions";
 import { cookies } from "next/headers";
 import { getDb } from "@/db/runtime";
 import { canAnyReport, FAMILIES, type FamilyId } from "@/modules/report/catalog";
@@ -9,7 +10,7 @@ import { runPeek } from "@/modules/report/run";
 import { delta, fmtMetric } from "@/modules/report/service";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
-import { Badge, Card, PageTitle } from "../_ui";
+import { Badge, buttonClass, Card, PageTitle } from "../_ui";
 import { RememberTab } from "./_remember-tab";
 import { familyReports, FamilyTabs, isTab, LAST_TAB_COOKIE, listGroups, type TabId, visibleTabs } from "./_tabs";
 
@@ -38,7 +39,17 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const tab: TabId = isTab(asked) && tabs.includes(asked) ? asked : isTab(last) && tabs.includes(last) ? last : tabs[0];
   return (
     <>
-      <PageTitle help="reports" sub="위 탭에서 분류를 고르고 보고서를 엽니다. 보고서 안에서 기간(일·주·월·분기·반기·연·직접 지정)을 바꾸고 앞 기간이나 작년 같은 기간과 비교합니다. 숫자는 모두 앞선 전표에서 계산하며 따로 입력하는 값은 없습니다.">
+      <PageTitle
+        help="reports"
+        actions={
+          // 월간 경영보고서(결재용)는 메뉴 대신 여기서 연다(대표 결정 2026-11-23 메뉴 정리)
+          can(user, "money.close_month") ? (
+            <Link href="/reports/monthly" className={buttonClass("secondary")}>
+              월간 경영보고서
+            </Link>
+          ) : undefined
+        }
+        sub="위 탭에서 분류를 고르고 보고서를 엽니다. 보고서 안에서 기간(일·주·월·분기·반기·연·직접 지정)을 바꾸고 앞 기간이나 작년 같은 기간과 비교합니다. 숫자는 모두 앞선 전표에서 계산하며 따로 입력하는 값은 없습니다.">
         통계·보고서
       </PageTitle>
       <FamilyTabs tabs={tabs} current={tab} />

@@ -100,7 +100,7 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
           )}
           {ctx.ro.status === "working" && <p className="text-sm text-[var(--muted)]">작업(재작업 포함)이 끝나면 검사 대기가 됩니다.</p>}
         </div>
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
           <Card title="검사 기록" help={{ kind: "panel", id: "qc.history" }}>
             {rounds.length ? (
               <ul className="space-y-3 text-sm">

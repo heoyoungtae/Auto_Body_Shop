@@ -11,6 +11,7 @@ import { BranchPicker } from "./_branch/picker";
 import { HelpProvider } from "./_help-drawer";
 import { TableCards } from "./_table-cards";
 import { AppAlerts } from "./_app-alerts";
+import { Shortcuts } from "./_shortcuts";
 import { HomeLink, MyMenu } from "./my/my-nav";
 import { MenuButton, NavProvider, Sidebar } from "./_sidebar";
 import { APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
@@ -126,6 +127,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </div>
             {/* 새 알림: 홈 화면 앱 첫 실행 때 알림 받기 묻기, 열려 있을 때 클랙슨 소리(대표 지시 2026-11-21) */}
             {user && <AppAlerts unread={unread} />}
+            {user && <Shortcuts />}
             <TableCards />
           </NavProvider>
         </HelpProvider>

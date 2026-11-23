@@ -82,17 +82,17 @@ export default async function MoneyPage({
           title="수납 기록 안 한 출고"
           help={{ kind: "panel", id: "money.unrecorded" }}
         >
-          <p className="text-2xl font-semibold">{todo.length}건</p>
+          <a href="#todo" className="text-2xl font-semibold hover:underline">{todo.length}건</a>
         </Card>
         <Card title="고객 미수" help={{ kind: "panel", id: "money.ar" }}>
-          <p className="text-2xl font-semibold">{won(carSum)}</p>
+          <a href="#ar" className="block text-2xl font-semibold hover:underline">{won(carSum)}</a>
           <p className="text-xs text-[var(--muted)]">
             {car.length}건 · {AR_DUN_DAYS}일 넘음{" "}
             {car.filter((r) => (r.days ?? 0) >= AR_DUN_DAYS).length}건
           </p>
         </Card>
         <Card title="보험사 미수" help={{ kind: "panel", id: "money.insurer" }}>
-          <p className="text-2xl font-semibold">{won(iarSum)}</p>
+          <a href="#insurer" className="block text-2xl font-semibold hover:underline">{won(iarSum)}</a>
           <p className="text-xs text-[var(--muted)]">
             청구하고 입금 확인 전 {iar.length}건
           </p>
@@ -100,6 +100,7 @@ export default async function MoneyPage({
       </div>
 
       {todo.length > 0 && (
+        <div id="todo" className="mt-4 scroll-mt-20">
         <Card
           title="수납 기록 안 한 출고"
           help={{ kind: "panel", id: "money.unrecorded" }}
@@ -124,8 +125,12 @@ export default async function MoneyPage({
             ))}
           </ul>
         </Card>
+        </div>
       )}
 
+      {/* 넓은 PC: 고객 미수·보험사 미수를 나란히(대표 결정 2026-11-23 PC 화면 개선). 위 숫자를 누르면 여기로 */}
+      <div className="my-4 grid gap-4 xl:grid-cols-2 xl:items-start">
+      <div id="ar" className="scroll-mt-20">
       <Card title="고객 미수" help={{ kind: "panel", id: "money.ar" }}>
         {car.length ? (
           <ul className="divide-y divide-[var(--line)] text-sm">
@@ -160,7 +165,9 @@ export default async function MoneyPage({
           <Empty>고객 미수가 없습니다.</Empty>
         )}
       </Card>
+      </div>
 
+      <div id="insurer" className="scroll-mt-20">
       <Card title="보험사 미수" help={{ kind: "panel", id: "money.insurer" }}>
         {iar.length ? (
           <ul className="divide-y divide-[var(--line)] text-sm">
@@ -192,6 +199,8 @@ export default async function MoneyPage({
           <Empty>입금 기다리는 보험 청구가 없습니다.</Empty>
         )}
       </Card>
+      </div>
+      </div>
 
       <Card
         title="입금 전표"

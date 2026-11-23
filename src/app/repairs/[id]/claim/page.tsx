@@ -211,7 +211,7 @@ export default async function ClaimPage({ params, searchParams }: { params: Prom
           </Card>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
           <Card title="누가 얼마를 내나" help={{ kind: "panel", id: "claim.split" }}>
             <dl className="space-y-1.5 text-sm">
               <div className="flex justify-between">

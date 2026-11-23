@@ -42,18 +42,18 @@ describe("메뉴 찾기", () => {
     const h = searchMenu("도색")[0];
     expect(h.label).toBe("작업·공정");
     expect(h.via).toBe("도색");
-    expect(first("월급")).toBe("급여대장");
-    expect(first("입고")).toBe("접수·입고");
+    expect(["급여대장", "내 임금명세서"]).toContain(first("월급")); // 둘 다 별칭 앞머리로 맞음(내 임금명세서는 2026-11-23 내 업무로 옮김)
+    expect(first("입고")).toBe("입고·진단");
   });
   it("표준서 번호와 묶음 이름으로 찾는다", () => {
     expect(labels("STD-08")).toEqual(expect.arrayContaining(["설비 대장", "일상 점검", "윤활", "예방정비"]));
     expect(labels("std08.2")).toContain("일상 점검");
-    expect(labels("수리 업무")).toEqual(expect.arrayContaining(["상담·예약", "접수·입고", "보험 청구"]));
+    expect(labels("수리 업무")).toEqual(expect.arrayContaining(["상담·예약", "입고·진단", "보험 청구"]));
   });
   it("이름으로 맞은 것이 별칭으로 맞은 것보다 앞에 온다", () => {
     const l = labels("입고");
-    expect(l.indexOf("접수·입고")).toBeLessThan(l.indexOf("재고") === -1 ? 99 : l.indexOf("재고"));
-    expect(l.slice(0, 2)).toEqual(expect.arrayContaining(["접수·입고", "발주·입고"]));
+    expect(l.indexOf("입고·진단")).toBeLessThan(l.indexOf("재고") === -1 ? 99 : l.indexOf("재고"));
+    expect(l.slice(0, 2)).toEqual(expect.arrayContaining(["입고·진단", "발주·입고"]));
   });
   it("낱말을 띄어 여러 개 치면 모두 맞는 것만", () => {
     expect(labels("발송 이력")).toEqual(["발송 이력"]);

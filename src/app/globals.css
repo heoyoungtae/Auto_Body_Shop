@@ -271,6 +271,12 @@
     flex: 1 1 100%;
     min-width: 0;
   }
+  /* 칸 묶음 안에 든 단추(저장·넣기)는 화면 폭 막대로 늘이지 않고 제 크기로 왼쪽에 둔다(대표 결정 2026-11-23 저장 단추 통일) */
+  :has(> .fld) > :where(button, a[class*="h-11"]),
+  .fld-flow > :where(button, a[class*="h-11"]) {
+    flex: 0 0 auto;
+    align-self: flex-start;
+  }
   :has(> .fld) > .fld[data-fit],
   .fld-flow > .fld[data-fit],
   .fld-flow > .fld-case > .fld[data-fit] {
@@ -387,4 +393,73 @@ main pre {
   textarea {
     font-size: max(16px, 1em);
   }
+}
+
+/* ── PC 화면 개선(대표 결정 2026-11-23) ──
+   마우스로 쓰는 넓은 화면(PC)에서만 '촘촘하게': 단추·입력 칸 높이 44px → 36px, 표 줄 간격·패널 안 여백을 줄인다.
+   손가락으로 누르는 태블릿·휴대폰(pointer: coarse)은 지금 크기 그대로다. 글자 크기는 바꾸지 않는다. */
+@media (pointer: fine) and (min-width: 1024px) {
+  main .h-11,
+  #site-header .h-11 {
+    height: 2.25rem;
+  }
+  main .min-h-11 {
+    min-height: 2.25rem;
+  }
+  main .min-h-12 {
+    min-height: 2.5rem;
+  }
+  main .size-11 {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  main :where(a, button).h-11.px-4 {
+    padding-inline: 0.875rem;
+  }
+  main :where(table) :where(td).py-2 {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+  main :where(table) :where(td).py-2\.5 {
+    padding-top: 0.4375rem;
+    padding-bottom: 0.4375rem;
+  }
+  main > :where(*) section.p-4 {
+    padding: 0.875rem 1rem;
+  }
+  .fld-label {
+    padding: 0.375rem 0.75rem;
+  }
+  .fld-body {
+    padding: 0.3125rem 0.5rem;
+  }
+}
+
+/* 긴 표 제목 줄 고정(_table-cards.tsx 가 줄이 많은 표에 data-sticky 를 붙인다) */
+@media (min-width: 1024px) {
+  [data-sticky-wrap] {
+    overflow-x: clip !important;
+  }
+  table[data-sticky] > thead th {
+    position: sticky;
+    top: 3.5rem;
+    z-index: 5;
+    background: var(--surface);
+    box-shadow: inset 0 -1px 0 var(--line);
+  }
+}
+@media print {
+  table[data-sticky] > thead th {
+    position: static;
+  }
+}
+
+/* 긴 글 읽기: 글 줄은 한 줄 45자 남짓까지만(표는 폭 그대로). 대표 결정 2026-11-23 PC 화면 개선 —
+   11-08 '최대 폭 없음' 지시의 예외로 표준서·규정·직무기술서·도움말 같은 읽는 화면에만 쓴다. */
+.read-col :where(p, li, blockquote, dd, pre) {
+  max-width: 45em;
+}
+/* 화면에 바로 이어 붙은 패널끼리 사이를 띄운다 */
+main > section + section {
+  margin-top: 1rem;
 }

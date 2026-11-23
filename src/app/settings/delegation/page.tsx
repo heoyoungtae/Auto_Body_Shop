@@ -42,7 +42,7 @@ export default async function DelegationPage({ searchParams }: { searchParams: P
       </PageTitle>
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
-      <div className="space-y-3">
+      <div className="space-y-3 xl:grid xl:grid-cols-2 xl:items-start xl:gap-3 xl:space-y-0">
         {rows.map((r) => (
           <Card
             key={r.task}

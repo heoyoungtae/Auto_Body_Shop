@@ -6,7 +6,7 @@ import { claimsList } from "@/modules/listq/defs/repair";
 import { CLAIM_STATUS_LABEL, COVERAGE_LABEL } from "@/modules/repair/claim-rules";
 import { RO_STATUS_LABEL } from "@/modules/repair/rules";
 import { requireUser } from "../_lib/session";
-import { ListBar, ListPager, ListTabs } from "../_list-bar";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, Card, Empty, PageTitle } from "../_ui";
 
 const NEXT: Record<string, string> = { info: "접수 정보 확인", request: "손해사정 요청", scope: "보험사 회신(승인 범위) 기다림", claim: "청구", dun: "입금 독촉" };
@@ -26,7 +26,6 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
         보험 청구
       </PageTitle>
       <div className="mt-4 space-y-3">
-        <ListTabs r={lr} />
         <ListBar r={lr} />
         <Card title="보험 수리 건" help={{ kind: "panel", id: "claims.list" }}>
           {rows.length ? (

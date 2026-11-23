@@ -6,7 +6,7 @@ import { complaintsList } from "@/modules/listq/defs/repair";
 import { CATEGORIES, CHANNELS, CP_STATUS, CP_TONE, REPEAT_PER_QUARTER, SURVEY_QUESTIONS, VERDICTS, type CpStatus } from "@/modules/cs/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
-import { ListBar, ListPager, ListTabs } from "../_list-bar";
+import { ListBar, ListPager } from "../_list-bar";
 import { Badge, buttonClass, Card, Empty, fmtTime, PageTitle } from "../_ui";
 
 const prevYm = (ym: string) => {
@@ -49,9 +49,6 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
       </PageTitle>
       <div className="grid gap-4 2xl:grid-cols-[3fr_2fr]">
         <Card title="불만 처리부" help={{ kind: "panel", id: "cp.list" }}>
-          <div className="mb-3">
-            <ListTabs r={lr} />
-          </div>
           <ListBar r={lr} bare />
           {rows.length ? (
             <div className="overflow-x-auto">

@@ -111,7 +111,7 @@ export default async function ContextPage({
             {issues.map((it, i) => (
               <div
                 key={i}
-                className="grid gap-2 rounded-md border border-[var(--line)] p-3 md:grid-cols-2"
+                className="grid gap-2 rounded-md border border-[var(--line)] p-3 md:grid-cols-2 xl:grid-cols-[minmax(9rem,12rem)_repeat(3,minmax(0,1fr))]"
               >
                 <input
                   type="hidden"
@@ -153,13 +153,13 @@ export default async function ContextPage({
                     />
                   </>
                 ) : (
-                  <p className="text-sm md:col-span-2">
+                  <p className="text-sm md:col-span-2 xl:col-span-4">
                     <b>{it.area}</b> · {it.issue} · 영향: {it.impact} · 대응:{" "}
                     {it.action}
                   </p>
                 )}
                 {it.riskNo && (
-                  <p className="text-xs md:col-span-2">
+                  <p className="text-xs md:col-span-2 xl:col-span-4">
                     <Badge tone="accent">리스크 대장 {it.riskNo}</Badge>
                   </p>
                 )}

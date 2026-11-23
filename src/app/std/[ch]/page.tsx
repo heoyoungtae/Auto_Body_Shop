@@ -55,25 +55,30 @@ export default async function StdChapter({ params, searchParams }: { params: Pro
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
+      {/* 넓은 PC: 본문 글 줄은 읽기 좋은 폭으로, 이 장 차례는 오른쪽에 붙여 둔다(대표 결정 2026-11-23 PC 화면 개선) */}
+      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_15rem] xl:items-start xl:gap-5">
       {(oSecs.length > 0 || pSecs.length > 0) && (
-        <nav aria-label="이 장의 절" className="mb-4 flex flex-wrap gap-1.5 text-sm print:hidden">
+        <nav aria-label="이 장의 절" className="mb-4 flex flex-wrap gap-1.5 text-sm print:hidden xl:sticky xl:top-[4.5rem] xl:col-start-2 xl:row-start-1 xl:max-h-[calc(100vh-5.5rem)] xl:flex-col xl:flex-nowrap xl:gap-0.5 xl:overflow-y-auto xl:border-l xl:border-[var(--line)] xl:pl-3">
+          <span className="hidden text-xs text-[var(--muted)] xl:mb-1 xl:block">이 장 차례</span>
           {oSecs.map((s) => (
-            <a key={s.key} href={`#${anchorOf(s)}`} className="rounded-full border border-[var(--line)] px-2.5 py-1 hover:bg-[var(--surface-2)]">
+            <a key={s.key} href={`#${anchorOf(s)}`} className="rounded-full border border-[var(--line)] px-2.5 py-1 hover:bg-[var(--surface-2)] xl:rounded-md xl:border-0 xl:px-2">
               {s.no || s.title}
+              {s.no && <span className="hidden text-[var(--muted)] xl:inline"> {s.title}</span>}
             </a>
           ))}
           {proc && (
-            <a href="#p" className="rounded-full border border-[var(--accent)] px-2.5 py-1 text-[var(--accent)]">
+            <a href="#p" className="rounded-full border border-[var(--accent)] px-2.5 py-1 text-[var(--accent)] xl:mt-1 xl:rounded-md">
               상세 절차서
             </a>
           )}
           {g.forms.length > 0 && (
-            <a href="#forms" className="rounded-full border border-[var(--line)] px-2.5 py-1 hover:bg-[var(--surface-2)]">
+            <a href="#forms" className="rounded-full border border-[var(--line)] px-2.5 py-1 hover:bg-[var(--surface-2)] xl:rounded-md xl:border-0 xl:px-2">
               양식
             </a>
           )}
         </nav>
       )}
+      <div className="read-col space-y-4 xl:col-start-1 xl:row-start-1">
       <Card title={appendix ? undefined : "총람(요약)"} help={appendix ? undefined : { kind: "panel", id: "std.overview" }}>
         <div className="space-y-5">
           {head && (head.body || head.part === "appendix") && <StdSection s={{ ...head, no: head.part === "appendix" ? "" : head.no, title: head.part === "appendix" ? head.title : "머리말" }} mgr={mgr} />}
@@ -111,6 +116,8 @@ export default async function StdChapter({ params, searchParams }: { params: Pro
           </Card>
         </div>
       )}
+      </div>
+      </div>
     </>
   );
 }

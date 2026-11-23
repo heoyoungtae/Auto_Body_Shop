@@ -98,7 +98,16 @@ export default async function SiteHomeSettingsPage({ searchParams }: { searchPar
             <TextItems key={k} id={k} title={`${info[k].label}${v.shows(k) ? "" : " (숨김)"}`} keys={groupKeys(`home.${k}`)} raw={raw} back="/settings/site/home" />
           ))}
         </div>
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
+          {/* 넓은 PC: 고치는 칸 옆에 첫 화면을 작게 띄워 둔다. 저장하면 화면이 다시 읽혀 함께 바뀐다(대표 결정 2026-11-23 PC 화면 개선) */}
+          <div className="hidden xl:block">
+            <Card title="첫 화면 미리 보기" help={{ kind: "panel", id: "site.homePreview" }}>
+              <div className="relative h-[55vh] overflow-hidden rounded-md border border-[var(--line)]">
+                <iframe src="/site" title="홈페이지 첫 화면 미리 보기" loading="lazy" className="absolute top-0 left-0 h-[200%] w-[200%] origin-top-left scale-50 border-0" />
+              </div>
+              <p className="mt-2 text-xs text-[var(--muted)]">위 줄의 &lsquo;미리 보기&rsquo;를 켜면 공개 전 고친 내용으로 보입니다. 크게 보려면 &lsquo;홈페이지 열기&rsquo;.</p>
+            </Card>
+          </div>
           <TokenList tokens={Object.entries(TOKENS).map(([name, t]) => ({ name, label: t.label, now: t.get(p) }))} />
         </div>
       </div>

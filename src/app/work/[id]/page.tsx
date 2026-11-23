@@ -201,7 +201,7 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
           })}
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-4">
+        <div className="space-y-4 xl:sticky xl:top-[4.5rem]">
           {boss && open && w.steps.some((s) => !s.assignee && !s.endedAt) && (
             <Card title="한꺼번에 배정" help={{ kind: "panel", id: "work.assignRest" }}>
               <AssistForm id={`war-${w.id}`} action={workAction} className="space-y-3">
