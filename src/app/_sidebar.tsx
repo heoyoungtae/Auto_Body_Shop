@@ -118,7 +118,8 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
   useEffect(() => {
     const t = setTimeout(() => {
       const el = navRef.current?.querySelector<HTMLElement>("[data-menu] [aria-current=page]");
-      el?.scrollIntoView({ block: "nearest" });
+      // 위에 붙은 찾기 칸·★자주 쓰는 메뉴에 가리지 않게 가운데로
+      el?.scrollIntoView({ block: "center" });
     }, 50);
     return () => clearTimeout(t);
   }, [current, here]);
@@ -165,22 +166,14 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             ×
           </button>
         </div>
-        <MenuSearch allowed={allowed} future={future} onWake={wake} fav={fav}>
-        <ul className="space-y-0.5 px-2 pt-2 pb-1" data-menu>
-          {TOP.filter(allowed).map((i) => (
-            <li key={i.label}>
-              <Link
-                href={i.href!}
-                aria-current={current === i.href ? "page" : undefined}
-                className="flex min-h-10 items-center rounded-md px-3 text-sm font-semibold hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:text-[var(--accent)] pointer-fine:lg:min-h-8"
-              >
-                {i.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-        {/* ★ 자주 쓰는 메뉴: 고른 것이 없으면 고르는 법만 한 줄 */}
-        <div className="border-t border-[var(--line)] px-2 py-1.5" data-menu>
+        <MenuSearch
+          allowed={allowed}
+          future={future}
+          onWake={wake}
+          fav={fav}
+          // ★ 자주 쓰는 메뉴: 찾기 칸 바로 아래에 붙여, 메뉴를 내려도 늘 보인다(대표 지시 2026-11-23). 고른 것이 없으면 고르는 법만 한 줄
+          pinned={
+        <div className="-mx-2 mt-2 border-t border-[var(--line)] px-2 pt-1.5" data-menu>
           <p className="flex items-center justify-between px-2 text-xs text-[var(--muted)]">
             <span>★ 자주 쓰는 메뉴</span>
           </p>
@@ -206,6 +199,21 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
             </ul>
           )}
         </div>
+          }
+        >
+        <ul className="space-y-0.5 px-2 pt-2 pb-1" data-menu>
+          {TOP.filter(allowed).map((i) => (
+            <li key={i.label}>
+              <Link
+                href={i.href!}
+                aria-current={current === i.href ? "page" : undefined}
+                className="flex min-h-10 items-center rounded-md px-3 text-sm font-semibold hover:bg-[var(--surface-2)] aria-[current=page]:bg-[var(--accent-soft)] aria-[current=page]:text-[var(--accent)] pointer-fine:lg:min-h-8"
+              >
+                {i.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
         {MENU.map((g) => {
           const items = g.items.filter(visible);
           if (!items.length) return null;
