@@ -124,13 +124,15 @@ export async function createSupplier(db: Db, actor: Actor, input: SupplierInput,
 
 export async function updateSupplier(db: Db, actor: Actor, id: string, input: SupplierInput, now = new Date()) {
   if (!can(actor, "supplier.manage")) throw new SupplierError("협력업체 정보는 공장장·대표가 고칩니다");
-  await supRow(db, id);
+  const before = await supRow(db, id);
   const v = checkInput(input);
   if (v.bizNo) {
     const [dup] = await db.select({ name: supplier.name }).from(supplier).where(and(eq(supplier.bizNo, v.bizNo), ne(supplier.id, id)));
     if (dup) throw new SupplierError(`같은 사업자등록번호의 업체(${dup.name})가 이미 있습니다`);
   }
-  await db.update(supplier).set({ ...v, updatedAt: now }).where(eq(supplier.id, id));
+  // 번호가 바뀌면 예전 번호의 국세청 결과는 버린다(화면에서 새 번호로 다시 확인)
+  const bizChanged = (before.bizNo ?? null) !== v.bizNo;
+  await db.update(supplier).set({ ...v, ...(bizChanged ? { nts: null } : {}), updatedAt: now }).where(eq(supplier.id, id));
   await writeAudit(db, { actorId: actor.id, action: "supplier.update", entityType: "supplier", entityId: id, after: { name: v.name, kinds: v.kinds, docs: v.docs } });
 }
 

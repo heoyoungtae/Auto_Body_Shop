@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { freshenSupplierNts, ntsWarning } from "@/modules/purchase/supplier-nts";
+import { NtsWarn } from "../../../suppliers/nts-warn";
 import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { getExpense } from "@/modules/money/expense";
@@ -70,6 +72,8 @@ export default async function ExpensePage({
   const mine = e.createdBy === user.id;
   const payer = can(user, "expense.pay");
   const live = status !== "paid" && status !== "cancelled";
+  // 돈을 내기 전: 받는 업체가 휴·폐업이면 경고(국세청 결과가 7일 지났으면 새로 묻는다)
+  const supNts = live && e.supplierId ? await freshenSupplierNts(await getDb(), e.supplierId) : null;
   const warn = evidenceWarning(
     e.evidenceKind as keyof typeof EVIDENCE_KINDS,
     e.amountWon,
@@ -97,6 +101,7 @@ export default async function ExpensePage({
       </PageTitle>
       <ErrorBox message={q.error} />
       {q.notice && <Notice>{q.notice}</Notice>}
+      <NtsWarn text={ntsWarning(e.payeeName, supNts, e.evidenceOn)} supplierId={e.supplierId} />
 
       <Card title="내용" help={{ kind: "panel", id: "exp.detail" }}>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">

@@ -35,6 +35,8 @@ import { lastToolPrice } from "@/modules/equipment/tools";
 import { expensePrefill } from "@/modules/bank/service";
 import { listUsers } from "@/modules/auth/service";
 import { FX_CATEGORIES } from "@/modules/purchase/rules";
+import { freshenSupplierNts, ntsBad, ntsLabel, ntsOfSuppliers, ntsWarning } from "@/modules/purchase/supplier-nts";
+import { NtsWarn } from "../../../suppliers/nts-warn";
 import { EQ_KINDS } from "@/modules/equipment/rules";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -79,6 +81,9 @@ export default async function NewExpensePage({
   const defaultEqManager = staff.find((u) => u.roles.includes("plant_manager"))?.id;
   const defaultFxManager = staff.find((u) => u.roles.includes("accounting"))?.id;
   const sups = await listSuppliers(db, "registered");
+  // 휴·폐업 업체 경고: 고른 업체는 돈을 주기 전에 국세청 결과를 새로(7일 지났으면), 목록은 저장된 결과로
+  const srcNts = src?.supplierId ? await freshenSupplierNts(db, src.supplierId) : null;
+  const listNts = sources.length ? await ntsOfSuppliers(db, sources.map((x) => x.supplierId)) : new Map();
   const pol = await loadPolicy(db);
   const staffTable = Object.entries(EVENT_KINDS)
     .filter(([, k]) => k.staff)
@@ -111,6 +116,7 @@ export default async function NewExpensePage({
         지출 결의서 쓰기
       </PageTitle>
       <ErrorBox message={q.error ?? (srcError || undefined)} />
+      {src && <NtsWarn text={ntsWarning(src.supplierName, srcNts)} supplierId={src.supplierId} />}
       {sources.length > 0 && (
         <Card
           title="지급 결의할 업체(외상매입금·미지급금)"
@@ -125,6 +131,7 @@ export default async function NewExpensePage({
                 >
                   {s.supplierName}
                 </Link>
+                {s.supplierId && ntsBad(listNts.get(s.supplierId)?.nts) && <Badge tone="danger">{ntsLabel(listNts.get(s.supplierId)?.nts)}</Badge>}
                 <span>{won(s.remainWon)}</span>
                 <span className="text-xs text-[var(--muted)]">{s.payables?.length ?? 0}건 · 가까운 기한 {s.on ?? "-"}</span>
                 <Link href={`/money/payables/${s.id}`} className="text-xs text-[var(--accent)]">

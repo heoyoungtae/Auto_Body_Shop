@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { badSuppliersByBizNo, ntsLabel, ntsWarning } from "@/modules/purchase/supplier-nts";
 import { inArray } from "drizzle-orm";
 import { getDb } from "@/db/runtime";
 import { payment } from "@/db/schema";
@@ -35,6 +36,8 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
   const cfg = await loadFeed(db);
   const { list, sum, from, to } = await listTx(db, user, { filter, from: q.from, to: q.to, account: q.account, kind: q.kind, q: q.q });
   const flows = await bankFlows(db, from, to);
+  // 매입 세금계산서·현금영수증 줄: 휴·폐업 협력업체가 발급한 것이면 표시(사업자등록번호로 찾음)
+  const badSup = list.some(({ t }) => (t.kind === "tax_buy" || t.kind === "cash_buy") && t.partyBizNo) ? await badSuppliersByBizNo(db) : new Map();
   // 맞춘 입금 전표가 어느 수리 건인지(바로 가기)
   const payIds = list.filter((x) => x.t.matchKind === "payment" && x.t.matchId).map((x) => x.t.matchId!);
   const roOf = new Map((payIds.length ? await db.select({ id: payment.id, ro: payment.repairOrderId }).from(payment).where(inArray(payment.id, payIds)) : []).map((p) => [p.id, p.ro]));
@@ -167,6 +170,15 @@ export default async function BankPage({ searchParams }: { searchParams: Promise
                         {won(t.amountWon)}
                       </b>
                       <span className="font-medium">{t.party ?? "(상대방 없음)"}</span>
+                      {(t.kind === "tax_buy" || t.kind === "cash_buy") && t.partyBizNo && badSup.get(t.partyBizNo.replace(/\D/g, "")) && (() => {
+                        const b = badSup.get(t.partyBizNo!.replace(/\D/g, ""))!;
+                        const after = b.nts.cd === "03" && b.nts.endDt && t.on >= b.nts.endDt;
+                        return (
+                          <Link href={`/suppliers/${b.id}#nts`} title={ntsWarning(b.name, b.nts, t.on) ?? ""}>
+                            <Badge tone="danger">{after ? "폐업 뒤 발급 — 공제 안 됨" : `발급 업체 ${ntsLabel(b.nts)}`}</Badge>
+                          </Link>
+                        );
+                      })()}
                       {t.memo && <span className="text-xs text-[var(--muted)]">{t.memo}</span>}
                       <span className="text-xs text-[var(--muted)]">
                         {t.accountLabel ?? ""}

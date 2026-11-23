@@ -3,6 +3,7 @@ import { getDb } from "@/db/runtime";
 import { can } from "@/modules/auth/permissions";
 import { payableGroups } from "@/modules/money/payable";
 import { seoulDate } from "@/modules/platform/time";
+import { ntsBad, ntsLabel, ntsOfSuppliers } from "@/modules/purchase/supplier-nts";
 import { requireUser } from "../../_lib/session";
 import { Badge, buttonClass, Card, Empty, PageTitle } from "../../_ui";
 
@@ -13,7 +14,9 @@ export default async function PayablesPage() {
   const user = await requireUser();
   if (!can(user, "expense.draft") && !can(user, "expense.pay"))
     return <p className="text-sm text-[var(--muted)]">외상매입금·미지급금은 공장장·회계 담당·대표가 봅니다.</p>;
-  const { groups, direct, card, prepaid, totals } = await payableGroups(await getDb());
+  const db = await getDb();
+  const { groups, direct, card, prepaid, totals } = await payableGroups(db);
+  const nts = await ntsOfSuppliers(db, groups.map((g) => g.supplierId));
   const today = seoulDate();
   const tile = (label: string, v: number, tone?: string) => (
     <div className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
@@ -75,6 +78,7 @@ export default async function PayablesPage() {
                           g.name
                         )}{" "}
                         {g.bankVerified === false && <Badge tone="danger">계좌 확인 전</Badge>}
+                        {g.supplierId && ntsBad(nts.get(g.supplierId)?.nts) && <Badge tone="danger">{ntsLabel(nts.get(g.supplierId)?.nts)}</Badge>}
                       </td>
                       <td className="pr-2 text-right tabular-nums">{won(g.trade)}</td>
                       <td className="pr-2 text-right tabular-nums">{won(g.other)}</td>

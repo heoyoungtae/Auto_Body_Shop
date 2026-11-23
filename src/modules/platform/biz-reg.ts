@@ -241,7 +241,7 @@ export function parseNtsValidate(body: unknown): Omit<NtsCheck, "at"> | null {
 }
 
 /** 공휴일에 넣은 공공데이터포털 인증키 */
-async function dataGoKrKey(db: Db): Promise<string | null> {
+export async function dataGoKrKey(db: Db): Promise<string | null> {
   const [r] = await db.select({ data: appConfig.data }).from(appConfig).where(eq(appConfig.key, "holiday.sync"));
   const enc = (r?.data as { keyEnc?: string | null } | undefined)?.keyEnc;
   if (!enc) return null;

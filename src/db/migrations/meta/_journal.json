@@ -519,6 +519,13 @@
       "when": 1795324024972,
       "tag": "0073_techbay_check",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1795436379463,
+      "tag": "0074_supplier_nts",
+      "breakpoints": true
     }
   ]
 }

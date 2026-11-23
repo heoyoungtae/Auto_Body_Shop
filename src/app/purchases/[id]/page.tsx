@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ntsWarning } from "@/modules/purchase/supplier-nts";
+import { NtsWarn } from "../../suppliers/nts-warn";
 import { PAY_TERMS, payTermLabel } from "@/modules/money/rules";
 import { ShowWhen } from "../../consults/show-when";
 import { notFound } from "next/navigation";
@@ -73,6 +75,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
         {o.docNo} <Badge tone={PO_TONE[status]}>{PO_STATUS[status]}</Badge>
       </PageTitle>
       <ErrorBox message={q.error} />
+      {sup && ["draft", "review", "approved", "sent"].includes(status) && <NtsWarn text={ntsWarning(sup.name, sup.nts)} supplierId={sup.id} />}
       {q.notice && <Notice>{q.notice}</Notice>}
       {status !== "cancelled" && (o.payTerm ?? sup?.payTerm) === "prepay" && (
         <div className="mb-3">
@@ -383,6 +386,7 @@ export default async function PurchasePage({ params, searchParams }: { params: P
 
         {(status === "partial" || status === "received") && (
           <Card title="세금계산서·거래명세서" help={{ kind: "panel", id: "po.invoice" }}>
+            {sup && <NtsWarn text={ntsWarning(sup.name, sup.nts, o.invoiceOn)} supplierId={sup.id} />}
             {bank !== undefined && sup && (
               <div className="mb-3 rounded-md bg-[var(--surface-2)] p-2">
                 <p className="mb-1 text-xs text-[var(--muted)]">대금 입금 계좌(협력업체 대장에서 불러옴)</p>

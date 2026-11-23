@@ -9,6 +9,26 @@ import { branch, branchId } from "./branch";
 export type SupplierDocFile = { doc: string; path: string; name: string; at: string; by: string };
 
 /**
+ * 국세청 사업자 상태(휴·폐업 조회) 최근 결과. cd: 01 계속 · 02 휴업 · 03 폐업 · none 국세청에 없는 번호 · "" 아직 못 받음.
+ * at 받은 때, since 이 상태가 처음 나온 때, ack* 휴·폐업을 회계·대표가 확인한 기록(상태가 바뀌면 풀림),
+ * tryAt·tryMsg 마지막으로 못 받은 때와 이유(인증키 승인 전 등).
+ */
+export type SupplierNts = {
+  cd: "" | "01" | "02" | "03" | "none";
+  status: string;
+  taxType: string;
+  taxTypeCd: string;
+  endDt: string;
+  at: string;
+  since: string;
+  ackAt?: string;
+  ackBy?: string;
+  ackNote?: string;
+  tryAt?: string;
+  tryMsg?: string;
+};
+
+/**
  * 협력업체(F-07-01). status: candidate 후보(평가 전·평가 중) / proposed 등록 제안(대표 승인 대기) / registered 등록 /
  * rejected 등록 안 함 / stopped 거래 중지
  */
@@ -56,6 +76,8 @@ export const supplier = pgTable(
     /** 결제 조건: now 즉시 · month_end 당월 말 · next_end 익월 말 · next_day 익월 payDay일. 발주서가 불러온다 */
     payTerm: text("pay_term").notNull().default("next_end"),
     payDay: integer("pay_day"),
+    /** 국세청 휴·폐업 조회 결과(매달 1일 자동, 등록·번호 바꿀 때, 상세 화면 단추) */
+    nts: jsonb("nts").$type<SupplierNts>(),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
