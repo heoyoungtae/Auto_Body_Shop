@@ -34,6 +34,10 @@ describe("근태 규칙", () => {
 });
 
 describe("근태 신청", () => {
+  // 직원 수 자동 판정(처음 값 2)이면 시험 명부(1명)는 5명 미만이 되므로, 법정 연차 시험은 5명 이상으로 고정한다
+  beforeEach(async () => {
+    await db.insert(policySetting).values({ key: "hr.headcount_5plus", value: 1, effectiveFrom: "2026-01-01", reason: "시험", changedBy: ids.owner });
+  });
   it("명부 입사일로 연차를 세고, 넘치거나 겹치거나 지난 날짜면 막고, 공장장이 승인한다", async () => {
     await expect(requestLeave(db, tech(), { ...base, leaveKind: "annual", fromDate: "2026-11-12" }, now)).rejects.toThrow(/명부/);
     await saveProfile(db, acct(), ids.tech1, profile("2026-08-03"), now); // 3개월 → 3일

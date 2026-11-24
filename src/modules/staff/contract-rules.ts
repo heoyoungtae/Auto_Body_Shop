@@ -49,6 +49,13 @@ export type ContractTerms = {
   extra: string;
   /** 저장할 때 정책값으로 정해 고정한다 */
   annualText?: string;
+  /**
+   * 고정 연장근로수당(포괄 약정, 대표 결정 2026-11-25): 월 약정 평일 연장시간. 0·없음 = 실제 시간만 계산.
+   * 금액은 저장할 때 통상시급 × 시간 × 배수(5명 이상 1.5)로 정해 고정한다. 통상시급·최저임금 계산에는 넣지 않는다.
+   * 실제 연장수당이 이보다 많으면 그 달 차액을 더 주고, 적어도 깎지 않는다(급여 계산 computeSlip).
+   */
+  fixedOtHours?: number;
+  fixedOtAmount?: number;
 };
 
 /** job: 직무기술서 확인서에 담는 직무 이름들(주 직무 + 겸직) */
@@ -96,6 +103,17 @@ export function contractNumbers(t: ContractTerms) {
   return { daily, breakMinutes: d?.breakMinutes ?? 0, weekly, monthHours, hourly, fixedAllowances: fixed };
 }
 
+/** 고정 연장근로수당 금액(10원 아래 버림). 통상시급은 기본급 + 고정 수당으로만 구한다(고정 연장수당 제외) */
+export function fixedOtPay(t: ContractTerms, legal5: boolean) {
+  const h = t.fixedOtHours ?? 0;
+  if (!(h > 0)) return 0;
+  const { hourly } = contractNumbers(t);
+  return Math.floor((hourly * h * (legal5 ? 1.5 : 1)) / 10) * 10;
+}
+
+/** 이름만 보고 연장수당을 고정 수당 칸에 넣었는지(통상시급이 부풀어 잘못 계산됨) */
+export const OT_ALLOWANCE = /연장|시간외|오버타임|\bOT\b|야근|포괄/i;
+
 const addYears = (iso: string, n: number) => {
   const [y, m, d] = iso.split("-").map(Number);
   return `${y + n}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -105,7 +123,7 @@ const addYears = (iso: string, n: number) => {
  * 계약 내용 검사. 법을 어기는 값은 errors(저장 막음), 알아 둘 것은 warnings.
  * minWage: 그 해 최저임금(시급), legal5: 상시 5명 이상(근로기준법 제50·53·54조 등 전부 적용)
  */
-export function checkContract(t: ContractTerms, o: { minWage: number; legal5: boolean }) {
+export function checkContract(t: ContractTerms, o: { minWage: number; legal5: boolean; fixedOtMax?: number }) {
   const errors: string[] = [];
   const warnings: string[] = [];
   if (!(t.contractType in CONTRACT_TYPES)) errors.push("계약 형태를 골라 주세요");
@@ -148,6 +166,20 @@ export function checkContract(t: ContractTerms, o: { minWage: number; legal5: bo
     );
   }
   for (const a of t.allowances) if (!a.name.trim() || !(a.amount > 0)) errors.push("수당은 이름과 금액을 둘 다 적거나 둘 다 비웁니다");
+  for (const a of t.allowances)
+    if (OT_ALLOWANCE.test(a.name)) errors.push(`'${a.name}'은(는) 고정 수당 칸이 아니라 '약정 연장시간' 칸에 시간으로 적습니다. 수당 칸에 넣으면 통상시급이 부풀어 연장수당이 잘못 계산됩니다`);
+  const ot = t.fixedOtHours ?? 0;
+  if (ot) {
+    const max = o.fixedOtMax ?? 52;
+    if (!Number.isFinite(ot) || ot < 0) errors.push("약정 연장시간을 확인해 주세요");
+    else if (ot > max) errors.push(`약정 연장시간은 월 ${max}시간까지입니다(주 12시간 한도, 정책값 '고정 연장 약정 상한')`);
+    else {
+      warnings.push(
+        `고정 연장근로수당 월 ${fixedOtPay(t, o.legal5).toLocaleString("ko-KR")}원(통상시급 × ${ot}시간 × ${o.legal5 ? 1.5 : 1})은 약정 시간 안의 평일 연장 대가입니다. 실제 연장이 더 많으면 그 달 차액을 더 주고, 적어도 깎지 않습니다. 연장은 지금처럼 미리 승인받습니다`,
+      );
+      if (ot > 30) warnings.push("약정 시간이 많으면 실제로 덜 일한 달에도 다 줘야 합니다. 실제 평균보다 조금 낮게 잡는 편이 좋습니다");
+    }
+  }
   if (!Number.isInteger(t.payDay) || t.payDay < 1 || t.payDay > 31) errors.push("임금 지급일(1~31일)을 확인해 주세요");
   if (!(t.payMethod in PAY_METHODS)) errors.push("지급 방법을 골라 주세요");
   if (t.insurances.some((x) => !(x in INSURANCES))) errors.push("사회보험 항목을 확인해 주세요");

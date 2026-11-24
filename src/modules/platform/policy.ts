@@ -663,10 +663,37 @@ export const DEFAULT_POLICY = {
     min: 0,
     max: 180,
   },
+  // 대표 결정 2026-11-25: 등록 직원 수를 세어 자동 적용(2). 1·0은 노무사 판단 등으로 고정할 때
   "hr.headcount_5plus": {
-    value: 1,
-    unit: "(1=5명 이상, 0=5명 미만)",
+    value: 2,
+    unit: "(2=직원 수로 자동, 1=5명 이상, 0=5명 미만)",
     label: "상시 근로자 5명 이상",
+    clause: "11.4",
+    min: 0,
+    max: 2,
+  },
+  // 고정 연장근로수당(포괄 약정 + 차액 정산, 대표 결정 2026-11-25)
+  "pay.fixed_ot_max_hours": {
+    value: 52,
+    unit: "시간/월",
+    label: "고정 연장 약정 상한",
+    clause: "11.5",
+    min: 0,
+    max: 52,
+  },
+  "pay.fixed_ot_review_months": {
+    value: 3,
+    unit: "개월 연속",
+    label: "고정 연장 약정 재검토 알림",
+    clause: "11.5",
+    min: 1,
+    max: 12,
+  },
+  // 연차 사용 촉진(근로기준법 제61조) 자동 진행(대표 결정 2026-11-25)
+  "leave.promote": {
+    value: 1,
+    unit: "(1=앱이 자동, 0=끔)",
+    label: "연차 사용 촉진 자동",
     clause: "11.4",
     min: 0,
     max: 1,

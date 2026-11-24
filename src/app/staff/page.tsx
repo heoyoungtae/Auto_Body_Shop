@@ -4,6 +4,7 @@ import { ROLE_LABEL } from "@/modules/auth/roles";
 import { seoulDate } from "@/modules/platform/time";
 import { CONTRACT_KIND, LEVELS, SKILLS, tenureText, type Skill } from "@/modules/staff/rules";
 import { canSeeRoster, listStaff } from "@/modules/staff/service";
+import { headcountOn, headcountText } from "@/modules/staff/headcount";
 import { requireUser } from "../_lib/session";
 import { Badge, buttonClass, Card, ErrorBox, Notice, PageTitle } from "../_ui";
 
@@ -16,6 +17,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   const full = canSeeRoster(user);
   const today = seoulDate();
   const empty = rows.filter((r) => !r.hiredOn && r.active).length;
+  const hc = full ? await headcountOn(db, today) : null;
   return (
     <>
       <PageTitle
@@ -39,6 +41,14 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
       {full && empty > 0 && <Notice>명부를 아직 적지 않은 직원이 {empty}명 있습니다. 이름을 눌러 입사일·직무를 적어 주세요. 근태신청서의 연차 일수와 재직증명서가 이 값을 씁니다.</Notice>}
+      {hc && (
+        <p className="mt-3 text-sm">
+          상시 근로자: <b>{hc.legal5 ? "5명 이상" : "5명 미만"}</b> 적용{" "}
+          <span className="text-xs text-[var(--muted)]">
+            ({headcountText(hc)}. 연장 가산 배수·법정 연차·주 12시간 한도에 씁니다. 정책값 &lsquo;상시 근로자 5명 이상&rsquo;)
+          </span>
+        </p>
+      )}
       <div className="mt-4">
         <Card title={`직원 ${rows.length}명`} help={{ kind: "panel", id: "staff.list" }}>
           <div className="overflow-x-auto">

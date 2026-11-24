@@ -45,6 +45,7 @@ import { envTodos } from "@/modules/safety/environment";
 import { trainingTodos } from "@/modules/staff/training";
 import { learnTodos } from "@/modules/staff/elearning";
 import { payrollTodos } from "@/modules/staff/payroll";
+import { promoteTodos } from "@/modules/staff/leave-promote";
 import { taxTodos } from "@/modules/money/tax-profile";
 import { candidateTodos, lawTodos } from "@/modules/money/law-watch";
 import { policyCheckTodos } from "@/modules/platform/policy-check";
@@ -683,6 +684,7 @@ export async function myTodos(
     ...(await trainingTodos(db, user, today)),
     ...(await learnTodos(db, user, today)),
     ...(await payrollTodos(db, user, today)),
+    ...(await promoteTodos(db, user, today)),
     ...(await taxTodos(db, user, today)),
     ...(can(user, "payroll.view") ? await lawTodos(db, user) : []),
     ...(await entertainTodos(db, user, today)),

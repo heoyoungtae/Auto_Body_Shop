@@ -5,7 +5,7 @@ import {
   closedReason,
   type ShopCalendar,
 } from "@/modules/platform/business-days";
-import { contractNumbers, type ContractTerms } from "./contract-rules";
+import { contractNumbers, fixedOtPay, type ContractTerms } from "./contract-rules";
 import { simpleIncomeTax, type TaxTablePolicy } from "./income-tax";
 
 export type PayLine = {
@@ -76,14 +76,29 @@ export type SlipData = {
   /** 급여 받을 계좌(명세서 전체가 암호화되어 저장됨). 다음 달로 이어진다 */
   bank?: PayBank | null;
   insurances: string[];
+  /** 고정 연장근로수당(포괄 약정) 정산 내역. streak 은 연속 달 수(약정 재검토 알림) */
+  fixedOt?: FixedOt;
   /** 회사가 따로 내는 보험료·퇴직급여 적립(명세서 지급액과 별개) */
   employer?: PayLine[];
   employerTotal?: number;
   warnings: string[];
 };
 
+export type FixedOt = {
+  hours: number;
+  amount: number;
+  /** 이달 인정 평일 연장시간과 그 법정 수당 */
+  actual: number;
+  legal: number;
+  diff: number;
+  overStreak: number;
+  underStreak: number;
+};
+
 export type PayPolicy = {
   legal5: boolean;
+  /** 고정 연장 약정 재검토 알림(연속 달 수) */
+  fixedOtReviewMonths?: number;
   minWage: number;
   /** ÷1000 % 단위(4750 = 4.75%) */
   pensionRate: number;
@@ -239,6 +254,10 @@ export function computeSlip(input: {
   /** 같은 해 앞 달까지 생산직 연장수당 비과세로 본 금액 */
   otTaxfreeUsed?: number;
   bank?: PayBank | null;
+  /** 지난달 명세서의 고정 연장 정산(연속 달 수 이어 세기) */
+  prevFixedOt?: FixedOt | null;
+  /** 연차 연도가 끝났거나 퇴직한 달의 남은 연차(paid=false 면 촉진을 다 해 보상 없음) */
+  leavePay?: { days: number; reason: string; paid: boolean } | null;
 }): SlipData {
   const { terms: t, pol, att } = input;
   const n = contractNumbers(t);
@@ -282,11 +301,50 @@ export function computeSlip(input: {
     });
   }
   const mult = pol.legal5 ? 1.5 : 1;
-  if (att.overtime)
+  const otLegal = Math.round(hourly * att.overtime * mult);
+  const fixH = t.fixedOtHours ?? 0;
+  let fixedOt: FixedOt | undefined;
+  if (fixH > 0 && t.fixedOtAmount) {
+    // 고정 연장근로수당(포괄 약정): 약정액은 그대로 주고(덜 일해도 깎지 않음), 실제 법정 수당이 더 크면 그 달 차액을 더 준다.
+    // 다음 달로 넘기거나 모자란 달과 상계하지 않는다. 입·퇴사 달만 일할(대표 결정 2026-11-25)
+    const fixAmt = Math.round(t.fixedOtAmount * ratio);
+    const diff = Math.max(0, otLegal - fixAmt);
+    pays.push({
+      code: "fixot",
+      name: "고정 연장근로수당",
+      amount: fixAmt,
+      calc: `약정 월 ${fixH}시간(계약서 ${won(t.fixedOtAmount)})${prorate ? ` × ${days}/${m.days}일` : ""} · 이달 인정 연장 ${att.overtime}시간 = 법정 ${won(otLegal)} → ${diff ? `차액 ${won(diff)} 따로 지급` : "차액 없음(덜 일해도 깎지 않음)"}`,
+    });
+    if (diff)
+      pays.push({
+        code: "ot",
+        name: "연장수당 차액",
+        amount: diff,
+        calc: `통상시급 ${won(hourly)} × ${att.overtime}시간 × ${mult} = ${won(otLegal)} − 고정 ${won(fixAmt)}`,
+      });
+    const prev = input.prevFixedOt;
+    const under = att.overtime < (fixH * ratio) / 2;
+    fixedOt = {
+      hours: fixH,
+      amount: fixAmt,
+      actual: att.overtime,
+      legal: otLegal,
+      diff,
+      overStreak: diff > 0 ? (prev?.overStreak ?? 0) + 1 : 0,
+      underStreak: under ? (prev?.underStreak ?? 0) + 1 : 0,
+    };
+    const n2 = pol.fixedOtReviewMonths ?? 3;
+    if (fixedOt.overStreak >= n2)
+      warnings.push(`${fixedOt.overStreak}달 연속 약정 ${fixH}시간보다 많이 일해 차액이 생겼습니다(이달 ${att.overtime}시간). 약정 시간을 늘릴지 직원과 검토하세요`);
+    if (fixedOt.underStreak >= n2)
+      warnings.push(`${fixedOt.underStreak}달 연속 실제 연장이 약정 ${fixH}시간의 절반에 못 미칩니다(이달 ${att.overtime}시간). 약정을 줄이려면 직원 동의를 받아 새 계약서를 씁니다`);
+    if (pol.legal5 && t.fixedOtAmount + 10 < Math.floor(hourly * fixH * 1.5))
+      warnings.push(`계약서의 고정 연장근로수당 ${won(t.fixedOtAmount)}이 지금 기준(통상시급 × ${fixH}시간 × 1.5 = ${won(Math.floor(hourly * fixH * 1.5))})보다 적습니다. 차액은 실제 시간으로 계산해 손해는 없지만, 새 계약서로 고치세요`);
+  } else if (att.overtime)
     pays.push({
       code: "ot",
       name: "연장근로수당",
-      amount: Math.round(hourly * att.overtime * mult),
+      amount: otLegal,
       calc: `통상시급 ${won(hourly)} × ${att.overtime}시간 × ${mult}`,
     });
   if (att.holiday || att.holidayOver8) {
@@ -331,6 +389,18 @@ export function computeSlip(input: {
       amount: -Math.round(hourly * att.shortHours),
       calc: `통상시급 ${won(hourly)} × ${att.shortHours}시간`,
     });
+  const lp = input.leavePay;
+  if (lp && lp.days > 0) {
+    if (lp.paid) {
+      const dayPay = Math.round(hourly * n.daily);
+      pays.push({
+        code: "leave",
+        name: "미사용 연차수당",
+        amount: Math.round(dayPay * lp.days),
+        calc: `${lp.reason} × 통상임금 일급 ${won(dayPay)}(통상시급 × ${n.daily}시간)`,
+      });
+    } else warnings.push(`${lp.reason}은 연차 사용 촉진(1·2차)을 기간 안에 다 해 보상하지 않습니다(근로기준법 제61조). 촉진 기록은 '연차 촉진' 화면에 있습니다`);
+  }
   for (const e of input.extras.filter((e) => e.kind === "pay"))
     pays.push({
       code: "extra",
@@ -351,7 +421,7 @@ export function computeSlip(input: {
     if (monthlyFixed <= pol.otExemptPayCap) {
       let left = Math.max(0, pol.otExemptAnnual - (input.otTaxfreeUsed ?? 0));
       for (const p of pays) {
-        if (!["ot", "hol", "night"].includes(p.code) || left <= 0) continue;
+        if (!["fixot", "ot", "hol", "night"].includes(p.code) || left <= 0) continue;
         const f = Math.min(p.amount, left);
         p.taxfree = f;
         p.calc += ` · 생산직 비과세 ${won(f)}`;
@@ -359,7 +429,7 @@ export function computeSlip(input: {
         otTaxfree += f;
       }
       const otAll = pays
-        .filter((p) => ["ot", "hol", "night"].includes(p.code))
+        .filter((p) => ["fixot", "ot", "hol", "night"].includes(p.code))
         .reduce((s2, p) => s2 + p.amount, 0);
       if (otAll > otTaxfree)
         warnings.push(
@@ -519,6 +589,7 @@ export function computeSlip(input: {
     incomeTaxSource: source,
     production: input.production || undefined,
     otTaxfree: otTaxfree || undefined,
+    fixedOt,
     bank: input.bank ?? null,
     family: input.family,
     children,
@@ -547,4 +618,64 @@ export function payDateFor(ym: string, payDay: number, cal: ShopCalendar) {
   let t = D(`${next}-${String(payDay).padStart(2, "0")}`);
   for (let i = 0; i < 10 && closedReason(cal, iso(t)) != null; i++) t -= 864e5;
   return iso(t);
+}
+
+/**
+ * 실수령액 보장 세전 계약(대표 결정 2026-11-25): 직원과 '월 실수령 ○○원'으로 정하면 그만큼 받도록 세전 기본급을 거꾸로 구한다.
+ * 연장·결근이 없는 보통 달 기준(고정 수당·고정 연장근로수당은 계약서 값, 고정 연장수당은 기본급에 따라 다시 계산).
+ * 소득세는 간이세액표(가족·자녀·원천징수 100%), 청년 소득세 감면 등은 넣지 않는다. 월급제만.
+ */
+export function grossForNet(input: {
+  target: number;
+  terms: ContractTerms;
+  pol: PayPolicy;
+  family: number;
+  children: number;
+  production?: boolean;
+}) {
+  const { target, pol } = input;
+  const zero = { overtime: 0, night: 0, holiday: 0, holidayOver8: 0, absentDays: 0, sickDays: 0, shortHours: 0 };
+  const at = (basePay: number) => {
+    const t: ContractTerms = { ...input.terms, payType: "monthly", basePay };
+    if (t.fixedOtHours && t.fixedOtHours > 0) t.fixedOtAmount = fixedOtPay(t, pol.legal5);
+    return computeSlip({
+      name: "",
+      terms: t,
+      ym: "2026-01",
+      hiredOn: null,
+      leftOn: null,
+      att: zero,
+      pol,
+      incomeTax: 0,
+      incomeTaxSource: "auto",
+      family: input.family,
+      children: input.children,
+      extras: [],
+      production: input.production,
+    });
+  };
+  if (!(target > 0)) return null;
+  // 1,000원 단위로 찾는다: 이분 탐색 뒤 간이세액표 계단 때문에 모자라면 조금씩 올림
+  let lo = 0;
+  let hi = Math.ceil((target * 3) / 1000);
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (at(mid * 1000).net >= target) hi = mid;
+    else lo = mid + 1;
+  }
+  let base = lo * 1000;
+  let slip = at(base);
+  for (let i = 0; i < 50 && slip.net < target; i++) slip = at((base += 1000));
+  return {
+    basePay: base,
+    fixedOtAmount: slip.pays.find((p) => p.code === "fixot")?.amount ?? 0,
+    gross: slip.gross,
+    net: slip.net,
+    taxfree: slip.taxfree,
+    deductTotal: slip.deductTotal,
+    employerTotal: slip.employerTotal ?? 0,
+    cost: slip.gross + (slip.employerTotal ?? 0),
+    hourly: slip.hourly,
+    minWageOk: slip.hourly >= pol.minWage,
+  };
 }
