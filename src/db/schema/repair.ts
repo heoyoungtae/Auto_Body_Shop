@@ -344,7 +344,34 @@ export const repairStatement = pgTable(
 /** 보험 청구 진행(STD-03 6절 → STD-12): info 접수 정보 → requested 손해사정 요청 → scoped 승인 범위 확인 → claimed 청구 → paid 입금 확인 */
 export const CLAIM_STATUSES = ["info", "requested", "scoped", "claimed", "paid"] as const;
 
-/** 보험 청구 기록(수리 건마다 1건). 번호 CH-연월-순번. 금액은 모두 부가세 포함 원 */
+/** 보험사 목록(AOS 보험사설정 참고, 2026-11-23 대표 결정): 보험사·공제조합·렌터카. 보험사별 계약 단가·부품 할인율·보상 담당자 */
+export const INSURER_KINDS = ["insurer", "mutual", "rental"] as const;
+export type InsurerContact = { name: string; role?: string; phone?: string; email?: string };
+export const insurer = pgTable(
+  "insurer",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: INSURER_KINDS }).notNull().default("insurer"),
+    /** 보험사와 정한 시간당 공임(원). 비우면 공임 기준표의 시간당 공임 */
+    rateWon: integer("rate_won"),
+    /** 부품 할인율(0.1% 단위 정수, 25 = 2.5%). 정산 때 부품 할인 금액 제안에 씀 */
+    partsDiscountX10: integer("parts_discount_x10"),
+    contacts: jsonb("contacts").$type<InsurerContact[]>().notNull().default([]),
+    note: text("note"),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("insurer_name_uq").on(t.name)],
+);
+
+/** 보험사가 줄마다 인정한 금액(줄 id → 금액·사유). 빠진 줄은 전액 인정 */
+export type LineAdjust = Record<string, { won: number; note?: string }>;
+/** AOS 진행 기록(설정에서 'AOS 씀'을 켰을 때만 화면에 보임). 값은 기록한 때(ISO) */
+export type ClaimAos = { estimateAt?: string; claimAt?: string; guaranteeAt?: string; closedAt?: string };
+
+/** 보험 청구 기록. 한 수리 건에 청구처(보험사)가 여럿일 수 있다(쌍방 과실, seq 1·2…). 번호 CH-연월-순번. 금액은 모두 부가세 포함 원 */
 export const insuranceClaim = pgTable(
   "insurance_claim",
   {
@@ -354,8 +381,12 @@ export const insuranceClaim = pgTable(
       .notNull()
       .references(() => repairOrder.id),
     status: text("status", { enum: CLAIM_STATUSES }).notNull().default("info"),
+    /** 청구처 순번(1부터). 쌍방 과실이면 2번째 보험사가 2 */
+    seq: integer("seq").notNull().default(1),
     // ── 1. 접수 확인(입고 당일)
     insurer: text("insurer").notNull(),
+    /** 보험사 목록에서 고른 보험사(손으로 적었으면 비어 있음) */
+    insurerId: uuid("insurer_id").references(() => insurer.id),
     claimNo: text("claim_no").notNull(),
     /** own=자차, other=대물(상대 보험) */
     coverage: text("coverage").notNull(),
@@ -374,6 +405,20 @@ export const insuranceClaim = pgTable(
     /** 보험사가 인정하지 않은 금액 중 고객이 내기로 합의한 금액 */
     customerExtraWon: integer("customer_extra_won").notNull().default(0),
     scopeNote: text("scope_note"),
+    /** 정산 공제(AOS 정산 화면): 감가상각(고객 부담)·부품 할인·잔존물(공업사 몫)·기타 공제 */
+    depreciationWon: integer("depreciation_won").notNull().default(0),
+    partsDiscountWon: integer("parts_discount_won").notNull().default(0),
+    salvageWon: integer("salvage_won").notNull().default(0),
+    otherDeductWon: integer("other_deduct_won").notNull().default(0),
+    /** 기타 공제를 누가 메우나: customer 고객 · shop 공업사 */
+    otherDeductPayer: text("other_deduct_payer").notNull().default("shop"),
+    otherDeductNote: text("other_deduct_note"),
+    /** 보험사가 줄마다 인정한 금액(인정 못 받은 줄만) */
+    lineAdjust: jsonb("line_adjust").$type<LineAdjust>().notNull().default({}),
+    /** 손해사정 결과에 대한 우리 입장: none 아직 · agreed 동의 · disputed 이의 제기 중 */
+    dispute: text("dispute").notNull().default("none"),
+    disputeNote: text("dispute_note"),
+    disputedAt: timestamp("disputed_at", { withTimezone: true }),
     scopedAt: timestamp("scoped_at", { withTimezone: true }),
     scopedBy: uuid("scoped_by").references(() => appUser.id),
     // ── 5. 청구(출고 후 3영업일)
@@ -390,9 +435,29 @@ export const insuranceClaim = pgTable(
     /** 30일 미입금 독촉한 때 */
     dunnedAt: timestamp("dunned_at", { withTimezone: true }),
     dunNote: text("dun_note"),
+    /** 미결(청구 뒤 아직 안 끝난 건) 결과: agreed 합의 · disagreed 미합의 */
+    settle: text("settle"),
+    aos: jsonb("aos").$type<ClaimAos>().notNull().default({}),
     createdBy: uuid("created_by").references(() => appUser.id),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("insurance_claim_no_uq").on(t.docNo), uniqueIndex("insurance_claim_ro_uq").on(t.repairOrderId), index("insurance_claim_status_idx").on(t.status)],
+  (t) => [uniqueIndex("insurance_claim_no_uq").on(t.docNo), uniqueIndex("insurance_claim_ro_seq_uq").on(t.repairOrderId, t.seq), index("insurance_claim_ro_idx").on(t.repairOrderId), index("insurance_claim_status_idx").on(t.status)],
+);
+
+/** 보험 청구 연락 이력(AOS 미결관리 참고): 독촉·확인 요청 메모·보험사 답·합의·미합의·이의 제기 */
+export const CLAIM_NOTE_KINDS = ["dun", "memo", "reply", "agreed", "disagreed", "dispute", "aos"] as const;
+export const claimNote = pgTable(
+  "claim_note",
+  {
+    id: id(),
+    claimId: uuid("claim_id")
+      .notNull()
+      .references(() => insuranceClaim.id),
+    kind: text("kind", { enum: CLAIM_NOTE_KINDS }).notNull(),
+    note: text("note").notNull(),
+    by: uuid("by").references(() => appUser.id),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("claim_note_claim_idx").on(t.claimId)],
 );
