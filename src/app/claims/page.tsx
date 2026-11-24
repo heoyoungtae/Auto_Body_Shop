@@ -7,9 +7,9 @@ import { CLAIM_STATUS_LABEL, COVERAGE_LABEL } from "@/modules/repair/claim-rules
 import { RO_STATUS_LABEL } from "@/modules/repair/rules";
 import { requireUser } from "../_lib/session";
 import { ListBar, ListPager } from "../_list-bar";
-import { Badge, Card, Empty, PageTitle } from "../_ui";
+import { Badge, buttonClass, Card, Empty, PageTitle } from "../_ui";
 
-const NEXT: Record<string, string> = { info: "접수 정보 확인", request: "손해사정 요청", scope: "보험사 회신(승인 범위) 기다림", claim: "청구", dun: "입금 독촉" };
+const NEXT: Record<string, string> = { info: "접수 정보 확인", request: "손해사정 요청", scope: "보험사 회신(승인 범위) 기다림", dispute: "이의 제기 답 기다림", claim: "청구", dun: "입금 독촉", aosEstimate: "AOS 선견적 전송", aosClaim: "AOS 청구 전송" };
 const won = (n: number | null | undefined) => (n == null ? "—" : `${n.toLocaleString("ko-KR")}원`);
 
 /** 보험 청구 목록(STD-03 6절): 보험 수리 건의 청구 단계·다음 할 일·기한 */
@@ -22,7 +22,21 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
   const rows = lr.rows;
   return (
     <>
-      <PageTitle help="claims" std="STD-03 6절" sub="보험 수리 건의 접수 확인 → 손해사정 요청 → 승인 범위 → 청구 → 입금 확인.">
+      <PageTitle
+        help="claims"
+        std="STD-03 6절"
+        sub="보험 수리 건의 접수 확인 → 손해사정 요청 → 승인 범위 → 청구 → 입금 확인."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/claims/aos-paid" className={buttonClass("secondary")}>
+              AOS 지급 엑셀로 입금 맞추기
+            </Link>
+            <Link href="/settings/insurers" className={buttonClass("secondary")}>
+              보험사 목록
+            </Link>
+          </div>
+        }
+      >
         보험 청구
       </PageTitle>
       <div className="mt-4 space-y-3">
@@ -43,12 +57,12 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
                   {rows.map((r) => {
-                    const t = todos.find((x) => x.id === r.ro.id);
+                    const t = todos.find((x) => x.id === r.ro.id && (!c || x.seq === c.seq)) ?? todos.find((x) => x.id === r.ro.id);
                     const c = r.claim;
                     return (
                       <tr key={r.ro.id}>
                         <td className="py-1.5 pr-2">
-                          <Link href={`/repairs/${r.ro.id}/claim`} className="font-medium text-[var(--accent)]">
+                          <Link href={`/repairs/${r.ro.id}/claim${c && c.seq > 1 ? `?c=${c.seq}` : ""}`} className="font-medium text-[var(--accent)]">
                             {r.ro.docNo}
                           </Link>
                           <span className="block text-xs text-[var(--muted)]">{RO_STATUS_LABEL[r.ro.status]}</span>
@@ -58,6 +72,7 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
                         </td>
                         <td className="py-1.5 pr-2">
                           {c?.insurer ?? r.ro.insurer ?? "—"} {c?.claimNo ?? r.ro.claimNo ?? ""}
+                          {r.claimCount > 1 && <Badge>청구처 {r.claimCount}곳</Badge>}
                           <span className="block text-xs text-[var(--muted)]">{COVERAGE_LABEL[(c?.coverage ?? r.ro.insurance) as keyof typeof COVERAGE_LABEL] ?? ""}</span>
                         </td>
                         <td className="py-1.5 pr-2">

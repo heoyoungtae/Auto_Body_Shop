@@ -72,7 +72,7 @@ export async function customerDue(db: Db, roId: string) {
       from: `보험 청구의 고객 몫(${v.amounts.from ?? "견적 없음"})`,
       final: !!st,
       statement: st ?? null,
-      insurerDue: v.amounts.insurerDue,
+      insurerDue: v.amounts.insurerDueTotal,
     };
   }
   if (st)

@@ -395,20 +395,35 @@ export async function myTodos(
         "청구하기",
       ],
       dun: ["보험 미입금 독촉", "청구 후 30일이 지났습니다", "독촉·입금 확인"],
+      dispute: [
+        "손해사정 이의 제기 답 기다림",
+        "보험사 답을 받으면 3단계에서 '동의'로 고치고 청구합니다",
+        "답 적기",
+      ],
+      aosEstimate: [
+        "AOS 선견적 전송",
+        "AOS에 선견적을 보내고 'AOS 진행'에 기록합니다(설정에서 AOS 씀)",
+        "AOS 기록",
+      ],
+      aosClaim: [
+        "AOS 청구 전송",
+        "앱에서 청구했습니다. AOS에서도 청구서를 보내고 기록합니다",
+        "AOS 기록",
+      ],
     } as const;
     for (const t of await claimTodos(db, now)) {
       if (t.kind === "dun" ? !money : !desk) continue;
       const [what, detail, action] = TEXT[t.kind];
       out.push({
-        key: `cl-${t.kind}-${t.id}`,
+        key: `cl-${t.kind}-${t.id}-${t.seq}`,
         when: t.late
           ? "late"
-          : t.kind === "scope" || (t.due && t.due > today)
+          : t.kind === "scope" || t.kind === "dispute" || (t.due && t.due > today)
             ? "soon"
             : "today",
         what: `${what}: ${t.who}`,
         detail: t.due ? `${detail} · 기한 ${t.due}` : detail,
-        href: `/repairs/${t.id}/claim`,
+        href: `/repairs/${t.id}/claim${t.seq > 1 ? `?c=${t.seq}` : ""}`,
         action,
       });
     }

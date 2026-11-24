@@ -1,14 +1,15 @@
 "use client";
 // 엑셀·CSV 파일 고르기 칸(입력도우미 Shell 안). 은행·카드사·홈택스가 준 원본 그대로 받는다
 import { useId, useState } from "react";
+import type { FieldHelpKey } from "@/modules/help/fields";
 import { Shell } from "../../_input";
 
-export function SheetFile() {
+export function SheetFile({ help = "bank.file" }: { help?: FieldHelpKey } = {}) {
   const id = useId();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   return (
-    <Shell id={id} helpKey="bank.file" required error={error}>
+    <Shell id={id} helpKey={help} required error={error}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <input
           id={id}

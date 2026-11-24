@@ -179,11 +179,12 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
                 <div className="space-y-1 text-sm">
                   <p className="text-lg font-semibold tabular-nums">{cv.amounts.customerDue.toLocaleString("ko-KR")}원</p>
                   <p className="text-xs">
-                    일반 항목 {cv.amounts.generalWon.toLocaleString("ko-KR")}원 + 자기부담금 {cv.claim.deductibleWon.toLocaleString("ko-KR")}원
-                    {cv.claim.customerExtraWon > 0 && ` + 미승인분 합의 ${cv.claim.customerExtraWon.toLocaleString("ko-KR")}원`}
+                    일반 항목 {cv.amounts.generalWon.toLocaleString("ko-KR")}원 + 자기부담금 {cv.amounts.deductibleTotal.toLocaleString("ko-KR")}원
+                    {cv.amounts.depreciationTotal > 0 && ` + 감가상각 ${cv.amounts.depreciationTotal.toLocaleString("ko-KR")}원`}
+                    {cv.amounts.extraTotal > 0 && ` + 미승인분 합의 ${cv.amounts.extraTotal.toLocaleString("ko-KR")}원`}
                   </p>
                   <p className="text-xs text-[var(--muted)]">
-                    보험사 몫 {cv.amounts.insurerDue.toLocaleString("ko-KR")}원은 출고 뒤 청구합니다.{" "}
+                    보험사 몫 {cv.amounts.insurerDueTotal.toLocaleString("ko-KR")}원은 출고 뒤 청구합니다.{" "}
                     <Link href={`/repairs/${id}/claim`} className="text-[var(--accent)]">
                       보험 청구 {cv.claim.docNo}
                     </Link>
