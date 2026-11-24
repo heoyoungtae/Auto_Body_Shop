@@ -51,6 +51,8 @@ export const DEFAULT_POLICY = {
   },
   // 간소화(설정 › 간소화, 대표 2026-11-24 '진행하라'): 1=켬(간편), 0=끔(표준대로 전부 기록). 처음 값은 간편 모드
   "simple.work_order_auto": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 고객 승인 때 작업 지시서 자동", clause: "4.1", min: 0, max: 1 },
+  "simple.step_groups": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 공정 3묶음·시작 단추 없음", clause: "4.1", min: 0, max: 1 },
+  "simple.photo_per_group": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 공정 사진 묶음당 1장", clause: "4.1", min: 0, max: 1 },
   "simple.check_all": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: '모두 이상 없음' 한 번에 체크", clause: "4.1", min: 0, max: 1 },
   "simple.photo_bulk": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 입고 사진 한 번에 올리기", clause: "2.1", min: 0, max: 1 },
   "simple.statement_deliver": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 정비명세서 발급·인도 한 화면", clause: "8절", min: 0, max: 1 },

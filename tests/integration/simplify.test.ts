@@ -10,10 +10,12 @@ import { applySimplifyMode, setSimple, simplifyOverview, SIMPLIFY_ITEMS } from "
 import { loadPolicy, type PolicyKey } from "@/modules/platform/policy";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { digestNotices, isUrgentNotice, pushPending, subscribeStaffPush } from "@/modules/platform/staff-push";
-import { createWorkOrder, setManualWorkOrder } from "@/modules/repair/work";
+import { addStepPhoto, assignGroup, createWorkOrder, finishGroup, getWorkOrder, setManualWorkOrder, startStep, workTodos } from "@/modules/repair/work";
+import { checkValue, groupSteps, PROCESSES, splitMinutes, type Process } from "@/modules/repair/work-rules";
+import { repairOrder } from "@/db/schema";
 import { closeEntry } from "@/modules/journal/entry";
 import { bulkPlan } from "@/app/repairs/photo-slots";
-import { approvedRepair } from "./flow";
+import { approvedRepair, WEBP } from "./flow";
 import { seedShop, testDb } from "./db";
 
 beforeAll(() => {
@@ -129,5 +131,87 @@ describe("입고 사진 한 번에", () => {
     expect(bulkPlan(f(9), [])).toEqual(["front", "front_left", "left", "rear_left", "rear", "rear_right", "right", "front_right", "dash"]);
     expect(bulkPlan(f(3), ["front", "left"])).toEqual(["front_left", "rear_left", "rear"]);
     expect(bulkPlan(f(2), ["front", "front_left", "left", "rear_left", "rear", "rear_right", "right", "front_right", "dash"])).toEqual(["close", "close"]);
+  });
+});
+
+describe("공정 3묶음·사진 묶음당 1장", () => {
+  const boss = () => ({ id: ids.manager, roles: ["plant_manager" as const] });
+  const tech = () => ({ id: ids.tech1, roles: ["technician" as const] });
+  const tech2 = () => ({ id: ids.tech2, roles: ["technician" as const] });
+  const allChecks = (ps: string[]) => ps.flatMap((p) => PROCESSES[p as Process].checks.map((c) => checkValue(p, c)));
+
+  it("시간 나누기는 표준 시간 비율, 합은 그대로", () => {
+    expect(splitMinutes(100, [30, 10, 0])).toEqual([75, 25, 0]);
+    expect(splitMinutes(10, [0, 0, 0])).toEqual([4, 3, 3]);
+  });
+
+  it("묶음 단위로 첫 사진이 시작, '묶음 끝' 한 번으로 공정이 모두 끝나고 마지막 묶음이면 검사 대기", async () => {
+    await turnOn("simple.step_groups");
+    await turnOn("simple.photo_per_group");
+    const { roId } = await approvedRepair(db, ids, now, (names) => names.some((n) => n.includes("범퍼")));
+    const { id } = await createWorkOrder(db, boss(), roId, now);
+    let w = await getWorkOrder(db, id);
+    const groups = groupSteps(w.steps);
+    expect(groups.map((g) => g.key)).toEqual(["prep", "paint", "finish"]);
+    await expect(assignGroup(db, tech(), id, "prep", { assignee: ids.tech1, planDate: "" }, now)).rejects.toThrow(/공장장/);
+    for (const g of groups) await assignGroup(db, boss(), id, g.key, { assignee: g.key === "paint" ? ids.tech2 : ids.tech1, planDate: "2026-11-10" }, now);
+    expect((await workTodos(db, tech(), now)).filter((x) => x.kind === "mine").map((x) => x.label)).toEqual([expect.stringContaining("판금 준비")]);
+    expect((await workTodos(db, tech2(), now)).filter((x) => x.kind === "mine")).toHaveLength(0);
+    // 앞 묶음이 안 끝나면 사진(시작)도 끝도 안 됨
+    const paintStep = groups[1].steps.find((s) => s.process === "paint")!;
+    await expect(addStepPhoto(db, tech2(), paintStep.id, WEBP)).rejects.toThrow(/앞 묶음/);
+    await expect(finishGroup(db, tech2(), id, "paint", { checks: [], detail: {}, note: "" }, now)).rejects.toThrow(/앞 묶음/);
+    // 판금 준비: 사진 없이는 못 끝냄 → 사진 1장(시작) → 다른 기술자는 못 끝냄 → 끝
+    const prep = groups[0];
+    const prepPs = prep.steps.map((s) => s.process);
+    await expect(finishGroup(db, tech(), id, "prep", { checks: allChecks(prepPs), detail: {}, note: "" }, now)).rejects.toThrow(/묶음 사진/);
+    await addStepPhoto(db, tech(), prep.steps[0].id, WEBP, now);
+    w = await getWorkOrder(db, id);
+    expect(w.status).toBe("working");
+    expect(w.steps.filter((s) => prepPs.includes(s.process)).every((s) => s.startedAt)).toBe(true);
+    await expect(finishGroup(db, tech2(), id, "prep", { checks: allChecks(prepPs), detail: {}, note: "" }, now)).rejects.toThrow(/담당/);
+    await expect(finishGroup(db, tech(), id, "prep", { checks: allChecks(prepPs).slice(1), detail: {}, note: "" }, now)).rejects.toThrow(/자주 검사/);
+    expect((await finishGroup(db, tech(), id, "prep", { checks: allChecks(prepPs), detail: {}, note: "" }, new Date(now.getTime() + 60 * 60000))).done).toBe(false);
+    // 도장: 배합·건조 조건을 함께 적어야 끝남, 기록은 공정별로 나뉘어 남는다
+    const paint = groupSteps((await getWorkOrder(db, id)).steps)[1];
+    const paintPs = paint.steps.map((s) => s.process);
+    await addStepPhoto(db, tech2(), paintStep.id, WEBP, now);
+    await expect(finishGroup(db, tech2(), id, "paint", { checks: allChecks(paintPs), detail: { colorCode: "NKA" }, note: "" }, now)).rejects.toThrow(/배합 번호/);
+    await finishGroup(db, tech2(), id, "paint", { checks: allChecks(paintPs), detail: { colorCode: "NKA", mixNo: "M-1", tempC: "60", minutes: "30" }, note: "블렌딩" }, now);
+    w = await getWorkOrder(db, id);
+    expect(w.steps.find((s) => s.process === "color")!.detail).toEqual({ colorCode: "NKA", mixNo: "M-1" });
+    expect(w.steps.find((s) => s.process === "dry")!.detail).toEqual({ tempC: "60", minutes: "30" });
+    expect(w.steps.find((s) => s.process === "mask")!.checks).toEqual([...PROCESSES.mask.checks]);
+    // 마무리
+    const fin = groupSteps(w.steps)[2];
+    await addStepPhoto(db, tech(), fin.steps[0].id, WEBP, now);
+    expect((await finishGroup(db, tech(), id, "finish", { checks: allChecks(fin.steps.map((s) => s.process)), detail: {}, note: "" }, now)).done).toBe(true);
+    const [r] = await db.select({ status: repairOrder.status }).from(repairOrder).where(eq(repairOrder.id, roId));
+    expect(r.status).toBe("inspecting");
+  });
+
+  it("보험 수리 건은 사진이 필요한 공정마다 1장", async () => {
+    await turnOn("simple.step_groups");
+    await turnOn("simple.photo_per_group");
+    const { roId } = await approvedRepair(db, ids, now, (names) => names.some((n) => n.includes("범퍼")));
+    await db.update(repairOrder).set({ insurance: "own" }).where(eq(repairOrder.id, roId));
+    const { id } = await createWorkOrder(db, boss(), roId, now);
+    const prep = groupSteps((await getWorkOrder(db, id)).steps)[0];
+    await assignGroup(db, boss(), id, "prep", { assignee: ids.tech1, planDate: "" }, now);
+    const need = prep.steps.filter((s) => PROCESSES[s.process as Process].photo);
+    await addStepPhoto(db, tech(), prep.steps[0].id, WEBP, now);
+    if (need.length > 1) await expect(finishGroup(db, tech(), id, "prep", { checks: allChecks(prep.steps.map((s) => s.process)), detail: {}, note: "" }, now)).rejects.toThrow(/사진/);
+    for (const s of need.slice(1)) await addStepPhoto(db, tech(), s.id, WEBP, now);
+    await finishGroup(db, tech(), id, "prep", { checks: allChecks(prep.steps.map((s) => s.process)), detail: {}, note: "" }, now);
+  });
+
+  it("끄면 묶음 끝은 막히고 공정마다 시작한다", async () => {
+    const { roId } = await approvedRepair(db, ids, now, (names) => names.some((n) => n.includes("범퍼")));
+    const { id } = await createWorkOrder(db, boss(), roId, now);
+    const w = await getWorkOrder(db, id);
+    await expect(finishGroup(db, tech(), id, "prep", { checks: [], detail: {}, note: "" }, now)).rejects.toThrow(/꺼져/);
+    await assignGroup(db, boss(), id, "prep", { assignee: ids.tech1, planDate: "" }, now);
+    await expect(addStepPhoto(db, tech(), w.steps[0].id, WEBP, now)).rejects.toThrow(/시작한 공정/);
+    await startStep(db, tech(), w.steps[0].id, now);
   });
 });

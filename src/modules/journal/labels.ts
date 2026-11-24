@@ -124,6 +124,7 @@ export const SKIP_ACTIONS = new Set([
   "purchase.auto",
   "work.start",
   "work.finish",
+  "work.finish_group",
   "equipment.check",
   "journal.close",
 ]);
@@ -164,6 +165,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "estimate.declined": "고객 견적 거절 기록",
   "work.create": "작업 지시서 만듦",
   "work.auto_create": "작업 지시서 자동 생성",
+  "work.finish_group": "공정 묶음 끝",
   "work.auto_assign": "작업 자동 배정",
   "work.manual": "작업 지시서 직접 배정으로 바꿈",
   "work.header": "작업 지시서 고침",

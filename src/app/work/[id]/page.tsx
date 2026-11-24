@@ -1,12 +1,12 @@
 import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { getWorkOrder } from "@/modules/repair/work";
+import { getWorkOrder, groupMode, photoPerGroup } from "@/modules/repair/work";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { processEquipmentWarnings } from "@/modules/equipment/service";
 import { fmtMinutes } from "@/modules/repair/labor";
-import { PROCESSES, WO_STATUS_LABEL, damageProgress, isProcess, processLabel } from "@/modules/repair/work-rules";
+import { PROCESSES, WO_STATUS_LABEL, checkValue, damageProgress, groupSteps, isProcess, processLabel } from "@/modules/repair/work-rules";
 import { listDamage } from "@/modules/repair/service";
 import { carOf } from "@/modules/repair/body-map";
 import { CarMap } from "../../repairs/car-map";
@@ -68,6 +68,9 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
   const db = await getDb();
   const w = await getWorkOrder(db, id);
   const checkAll = (await loadPolicy(db, seoulDate()))["simple.check_all"] === 1;
+  // 간소화 '공정 3묶음'(simple.step_groups)·'공정 사진 묶음당 1장'(simple.photo_per_group, 보험 건 제외)
+  const grouped = await groupMode(db);
+  const perGroup = grouped && (await photoPerGroup(db, w.ro.id));
   const boss = can(user, "work.assign");
   const open = w.status !== "done";
   const v = w.vehicle;
@@ -113,7 +116,107 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3 xl:items-start">
         <div className="space-y-4 xl:col-span-2">
-          {w.steps.map((s, i) => {
+          {grouped &&
+            groupSteps(w.steps).map((g, gi) => {
+              const todo = g.steps.filter((s) => !s.endedAt);
+              const mine = boss || g.steps.some((s) => s.assignee === user.id);
+              const started = todo.some((s) => s.startedAt);
+              const state = g.done ? "done" : started ? "started" : g.open ? "ready" : "waiting";
+              const can = open && g.open && mine;
+              // 묶음당 사진이면 사진을 받을 공정 하나(사진이 필요한 첫 공정)
+              const target = todo.find((s) => isProcess(s.process) && PROCESSES[s.process].photo) ?? todo[0];
+              const strips = g.steps.filter((s) => (perGroup ? s === target : !s.endedAt && isProcess(s.process) && PROCESSES[s.process].photo) || s.photos.length > 0);
+              const photoNeed = perGroup ? 1 : todo.filter((s) => isProcess(s.process) && PROCESSES[s.process].photo).length;
+              const photoHave = perGroup ? todo.reduce((a, s) => a + s.photos.length, 0) : todo.filter((s) => isProcess(s.process) && PROCESSES[s.process].photo && s.photos.length > 0).length;
+              const warn = [...new Set(todo.filter((s) => !s.startedAt).flatMap((s) => eqWarn.get(s.process) ?? []))];
+              return (
+                <div key={g.key} id={`group-${g.key}`}>
+                  <Card title={`${gi + 1}. ${g.label} (${g.sub})`} help={{ kind: "panel", id: "work.group" }} actions={<Badge tone={state === "done" ? "ok" : state === "started" ? "accent" : state === "ready" ? "warn" : "neutral"}>{{ done: "끝", started: "작업 중", ready: "할 차례", waiting: "대기" }[state]}</Badge>}>
+                    <div className="space-y-3 text-sm">
+                      <ul className="space-y-1">
+                        {g.steps.map((s) => (
+                          <li key={s.id}>
+                            <b>{processLabel(s.process)}</b> — 담당 {s.assigneeName ?? "미정"}
+                            {s.workplaceName && ` · 작업장 ${s.workplaceName}`} · 표준 {s.stdMinutes ? fmtMinutes(s.stdMinutes) : "—"}
+                            {s.endedAt && ` · 끝 ${fmtTime(s.endedAt)} (${fmtMinutes(s.actualMinutes ?? 0)})`}
+                            <span className="block text-xs text-[var(--muted)]">{s.lineIds.map(lineName).filter(Boolean).join(" · ") || "견적 항목 없음(마무리 공정)"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {state === "waiting" && <p className="text-[var(--muted)]">앞 묶음이 끝나면 할 수 있습니다.</p>}
+
+                      {boss && open && !g.done && (
+                        <details>
+                          <summary className="cursor-pointer font-semibold text-[var(--accent)]">{todo.every((s) => s.assignee) ? "묶음 담당·예정 바꾸기" : "묶음 담당 정하기"}</summary>
+                          <AssistForm id={`wg-${w.id}-${g.key}`} action={workAction} className="mt-2 grid gap-3 md:grid-cols-3">
+                            <Hidden woId={w.id} intent="assignGroup" />
+                            <input type="hidden" name="group" value={g.key} />
+                            <SelectField help="work.assignee" name="assignee" required defaultValue={todo[0]?.assignee ?? ""} placeholder="고르기" options={w.workers.map((u) => ({ value: u.id, label: `${u.name}(${u.role})` }))} />
+                            <DateField help="work.planDate" name="planDate" defaultValue={todo[0]?.planDate ?? ""} quick={["today", "tomorrow"]} />
+                            <div className="self-end">
+                              <SubmitButton variant="secondary">담당 저장</SubmitButton>
+                            </div>
+                          </AssistForm>
+                        </details>
+                      )}
+
+                      {can && !started && warn.length > 0 && (
+                        <div className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] p-2 text-sm">
+                          <b>설비 확인</b>
+                          <ul className="list-disc pl-5">
+                            {warn.map((x) => (
+                              <li key={x}>{x}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {can && !started && <p className="text-[var(--muted)]">시작 단추는 없습니다. 작업 사진을 처음 올린 때가 이 묶음의 시작으로 기록됩니다.</p>}
+
+                      {strips.map((s) => (
+                        <PhotoStrip key={s.id} fields={{ woId: w.id, stepId: s.id }} upload={uploadStepPhotoAction} remove={removeStepPhotoAction} photos={s.photos} editable={can && !s.endedAt} label={perGroup && s === target ? `${g.label} 사진` : processLabel(s.process)} />
+                      ))}
+
+                      {can && todo.length > 0 && (
+                        <AssistForm id={`wfg-${w.id}-${g.key}`} action={workAction} className="space-y-3 rounded-md border border-[var(--line)] p-3">
+                          <Hidden woId={w.id} intent="finishGroup" />
+                          <input type="hidden" name="group" value={g.key} />
+                          <CheckGroup
+                            help="work.checks"
+                            name="checks"
+                            options={todo.flatMap((s) => (isProcess(s.process) ? PROCESSES[s.process].checks.map((c) => ({ value: checkValue(s.process, c), label: `${processLabel(s.process)}: ${c}` })) : []))}
+                            allLabel={checkAll ? "모두 이상 없음" : undefined}
+                          />
+                          {todo.map((s) => (
+                            <DetailFields key={s.id} process={s.process} />
+                          ))}
+                          <TextAreaField help="work.stepNote" name="stepNote" rows={2} />
+                          <p className={`text-xs ${photoHave < photoNeed ? "text-[var(--warn)]" : "text-[var(--muted)]"}`}>
+                            끝내려면: 자주 검사 모두 확인 · 사진 {perGroup ? "묶음에 1장 이상" : `사진이 필요한 공정마다 1장(${photoHave}/${photoNeed})`}
+                            {perGroup ? `(지금 ${photoHave}장)` : ""}
+                          </p>
+                          <SubmitButton>묶음 끝</SubmitButton>
+                        </AssistForm>
+                      )}
+
+                      {g.steps.some((s) => s.endedAt) && (
+                        <div className="space-y-1 text-xs text-[var(--muted)]">
+                          {g.steps
+                            .filter((s) => s.endedAt)
+                            .map((s) => (
+                              <p key={s.id}>
+                                {processLabel(s.process)} 자주 검사: {s.checks.join(" · ")}
+                                {Object.entries(s.detail).length > 0 && ` · 기록: ${Object.entries(s.detail).map(([k, val]) => `${DETAIL_LABEL[k] ?? k} ${val}`).join(" · ")}`}
+                                {s.note && ` · 메모: ${s.note}`}
+                              </p>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                </div>
+              );
+            })}
+          {!grouped && w.steps.map((s, i) => {
             const p = isProcess(s.process) ? PROCESSES[s.process] : null;
             const mine = s.assignee === user.id || boss;
             const state = s.endedAt ? "done" : s.startedAt ? "started" : s.blockedBy.length ? "waiting" : "ready";
