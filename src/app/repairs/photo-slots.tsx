@@ -2,7 +2,7 @@
 // 입고 사진(F-02-01 첨부): 자리마다 '찍기'(카메라·PC 웹캠)와 '올리기'(사진첩·PC 폴더) 둘 다 된다.
 // 올리기 전에 이 화면에서 긴 변 1600px WEBP(안 되면 JPG)로 줄여 보낸다(통신·저장 공간 절약).
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { DIRECTION_SLOTS, MULTI_SLOTS, PHOTO_SLOT_LABEL, PHOTO_SLOTS, type PhotoSlot } from "@/modules/repair/rules";
 import { PhotoPick } from "../photo-pick";
 import { removePhotoAction, uploadPhotoAction } from "./actions";
@@ -25,7 +25,16 @@ export async function shrink(file: File): Promise<{ blob: Blob; width: number; h
   return { blob, width, height };
 }
 
-export function PhotoSlots({ roId, photos, readOnly = false, minPhotos }: { roId: string; photos: PhotoView[]; readOnly?: boolean; minPhotos: number }) {
+/**
+ * 간소화 '입고 사진 한 번에 올리기'(simple.photo_bulk): 여러 장을 고르면 찍은 시각 순서대로
+ * 비어 있는 8방향(정면부터 왼쪽으로 한 바퀴)·계기판 자리에 넣고, 남는 사진은 근접 사진으로 넣는다.
+ */
+export function bulkPlan(files: { lastModified: number }[], filled: PhotoSlot[]): PhotoSlot[] {
+  const empty = [...DIRECTION_SLOTS, "dash" as PhotoSlot].filter((s) => !filled.includes(s));
+  return files.map((_, i) => empty[i] ?? "close");
+}
+
+export function PhotoSlots({ roId, photos, readOnly = false, minPhotos, bulk = false }: { roId: string; photos: PhotoView[]; readOnly?: boolean; minPhotos: number; bulk?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +67,34 @@ export function PhotoSlots({ roId, photos, readOnly = false, minPhotos }: { roId
       setBusy(null);
     }
   };
+  const taken = useRef<PhotoSlot[]>([]);
+  const uploadBulk = async (files: File[]) => {
+    if (!files.length) return;
+    const sorted = [...files].sort((a, b) => a.lastModified - b.lastModified);
+    // 웹캠·카메라로 한 장씩 이어 찍을 때 화면이 새로 그려지기 전에도 앞 사진이 들어간 자리를 건너뛴다
+    const plan = bulkPlan(sorted, [...PHOTO_SLOTS.filter((s) => bySlot(s).length), ...taken.current]);
+    plan.forEach((p) => taken.current.push(p));
+    setError(null);
+    setBusy("bulk");
+    try {
+      for (let i = 0; i < sorted.length; i++) {
+        const { blob, width, height } = await shrink(sorted[i]);
+        const fd = new FormData();
+        fd.set("id", roId);
+        fd.set("slot", plan[i]);
+        fd.set("width", String(width));
+        fd.set("height", String(height));
+        fd.set("file", blob, `photo.${blob.type === "image/webp" ? "webp" : "jpg"}`);
+        const r = await uploadPhotoAction(fd);
+        if (!r.ok) throw new Error(r.error);
+      }
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "올리지 못했습니다");
+    } finally {
+      setBusy(null);
+    }
+  };
   const remove = async (p: PhotoView) => {
     if (!confirm(`${PHOTO_SLOT_LABEL[p.slot]} 사진을 지울까요?`)) return;
     const fd = new FormData();
@@ -65,6 +102,7 @@ export function PhotoSlots({ roId, photos, readOnly = false, minPhotos }: { roId
     fd.set("photoId", p.id);
     const r = await removePhotoAction(fd);
     if (!r.ok) setError(r.error);
+    else taken.current = taken.current.filter((x) => x !== p.slot);
     router.refresh();
   };
 
@@ -74,6 +112,12 @@ export function PhotoSlots({ roId, photos, readOnly = false, minPhotos }: { roId
         8방향 {dirDone}/{need}장 · 계기판 {bySlot("dash").length ? "있음" : "없음"}
         {!readOnly && <span className="text-[var(--muted)]"> — 정면에서 시작해 왼쪽으로 한 바퀴 돌며 찍습니다. 밝은 곳에서, 차 전체가 들어오게.</span>}
       </p>
+      {bulk && !readOnly && (
+        <div className="mb-3 rounded-md border border-[var(--line)] bg-[var(--bg)] p-2 text-sm">
+          <p className="mb-1.5 text-xs text-[var(--muted)]">정면부터 왼쪽으로 한 바퀴 돌며 8장, 마지막에 계기판을 찍은 뒤 한꺼번에 고르면 찍은 순서대로 빈 자리에 들어갑니다. 남는 사진은 근접 사진으로 들어갑니다. 잘못 들어간 사진은 ✕로 지우고 그 자리에서 다시 올립니다.</p>
+          <PhotoPick multiple disabled={busy != null} busyLabel={busy === "bulk" ? "올리는 중…" : null} shootLabel="여러 장 찍기" onFiles={uploadBulk} />
+        </div>
+      )}
       {error && (
         <p role="alert" className="mb-2 text-sm font-medium text-[var(--danger)]">
           {error}

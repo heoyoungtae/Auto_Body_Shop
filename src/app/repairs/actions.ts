@@ -12,6 +12,9 @@ import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 import { UserError } from "@/modules/platform/errors";
 import { guardEdit, withLock } from "@/modules/platform/fresh";
 import { estimate, repairOrder } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { loadPolicy } from "@/modules/platform/policy";
+import { seoulDate } from "@/modules/platform/time";
 
 const STAFF = rolesFor("repair.write");
 
@@ -46,8 +49,8 @@ function readIntake(form: FormData): IntakeInput {
     delivered: str("arrival") === "driver",
     driverName: str("driverName"),
     intakeNote: str("intakeNote"),
-    agreeChecked: all("agree").includes("checked"),
-    agreeMove: all("agree").includes("move"),
+    agreeChecked: all("agree").some((v) => v === "checked" || v === "both"),
+    agreeMove: all("agree").some((v) => v === "move" || v === "both"),
     signerName: str("signerName"),
   };
 }
@@ -207,11 +210,20 @@ export async function damageAction(form: FormData) {
 export async function confirmDiagnosisAction(form: FormData) {
   const user = await requireUser(rolesFor("diag.confirm"));
   const id = String(form.get("id") ?? "");
+  let est: { id: string } | null = null;
   try {
-    await withLock(await getDb(), repairOrder, id, (db) => (form.get("intent") === "reopen" ? reopenDiagnosis(db, user, id) : confirmDiagnosis(db, user, id, String(form.get("diagNote") ?? ""))));
+    const root = await getDb();
+    // 간소화 '공장장이 견적을 만들면 진단 확인 함께': 진단 확인에 이어 견적(초안)까지 만든다
+    const alsoEstimate = form.get("then") === "estimate" && rolesFor("estimate.write").some((r) => user.roles.includes(r)) && (await loadPolicy(root, seoulDate()))["simple.diag_auto"] === 1;
+    await withLock(root, repairOrder, id, async (db) => {
+      if (form.get("intent") === "reopen") return reopenDiagnosis(db, user, id);
+      await confirmDiagnosis(db, user, id, String(form.get("diagNote") ?? ""));
+      if (alsoEstimate) est = await createEstimate(db, user, id);
+    });
   } catch (e) {
     redirect(errorUrl(`/repairs/${id}#diagnosis`, userMessage(e)));
   }
+  if (est) redirect(noticeUrl(`/repairs/${id}/estimate/${(est as { id: string }).id}`, "진단을 확인하고, 진단과 공임 기준표로 견적 항목을 채웠습니다. 부품 단가와 바뀐 것만 고치세요"));
   redirect(noticeUrl(`/repairs/${id}`, form.get("intent") === "reopen" ? "진단을 다시 열었습니다" : "진단을 확인했습니다. 상담원에게 견적 작성 알림을 보냈습니다"));
 }
 
@@ -228,8 +240,8 @@ export async function createEstimateAction(form: FormData) {
   redirect(noticeUrl(`/repairs/${roId}/estimate/${est.id}`, "진단과 공임 기준표로 견적 항목을 채웠습니다. 부품 단가와 바뀐 것만 고치세요"));
 }
 
-const answerMsg = (o: string, total: number) =>
-  o === "declined" ? "승인 안 함으로 기록했습니다. 고객에게 사유를 묻고 차량 반출을 안내하세요" : `${o === "accepted" ? "전체" : "일부"} 승인을 기록했습니다(승인 금액 ${total.toLocaleString("ko-KR")}원). 수리 건이 작업 대기로 넘어갔습니다`;
+const answerMsg = (o: string, total: number, wo?: string | null) =>
+  o === "declined" ? "승인 안 함으로 기록했습니다. 고객에게 사유를 묻고 차량 반출을 안내하세요" : `${o === "accepted" ? "전체" : "일부"} 승인을 기록했습니다(승인 금액 ${total.toLocaleString("ko-KR")}원). ${wo ? "작업 지시서와 담당을 자동으로 정했습니다" : "수리 건이 작업 대기로 넘어갔습니다"}`;
 
 export async function estimateAction(form: FormData) {
   const user = await requireUser();
@@ -270,15 +282,25 @@ export async function estimateAction(form: FormData) {
       if (intent === "store") {
         const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(s("signature"));
         const r = await approveInStore(db, user, id, { groups, name: s("approverName"), signaturePng: m ? new Uint8Array(Buffer.from(m[1], "base64")) : null });
-        msg = answerMsg(r.outcome, r.approvedTotal);
+        msg = answerMsg(r.outcome, r.approvedTotal, r.workOrderId);
       } else {
         const r = await recordInsurerApproval(db, user, id, { groups, name: s("approverName"), ref: s("insurerRef") });
-        msg = answerMsg(r.outcome, r.approvedTotal);
+        msg = answerMsg(r.outcome, r.approvedTotal, r.workOrderId);
       }
     }
     }));
     // 머리 양식의 '검토 요청' 단추: 머리 칸을 먼저 저장(위, 따로 확정)한 뒤 검토를 요청한다.
     // 검토 요청이 막혀도 넣은 등록년월일 등은 저장된 채로 남는다(예전에는 따로 보내 칸이 비워졌음)
+    // 간소화 '견적 발급 때 고객 링크 바로 보내기': 일반(자비) 견적이면 발급에 이어 승인 링크를 보낸다(보험은 보험사 회신)
+    if (intent === "issue") {
+      const [e] = await root.select({ kind: estimate.kind }).from(estimate).where(eq(estimate.id, id));
+      if (e?.kind === "general" && (await loadPolicy(root, seoulDate()))["simple.estimate_send"] === 1) {
+        const r = await sendApprovalLink(root, user, id);
+        msg = r.ok
+          ? `법정 견적서를 발급하고 고객에게 승인 링크를 보냈습니다(${r.channel}${r.demo ? ", 데모: 실제로 나가지 않음" : ""}). '견적서 인쇄'로 2부를 뽑아 1부를 고객에게 드리세요`
+          : `법정 견적서를 발급했지만 승인 링크를 보내지 못했습니다: ${r.error ?? "발송 실패"}. 번호를 확인하거나 매장 서명으로 받으세요`;
+      }
+    }
     if (intent === "header" && s("then") === "submit") {
       const role = await withLock(root, estimate, id, (db) => submitEstimate(db, user, id));
       msg = `검토를 요청했습니다(검토: ${ROLE_LABEL[role]})`;

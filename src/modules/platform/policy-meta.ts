@@ -12,6 +12,7 @@ export const POLICY_GROUPS = {
   payroll: "급여·4대보험·복리후생",
   safety: "안전·환경·법규",
   security: "보안·계정",
+  simple: "간소화",
 } as const;
 export type PolicyGroup = keyof typeof POLICY_GROUPS;
 export const isPolicyGroup = (s: string): s is PolicyGroup => s in POLICY_GROUPS;
@@ -26,6 +27,7 @@ const BY_PREFIX: Record<string, PolicyGroup> = {
   payroll: "payroll", wage: "payroll", ins: "payroll", welfare: "payroll", work: "payroll", hr: "payroll", leave: "payroll", competency: "payroll",
   risk: "safety", legal: "safety", waste: "safety", env: "safety",
   auth: "security",
+  simple: "simple",
 };
 /** 접두어와 다른 분류로 가는 값 */
 const BY_KEY: Partial<Record<PolicyKey, PolicyGroup>> = {

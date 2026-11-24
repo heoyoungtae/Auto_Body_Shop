@@ -416,6 +416,7 @@ export const MENU: MenuGroup[] = [
       { label: "영업일·휴무일", perm: ["settings.edit"], href: "/settings/calendar" },
       { label: "로고·앱 아이콘", href: "/settings/brand" },
       { section: "업무 기준", label: "공임 기준표", perm: ["settings.edit"], href: "/settings/labor", std: "F-03-01" },
+      { label: "간소화", perm: ["settings.edit"], href: "/settings/simplify" },
       { label: "정책값", perm: ["settings.edit"], href: "/settings/policies", std: "부록 D" },
       { label: "전결 규정", perm: ["settings.edit"], href: "/settings/delegation", std: "부록 B" },
       { label: "권한표", perm: ["settings.edit"], href: "/settings/permissions" },

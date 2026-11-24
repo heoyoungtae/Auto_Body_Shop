@@ -7,6 +7,8 @@ import type { Db } from "@/db/client";
 import { notification, staffPush } from "@/db/schema";
 import { vapidAuth, vapidKeys } from "@/modules/carbook/push";
 import { UserError } from "./errors";
+import { loadPolicy } from "./policy";
+import { seoulDate } from "./time";
 
 /** 이만큼 지난 알림은 휴대폰으로 깨우지 않는다(처음 켰을 때 옛 알림이 쏟아지지 않게) */
 const FRESH_MS = 30 * 60_000;
@@ -39,10 +41,12 @@ export async function unsubscribeStaffPush(db: Db, userId: string, endpoint: str
  * 받을 기기가 없는 사람의 알림은 깨운 것으로만 적는다(다음에 기기를 켜도 옛 알림을 보내지 않게).
  */
 export async function pushPending(db: Db, now = new Date(), f: typeof fetch = fetch) {
-  const rows = await db
-    .select({ id: notification.id, userId: notification.userId })
+  let rows = await db
+    .select({ id: notification.id, userId: notification.userId, dedupeKey: notification.dedupeKey })
     .from(notification)
     .where(and(isNull(notification.pushedAt), isNull(notification.readAt), gte(notification.createdAt, new Date(now.getTime() - FRESH_MS))));
+  // 간소화 '급하지 않은 알림 하루 2번 묶기': 급한 것만 바로 깨우고, 나머지는 12시·17시 묶음 알림(digestNotices)으로
+  if (rows.length && (await loadPolicy(db, seoulDate(now)))["simple.notice_digest"] === 1) rows = rows.filter((r) => isUrgentNotice(r.dedupeKey));
   if (!rows.length) return { users: 0, sent: 0 };
   await db
     .update(notification)
@@ -66,6 +70,37 @@ export async function pushPending(db: Db, now = new Date(), f: typeof fetch = fe
     }
   }
   return { users: users.length, sent };
+}
+
+/** 바로 깨울 알림(고객 차의 흐름·안전·보안). 키가 없거나 처음 보는 키는 급하지 않은 것으로 본다(묶음으로 감) */
+const URGENT = ["est-", "work-", "qc-", "cp-", "jn-safety", "digest-", "sec-", "web-request", "consult-due", "inq-", "incident", "hz-", "eqfail-"];
+export const isUrgentNotice = (key: string | null) => !!key && URGENT.some((p) => key.startsWith(p));
+
+/**
+ * 묶음 알림(12시·17시): 바로 깨우지 않은 급하지 않은 알림이 있는 사람에게 'n건' 한 줄을 만들어 휴대폰을 한 번 깨운다.
+ * 묶인 알림은 깨운 것으로 적어 다시 울리지 않는다. 알림 목록에는 그대로 있다.
+ */
+export async function digestNotices(db: Db, slot: "noon" | "eve", now = new Date()) {
+  if ((await loadPolicy(db, seoulDate(now)))["simple.notice_digest"] !== 1) return "알림 묶기 꺼짐";
+  const rows = await db
+    .select({ id: notification.id, userId: notification.userId, title: notification.title })
+    .from(notification)
+    .where(and(isNull(notification.pushedAt), isNull(notification.readAt)))
+    .orderBy(asc(notification.createdAt));
+  if (!rows.length) return "묶을 알림 없음";
+  await db
+    .update(notification)
+    .set({ pushedAt: now, pushShownAt: now })
+    .where(inArray(notification.id, rows.map((r) => r.id)));
+  const by = new Map<string, string[]>();
+  for (const r of rows) by.set(r.userId, [...(by.get(r.userId) ?? []), r.title]);
+  for (const [userId, titles] of by)
+    await db
+      .insert(notification)
+      .values({ userId, title: `알림 ${titles.length}건(${slot === "noon" ? "오전" : "오후"} 묶음): ${titles[0]}${titles.length > 1 ? ` 외 ${titles.length - 1}건` : ""}`, link: "/notifications", dedupeKey: `digest-${seoulDate(now)}-${slot}` })
+      .onConflictDoNothing();
+  schedulePush();
+  return `알림 묶음 ${by.size}명 ${rows.length}건`;
 }
 
 /** 서비스 워커가 깨어나 가져가는 알림(아직 휴대폰에 띄우지 않은 것, 최근 것만). 가져가면 띄운 것으로 적는다 */

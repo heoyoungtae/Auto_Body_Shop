@@ -19,6 +19,7 @@ import { addDays, seoulDate } from "@/modules/platform/time";
 import { koDateTime } from "@/modules/customer/rules";
 import { draftFromEstimate } from "@/modules/purchase/order";
 import { EstimateError, getEstimate } from "./estimate";
+import { autoWorkOrder } from "./work";
 import { APPROVAL_METHOD, approvalGroups, approvalOutcome, totals, type ApprovalMethod } from "./estimate-rules";
 
 type Actor = { id: string; roles: Role[] };
@@ -132,7 +133,9 @@ async function apply(db: Db, id: string, groupKeys: string[], rec: Record_, now:
   for (const role of ["advisor", "plant_manager"] as const) await notifyRole(db, role, msg, `est-answer-${e.docNo}-${role}`, `/repairs/${e.repairOrderId}/estimate/${id}`);
   // STD-07 5.1: 승인한 부품 줄로 발주서(작성 중)를 저절로 만든다
   const poId = outcome === "declined" ? null : await draftFromEstimate(db, id, rec.recordedBy, now);
-  return { outcome, approvedTotal: ok, poId };
+  // 간소화(simple.work_order_auto): 승인하면 작업 지시서·담당을 바로 만든다(설정에서 끄면 공장장이 만듦)
+  const auto = outcome === "declined" ? null : await autoWorkOrder(db, e.repairOrderId, now);
+  return { outcome, approvedTotal: ok, poId, workOrderId: auto?.id ?? null };
 }
 
 async function storeSignature(docNo: string, png: Uint8Array | null) {

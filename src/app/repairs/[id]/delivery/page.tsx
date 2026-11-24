@@ -37,6 +37,45 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
   const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
   const snap = (st?.snapshot ?? {}) as { warranty?: { kind: string; until: string }[]; legalFreeDays?: number; byPayer?: { insurance: number; general: number } };
 
+  // 설명·수납·받는 사람 칸(인도). 간소화 '정비명세서 발급·인도 한 화면'이면 명세서 발급 칸과 한 양식에 둔다
+  const handover = (
+    <>
+      <CheckGroup help="dl.notices" name="notices" options={opts({ ...DELIVERY_NOTICES, care: `도장 후 ${policy["delivery.no_wash_days"]}일 동안 세차·왁스 금지 안내를 받았습니다` })} allLabel={policy["simple.check_all"] === 1 ? "모두 안내함" : undefined} />
+      <ShowWhen
+        field="payMethod"
+        initial={r.insurance !== "self" ? "insurance" : biz ? "credit" : ""}
+        cases={
+          biz?.warnings.length
+            ? { credit: <CheckGroup help="dl.creditOk" name="creditOk" options={[{ value: "ok", label: "경고를 확인하고 외상 출고(대표에게 알림)" }]} /> }
+            : {}
+        }
+      >
+        <SelectField
+          help="dl.payMethod"
+          name="payMethod"
+          required
+          defaultValue={r.insurance !== "self" ? "insurance" : biz ? "credit" : ""}
+          from={biz ? "업체 결제 조건" : undefined}
+          placeholder="고르기"
+          options={opts(biz ? PAY_METHODS : Object.fromEntries(Object.entries(PAY_METHODS).filter(([k]) => k !== "credit")))}
+        />
+      </ShowWhen>
+      <ShowWhen field="receiver" initial="self" cases={{ proxy: <TextField help="dl.proxyNote" name="proxyNote" required /> }}>
+        <SelectField
+          help="dl.receiver"
+          name="receiver"
+          defaultValue="self"
+          options={[
+            { value: "self", label: "고객 본인" },
+            { value: "proxy", label: "대리인" },
+          ]}
+        />
+      </ShowWhen>
+      <TextField help="dl.receiverName" name="receiverName" required defaultValue={biz?.customer.contactName ?? r.customer.name} from={biz?.customer.contactName ? "업체 담당자" : "고객 기록"} />
+    </>
+  );
+  const oneStep = policy["simple.statement_deliver"] === 1;
+
   return (
     <div>
       <PageTitle
@@ -78,7 +117,19 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
               </form>
             </Card>
           )}
-          {ready && desk && !st && (
+          {ready && desk && !st && oneStep && (
+            <Card title="2. 정비명세서 발급·설명·수납·인수" help={{ kind: "panel", id: "dl.oneStep" }}>
+              <AssistForm id={`dlx-${id}`} action={deliveryAction} className="space-y-4">
+                <input type="hidden" name="roId" value={id} />
+                <input type="hidden" name="intent" value="issue_deliver" />
+                <NumberField help="dl.mileageOut" name="mileageOut" unit="km" min={r.mileage ?? 0} defaultValue={r.mileage} from={r.mileage != null ? "입고 점검" : undefined} required />
+                {handover}
+                <SignaturePad hint="인수하는 분이 차량 상태를 확인하고 이 칸에 서명합니다" />
+                <SubmitButton>정비명세서 발급하고 출고</SubmitButton>
+              </AssistForm>
+            </Card>
+          )}
+          {ready && desk && !st && !oneStep && (
             <Card title="2. 정비명세서 발급" help={{ kind: "panel", id: "dl.statement" }}>
               <AssistForm id={`dli-${id}`} action={deliveryAction} className="space-y-3">
                 <input type="hidden" name="roId" value={id} />
@@ -93,38 +144,7 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
               <AssistForm id={`dld-${id}`} action={deliveryAction} className="space-y-4">
                 <input type="hidden" name="roId" value={id} />
                 <input type="hidden" name="intent" value="deliver" />
-                <CheckGroup help="dl.notices" name="notices" options={opts({ ...DELIVERY_NOTICES, care: `도장 후 ${policy["delivery.no_wash_days"]}일 동안 세차·왁스 금지 안내를 받았습니다` })} />
-                <ShowWhen
-                  field="payMethod"
-                  initial={r.insurance !== "self" ? "insurance" : biz ? "credit" : ""}
-                  cases={
-                    biz?.warnings.length
-                      ? { credit: <CheckGroup help="dl.creditOk" name="creditOk" options={[{ value: "ok", label: "경고를 확인하고 외상 출고(대표에게 알림)" }]} /> }
-                      : {}
-                  }
-                >
-                  <SelectField
-                    help="dl.payMethod"
-                    name="payMethod"
-                    required
-                    defaultValue={r.insurance !== "self" ? "insurance" : biz ? "credit" : ""}
-                    from={biz ? "업체 결제 조건" : undefined}
-                    placeholder="고르기"
-                    options={opts(biz ? PAY_METHODS : Object.fromEntries(Object.entries(PAY_METHODS).filter(([k]) => k !== "credit")))}
-                  />
-                </ShowWhen>
-                <ShowWhen field="receiver" initial="self" cases={{ proxy: <TextField help="dl.proxyNote" name="proxyNote" required /> }}>
-                  <SelectField
-                    help="dl.receiver"
-                    name="receiver"
-                    defaultValue="self"
-                    options={[
-                      { value: "self", label: "고객 본인" },
-                      { value: "proxy", label: "대리인" },
-                    ]}
-                  />
-                </ShowWhen>
-                <TextField help="dl.receiverName" name="receiverName" required defaultValue={biz?.customer.contactName ?? r.customer.name} from={biz?.customer.contactName ? "업체 담당자" : "고객 기록"} />
+                {handover}
                 <SignaturePad hint="인수하는 분이 차량 상태를 확인하고 이 칸에 서명합니다" />
                 <SubmitButton>인수 서명 받고 출고</SubmitButton>
               </AssistForm>

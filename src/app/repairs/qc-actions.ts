@@ -113,7 +113,12 @@ export async function deliveryAction(form: FormData) {
         });
         msg =
           "정비명세서를 발급했습니다. '정비명세서 인쇄'로 2부를 뽑아 1부를 고객에게 드리세요";
-      } else if (intent === "deliver") {
+      } else if (intent === "deliver" || intent === "issue_deliver") {
+        // 간소화 '정비명세서 발급·인도 한 화면': 법정 정비명세서를 먼저 발급하고 이어서 인도한다
+        if (intent === "issue_deliver") {
+          const m = s("mileageOut").replace(/[^\d]/g, "");
+          await issueStatement(db, user, roId, { mileageOut: m ? Number(m) : null });
+        }
         const sig = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(
           s("signature"),
         );
@@ -128,7 +133,7 @@ export async function deliveryAction(form: FormData) {
             ? new Uint8Array(Buffer.from(sig[1], "base64"))
             : null,
         });
-        msg = "인수 서명을 받고 출고했습니다. 7일 뒤 만족도 설문을 확인합니다";
+        msg = `${intent === "issue_deliver" ? "정비명세서를 발급하고 " : ""}인수 서명을 받고 출고했습니다. 7일 뒤 만족도 설문을 확인합니다${intent === "issue_deliver" ? ". '정비명세서 인쇄'로 2부를 뽑아 1부를 고객에게 드리세요" : ""}`;
         // 카드·현금·이체로 받았으면 바로 입금 전표를 적게 수납 화면으로(금액·방법은 불러옴)
         if (
           ["card", "cash", "transfer"].includes(s("payMethod")) &&

@@ -79,7 +79,7 @@ function Summary({ d }: { d: Damage }) {
   );
 }
 
-export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, options, diagNote, photos = [], canPhoto = false, subExtras, car, fresh = {} }: { /** 진단 줄마다 동시 수정 확인 표(id → 표) */ fresh?: Record<string, string>; roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; options: string[]; diagNote: string | null; photos?: { damageId: string; path: string }[]; canPhoto?: boolean; subExtras?: Record<string, string[]>; car?: CarLook }) {
+export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, alsoEstimate = false, options, diagNote, photos = [], canPhoto = false, subExtras, car, fresh = {} }: { /** 진단 줄마다 동시 수정 확인 표(id → 표) */ fresh?: Record<string, string>; roId: string; status: string; damages: Damage[]; canDiagnose: boolean; canConfirm: boolean; /** 간소화 simple.diag_auto: 확인하면서 견적까지 만든다 */ alsoEstimate?: boolean; options: string[]; diagNote: string | null; photos?: { damageId: string; path: string }[]; canPhoto?: boolean; subExtras?: Record<string, string[]>; car?: CarLook }) {
   const editable = status === "checked" && canDiagnose;
   // 손상 줄 사진(가까이 찍은 것): 진단부터 검사까지 붙이고 뺄 수 있다. 견적·손님 설명에 같이 쓴다
   const photoEditable = canPhoto && ["checked", "estimating", "working", "inspecting"].includes(status);
@@ -168,8 +168,9 @@ export function Diagnosis({ roId, status, damages, canDiagnose, canConfirm, opti
           {canConfirm ? (
             <AssistForm id={`diag-ok-${roId}`} action={confirmDiagnosisAction} className="space-y-3">
               <input type="hidden" name="id" value={roId} />
+              {alsoEstimate && <input type="hidden" name="then" value="estimate" />}
               <TextAreaField help="dmg.confirmNote" name="diagNote" rows={2} />
-              <SubmitButton>진단 확인 → 견적으로</SubmitButton>
+              <SubmitButton>{alsoEstimate ? "진단 확인하고 견적 쓰기" : "진단 확인 → 견적으로"}</SubmitButton>
             </AssistForm>
           ) : (
             <p className="text-sm text-[var(--muted)]">공장장(또는 대표)이 확인합니다.</p>

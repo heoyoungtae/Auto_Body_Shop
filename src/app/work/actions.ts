@@ -5,7 +5,7 @@ import { rolesFor } from "@/modules/auth/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { addStepPhoto, assignRest, assignStep, createWorkOrder, finishStep, removeStepPhoto, saveWorkHeader, startStep } from "@/modules/repair/work";
+import { addStepPhoto, assignRest, assignStep, createWorkOrder, finishStep, removeStepPhoto, saveWorkHeader, setManualWorkOrder, startStep } from "@/modules/repair/work";
 import { UserError } from "@/modules/platform/errors";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
@@ -20,6 +20,19 @@ export async function createWorkOrderAction(form: FormData) {
     redirect(errorUrl(`/repairs/${roId}#work`, userMessage(e)));
   }
   redirect(noticeUrl(`/work/${res.id}`, res.created ? "승인한 견적 항목으로 공정을 만들었습니다. 공정마다 담당과 예정일을 정하세요" : "이미 만든 작업 지시서입니다"));
+}
+
+/** 수리 건에서: 이 건은 공장장이 직접 배정(간소화 '작업 지시서 자동'을 이 건만 끔) 또는 되돌리기 */
+export async function manualWorkOrderAction(form: FormData) {
+  const user = await requireUser(rolesFor("work.assign"));
+  const roId = String(form.get("roId") ?? "");
+  const manual = String(form.get("manual") ?? "") === "1";
+  try {
+    await setManualWorkOrder(await getDb(), user, roId, manual);
+  } catch (e) {
+    redirect(errorUrl(`/repairs/${roId}`, userMessage(e)));
+  }
+  redirect(noticeUrl(`/repairs/${roId}`, manual ? "이 건은 고객이 승인해도 지시서를 자동으로 만들지 않습니다. 승인 뒤 '작업 지시서 만들기'를 눌러 주세요" : "고객이 승인하면 작업 지시서와 담당이 자동으로 정해집니다"));
 }
 
 export async function workAction(form: FormData) {

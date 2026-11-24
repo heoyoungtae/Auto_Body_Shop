@@ -56,6 +56,8 @@ export const repairOrder = pgTable(
     // ── 고객 확인(서명)
     agreeChecked: boolean("agree_checked").notNull().default(false),
     agreeMove: boolean("agree_move").notNull().default(false),
+    /** 간소화 '작업 지시서 자동'을 이 건에서는 하지 않음(공장장이 직접 만들고 배정) */
+    manualWorkOrder: boolean("manual_work_order").notNull().default(false),
     signerName: text("signer_name"),
     signaturePath: text("signature_path"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
