@@ -133,6 +133,8 @@ export default async function RepairDetail({
   const lastMileage =
     r.mileage != null && v.mileage === r.mileage ? null : v.mileage;
   const minPhotos = Math.min(policy["intake.min_photos"], 8);
+  // 설정 › 정책값 '입고 고객 서명 생략'(기본 켜짐=생략). 끄면 서명란이 나타난다
+  const signSkip = policy["intake.sign_skip"] === 1;
   const photoSlots = r.photos.map((p) => p.slot);
   const photos = r.photos.map((p) => ({
     id: p.id,
@@ -438,21 +440,30 @@ export default async function RepairDetail({
                     ]}
                   />
                 )}
-                <TextField
-                  help="ro.signerName"
-                  name="signerName"
-                  defaultValue={r.signerName ?? r.customer.name}
-                />
-                <SignaturePad />
+                {signSkip ? (
+                  <p className="rounded-md border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]">
+                    고객 서명은 생략합니다(설정 › 정책값 &lsquo;입고 고객 서명 생략&rsquo;이 켜짐). 위 확인 체크만 하고 마치면 마친 직원이 기록에 남습니다. 서명을 받으려면 대표가 그 값을 0으로 바꿉니다.
+                  </p>
+                ) : (
+                  <>
+                    <TextField
+                      help="ro.signerName"
+                      name="signerName"
+                      defaultValue={r.signerName ?? r.customer.name}
+                    />
+                    <SignaturePad />
+                  </>
+                )}
                 <IntakeCheck
                   photoSlots={photoSlots}
                   minPhotos={minPhotos}
                   consentOk={r.consent.required}
                   lastMileage={lastMileage}
+                  signSkip={signSkip}
                 />
                 <div className="flex flex-wrap gap-2">
                   <SubmitButton name="intent" value="sign">
-                    서명 받고 점검 마치기
+                    {signSkip ? "점검 마치기" : "서명 받고 점검 마치기"}
                   </SubmitButton>
                   <SubmitButton
                     name="intent"
@@ -844,13 +855,21 @@ export default async function RepairDetail({
               {r.signedAt ? (
                 <div className="space-y-2 text-sm">
                   <p>
-                    <Badge tone="ok">서명함</Badge> {r.signerName} ·{" "}
+                    {r.signaturePath ? (
+                      <>
+                        <Badge tone="ok">서명함</Badge> {r.signerName} ·{" "}
+                      </>
+                    ) : (
+                      <>
+                        <Badge tone="ok">점검 마침</Badge> 고객 서명 생략(설정) ·{" "}
+                      </>
+                    )}
                     {fmtTime(r.signedAt)}
                   </p>
                   {r.signaturePath && (
                     <img
                       src={`/api/files/${r.signaturePath}`}
-                      alt={`${r.signerName} 서명`}
+                      alt={`${r.signerName ?? "고객"} 서명`}
                       className="h-28 w-full rounded border border-[var(--line)] bg-white object-contain"
                     />
                   )}
@@ -876,7 +895,7 @@ export default async function RepairDetail({
                 </div>
               ) : (
                 <p className="text-sm text-[var(--muted)]">
-                  아직 서명하지 않았습니다. 상담원·공장장·대표가 점검을 이어
+                  아직 점검을 마치지 않았습니다. 상담원·공장장·대표가 점검을 이어
                   합니다.
                 </p>
               )}

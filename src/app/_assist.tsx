@@ -257,6 +257,8 @@ type AssistProps = ComponentProps<"form"> & {
   bar?: boolean;
   /** 고치기 양식: freshToken(…)(src/modules/platform/fresh.ts). 주면 동시 수정 확인과 '고치는 중' 표시가 붙는다 */
   fresh?: string;
+  /** 문서 안 form id. 양식 밖 단추가 form="…" 으로 이 양식을 함께 보낼 때(예: 견적 '검토 요청'이 머리 칸을 함께 저장) */
+  domId?: string;
 };
 
 export function AssistForm(props: AssistProps) {
@@ -264,7 +266,7 @@ export function AssistForm(props: AssistProps) {
   return <AssistFormInner key={freshHash(props.fresh) || undefined} {...props} />;
 }
 
-function AssistFormInner({ id, draft = false, guard = true, bar = true, fresh, children, ...props }: AssistProps) {
+function AssistFormInner({ id, draft = false, guard = true, bar = true, fresh, domId, children, ...props }: AssistProps) {
   const ref = useRef<HTMLFormElement>(null);
   const initial = useRef<Snapshot | null>(null);
   const submitting = useRef(false);
@@ -366,6 +368,7 @@ function AssistFormInner({ id, draft = false, guard = true, bar = true, fresh, c
     <form
       ref={ref}
       {...props}
+      id={domId}
       onSubmit={(e) => {
         const form = e.currentTarget;
         submitting.current = true;

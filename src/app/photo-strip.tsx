@@ -1,7 +1,8 @@
 "use client";
-// 공정 사진: 휴대폰에서 바로 카메라가 열리고, 줄여서 올린다(입고 사진과 같은 방식)
+// 공정 사진: '찍기'(카메라·PC 웹캠)와 '올리기'(사진첩·PC 폴더) 둘 다 되고, 줄여서 올린다(입고 사진과 같은 방식)
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { PhotoPick } from "./photo-pick";
 import { shrink } from "./repairs/photo-slots";
 
 type Act = (form: FormData) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -11,14 +12,13 @@ export function PhotoStrip({ fields, photos, editable, label, upload: uploadActi
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const input = useRef<HTMLInputElement | null>(null);
 
-  const upload = async (files: FileList | null) => {
-    if (!files?.length) return;
+  const upload = async (files: File[]) => {
+    if (!files.length) return;
     setError(null);
     setBusy(true);
     try {
-      for (const f of Array.from(files)) {
+      for (const f of files) {
         const { blob } = await shrink(f);
         const fd = new FormData();
         for (const [k, v] of Object.entries(fields)) fd.set(k, v);
@@ -31,7 +31,6 @@ export function PhotoStrip({ fields, photos, editable, label, upload: uploadActi
       setError(e instanceof Error ? e.message : "올리지 못했습니다");
     } finally {
       setBusy(false);
-      if (input.current) input.current.value = "";
     }
   };
   const remove = async (path: string) => {
@@ -65,14 +64,7 @@ export function PhotoStrip({ fields, photos, editable, label, upload: uploadActi
             )}
           </div>
         ))}
-        {editable && (
-          <>
-            <input type="file" data-assist="upload" ref={input} accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => upload(e.currentTarget.files)} />
-            <button type="button" disabled={busy} onClick={() => input.current?.click()} className="grid h-20 w-28 place-items-center rounded border border-dashed border-[var(--line-strong)] text-xs hover:bg-[var(--accent-soft)] disabled:opacity-50">
-              {busy ? "올리는 중…" : "+ 찍기·올리기"}
-            </button>
-          </>
-        )}
+        {editable && <PhotoPick look="tile" multiple disabled={busy} busyLabel={busy ? "올리는 중…" : null} onFiles={upload} />}
         {!editable && !photos.length && <span className="text-xs text-[var(--muted)]">사진 없음</span>}
       </div>
     </div>

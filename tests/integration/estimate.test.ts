@@ -70,7 +70,7 @@ describe("견적(STD-03)", () => {
     expect(totals([{ qty: 2, unitWon: 10_000, laborWon: 5_005 }])).toEqual({ parts: 20_000, labor: 5_005, sum: 25_005, vat: 2_501, total: 27_506 });
   });
 
-  it("진단 → 견적 → 검토(전결) → 발급. 사업장 정보·등록년월일·부품 단가가 없으면 막는다", async () => {
+  it("진단 → 견적 → 검토(전결) → 발급. 사업장 정보·부품 단가가 없으면 막는다(등록년월일은 선택)", async () => {
     const roId = await estimating();
     const { id } = await createEstimate(db, advisor(), roId, now);
     expect((await createEstimate(db, advisor(), roId, now)).id).toBe(id);
@@ -78,7 +78,8 @@ describe("견적(STD-03)", () => {
     expect(e.docNo).toBe("ES-2611-0001");
     expect(e.kind).toBe("general");
     expect(e.lines.some((l) => l.category === "etc" && l.laborCode === "CAL")).toBe(true); // 전방 레이더 → 보정
-    await expect(submitEstimate(db, advisor(), id, now)).rejects.toThrow(/부품 단가.*등록년월일/);
+    await expect(submitEstimate(db, advisor(), id, now)).rejects.toThrow(/부품 단가/);
+    await expect(submitEstimate(db, advisor(), id, now)).rejects.not.toThrow(/등록년월일/);
     const part = e.lines.find((l) => l.category === "part")!;
     await saveLine(db, advisor(), id, { id: part.id, payer: "general", category: "part", name: part.name, partCode: "D", partNo: "86511-AA000", qty: 1, unitWon: 180_000, laborMinutes: null, laborWon: null, note: "" }, now);
     const paintBefore = e.lines.find((l) => l.laborCode === "PNT-bumper")!.laborWon;

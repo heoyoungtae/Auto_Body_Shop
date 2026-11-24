@@ -99,7 +99,7 @@ export function estimateIssues(lines: { category: string; name: string; partCode
     if (l.category !== "part" && l.laborWon <= 0) out.push({ field: "lines", msg: `${l.name}: 공임 금액이 0원입니다` });
     if (l.qty < 1) out.push({ field: "lines", msg: `${l.name}: 수량은 1 이상입니다` });
   }
-  if (!v.registeredOn) out.push({ field: "registeredOn", msg: "등록년월일(자동차등록증의 최초 등록일)이 없습니다. 법정 서식의 필수 칸입니다" });
+  // 등록년월일(최초 등록일)은 선택 칸이다(대표 2026-11-24). 비어 있으면 견적서 그 칸이 빈칸으로 인쇄된다
   if (v.mileage == null) out.push({ field: "mileage", msg: "주행거리가 없습니다(입고 점검에서 넣음)" });
   return out;
 }

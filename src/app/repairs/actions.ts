@@ -82,7 +82,7 @@ export async function intakeAction(form: FormData) {
       const sig = String(form.get("signature") ?? "");
       const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(sig);
       await guardEdit(db, user, form, (tx) => signIntake(tx, user.id, id, { ...input, signaturePng: m ? new Uint8Array(Buffer.from(m[1], "base64")) : null, consentNow: form.getAll("consentNow").includes("1") }));
-      msg = "서명을 받고 입고 점검을 마쳤습니다. 열쇠에 수리 건 번호 태그를 달아 보관함에 넣으세요";
+      msg = m ? "서명을 받고 입고 점검을 마쳤습니다. 열쇠에 수리 건 번호 태그를 달아 보관함에 넣으세요" : "입고 점검을 마쳤습니다(고객 서명 생략). 열쇠에 수리 건 번호 태그를 달아 보관함에 넣으세요";
     } else {
       await guardEdit(db, user, form, (tx) => saveIntake(tx, user.id, id, input));
     }
@@ -100,7 +100,7 @@ export async function reopenAction(form: FormData) {
   } catch (e) {
     redirect(errorUrl(`/repairs/${id}`, userMessage(e)));
   }
-  redirect(noticeUrl(`/repairs/${id}`, "다시 점검합니다. 고친 뒤 고객 서명을 다시 받으세요"));
+  redirect(noticeUrl(`/repairs/${id}`, "다시 점검합니다. 고친 뒤 다시 마치세요(서명을 받는 설정이면 고객 서명도 다시)"));
 }
 
 /** 사진 올리기(화면에서 줄여 보낸 그림). 화면이 직접 부르고 결과를 받는다 */
@@ -277,6 +277,12 @@ export async function estimateAction(form: FormData) {
       }
     }
     }));
+    // 머리 양식의 '검토 요청' 단추: 머리 칸을 먼저 저장(위, 따로 확정)한 뒤 검토를 요청한다.
+    // 검토 요청이 막혀도 넣은 등록년월일 등은 저장된 채로 남는다(예전에는 따로 보내 칸이 비워졌음)
+    if (intent === "header" && s("then") === "submit") {
+      const role = await withLock(root, estimate, id, (db) => submitEstimate(db, user, id));
+      msg = `검토를 요청했습니다(검토: ${ROLE_LABEL[role]})`;
+    }
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));
   }

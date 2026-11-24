@@ -139,7 +139,7 @@ export default async function RepairsPage({ searchParams }: { searchParams: Prom
                         <td className="py-2 pr-3 whitespace-nowrap">{r.advisor ?? "—"}</td>
                         <td className="py-2 pr-3 whitespace-nowrap">{fmtTime(r.inAt)}</td>
                         <td className="py-2 pr-3 text-xs">
-                          {r.signedAt ? <Badge tone="ok">서명 {fmtTime(r.signedAt)}</Badge> : <span className={r.photos >= minPhotos ? "" : "text-[var(--warn)]"}>사진 {r.photos}장 · 서명 전</span>}
+                          {r.signedAt ? <Badge tone="ok">점검 마침 {fmtTime(r.signedAt)}</Badge> : <span className={r.photos >= minPhotos ? "" : "text-[var(--warn)]"}>사진 {r.photos}장 · 점검 중</span>}
                         </td>
                         <td className="py-2 text-sm whitespace-nowrap">
                           {/* 목록에서 바로 다음 일로(대표 결정 2026-11-23) */}
