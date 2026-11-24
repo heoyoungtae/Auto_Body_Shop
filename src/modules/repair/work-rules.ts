@@ -109,3 +109,58 @@ export function damageProgress(
   }
   return out;
 }
+
+/** 간소화 '공정 3묶음'(simple.step_groups, 대표 2026-11-24): 공정을 세 묶음으로 기록한다. 재작업은 따로 한 묶음 */
+export const STEP_GROUPS = [
+  { key: "prep", label: "판금 준비", sub: "탈부착·외주·판금·퍼티", processes: ["detach", "outsource", "sheet", "putty"] },
+  { key: "paint", label: "도장", sub: "조색·마스킹·도장·건조", processes: ["color", "mask", "paint", "dry"] },
+  { key: "finish", label: "마무리", sub: "도장 마무리·보정·조립", processes: ["polish", "calibrate", "assemble"] },
+  { key: "rework", label: "재작업", sub: "검사 불합격 고침", processes: ["rework"] },
+] as const;
+export type GroupKey = (typeof STEP_GROUPS)[number]["key"];
+export const isGroupKey = (k: string): k is GroupKey => STEP_GROUPS.some((g) => g.key === k);
+export const groupOf = (process: string): GroupKey => STEP_GROUPS.find((g) => (g.processes as readonly string[]).includes(process))?.key ?? "finish";
+export const groupLabel = (k: string) => STEP_GROUPS.find((g) => g.key === k)?.label ?? k;
+
+/** 공정을 묶음으로 나눈다(빈 묶음은 뺌, 묶음 순서대로). open=앞 묶음이 모두 끝나 지금 할 수 있는 묶음 */
+export function groupSteps<T extends { process: string; seq: number; endedAt: Date | null }>(steps: T[]) {
+  const out: { key: GroupKey; label: string; sub: string; steps: T[]; done: boolean; open: boolean }[] = [];
+  let before = true;
+  for (const g of STEP_GROUPS) {
+    const ss = steps.filter((s) => groupOf(s.process) === g.key).sort((a, b) => a.seq - b.seq);
+    if (!ss.length) continue;
+    const done = ss.every((s) => s.endedAt);
+    out.push({ key: g.key, label: g.label, sub: g.sub, steps: ss, done, open: before && !done });
+    if (!done) before = false;
+  }
+  return out;
+}
+
+/** 묶음 자주 검사 칸 값: 공정|검사 */
+export const checkValue = (process: string, check: string) => `${process}|${check}`;
+export const checksFor = (process: string, values: string[]) => values.filter((v) => v.startsWith(`${process}|`)).map((v) => v.slice(process.length + 1));
+
+/** 공정별 기록 칸(묶음 끝 때 나눠 담는다) */
+export const DETAIL_KEYS: Record<string, string[]> = { color: ["colorCode", "paintMaker", "mixNo", "lot"], dry: ["tempC", "minutes"], sheet: ["weld"] };
+
+/** 묶음을 끝낼 때 빠진 것. perGroupPhoto=묶음당 사진 1장(간소화), 아니면 사진이 필요한 공정마다 1장 */
+export function groupIssues(steps: { process: string; photos: number }[], input: { checks: string[]; detail: Record<string, string> }, perGroupPhoto: boolean) {
+  const out: string[] = [];
+  const total = steps.reduce((a, s) => a + s.photos, 0);
+  for (const s of steps) {
+    const issues = finishIssues(s.process, { checks: checksFor(s.process, input.checks), photos: perGroupPhoto ? 1 : s.photos, detail: input.detail });
+    for (const i of issues) out.push(i.startsWith("자주 검사") || i.startsWith("사진") ? `${processLabel(s.process)}: ${i}` : i);
+  }
+  if (perGroupPhoto && total < 1 && steps.some((s) => isProcess(s.process) && PROCESSES[s.process].photo)) out.push("묶음 사진을 한 장 이상 올려야 합니다");
+  return out;
+}
+
+/** 묶음 실제 시간을 공정 표준 시간 비율로 나눈다(표준 시간이 없으면 똑같이) */
+export function splitMinutes(total: number, std: number[]) {
+  const sum = std.reduce((a, b) => a + b, 0);
+  const raw = std.map((m) => (sum ? (total * m) / sum : total / std.length));
+  const out = raw.map(Math.floor);
+  let rest = total - out.reduce((a, b) => a + b, 0);
+  for (let i = 0; rest > 0 && i < out.length; i++, rest--) out[i]++;
+  return out;
+}

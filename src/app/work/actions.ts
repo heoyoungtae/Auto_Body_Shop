@@ -5,7 +5,7 @@ import { rolesFor } from "@/modules/auth/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { addStepPhoto, assignRest, assignStep, createWorkOrder, finishStep, removeStepPhoto, saveWorkHeader, setManualWorkOrder, startStep } from "@/modules/repair/work";
+import { addStepPhoto, assignRest, assignStep, createWorkOrder, finishStep, removeStepPhoto, saveWorkHeader, setManualWorkOrder, startStep, assignGroup, finishGroup } from "@/modules/repair/work";
 import { UserError } from "@/modules/platform/errors";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
@@ -59,6 +59,14 @@ export async function workAction(form: FormData) {
         const r = await startStep(db, user, stepId);
         msg = "공정을 시작했습니다. 끝나면 자주 검사를 확인하고 '공정 끝'을 누르세요";
         if (r.warnings.length) msg += ` · 설비 확인(공장장에게 알림): ${r.warnings.join(" / ")}`;
+      } else if (intent === "assignGroup") {
+        await assignGroup(db, user, id, s("group"), { assignee: s("assignee"), planDate: s("planDate") });
+        msg = "묶음 담당을 정했습니다. 담당에게 알림을 보냈습니다";
+      } else if (intent === "finishGroup") {
+        const detail: Record<string, string> = {};
+        for (const k of ["colorCode", "paintMaker", "mixNo", "lot", "tempC", "minutes", "weld"]) if (form.has(k)) detail[k] = s(k);
+        const r = await finishGroup(db, user, id, s("group"), { checks: form.getAll("checks").map(String), detail, note: s("stepNote") });
+        msg = r.done ? "모든 공정이 끝났습니다. 수리 건이 최종 검사 대기로 넘어갔고 품질 담당에게 알렸습니다" : "묶음을 끝냈습니다. 다음 묶음은 첫 사진을 올리면 시작됩니다";
       } else if (intent === "finish") {
         const detail: Record<string, string> = {};
         for (const k of ["colorCode", "paintMaker", "mixNo", "lot", "tempC", "minutes", "weld"]) if (form.has(k)) detail[k] = s(k);

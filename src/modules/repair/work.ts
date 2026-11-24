@@ -17,7 +17,7 @@ import { seoulDate } from "@/modules/platform/time";
 import { checkAssignment, currentLevels } from "@/modules/staff/service";
 import { processEquipmentWarnings } from "@/modules/equipment/service";
 import { candidatesFor, checkWorkplace, chooseWorkplace, fillWorkplaces, listWorkplaces, workplaceState } from "@/modules/platform/branch";
-import { blockers, buildSteps, damageProgress, finishIssues, isProcess, minutesBetween, processLabel, PROCESSES } from "./work-rules";
+import { blockers, buildSteps, checksFor, damageProgress, DETAIL_KEYS, finishIssues, groupIssues, groupLabel, groupOf, groupSteps, isProcess, minutesBetween, processLabel, PROCESSES, splitMinutes, STEP_GROUPS, type GroupKey } from "./work-rules";
 
 export class WorkError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -94,25 +94,31 @@ export async function autoWorkOrder(db: Db, roId: string, now = new Date()) {
     }
     const got = new Map<string, string[]>();
     const left: string[] = [];
-    for (const s of steps) {
+    // 공정 3묶음(simple.step_groups)이면 묶음마다 한 사람(묶음의 모든 공정 역량 기준을 넘는 사람)
+    const units = p["simple.step_groups"] === 1 ? groupSteps(steps).map((g) => ({ label: g.label, steps: g.steps })) : steps.map((s) => ({ label: processLabel(s.process), steps: [s] }));
+    for (const unit of units) {
       // 일이 적은 사람부터, 같으면 아이디 순(늘 같은 결과)
       const order = [...load.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map(([u]) => u);
       let who: string | null = null;
-      for (const u of order) if (!(await checkAssignment(db, s.process, u, null, today))) { who = u; break; }
+      for (const u of order) {
+        let ok = true;
+        for (const s of unit.steps) if (await checkAssignment(db, s.process, u, null, today)) { ok = false; break; }
+        if (ok) { who = u; break; }
+      }
       if (!who) {
-        left.push(processLabel(s.process));
+        left.push(unit.label);
         continue;
       }
-      await db.update(workStep).set({ assignee: who }).where(eq(workStep.id, s.id));
-      load.set(who, (load.get(who) ?? 0) + 1);
-      got.set(who, [...(got.get(who) ?? []), processLabel(s.process)]);
+      await db.update(workStep).set({ assignee: who }).where(inArray(workStep.id, unit.steps.map((s) => s.id)));
+      load.set(who, (load.get(who) ?? 0) + unit.steps.length);
+      got.set(who, [...(got.get(who) ?? []), unit.label]);
     }
     await writeAudit(db, { actorId: null, action: "work.auto_assign", entityType: "work_order", entityId: w.docNo, after: { assigned: Object.fromEntries(got), left } });
     for (const [u, list] of got) await notifyUser(db, u, `작업 배정(자동): ${w.docNo} ${list.join("·")}`, `work-auto-${id}-${u}`, `/work/${id}`);
     await notifyRole(
       db,
       "plant_manager",
-      left.length ? `작업 지시서 자동 생성: ${w.docNo}(${r.docNo}) — 담당을 못 정한 공정 ${left.length}개(${left.join("·")}), 배정해 주세요` : `작업 지시서 자동 생성: ${w.docNo}(${r.docNo}) — 담당 자동 배정 끝, 바꿀 때만 여세요`,
+      left.length ? `작업 지시서 자동 생성: ${w.docNo}(${r.docNo}) — 담당을 못 정한 ${p["simple.step_groups"] === 1 ? "묶음" : "공정"} ${left.length}개(${left.join("·")}), 배정해 주세요` : `작업 지시서 자동 생성: ${w.docNo}(${r.docNo}) — 담당 자동 배정 끝, 바꿀 때만 여세요`,
       `work-auto-${id}`,
       `/work/${id}`,
     );
@@ -212,11 +218,16 @@ export async function startStep(db: Db, actor: Actor, stepId: string, now = new 
 }
 
 /** 공정 사진(시작한 뒤, 끝나기 전) */
-export async function addStepPhoto(db: Db, actor: Actor, stepId: string, bytes: Uint8Array) {
+export async function addStepPhoto(db: Db, actor: Actor, stepId: string, bytes: Uint8Array, now = new Date()) {
   const { s, w } = await stepRow(db, stepId);
   mustOpen(w);
   if (!mayWork(actor, s)) throw new WorkError("담당 기술자(또는 공장장)만 사진을 올립니다");
-  if (!s.startedAt || s.endedAt) throw new WorkError("시작한 공정에만 사진을 올립니다");
+  if (s.endedAt) throw new WorkError("끝난 공정에는 사진을 올리지 않습니다");
+  // 공정 3묶음이면 '시작' 단추가 없다: 묶음의 첫 사진을 올린 때가 그 묶음의 시작이다
+  if (!s.startedAt) {
+    if (!(await groupMode(db, now))) throw new WorkError("시작한 공정에만 사진을 올립니다");
+    await startGroup(db, actor, w, groupOf(s.process), now);
+  }
   if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new WorkError("사진이 비었거나 너무 큽니다(6MB까지)");
   const type = sniffImage(bytes);
   if (!type) throw new WorkError("사진 파일만 올릴 수 있습니다(JPG·PNG·WEBP)");
@@ -249,6 +260,11 @@ export async function finishStep(db: Db, actor: Actor, stepId: string, input: Fi
   if (issues.length) throw new WorkError(issues.join(" / "));
   await db.update(workStep).set({ endedAt: now, endedBy: actor.id, actualMinutes: minutesBetween(s.startedAt, now), checks, detail, note: clean(input.note) }).where(eq(workStep.id, stepId));
   await writeAudit(db, { actorId: actor.id, action: "work.finish", entityType: "work_order", entityId: w.docNo, after: { step: s.process, minutes: minutesBetween(s.startedAt, now), std: s.stdMinutes } });
+  return completeIfDone(db, w, now);
+}
+
+/** 남은 공정이 없으면 작업 끝 → 검사 대기(STD-05) */
+async function completeIfDone(db: Db, w: { id: string; docNo: string; repairOrderId: string }, now: Date) {
   const left = await db.select({ id: workStep.id }).from(workStep).where(and(eq(workStep.workOrderId, w.id), isNull(workStep.endedAt)));
   if (left.length) return { done: false };
   await db.update(workOrder).set({ status: "done", completedAt: now, updatedAt: now }).where(eq(workOrder.id, w.id));
@@ -256,6 +272,91 @@ export async function finishStep(db: Db, actor: Actor, stepId: string, input: Fi
   const [r] = await db.select({ docNo: repairOrder.docNo }).from(repairOrder).where(eq(repairOrder.id, w.repairOrderId));
   for (const role of ["quality", "plant_manager"] as const) await notifyRole(db, role, `최종 검사 대기: ${r.docNo}(${w.docNo}) — 주 작업자 외의 사람이 검사합니다`, `work-done-${w.docNo}-${role}`, `/repairs/${w.repairOrderId}`);
   return { done: true };
+}
+
+/** 간소화 '공정 3묶음'이 켜져 있나 */
+export async function groupMode(db: Db, now = new Date()) {
+  return (await loadPolicy(db, seoulDate(now)))["simple.step_groups"] === 1;
+}
+
+async function groupRows(db: Db, woId: string, key: GroupKey) {
+  const all = await db.select().from(workStep).where(eq(workStep.workOrderId, woId));
+  const groups = groupSteps(all);
+  const g = groups.find((x) => x.key === key);
+  if (!g) throw new WorkError("이 작업에 없는 묶음입니다");
+  return { all, g };
+}
+
+/** 묶음 시작(첫 사진을 올릴 때). 앞 묶음이 모두 끝나야 한다 */
+async function startGroup(db: Db, actor: Actor, w: { id: string; docNo: string; status: string; repairOrderId: string }, key: GroupKey, now = new Date()) {
+  const { all, g } = await groupRows(db, w.id, key);
+  if (!g.open) throw new WorkError(`앞 묶음이 아직 끝나지 않았습니다. ${groupLabel(key)} 묶음은 그다음에 합니다`);
+  const todo = g.steps.filter((s) => !s.startedAt && !s.endedAt);
+  if (!todo.length) return;
+  const [r] = await db.select({ branchId: repairOrder.branchId }).from(repairOrder).where(eq(repairOrder.id, w.repairOrderId));
+  const st = await workplaceState(db, r.branchId);
+  for (const s of todo) {
+    const prev = all.filter((x) => x.seq < s.seq && x.workplaceId).sort((a, b) => b.seq - a.seq)[0]?.workplaceId ?? null;
+    const workplaceId = s.workplaceId ?? chooseWorkplace(s.process, st.wps, st.inUse, prev);
+    await db.update(workStep).set({ startedAt: now, startedBy: actor.id, workplaceId }).where(eq(workStep.id, s.id));
+  }
+  if (w.status === "planned") await db.update(workOrder).set({ status: "working", updatedAt: now }).where(eq(workOrder.id, w.id));
+  await writeAudit(db, { actorId: actor.id, action: "work.start", entityType: "work_order", entityId: w.docNo, after: { group: key, steps: todo.map((s) => s.process) } });
+  const warnings = [...new Set((await Promise.all([...new Set(todo.map((s) => s.process))].map((p) => processEquipmentWarnings(db, p, seoulDate(now))))).flat())];
+  if (warnings.length) await notifyRole(db, "plant_manager", `${w.docNo} ${groupLabel(key)} 시작 — 설비 확인: ${warnings.join(" / ")}`, `work-eq-${w.id}-${key}`, `/work/${w.id}`);
+}
+
+/** 사진을 묶음당 1장으로 받나: 간소화가 켜져 있고 보험 수리가 아닐 때(보험 건은 공정마다) */
+export async function photoPerGroup(db: Db, roId: string, now = new Date()) {
+  if ((await loadPolicy(db, seoulDate(now)))["simple.photo_per_group"] !== 1) return false;
+  const [r] = await db.select({ insurance: repairOrder.insurance }).from(repairOrder).where(eq(repairOrder.id, roId));
+  return r?.insurance === "self";
+}
+
+/**
+ * 묶음 끝(간소화 '공정 3묶음'): 묶음 안의 남은 공정을 한 번에 끝낸다. 자주 검사는 공정마다 체크한 것으로 남고,
+ * 조색 배합·건조 조건·용접 방식은 그 공정 기록으로 나눠 담는다. 실제 시간은 묶음 시작(첫 사진)부터 지금까지를 표준 시간 비율로 나눈다.
+ */
+export async function finishGroup(db: Db, actor: Actor, woId: string, key: string, input: FinishInput, now = new Date()) {
+  const w = await woRow(db, woId);
+  mustOpen(w);
+  if (!(await groupMode(db, now))) throw new WorkError("공정 3묶음이 꺼져 있습니다. 공정마다 시작·끝을 눌러 주세요");
+  if (!STEP_GROUPS.some((g) => g.key === key)) throw new WorkError("알 수 없는 묶음입니다");
+  const { all, g } = await groupRows(db, woId, key as GroupKey);
+  if (g.done) throw new WorkError("이미 끝난 묶음입니다");
+  if (!g.open) throw new WorkError("앞 묶음이 아직 끝나지 않았습니다");
+  const todo = g.steps.filter((s) => !s.endedAt);
+  if (!todo.some((s) => mayWork(actor, s))) throw new WorkError("이 묶음 담당 기술자(또는 공장장)만 끝낼 수 있습니다");
+  if (todo.some((s) => !s.assignee)) throw new WorkError("담당이 정해지지 않은 공정이 있습니다. 공장장이 담당을 정한 뒤에 끝냅니다");
+  const detail = Object.fromEntries(Object.entries(input.detail).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
+  const perGroup = await photoPerGroup(db, w.repairOrderId, now);
+  const issues = groupIssues(todo.map((s) => ({ process: s.process, photos: s.photos.length })), { checks: input.checks, detail }, perGroup);
+  if (issues.length) throw new WorkError(issues.join(" / "));
+  // 묶음 시작: 먼저 시작한 공정(첫 사진) 시각, 없으면 앞 묶음이 끝난 때
+  const started = todo.map((s) => s.startedAt).filter((d): d is Date => !!d);
+  const prevEnd = all.filter((s) => s.endedAt && groupOf(s.process) !== key).map((s) => s.endedAt!.getTime());
+  const start = started.length ? new Date(Math.min(...started.map((d) => d.getTime()))) : prevEnd.length ? new Date(Math.max(...prevEnd)) : now;
+  const mins = splitMinutes(minutesBetween(start, now), todo.map((s) => s.stdMinutes ?? 0));
+  const note = clean(input.note);
+  for (const [i, s] of todo.entries()) {
+    const checks = isProcess(s.process) ? PROCESSES[s.process].checks.filter((c) => checksFor(s.process, input.checks).includes(c)) : [];
+    const mine: Record<string, string> = Object.fromEntries(Object.entries(detail as Record<string, string>).filter(([k]) => (DETAIL_KEYS[s.process] ?? []).includes(k)));
+    await db
+      .update(workStep)
+      .set({ startedAt: s.startedAt ?? start, startedBy: s.startedBy ?? actor.id, endedAt: now, endedBy: actor.id, actualMinutes: mins[i], checks, detail: mine, note: i === todo.length - 1 ? note : s.note })
+      .where(eq(workStep.id, s.id));
+  }
+  await db.update(workOrder).set({ status: w.status === "planned" ? "working" : w.status, updatedAt: now }).where(eq(workOrder.id, w.id));
+  await writeAudit(db, { actorId: actor.id, action: "work.finish_group", entityType: "work_order", entityId: w.docNo, after: { group: key, steps: todo.map((s) => s.process), minutes: minutesBetween(start, now) } });
+  return completeIfDone(db, w, now);
+}
+
+/** 묶음 담당 한꺼번에 정하기(공장장). 공정마다 역량 기준을 확인한다 */
+export async function assignGroup(db: Db, actor: Actor, woId: string, key: string, input: { assignee: string; planDate: string }, now = new Date()) {
+  mustBoss(actor);
+  if (!STEP_GROUPS.some((g) => g.key === key)) throw new WorkError("알 수 없는 묶음입니다");
+  const { g } = await groupRows(db, woId, key as GroupKey);
+  for (const s of g.steps.filter((x) => !x.endedAt)) await assignStep(db, actor, s.id, { assignee: input.assignee, planDate: input.planDate, stdMinutes: null, mentor: null }, now);
 }
 
 export async function getWorkOrder(db: Db, id: string) {
@@ -348,6 +449,17 @@ export async function workTodos(db: Db, user: Actor, now = new Date()) {
   }
   if (board.length) {
     const steps = await db.select().from(workStep).where(and(inArray(workStep.workOrderId, board.map((b) => b.id)), eq(workStep.assignee, user.id), isNull(workStep.endedAt)));
+    if (await groupMode(db, now)) {
+      // 공정 3묶음: 지금 할 차례인 묶음마다 한 줄
+      for (const woId of [...new Set(steps.map((s) => s.workOrderId))]) {
+        const b = board.find((x) => x.id === woId)!;
+        const g = groupSteps(await db.select().from(workStep).where(eq(workStep.workOrderId, woId))).find((x) => x.open);
+        if (!g || !g.steps.some((s) => s.assignee === user.id && !s.endedAt)) continue;
+        const started = g.steps.some((s) => s.startedAt && !s.endedAt);
+        out.push({ key: `wg-${woId}-${g.key}`, kind: "mine", label: `${g.label}: ${b.roNo} ${b.plateNo}`, href: `/work/${woId}#group-${g.key}`, detail: started ? "작업 중 — 끝나면 자주 검사를 확인하고 '묶음 끝'" : "할 차례 — 첫 사진을 올리면 시작됩니다", started });
+      }
+      return out;
+    }
     for (const s of steps) {
       const all = await db.select().from(workStep).where(eq(workStep.workOrderId, s.workOrderId));
       const b = board.find((x) => x.id === s.workOrderId)!;
