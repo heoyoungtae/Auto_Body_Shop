@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CALENDAR } from "@/modules/platform/business-days";
 import { checkContract, contractNumbers, fixedOtPay, type ContractTerms } from "@/modules/staff/contract-rules";
 import { countHeadcount, priorMonth } from "@/modules/staff/headcount";
-import { computeSlip, type PayPolicy } from "@/modules/staff/payroll-rules";
+import { computeSlip, grossForNet, type PayPolicy } from "@/modules/staff/payroll-rules";
 
 const terms = (o: Partial<ContractTerms> = {}): ContractTerms => ({
   contractType: "regular",
@@ -122,5 +122,23 @@ describe("상시 근로자 5명 이상 자동 판정", () => {
 
   it("직원 등록 전이면 registered=false", () => {
     expect(countHeadcount([], "2026-11-25", DEFAULT_CALENDAR).registered).toBe(false);
+  });
+});
+
+describe("실수령액에서 세전 기본급 거꾸로 계산", () => {
+  it("구한 기본급으로 계산하면 실수령이 목표 이상이고, 1,000원 적으면 목표 미만", () => {
+    const t = terms({ allowances: [{ name: "식대", amount: 200_000 }], fixedOtHours: 20 });
+    const r = grossForNet({ target: 3_000_000, terms: t, pol, family: 1, children: 0 })!;
+    expect(r.net).toBeGreaterThanOrEqual(3_000_000);
+    expect(r.basePay % 1000).toBe(0);
+    const less = grossForNet({ target: r.net, terms: t, pol, family: 1, children: 0 })!;
+    expect(less.basePay).toBe(r.basePay);
+    expect(r.cost).toBeGreaterThan(r.gross);
+  });
+
+  it("비과세 식대를 넣으면 같은 실수령에 회사 총비용이 줄어든다", () => {
+    const plain = grossForNet({ target: 2_800_000, terms: terms({ allowances: [] }), pol, family: 1, children: 0 })!;
+    const meal = grossForNet({ target: 2_800_000, terms: terms({ allowances: [{ name: "식대", amount: 200_000 }] }), pol, family: 1, children: 0 })!;
+    expect(meal.cost).toBeLessThan(plain.cost);
   });
 });

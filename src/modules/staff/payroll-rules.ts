@@ -5,7 +5,7 @@ import {
   closedReason,
   type ShopCalendar,
 } from "@/modules/platform/business-days";
-import { contractNumbers, type ContractTerms } from "./contract-rules";
+import { contractNumbers, fixedOtPay, type ContractTerms } from "./contract-rules";
 import { simpleIncomeTax, type TaxTablePolicy } from "./income-tax";
 
 export type PayLine = {
@@ -604,4 +604,64 @@ export function payDateFor(ym: string, payDay: number, cal: ShopCalendar) {
   let t = D(`${next}-${String(payDay).padStart(2, "0")}`);
   for (let i = 0; i < 10 && closedReason(cal, iso(t)) != null; i++) t -= 864e5;
   return iso(t);
+}
+
+/**
+ * 실수령액 보장 세전 계약(대표 결정 2026-11-25): 직원과 '월 실수령 ○○원'으로 정하면 그만큼 받도록 세전 기본급을 거꾸로 구한다.
+ * 연장·결근이 없는 보통 달 기준(고정 수당·고정 연장근로수당은 계약서 값, 고정 연장수당은 기본급에 따라 다시 계산).
+ * 소득세는 간이세액표(가족·자녀·원천징수 100%), 청년 소득세 감면 등은 넣지 않는다. 월급제만.
+ */
+export function grossForNet(input: {
+  target: number;
+  terms: ContractTerms;
+  pol: PayPolicy;
+  family: number;
+  children: number;
+  production?: boolean;
+}) {
+  const { target, pol } = input;
+  const zero = { overtime: 0, night: 0, holiday: 0, holidayOver8: 0, absentDays: 0, sickDays: 0, shortHours: 0 };
+  const at = (basePay: number) => {
+    const t: ContractTerms = { ...input.terms, payType: "monthly", basePay };
+    if (t.fixedOtHours && t.fixedOtHours > 0) t.fixedOtAmount = fixedOtPay(t, pol.legal5);
+    return computeSlip({
+      name: "",
+      terms: t,
+      ym: "2026-01",
+      hiredOn: null,
+      leftOn: null,
+      att: zero,
+      pol,
+      incomeTax: 0,
+      incomeTaxSource: "auto",
+      family: input.family,
+      children: input.children,
+      extras: [],
+      production: input.production,
+    });
+  };
+  if (!(target > 0)) return null;
+  // 1,000원 단위로 찾는다: 이분 탐색 뒤 간이세액표 계단 때문에 모자라면 조금씩 올림
+  let lo = 0;
+  let hi = Math.ceil((target * 3) / 1000);
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (at(mid * 1000).net >= target) hi = mid;
+    else lo = mid + 1;
+  }
+  let base = lo * 1000;
+  let slip = at(base);
+  for (let i = 0; i < 50 && slip.net < target; i++) slip = at((base += 1000));
+  return {
+    basePay: base,
+    fixedOtAmount: slip.pays.find((p) => p.code === "fixot")?.amount ?? 0,
+    gross: slip.gross,
+    net: slip.net,
+    taxfree: slip.taxfree,
+    deductTotal: slip.deductTotal,
+    employerTotal: slip.employerTotal ?? 0,
+    cost: slip.gross + (slip.employerTotal ?? 0),
+    hourly: slip.hourly,
+    minWageOk: slip.hourly >= pol.minWage,
+  };
 }

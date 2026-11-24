@@ -1,3 +1,5 @@
+import { seoulDate } from "@/modules/platform/time";
+import { payPolicy } from "@/modules/staff/payroll";
 import { isLegal5 } from "@/modules/staff/headcount";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -59,7 +61,7 @@ export default async function NewStaffDocPage({ params, searchParams }: { params
           <AssistForm id={`contract-${id}`} draft action={saveContractAction} className="space-y-5">
             <input type="hidden" name="userId" value={id} />
             {edit && <input type="hidden" name="docId" value={edit} />}
-            <ContractFields t={terms} source={source} minWage={pol["wage.minimum_hourly"]} legal5={legal5} fixedOtMax={pol["pay.fixed_ot_max_hours"]} />
+            <ContractFields t={terms} source={source} minWage={pol["wage.minimum_hourly"]} legal5={legal5} fixedOtMax={pol["pay.fixed_ot_max_hours"]} payPol={await payPolicy(db, seoulDate())} />
             <SubmitButton>저장</SubmitButton>
           </AssistForm>
         </Card>

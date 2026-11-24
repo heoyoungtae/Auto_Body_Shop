@@ -61,7 +61,7 @@ async function run(db: Db, id: string) {
   return r;
 }
 
-async function payPolicy(db: Db, on: string): Promise<PayPolicy> {
+export async function payPolicy(db: Db, on: string): Promise<PayPolicy> {
   const p = await loadPolicy(db, on);
   return {
     legal5: await isLegal5(db, on),
