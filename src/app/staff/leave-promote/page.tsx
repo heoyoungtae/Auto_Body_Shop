@@ -2,6 +2,7 @@ import { getDb } from "@/db/runtime";
 import { seoulDate } from "@/modules/platform/time";
 import { canAssign, promoteBoard } from "@/modules/staff/leave-promote";
 import { planDue } from "@/modules/staff/leave-rules";
+import { TextField } from "../../_input";
 import { SubmitButton } from "../../_submit";
 import { requireUser } from "../../_lib/session";
 import { Badge, Card, Empty, ErrorBox, Notice, PageTitle } from "../../_ui";
@@ -84,7 +85,7 @@ export default async function LeavePromotePage({ searchParams }: { searchParams:
                           ) : r.needR2 ? (
                             <form action={assignDatesAction} className="grid gap-1">
                               <input type="hidden" name="userId" value={r.userId} />
-                              <input name="dates" required placeholder="예: 12월 24일, 12월 26일" className="h-9 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2" />
+                              <TextField help="lp.dates" name="dates" required />
                               <span className="text-[var(--muted)]">{r.w.r2Due}까지</span>
                               <SubmitButton>쓸 날 지정해 보내기</SubmitButton>
                             </form>

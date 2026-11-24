@@ -171,15 +171,15 @@ function NetHelper({ pol, terms, root }: { pol: PayPolicy; terms: ContractTerms;
       <div className="mt-2 flex flex-wrap items-end gap-3">
         <label className="grid gap-1">
           <span className="text-xs">목표 실수령(월)</span>
-          <input className={`${box} w-40`} inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/[^\d]/g, "") ? Number(e.target.value.replace(/[^\d]/g, "")).toLocaleString("ko-KR") : "")} placeholder="3,000,000" />
+          <input data-assist="preview" className={`${box} w-40`} inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/[^\d]/g, "") ? Number(e.target.value.replace(/[^\d]/g, "")).toLocaleString("ko-KR") : "")} placeholder="3,000,000" />
         </label>
         <label className="grid gap-1">
           <span className="text-xs">부양가족(본인 포함)</span>
-          <input className={`${box} w-20`} inputMode="numeric" value={family} onChange={(e) => setFamily(e.target.value.replace(/[^\d]/g, ""))} />
+          <input data-assist="preview" className={`${box} w-20`} inputMode="numeric" value={family} onChange={(e) => setFamily(e.target.value.replace(/[^\d]/g, ""))} />
         </label>
         <label className="grid gap-1">
           <span className="text-xs">8~20세 자녀</span>
-          <input className={`${box} w-20`} inputMode="numeric" value={children} onChange={(e) => setChildren(e.target.value.replace(/[^\d]/g, ""))} />
+          <input data-assist="preview" className={`${box} w-20`} inputMode="numeric" value={children} onChange={(e) => setChildren(e.target.value.replace(/[^\d]/g, ""))} />
         </label>
         {r && (
           <button type="button" onClick={put} className="h-11 rounded-md bg-[var(--accent)] px-3 font-semibold text-white">

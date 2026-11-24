@@ -6,6 +6,7 @@ import { seoulDate } from "@/modules/platform/time";
 import { canSeeTeamLeave, leaveBalance, listLeaves } from "@/modules/staff/attendance";
 import { addDaysIso, leaveSummary } from "@/modules/staff/leave-rules";
 import { AssistForm } from "../_assist";
+import { TextAreaField } from "../_input";
 import { SubmitButton } from "../_submit";
 import { requireUser } from "../_lib/session";
 import { Card, Empty, ErrorBox, Notice, PageTitle, StatusBadge } from "../_ui";
@@ -138,7 +139,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
                 <p>
                   연차 연도 {lp.bal.from} ~ {lp.bal.to}에 남은 연차가 <b>{lp.r1.remain}일</b>입니다. <b>{planDue(lp.r1.sentOn)}</b>까지 쓸 날을 정해 내 주세요.
                 </p>
-                <textarea name="plan" required rows={2} maxLength={300} placeholder="예: 12월 24일, 12월 26일, 1월 2일" className="w-full rounded-md border border-[var(--line)] bg-[var(--bg)] p-2" />
+                <TextAreaField help="lp.plan" name="plan" required rows={2} />
                 <p className="text-xs text-[var(--muted)]">내지 않으면 회사가 쓸 날을 정해 보냅니다. 낸 날에도 연차 신청서는 따로 올립니다.</p>
                 <SubmitButton>쓸 날 내기</SubmitButton>
               </form>
