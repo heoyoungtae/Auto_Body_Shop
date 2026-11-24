@@ -87,7 +87,7 @@ export default async function SimplifyPage({ searchParams }: { searchParams: Pro
                   )}
                 </dd>
                 <dt className="text-[var(--muted)]">줄어드는 일</dt>
-                <dd>{i.saves}(수리 한 건 기준, 추정)</dd>
+                <dd>{i.saves}, 추정</dd>
               </dl>
             </Card>
           </li>

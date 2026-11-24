@@ -344,7 +344,7 @@ export async function sendDueSurveys(db: Db, now = new Date(), f: typeof fetch =
     let err: string | null = null;
     try {
       const p = await phoneForNotice(db, r.customerId);
-      const res = await sendNotice(db, { key: "survey", to: p.to, vars: { 고객명: p.name, 차량번호: r.plateNo, 설문링크: `${appUrl()}/survey/${token}` }, purpose: "만족도 설문", customerName: p.name, ref: r.roNo, sentBy: null }, f);
+      const res = await sendNotice(db, { key: "survey", to: p.to, vars: { 고객명: p.name, 차량번호: r.plateNo, 설문링크: `${appUrl()}/survey/${token}` }, purpose: "만족도 설문", customerName: p.name, ref: r.roNo, sentBy: null, push: { customerId: r.customerId, url: `/survey/${token}` } }, f);
       sentOk = res.ok;
       err = res.ok ? null : (res.error ?? "발송 실패");
     } catch (e) {

@@ -46,6 +46,13 @@ export async function hiddenHrefs(db: Db): Promise<string[]> {
   return FEATURES.filter((f) => off.includes(f.key)).flatMap((f) => f.hrefs);
 }
 
+/** 이 주소(할 일·알림의 링크)가 꺼 둔 기능의 화면인가. 경로만 보고(?·# 뒤는 무시) 같거나 그 아래면 숨김 */
+export function linkHidden(link: string | null | undefined, hidden: string[]): boolean {
+  if (!link || !hidden.length) return false;
+  const path = link.split(/[?#]/)[0];
+  return hidden.some((h) => path === h || path.startsWith(`${h}/`));
+}
+
 /** 기능 하나 켜기·끄기. 권한(대표) 확인은 부르는 쪽에서 */
 export async function setFeature(db: Db, actorId: string, key: string, on: boolean) {
   const f = FEATURES.find((x) => x.key === key);

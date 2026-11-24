@@ -25,6 +25,7 @@ import { writeAudit } from "@/modules/platform/audit";
 import { actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
+import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { EXPENSE_FORM, listExpenses, payables } from "./expense";
 import { accruedIn, balancesAt } from "./payable";
@@ -541,6 +542,11 @@ export async function prepareMonth(
       expenses: s.expenses.paid,
     },
   });
+  // 간소화 '결재권자 본인 건 바로 승인'(simple.self_approve): 대표가 올리면 올리는 순간 승인
+  if ((await loadPolicy(db, seoulDate(now)))["simple.self_approve"] === 1 && can(actor, "money.close_approve")) {
+    await decideMonth(db, actor, ym, true, "", now);
+    return "self" as const;
+  }
   await notifyRole(
     db,
     "owner",

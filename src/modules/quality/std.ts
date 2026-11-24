@@ -71,6 +71,9 @@ export function bodyMark(t: string) {
  * 이미 들어간 서버는 여기 적은 절이 예전 초안 그대로(표시값 같음)일 때만 std-seed.json 새 본문으로 바꾼다. 앱에서 고친 절은 건드리지 않는다.
  */
 export const DRAFT_PATCHES: Record<string, string[]> = {
+  "p:STD-12:4": ["9a7cb543"],
+  "p:STD-00:5": ["73f59c8e"],
+  "o:1.2": ["75cf8379"],
   "p:STD-05:8": ["ae11cdcd"],
   "p:STD-03:3": ["869b070b"],
   "a:B": ["3877e046"],
@@ -108,7 +111,7 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "a:D": ["7d9454ed"],
   "p:STD-00:2": ["23f8cf4c"],
   "p:STD-Q:2": ["a6ad0636"],
-  "p:STD-01:4": ["36087479"],
+  "p:STD-01:4": ["36087479", "8a6b9d9b"],
   "p:STD-02:5": ["d9f25568", "a61ba0af"],
   "p:STD-03:4": ["fb8860fd", "effcf91d"],
   "p:STD-04:2": ["c7b717fb"],

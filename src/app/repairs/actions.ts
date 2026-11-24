@@ -57,6 +57,7 @@ function readIntake(form: FormData): IntakeInput {
 
 /** 상담 → 수리 건 열기(입고 시작) */
 const SMALL_SKIP_MSG = "소액 견적이라 내부 검토 없이 검토 끝으로 넘겼습니다(간소화). 바로 발급할 수 있습니다";
+const SELF_REVIEW_MSG = "검토자가 본인이라 올리면서 검토를 마쳤습니다(간소화). 바로 발급할 수 있습니다";
 
 export async function startRepairAction(form: FormData) {
   const user = await requireUser([...STAFF]);
@@ -269,7 +270,7 @@ export async function estimateAction(form: FormData) {
       msg = "항목을 지웠습니다";
     } else if (intent === "submit") {
       const role = await submitEstimate(db, user, id);
-      msg = role ? `검토를 요청했습니다(검토: ${ROLE_LABEL[role]})` : SMALL_SKIP_MSG;
+      msg = role === "self" ? SELF_REVIEW_MSG : role ? `검토를 요청했습니다(검토: ${ROLE_LABEL[role]})` : SMALL_SKIP_MSG;
     } else if (intent === "approve" || intent === "return") {
       await reviewEstimate(db, user, id, intent === "approve", s("reviewNote"));
       msg = intent === "approve" ? "검토를 마쳤습니다. 발급할 수 있습니다" : "작성자에게 되돌렸습니다";
@@ -305,7 +306,7 @@ export async function estimateAction(form: FormData) {
     }
     if (intent === "header" && s("then") === "submit") {
       const role = await withLock(root, estimate, id, (db) => submitEstimate(db, user, id));
-      msg = role ? `검토를 요청했습니다(검토: ${ROLE_LABEL[role]})` : SMALL_SKIP_MSG;
+      msg = role === "self" ? SELF_REVIEW_MSG : role ? `검토를 요청했습니다(검토: ${ROLE_LABEL[role]})` : SMALL_SKIP_MSG;
     }
   } catch (e) {
     redirect(errorUrl(back, userMessage(e)));

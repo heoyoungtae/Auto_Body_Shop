@@ -171,6 +171,12 @@ export async function submitEstimate(db: Db, actor: Actor, id: string, now = new
     return null;
   }
   const role = await resolveApprover(db, "estimate", e.totalWon, actor.roles, seoulDate(now));
+  // 간소화 '결재권자 본인 건 바로 승인'(simple.self_approve): 검토자가 올린 사람 자신(대표)이면 올리는 순간 검토 끝
+  if (pol["simple.self_approve"] === 1 && (actor.roles.includes(role) || actor.roles.includes("owner"))) {
+    await db.update(estimate).set({ status: "approved", reviewedBy: actor.id, reviewedAt: now, updatedAt: now }).where(eq(estimate.id, id));
+    await writeAudit(db, { actorId: actor.id, action: "estimate.self_review", entityType: "estimate", entityId: e.docNo, after: { total: e.totalWon, reviewer: role } });
+    return "self" as const;
+  }
   await db.update(estimate).set({ status: "review", updatedAt: now }).where(eq(estimate.id, id));
   await writeAudit(db, { actorId: actor.id, action: "estimate.submit", entityType: "estimate", entityId: e.docNo, after: { total: e.totalWon, reviewer: role } });
   await notifyRole(db, role, `견적 검토: ${e.docNo} ${e.totalWon.toLocaleString("ko-KR")}원`, `est-review-${e.docNo}-${now.getTime()}`, `/repairs/${e.repairOrderId}/estimate/${id}`);

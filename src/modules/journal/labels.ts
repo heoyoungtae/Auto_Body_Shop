@@ -167,6 +167,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "work.auto_create": "작업 지시서 자동 생성",
   "work.finish_group": "공정 묶음 끝",
   "estimate.small_skip": "소액 견적 검토 생략",
+  "estimate.self_review": "견적 본인 검토(간소화)",
   "settings.features": "안 쓰는 기능 끄기",
   "work.auto_assign": "작업 자동 배정",
   "work.manual": "작업 지시서 직접 배정으로 바꿈",

@@ -3,7 +3,7 @@
 // 합격하면 출고 대기. 정비명세서는 승인한 견적 줄로 만들고, 고객 인수 서명을 받으면 출고된다.
 import { makeLink } from "@/modules/carbook/link";
 import { branchShopInfo } from "@/modules/platform/branch";
-import { rolesFor } from "@/modules/auth/permissions";
+import { can, rolesFor } from "@/modules/auth/permissions";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, customer, estimate, estimateLine, inspection, repairOrder, repairStatement, vehicle, workOrder, workStep } from "@/db/schema";
@@ -25,6 +25,9 @@ import { totals } from "./estimate-rules";
 import { afterCreditDelivery, creditCheck } from "@/modules/money/credit";
 import { DELIVERY_NOTICES, judge, legalFreeDays, PAY_METHODS, type InspectInput } from "./inspect-rules";
 import { processLabel } from "./work-rules";
+import { receiptView, recordPayment } from "@/modules/money/receipts";
+import { isPayInMethod, isReceiptKind, receiptProblem, type PayInMethod } from "@/modules/money/rules";
+import { assertOpenDay } from "@/modules/money/lock";
 
 export class InspectError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -162,7 +165,7 @@ export async function sendReadyNotice(db: Db, actor: Actor, roId: string, now = 
   const p = await phoneForNotice(db, r.customerId);
   // 내 차 수첩 링크(그 수리 건만 보는 로그인, 90일). 링크의 비밀 부분은 발송 기록에 남기지 않는다
   const link = await makeLink(db, r.customerId, roId, now);
-  const res = await sendNotice(db, { key: "ready_notice", to: p.to, vars: { 고객명: p.name, 차량번호: v.plateNo, 작업내용: what, 수첩링크: link.url }, purpose: "수리 완료 안내", customerName: p.name, ref: r.docNo, sentBy: actor.id, secret: link.token }, f);
+  const res = await sendNotice(db, { key: "ready_notice", to: p.to, vars: { 고객명: p.name, 차량번호: v.plateNo, 작업내용: what, 수첩링크: link.url }, purpose: "수리 완료 안내", customerName: p.name, ref: r.docNo, sentBy: actor.id, secret: link.token, push: { customerId: r.customerId, url: `/my` } }, f);
   if (res.ok) await db.update(repairOrder).set({ readyNoticeAt: now, updatedAt: now }).where(eq(repairOrder.id, roId));
   return res;
 }
@@ -232,7 +235,7 @@ function addMonths(date: string, months: number) {
   return dt.toISOString().slice(0, 10);
 }
 
-export type DeliverInput = { payMethod: string; notices: string[]; receiverName: string; proxy: boolean; proxyNote: string; signaturePng: Uint8Array | null; /** 외상 경고(한도·연체)를 보고 출고하기로 확인함 */ creditOk?: boolean };
+export type DeliverInput = { /** 간소화 '출고 때 입금 전표 자동': 현금·이체 증빙과 승인 번호(카드는 카드 전표) */ receiptKind?: string; receiptNo?: string; payMethod: string; notices: string[]; receiverName: string; proxy: boolean; proxyNote: string; signaturePng: Uint8Array | null; /** 외상 경고(한도·연체)를 보고 출고하기로 확인함 */ creditOk?: boolean };
 
 /** 인도: 안내 확인 4가지, 수납, 인수 서명(대리인이면 위임 확인) → 출고 */
 export async function deliver(db: Db, actor: Actor, roId: string, input: DeliverInput, now = new Date()) {
@@ -255,8 +258,21 @@ export async function deliver(db: Db, actor: Actor, roId: string, input: Deliver
   if (missing.length) throw new InspectError(`안내 확인 ${missing.length}개가 비었습니다. 고객에게 설명하고 체크해 주세요`);
   if (!input.receiverName.trim()) throw new InspectError("인수하는 분의 이름을 적어 주세요");
   if (input.proxy && !input.proxyNote.trim()) throw new InspectError("대리인이면 위임 확인 방법(고객 문자·전화 확인 등)을 적어 주세요");
+  const pol = await loadPolicy(db, seoulDate(now));
+  // 간소화 '출고 때 입금 전표 자동'(simple.deliver_payment): 카드·현금·이체로 받았으면 남은 금액 전부를 입금 전표로 함께 적는다.
+  // 증빙이 빠졌으면(현금영수증 의무 등) 출고 전에 막아 두 번 일하지 않게 한다
+  const autoPay = autoPayPlan(pol, input, actor);
+  if (autoPay) {
+    const v = await receiptView(db, roId);
+    autoPay.amount = Math.max(0, v.remain);
+    if (autoPay.amount > 0) {
+      const prob = receiptProblem(input.payMethod as PayInMethod, autoPay.kind, autoPay.amount, autoPay.no, pol["tax.cash_receipt_must"]);
+      if (prob) throw new InspectError(prob);
+      await assertOpenDay(db, seoulDate(now), v.ro.branchId);
+    }
+  }
   const png = input.signaturePng;
-  const signNeeded = needDeliverSign(await loadPolicy(db, seoulDate(now)), r, input.proxy);
+  const signNeeded = needDeliverSign(pol, r, input.proxy);
   let sig: string | null = null;
   if (png?.length || signNeeded) {
     if (!png?.length || sniffImage(png) !== "image/png" || png.length > 400_000) throw new InspectError("인수 서명을 받아 주세요");
@@ -272,6 +288,19 @@ export async function deliver(db: Db, actor: Actor, roId: string, input: Deliver
   await writeAudit(db, { actorId: actor.id, action: "repair.deliver", entityType: "repair_order", entityId: r.docNo, after: { statement: s.docNo, pay: input.payMethod, proxy: input.proxy } });
   if (input.payMethod === "credit") await afterCreditDelivery(db, roId, r.docNo, s.id, r.customerId, creditWarn, now);
   if (input.payMethod === "receivable") await notifyRole(db, "accounting", `미수 출고: ${r.docNo} ${s.totalWon.toLocaleString("ko-KR")}원 — 수납을 챙기세요(STD-12)`, `ar-${r.docNo}`, `/repairs/${roId}/delivery`);
+  if (autoPay && autoPay.amount > 0) {
+    const p = await recordPayment(db, actor, roId, { method: input.payMethod, amountWon: autoPay.amount, receivedOn: seoulDate(now), receiptKind: autoPay.kind, receiptNo: autoPay.no, payerName: input.receiverName, note: "출고 때 함께 적음(간소화)" }, now);
+    return { payment: { docNo: p.docNo, amount: autoPay.amount } };
+  }
+  return { payment: null };
+}
+
+/** 출고 때 입금 전표를 함께 적을지와 증빙. 카드는 카드 전표, 현금·이체는 고른 증빙(처음 값 현금영수증) */
+export function autoPayPlan(pol: Policy, input: Pick<DeliverInput, "payMethod" | "receiptKind" | "receiptNo">, actor: Actor) {
+  if (pol["simple.deliver_payment"] !== 1 || !isPayInMethod(input.payMethod) || !can(actor, "money.receive")) return null;
+  const kind = input.payMethod === "card" ? "card_slip" : (input.receiptKind ?? "cash_receipt");
+  if (!isReceiptKind(kind)) throw new InspectError("고객에게 준 증빙을 골라 주세요");
+  return { kind, no: (input.receiptNo ?? "").trim(), amount: 0 };
 }
 
 export async function statementOf(db: Db, roId: string) {
