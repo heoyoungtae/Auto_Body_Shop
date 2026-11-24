@@ -27,10 +27,12 @@ changes() {
     tac | awk '{c[$2]++; print $1" "$2"-"c[$2]}' | jq -Rsc 'split("\n") | map(select(length > 0) | split(" ") | {(.[0]): .[1]}) | add // {}' 2>/dev/null)
   [ -n "$labels" ] || labels='{}'
   # 기본 브랜치에 들어온 병합만(--first-parent). 작업 가지 안의 병합·커밋 꼬리말(Co-Authored-By 등)은 변경 이름이 아니다
-  g log --first-parent --merges --format='%H%x1f%s%x1f%b%x1e' "$1..$2" 2>/dev/null | jq -Rsc --argjson lb "$labels" '
+  # 병합 커밋(본문 첫 줄 = PR 제목)과 스쿼시 병합(커밋 제목 = PR 제목, 부모 1개) 둘 다 변경으로 읽는다(2026-11-24 PR #111 이력이 비던 일)
+  g log --first-parent --format='%H%x1f%P%x1f%s%x1f%b%x1e' "$1..$2" 2>/dev/null | jq -Rsc --argjson lb "$labels" '
     split("\u001e") | map(sub("^\\s+"; "")) | map(select(length > 0) | split("\u001f")) |
-    map({pr: ((.[1] | capture("#(?<n>[0-9]+)") | .n | tonumber)? // null),
-         title: (((.[2] // "") | split("\n") | map(select(length > 0 and (test("^(#|[A-Za-z][A-Za-z-]*-By:|Claude-Session:)"; "i") | not))) | .[0]) // .[1]),
+    map(select((.[1] | contains(" ")) or ((.[2] // "") | test("#[0-9]+\\)?\\s*$")))) |
+    map({pr: ((.[2] | capture("#(?<n>[0-9]+)") | .n | tonumber)? // null),
+         title: (if (.[1] | contains(" ")) then (((.[3] // "") | split("\n") | map(select(length > 0 and (test("^(#|[A-Za-z][A-Za-z-]*-By:|Claude-Session:)"; "i") | not))) | .[0]) // .[2]) else (.[2] | sub("\\s*\\(#[0-9]+\\)\\s*$"; "")) end),
          label: ($lb[.[0]] // "")}) | .[:40]' 2>/dev/null || echo '[]'
 }
 
