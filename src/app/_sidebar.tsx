@@ -201,8 +201,9 @@ export function Sidebar({ roles, unread, hidden = [] }: { roles: Role[]; unread:
                 <ul className="mt-0.5 mb-1 ml-3 space-y-0.5 border-l-2 border-[var(--line)] pl-2">
                   {items.map((i) => (
                     <li key={i.label} className="group">
+                      {/* 소제목: 진한 굵은 글씨+옅은 회색 띠+위 여백으로 메뉴와 구분한다(대표 결정 2026-11-25, 1안) */}
                       {i.section && (
-                        <p className="mt-1.5 mb-0.5 px-2.5 text-xs font-semibold text-[var(--muted)]">{i.section}</p>
+                        <p className="mt-3 mb-1 -ml-2.5 rounded-md bg-[var(--surface-2)] px-2.5 py-1 text-[12.5px] font-extrabold tracking-wide text-[var(--fg)] group-first:mt-1">{i.section}</p>
                       )}
                       {i.href ? (
                         <div className="flex items-center">
