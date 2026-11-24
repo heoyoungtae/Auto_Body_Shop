@@ -7,6 +7,8 @@ import { appUser, messageLog, messagingConfig } from "@/db/schema";
 import { decrypt, encrypt, maskPhone } from "@/modules/auth/crypto";
 import { writeAudit } from "@/modules/platform/audit";
 import { UserError } from "@/modules/platform/errors";
+import { loadPolicy } from "@/modules/platform/policy";
+import { seoulDate } from "@/modules/platform/time";
 import {
   GIFT_ID_RE,
   GIFT_IMAGE_KINDS,
@@ -753,6 +755,8 @@ export async function sendNotice(
     sentBy: string | null;
     /** 발송 기록에 남기지 않을 글자(예: 내 차 수첩 링크의 비밀 부분). 기록에는 ●●●● 로 남긴다 */
     secret?: string;
+    /** 간소화 '손님 안내는 앱 푸시 먼저'(simple.push_first): 내 차 수첩 앱에서 알림을 켠 손님이면 푸시로 보내고 문자는 아낀다 */
+    push?: { customerId: string; url: string };
   },
   f: typeof fetch = fetch,
 ): Promise<NoticeResult> {
@@ -764,6 +768,15 @@ export async function sendNotice(
     ...e.vars,
   };
   const text = renderKakao(e.key, vars);
+  if (e.push && (await loadPolicy(db, seoulDate()))["simple.push_first"] === 1) {
+    // 수첩 모듈이 이 모듈을 쓰므로 여기서 불러온다
+    const { sendPush } = await import("@/modules/carbook/push");
+    const pushed = await sendPush(db, e.push.customerId, { title: KAKAO_TEMPLATES[e.key].title, body: text, url: e.push.url }, new Date(), f);
+    if (pushed.ok) {
+      await log(db, { channel: "앱 푸시", purpose: e.purpose, provider: "push", to, body: e.secret ? text.split(e.secret).join("●●●●") : text, ok: true, sentBy: e.sentBy, ref: e.ref, customerName: e.customerName });
+      return { ok: true, channel: "앱 푸시", demo: false, text };
+    }
+  }
   const kakao = await kakaoOverview(db);
   const ready = kakao.templates.find((t) => t.key === e.key)?.ready;
   const sendKakao = ADAPTERS[p.id].sendKakao;

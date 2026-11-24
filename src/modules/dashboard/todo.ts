@@ -1,5 +1,6 @@
 // 내 할 일 — 역할과 지금 기록을 보고 '내가 처리해야 할 것'을 판단해 모은다(사용자 지시 2026-11-08).
 // 대시보드(현황)와 달리 하나하나가 처리할 일이고, 누르면 그 일을 하는 화면으로 간다. 따로 입력하는 값은 없다.
+import { hiddenHrefs, linkHidden } from "@/modules/platform/features";
 import type { Db } from "@/db/client";
 import { inbox, myDrafts } from "@/modules/approval/service";
 import type { Role } from "@/modules/auth/roles";
@@ -812,5 +813,7 @@ export async function myTodos(
   }
 
   const order: TodoWhen[] = ["late", "today", "soon", "setup"];
-  return out.sort((a, b) => order.indexOf(a.when) - order.indexOf(b.when));
+  // 꺼 둔 기능(설정 › 간소화 › 안 쓰는 기능 끄기)의 할 일은 띄우지 않는다. 다시 켜면 그대로 돌아온다
+  const hidden = await hiddenHrefs(db);
+  return out.filter((t) => !linkHidden(t.href, hidden)).sort((a, b) => order.indexOf(a.when) - order.indexOf(b.when));
 }

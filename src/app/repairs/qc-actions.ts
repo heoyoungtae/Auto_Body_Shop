@@ -122,8 +122,10 @@ export async function deliveryAction(form: FormData) {
         const sig = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(
           s("signature"),
         );
-        await deliver(db, user, roId, {
+        const done = await deliver(db, user, roId, {
           payMethod: s("payMethod"),
+          receiptKind: s("receiptKind") || undefined,
+          receiptNo: s("receiptNo"),
           notices: form.getAll("notices").map(String),
           receiverName: s("receiverName"),
           proxy: s("receiver") === "proxy",
@@ -135,7 +137,9 @@ export async function deliveryAction(form: FormData) {
         });
         msg = `${intent === "issue_deliver" ? "정비명세서를 발급하고 " : ""}인수를 기록하고 출고했습니다. 7일 뒤 만족도 설문을 확인합니다${intent === "issue_deliver" ? ". '정비명세서 인쇄'로 2부를 뽑아 1부를 고객에게 드리세요" : ""}`;
         // 카드·현금·이체로 받았으면 바로 입금 전표를 적게 수납 화면으로(금액·방법은 불러옴)
-        if (
+        if (done.payment) {
+          msg += `. 입금 전표 ${done.payment.docNo}(${done.payment.amount.toLocaleString("ko-KR")}원)도 함께 적었습니다`;
+        } else if (
           ["card", "cash", "transfer"].includes(s("payMethod")) &&
           can(user, "money.receive")
         ) {

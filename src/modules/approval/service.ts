@@ -13,6 +13,7 @@ import { sha256 } from "../auth/crypto";
 import { writeAudit } from "../platform/audit";
 import { nextDocNo } from "../platform/docno";
 import { seoulDate } from "../platform/time";
+import { loadPolicy } from "../platform/policy";
 import { formDef, type FormCode } from "./forms";
 import { buildLine } from "./line";
 import {
@@ -120,7 +121,17 @@ export async function submit(
     prev.status === "rejected"
       ? ({ type: "resubmit", actorId } as const)
       : ({ type: "submit", actorId } as const);
-  return apply(db, doc, base, cmd, actorId, null, now);
+  let row = await apply(db, doc, base, cmd, actorId, null, now);
+  // 간소화 '결재권자 본인 건 바로 승인'(simple.self_approve): 다음 단계의 담당이 기안자 본인뿐이면(대표 자기결재)
+  // 결재함을 다시 열지 않게 올리는 순간 승인한다. '대표 자기결재' 표시는 남아 월 마감 때 다시 본다(STD-12 7절)
+  if ((await loadPolicy(db, seoulDate(now)))["simple.self_approve"] === 1) {
+    for (let i = 0; i < 5; i++) {
+      const step = activeStep(stateOf(row));
+      if (!step || !["review", "approve", "confirm"].includes(step.kind) || step.candidates.length !== 1 || step.candidates[0] !== actorId) break;
+      row = await apply(db, row, stateOf(row), { type: step.kind === "confirm" ? "confirm" : "approve", actorId }, actorId, "결재권자 본인 작성 — 올리면서 승인(간소화)", now);
+    }
+  }
+  return row;
 }
 
 /** 결재 처리. 담당자가 아니면 오늘 유효한 대리 지정이 있는지 본다 */

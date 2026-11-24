@@ -661,7 +661,7 @@ export async function sendReservationConfirm(db: Db, actorId: string, id: string
   const c = await getConsultRow(db, id);
   if (c.result !== "reserved" || !c.reservedAt) throw new CustomerError("입고 예약된 상담만 예약 확인을 보낼 수 있습니다");
   const p = await phoneForNotice(db, c.customerId);
-  const r = await sendNotice(db, { key: "reservation_confirm", to: p.to, vars: noticeVars(c, p.name), purpose: "예약 확인", customerName: p.name, ref: c.docNo, sentBy: actorId }, f);
+  const r = await sendNotice(db, { key: "reservation_confirm", to: p.to, vars: noticeVars(c, p.name), purpose: "예약 확인", customerName: p.name, ref: c.docNo, sentBy: actorId, push: { customerId: c.customerId, url: "/my" } }, f);
   if (r.ok) await db.update(consultation).set({ confirmSentAt: now, repliedAt: c.repliedAt ?? now }).where(eq(consultation.id, id));
   return r;
 }
@@ -675,10 +675,17 @@ export async function sendReminders(db: Db, now = new Date(), f: typeof fetch = 
     .where(and(eq(consultation.result, "reserved"), isNull(consultation.reminderSentAt), gte(consultation.reservedAt, seoulDateTime(tomorrow, "00:00")), lt(consultation.reservedAt, seoulDateTime(addDays(tomorrow, 1), "00:00"))));
   let ok = 0;
   let fail = 0;
+  let skipped = 0;
+  // 간소화 '예약 확인 직후 전날 안내 생략'(simple.reminder_skip): 예약 확인을 보낸 지 2일이 안 된 예약은 같은 내용을 또 보내지 않는다
+  const skipRecent = (await loadPolicy(db, seoulDate(now)))["simple.reminder_skip"] === 1;
   for (const c of rows) {
+    if (skipRecent && c.confirmSentAt && now.getTime() - c.confirmSentAt.getTime() < 2 * 86_400_000) {
+      skipped++;
+      continue;
+    }
     try {
       const p = await phoneForNotice(db, c.customerId);
-      const r = await sendNotice(db, { key: "reservation_reminder", to: p.to, vars: noticeVars(c, p.name), purpose: "예약 전날 안내", customerName: p.name, ref: c.docNo, sentBy: null }, f);
+      const r = await sendNotice(db, { key: "reservation_reminder", to: p.to, vars: noticeVars(c, p.name), purpose: "예약 전날 안내", customerName: p.name, ref: c.docNo, sentBy: null, push: { customerId: c.customerId, url: "/my" } }, f);
       if (r.ok) {
         ok++;
         await db.update(consultation).set({ reminderSentAt: now }).where(eq(consultation.id, c.id));
@@ -688,7 +695,7 @@ export async function sendReminders(db: Db, now = new Date(), f: typeof fetch = 
     }
   }
   if (fail) await notifyRole(db, "advisor", `예약 전날 안내 ${fail}건을 보내지 못했습니다. 전화로 안내해 주세요`, `reminder-fail-${tomorrow}`, "/consults?f=reservations");
-  return `전날 안내 ${ok}건${fail ? `, 실패 ${fail}건` : ""}`;
+  return `전날 안내 ${ok}건${fail ? `, 실패 ${fail}건` : ""}${skipped ? `, 예약 확인 직후라 생략 ${skipped}건` : ""}`;
 }
 
 /** 주기 작업(매일 아침): 재연락할 날·회신 기한 지난 상담을 상담원에게 알림 */
