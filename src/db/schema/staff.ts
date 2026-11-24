@@ -443,3 +443,34 @@ export const staffFile = pgTable(
   },
   (t) => [index("staff_file_user_idx").on(t.userId)],
 );
+
+/**
+ * 연차 사용 촉진(근로기준법 제61조, STD-11 7.4). round 1 = 회사가 남은 일수를 알리고 쓸 날을 정해 내라고 촉구(앱이 기간에 자동 발송),
+ * round 2 = 직원이 10일 안에 내지 않으면 회사가 쓸 날을 정해 통보. 직원이 앱에서 받았음을 확인하면 confirmedAt.
+ * 연차 연도 끝에 남은 연차를 보상할지 판단하는 근거 기록이라 지우지 않는다.
+ */
+export const leaveNotice = pgTable(
+  "leave_notice",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => appUser.id),
+    round: integer("round").notNull(),
+    /** 연차 연도 */
+    yearFrom: text("year_from").notNull(),
+    yearTo: text("year_to").notNull(),
+    /** 보낼 때 남은 일수 */
+    remain: real("remain").notNull(),
+    sentOn: text("sent_on").notNull(),
+    sentBy: uuid("sent_by").references(() => appUser.id),
+    /** 2차: 회사가 정한 쓸 날(쉼표로) */
+    dates: text("dates"),
+    /** 1차에 직원이 낸 쓸 날 */
+    planText: text("plan_text"),
+    planOn: text("plan_on"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("leave_notice_uq").on(t.userId, t.yearFrom, t.round)],
+);

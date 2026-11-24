@@ -675,6 +675,15 @@ export const DEFAULT_POLICY = {
     min: 1,
     max: 12,
   },
+  // 연차 사용 촉진(근로기준법 제61조) 자동 진행(대표 결정 2026-11-25)
+  "leave.promote": {
+    value: 1,
+    unit: "(1=앱이 자동, 0=끔)",
+    label: "연차 사용 촉진 자동",
+    clause: "11.4",
+    min: 0,
+    max: 1,
+  },
   "leave.small_annual_days": {
     value: 15,
     unit: "일(5명 미만일 때)",

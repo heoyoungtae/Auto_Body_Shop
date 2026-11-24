@@ -149,6 +149,8 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "p:STD-11:8": ["6e3e3aba"],
   "f:F-11-01": ["d839e94b"],
   "f:F-11-05": ["95055d63"],
+  // 연차 사용 촉진 자동·연말 정산(대표 2026-11-25)
+  "p:STD-11:7": ["e4cb267d"],
 };
 
 /** 초안에서 바뀐 절 제목: 예전 제목 그대로일 때만 std-seed.json 새 제목으로 바꾼다 */

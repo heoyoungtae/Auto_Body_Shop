@@ -107,3 +107,40 @@ export function leaveSummary(d: { leaveKind?: unknown; fromDate?: unknown; toDat
   const tag = (d as { after?: unknown }).after ? " 사후" : (d as { orderedBy?: unknown }).orderedBy ? " 지시" : "";
   return `${k.label}${tag} ${d.fromDate} ${d.fromTime}~${d.toTime} (${d.hours}시간)`;
 }
+
+/** n개월 뒤 같은 날(없으면 그 달 말일). 음수면 앞으로 */
+export function addMonths(date: string, n: number) {
+  const [y, m, d] = date.split("-").map(Number);
+  const t = Date.UTC(y, m - 1 + n, 1);
+  const ny = new Date(t).getUTCFullYear();
+  const nm = new Date(t).getUTCMonth();
+  const last = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+  return iso(Date.UTC(ny, nm, Math.min(d, last)));
+}
+export const addDays = (date: string, n: number) => iso(D(date) + n * 864e5);
+
+/**
+ * 연차 사용 촉진 일정(근로기준법 제61조, 대표 결정 2026-11-25: 앱이 자동 진행).
+ * 1년 이상: 연차 연도 끝나기 6개월 전부터 10일 안에 1차(남은 일수 알리고 쓸 날을 정해 내라고 서면 촉구),
+ * 직원이 10일 안에 내지 않으면 끝나기 2개월 전까지 회사가 쓸 날을 정해 서면 통보(2차).
+ * 입사 1년 미만: 3개월 전부터 10일 안에 1차, 1개월 전까지 2차(뒤늦게 생긴 연차의 5일·10일 기준은 반영 안 함 [확인 필요]).
+ * 5명 미만 사내 연차도 취업규칙 제17조로 같은 일정을 쓴다.
+ */
+export function promoteWindows(ent: { from: string; to: string; firstYear: boolean }) {
+  const end = addDays(ent.to, 1);
+  const r1From = addMonths(end, ent.firstYear ? -3 : -6);
+  return { r1From, r1To: addDays(r1From, 9), r2Due: addMonths(end, ent.firstYear ? -1 : -2), end };
+}
+
+/** 쓸 날을 정해 내는 기한(1차 받은 날부터 10일) */
+export const planDue = (sentOn: string) => addDays(sentOn, 10);
+
+/**
+ * 연차 연도가 끝났을 때 남은 연차를 보상할지: 1차를 기간 안에 보냈고, 직원이 쓸 날을 냈거나 회사가 2차를 기한 안에 보냈으면 보상 없음.
+ * (직원이 낸 날에 쓰지 않은 경우의 처리, 지정한 날 출근 시 노무 수령 거부 표시는 노무사 확인 [확인 필요])
+ */
+export function promoteDone(w: ReturnType<typeof promoteWindows>, n: { r1On?: string | null; planOn?: string | null; r2On?: string | null }) {
+  if (!n.r1On || n.r1On < w.r1From || n.r1On > w.r1To) return false;
+  if (n.planOn && n.planOn <= planDue(n.r1On)) return true;
+  return !!n.r2On && n.r2On <= w.r2Due;
+}

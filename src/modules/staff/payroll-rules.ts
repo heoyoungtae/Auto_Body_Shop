@@ -256,6 +256,8 @@ export function computeSlip(input: {
   bank?: PayBank | null;
   /** 지난달 명세서의 고정 연장 정산(연속 달 수 이어 세기) */
   prevFixedOt?: FixedOt | null;
+  /** 연차 연도가 끝났거나 퇴직한 달의 남은 연차(paid=false 면 촉진을 다 해 보상 없음) */
+  leavePay?: { days: number; reason: string; paid: boolean } | null;
 }): SlipData {
   const { terms: t, pol, att } = input;
   const n = contractNumbers(t);
@@ -387,6 +389,18 @@ export function computeSlip(input: {
       amount: -Math.round(hourly * att.shortHours),
       calc: `통상시급 ${won(hourly)} × ${att.shortHours}시간`,
     });
+  const lp = input.leavePay;
+  if (lp && lp.days > 0) {
+    if (lp.paid) {
+      const dayPay = Math.round(hourly * n.daily);
+      pays.push({
+        code: "leave",
+        name: "미사용 연차수당",
+        amount: Math.round(dayPay * lp.days),
+        calc: `${lp.reason} × 통상임금 일급 ${won(dayPay)}(통상시급 × ${n.daily}시간)`,
+      });
+    } else warnings.push(`${lp.reason}은 연차 사용 촉진(1·2차)을 기간 안에 다 해 보상하지 않습니다(근로기준법 제61조). 촉진 기록은 '연차 촉진' 화면에 있습니다`);
+  }
   for (const e of input.extras.filter((e) => e.kind === "pay"))
     pays.push({
       code: "extra",

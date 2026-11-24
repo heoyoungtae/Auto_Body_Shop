@@ -303,6 +303,7 @@ export const MENU: MenuGroup[] = [
         std: "STD-11.2",
       },
       { label: "계약서·서약서", href: "/staff/docs", std: "F-11-01·F-13-02" },
+      { label: "연차 사용 촉진", perm: ["staff.roster"], href: "/staff/leave-promote", std: "STD-11.4" },
       { label: "직무기술서", href: "/jobs", std: "F-11-08" },
       {
         label: "신입 오리엔테이션",

@@ -142,3 +142,13 @@ describe("실수령액에서 세전 기본급 거꾸로 계산", () => {
     expect(meal.cost).toBeLessThan(plain.cost);
   });
 });
+
+describe("미사용 연차수당", () => {
+  it("보상하면 통상임금 일급 × 남은 일수, 촉진 완료면 줄 없이 안내만", () => {
+    const paid = slip(terms(), 0, { leavePay: { days: 3, reason: "남은 3일", paid: true } });
+    expect(paid.pays.find((p) => p.code === "leave")?.amount).toBe(Math.round(13_397 * 8) * 3);
+    const done = slip(terms(), 0, { leavePay: { days: 3, reason: "남은 3일", paid: false } });
+    expect(done.pays.some((p) => p.code === "leave")).toBe(false);
+    expect(done.warnings.join()).toContain("촉진");
+  });
+});
