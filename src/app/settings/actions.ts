@@ -8,6 +8,7 @@ import { endSessions, setActive, setRoles } from "@/modules/auth/service";
 import { changeBands, DelegationError, isDelegationTask, type Band } from "@/modules/platform/delegation";
 import { writeAudit } from "@/modules/platform/audit";
 import { changePolicy } from "@/modules/platform/policy";
+import { applySimplifyMode, setSimple } from "@/modules/platform/simplify";
 import { applyCandidate, dismissCandidate } from "@/modules/money/law-watch";
 import { recordCheck } from "@/modules/platform/policy-check";
 import { isPolicyGroup } from "@/modules/platform/policy-meta";
@@ -34,6 +35,27 @@ export async function changePolicyAction(form: FormData) {
     redirect(errorUrl(`/settings/policies?key=${encodeURIComponent(key)}`, userMessage(e)));
   }
   redirect(noticeUrl(`/settings/policies?key=${encodeURIComponent(key)}`, "바꿨습니다"));
+}
+
+/** 설정 › 간소화: 한 항목 켜고 끄기, 간편 모드·표준으로 한꺼번에(대표) */
+export async function simplifyAction(form: FormData) {
+  const user = await requireOwner();
+  const intent = s(form, "intent");
+  let msg = "";
+  try {
+    const db = await getDb();
+    if (intent === "one") {
+      const on = s(form, "on") === "1";
+      const changed = await setSimple(db, user.id, s(form, "key"), on);
+      msg = changed ? `${on ? "켰습니다" : "껐습니다"}. 오늘부터 적용됩니다` : "이미 그 값입니다";
+    } else if (intent === "simple" || intent === "standard") {
+      const n = await applySimplifyMode(db, user.id, intent);
+      msg = n ? `${intent === "simple" ? "간편 모드로" : "표준(전부 기록)으로"} ${n}개 항목을 바꿨습니다` : "이미 그 모드입니다";
+    }
+  } catch (e) {
+    redirect(errorUrl("/settings/simplify", userMessage(e)));
+  }
+  redirect(noticeUrl("/settings/simplify", msg));
 }
 
 /** 법령 개정 새 값 후보: 적용(대표) 또는 그대로 두기(대표·회계) */

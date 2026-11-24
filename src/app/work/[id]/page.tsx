@@ -2,6 +2,8 @@ import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { getWorkOrder } from "@/modules/repair/work";
+import { loadPolicy } from "@/modules/platform/policy";
+import { seoulDate } from "@/modules/platform/time";
 import { processEquipmentWarnings } from "@/modules/equipment/service";
 import { fmtMinutes } from "@/modules/repair/labor";
 import { PROCESSES, WO_STATUS_LABEL, damageProgress, isProcess, processLabel } from "@/modules/repair/work-rules";
@@ -65,6 +67,7 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
   const user = await requireUser();
   const db = await getDb();
   const w = await getWorkOrder(db, id);
+  const checkAll = (await loadPolicy(db, seoulDate()))["simple.check_all"] === 1;
   const boss = can(user, "work.assign");
   const open = w.status !== "done";
   const v = w.vehicle;
@@ -176,7 +179,7 @@ export default async function WorkOrderPage({ params, searchParams }: { params: 
                     {state === "started" && mine && p && (
                       <AssistForm id={`wf-${s.id}`} action={workAction} className="space-y-3 rounded-md border border-[var(--line)] p-3">
                         <Hidden woId={w.id} stepId={s.id} intent="finish" />
-                        <CheckGroup help="work.checks" name="checks" options={p.checks.map((c) => ({ value: c, label: c }))} />
+                        <CheckGroup help="work.checks" name="checks" options={p.checks.map((c) => ({ value: c, label: c }))} allLabel={checkAll ? "모두 이상 없음" : undefined} />
                         <DetailFields process={s.process} />
                         <TextAreaField help="work.stepNote" name="stepNote" rows={2} />
                         <p className={`text-xs ${p.photo && !s.photos.length ? "text-[var(--warn)]" : "text-[var(--muted)]"}`}>

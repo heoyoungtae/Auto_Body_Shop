@@ -27,6 +27,7 @@ import { goalDailyJob } from "@/modules/quality/goals";
 import { trainingDailyAlerts } from "@/modules/staff/elearning";
 import { carbookAlertsJob, carbookIdleJob } from "@/modules/carbook/records";
 import { noticeNotifyJob } from "@/modules/site/content";
+import { digestNotices } from "./staff-push";
 
 export type JobResult = {
   job: string;
@@ -65,6 +66,9 @@ export const JOBS: Record<string, JobFn> = {
     return `만료 세션 ${removed.length}건 정리 · ${due} · ${purged} · ${equip} · ${nc} · ${cs} · ${wage.message} · ${wi} · ${stock} · ${sch} · ${hol.message} · ${legal} · ${env} · ${goal} · ${tr} · ${law.message} · ${nts} · ${supNts} · ${cbIdle} · ${corr}`;
   },
   /** 매일 16:00: 내일 입고 예약 전날 안내(STD-01 7단계), 내 차 수첩 알림(정기검사·보증·소모품·보험), 오늘부터 게시하는 홈페이지 공지 알림 */
+  /** 12:00·17:00: 급하지 않은 알림 묶음(간소화 simple.notice_digest, 꺼져 있으면 아무것도 안 함) */
+  digest_noon: async (db, _today, now) => digestNotices(db, "noon", now),
+  digest_eve: async (db, _today, now) => digestNotices(db, "eve", now),
   reminders: async (db, _today, now) => `${await sendReminders(db, now)} · ${await carbookAlertsJob(db, now)} · ${await noticeNotifyJob(db, now)}`,
 };
 

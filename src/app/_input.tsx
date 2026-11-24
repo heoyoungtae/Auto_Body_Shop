@@ -539,10 +539,26 @@ export function SelectField({ help, name, label, required, from, defaultValue, o
 }
 
 /** 여러 개 고르기(체크 상자). 큰 누름 영역 */
-export function CheckGroup({ help, name, options, defaultChecked = [], label }: { help: FieldHelpKey; name: string; options: { value: string; label: string }[]; defaultChecked?: string[]; label?: string }) {
+/** allLabel: 간소화 '모두 이상 없음'(simple.check_all). 누르면 모두 체크되고, 문제 있는 줄만 끈다 */
+export function CheckGroup({ help, name, options, defaultChecked = [], label, allLabel }: { help: FieldHelpKey; name: string; options: { value: string; label: string }[]; defaultChecked?: string[]; label?: string; allLabel?: string }) {
   const id = useId();
   return (
     <Shell fit id={id} helpKey={help} label={label}>
+      {allLabel && options.length > 1 && (
+        <button
+          type="button"
+          className="mb-1.5 min-h-10 rounded-md border border-[var(--ok)] bg-[var(--ok-soft)] px-3 text-sm font-medium text-[var(--ok)]"
+          onClick={() => {
+            const g = document.getElementById(id);
+            g?.querySelectorAll<HTMLInputElement>(`input[type=checkbox][name="${name}"]`).forEach((c) => {
+              c.checked = true;
+              c.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+          }}
+        >
+          ✓ {allLabel}
+        </button>
+      )}
       <div id={id} role="group" className="flex flex-wrap gap-1.5">
         {options.map((o) => (
           <label key={o.value} className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[var(--line)] px-2.5 has-[:checked]:border-[var(--accent)] has-[:checked]:bg-[var(--accent-soft)]">

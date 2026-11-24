@@ -580,6 +580,22 @@ export const PAGE_HELP = {
     ],
     refs: ["대표 요청 2026-11-20 오류 기록"],
   },
+  "settings.simplify": {
+    title: "간소화",
+    purpose:
+      "앱에서 하는 일이 많으면 비용이 늘고 직원이 앱을 꺼리게 됩니다(대표 2026-11-24). 누르기·적기·확인을 줄이는 설정을 한곳에 모았습니다. 켜면 간편, 끄면 표준서 원래 절차대로 전부 기록합니다.",
+    who: "대표만 켜고 끕니다. 다른 사람은 보기만 합니다.",
+    steps: [
+      "처음이면 '소규모 공업사 간편 모드(권장)'를 눌러 권장 묶음을 한 번에 켭니다.",
+      "항목마다 '켜면·끄면·표준서·법'을 읽고, 우리 공업사에 맞지 않는 것만 '끄기'로 끕니다.",
+      "모든 기록을 표준서대로 받아야 할 때(심사 준비 등)는 '표준(모두 끄기)'을 누릅니다.",
+    ],
+    tips: [
+      "바꾸면 오늘부터 적용되고, 정책값 이력·감사 로그에 누가 언제 바꿨는지 남습니다. 정책값 화면의 '간소화' 탭에서도 같은 값이 보입니다.",
+      "법정 견적서·정비명세서 발급, 개인정보 필수 동의, 위험성평가는 간소화로 끌 수 없습니다.",
+      "표준서와 다른 간소화는 표준서 본문에 '설정에서 켜면 …'으로 함께 적혀 있어, 켜도 표준서 위반이 아닙니다.",
+    ],
+  },
   "settings.punch": {
     title: "출퇴근 장소(와이파이)",
     purpose:
@@ -3502,6 +3518,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/kakao": "settings.kakao",
   "/settings/gift": "settings.gift",
   "/settings/punch": "settings.punch",
+  "/settings/simplify": "settings.simplify",
   "/settings/tv": "settings.tv",
   "/settings/insurers": "settings.insurers",
   "/claims/aos-paid": "claims.aosPaid",

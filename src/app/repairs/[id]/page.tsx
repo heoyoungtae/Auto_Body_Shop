@@ -50,7 +50,7 @@ import { roProgress, workOrdersOfRo } from "@/modules/repair/work";
 import { WO_STATUS_LABEL, processLabel } from "@/modules/repair/work-rules";
 import { CarMap } from "../car-map";
 import { progressFills, progressPins, ProgressLegend } from "../damage-map";
-import { createWorkOrderAction } from "../../work/actions";
+import { createWorkOrderAction, manualWorkOrderAction } from "../../work/actions";
 import { PhotoSlots } from "../photo-slots";
 import { CustomerPhotos } from "../customer-photos";
 import { photoChoices } from "@/modules/carbook/service";
@@ -135,6 +135,8 @@ export default async function RepairDetail({
   const minPhotos = Math.min(policy["intake.min_photos"], 8);
   // 설정 › 정책값 '입고 고객 서명 생략'(기본 켜짐=생략). 끄면 서명란이 나타난다
   const signSkip = policy["intake.sign_skip"] === 1;
+  const autoWo = policy["simple.work_order_auto"] === 1;
+  const agreeOne = policy["simple.intake_agree_one"] === 1;
   const photoSlots = r.photos.map((p) => p.slot);
   const photos = r.photos.map((p) => ({
     id: p.id,
@@ -311,7 +313,7 @@ export default async function RepairDetail({
               </div>
             </Card>
             <Card title="입고 사진" help={{ kind: "panel", id: "ro.photos" }}>
-              <PhotoSlots roId={r.id} photos={photos} minPhotos={minPhotos} />
+              <PhotoSlots roId={r.id} photos={photos} minPhotos={minPhotos} bulk={policy["simple.photo_bulk"] === 1} />
             </Card>
             <Card title="차체 도면" help={{ kind: "panel", id: "ro.diagram" }}>
               <BodyDiagram initial={r.marks} car={carOf(v)} />
@@ -413,20 +415,31 @@ export default async function RepairDetail({
                 <CheckGroup
                   help="ro.agree"
                   name="agree"
-                  options={[
-                    {
-                      value: "checked",
-                      label: "점검 내용(사진·도면·계기판·물품)을 확인했습니다",
-                    },
-                    {
-                      value: "move",
-                      label: "작업상 차량 이동·시험 주행에 동의합니다",
-                    },
-                  ]}
-                  defaultChecked={[
-                    ...(r.agreeChecked ? ["checked"] : []),
-                    ...(r.agreeMove ? ["move"] : []),
-                  ]}
+                  options={
+                    // 간소화 '입고 확인·이동 동의 한 체크'면 두 동의를 한 칸으로 받는다
+                    agreeOne
+                      ? [{ value: "both", label: "점검 내용(사진·도면·계기판·물품)을 확인했고, 작업상 차량 이동·시험 주행에 동의합니다" }]
+                      : [
+                          {
+                            value: "checked",
+                            label: "점검 내용(사진·도면·계기판·물품)을 확인했습니다",
+                          },
+                          {
+                            value: "move",
+                            label: "작업상 차량 이동·시험 주행에 동의합니다",
+                          },
+                        ]
+                  }
+                  defaultChecked={
+                    agreeOne
+                      ? r.agreeChecked && r.agreeMove
+                        ? ["both"]
+                        : []
+                      : [
+                          ...(r.agreeChecked ? ["checked"] : []),
+                          ...(r.agreeMove ? ["move"] : []),
+                        ]
+                  }
                 />
                 {!r.consent.required && (
                   <CheckGroup
@@ -628,6 +641,7 @@ export default async function RepairDetail({
                     <p className="text-sm text-[var(--muted)]">
                       고객이 승인한 견적이 있습니다. 공장장이 승인 항목으로 작업
                       지시서를 만듭니다.
+                      {autoWo && !r.manualWorkOrder && " (자동으로 만들지 못했습니다. 아래 단추로 만들어 주세요)"}
                     </p>
                   )}
                   {prog && r.damages.length > 0 && (
@@ -644,6 +658,20 @@ export default async function RepairDetail({
                   )}
                 </Card>
               </div>
+            )}
+            {autoWo && canConfirm && !wos.length && ["intake", "checked", "estimating"].includes(r.status) && (
+              <Card title="작업 지시서 자동" help={{ kind: "panel", id: "ro.autoWo" }}>
+                <form action={manualWorkOrderAction} className="flex flex-wrap items-center gap-2 text-sm">
+                  <input type="hidden" name="roId" value={r.id} />
+                  <input type="hidden" name="manual" value={r.manualWorkOrder ? "0" : "1"} />
+                  <span className="text-[var(--muted)]">
+                    {r.manualWorkOrder
+                      ? "이 건은 공장장이 직접 지시서를 만들고 배정합니다."
+                      : "고객이 승인하면 작업 지시서와 담당이 자동으로 정해집니다(설정 › 간소화)."}
+                  </span>
+                  <SubmitButton variant="secondary">{r.manualWorkOrder ? "자동으로 되돌리기" : "이 건은 공장장이 직접 배정"}</SubmitButton>
+                </form>
+              </Card>
             )}
             {(pos.length > 0 ||
               oss.length > 0 ||
@@ -790,6 +818,7 @@ export default async function RepairDetail({
                 damages={r.damages}
                 canDiagnose={canDiagnose}
                 canConfirm={canConfirm}
+                alsoEstimate={policy["simple.diag_auto"] === 1 && can(user, "estimate.write")}
                 options={v.options ?? []}
                 diagNote={r.diagNote}
                 photos={r.damagePhotos}

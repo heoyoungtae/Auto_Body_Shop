@@ -12,6 +12,7 @@ import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
+import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { checkAssignment, currentLevels } from "@/modules/staff/service";
 import { processEquipmentWarnings } from "@/modules/equipment/service";
@@ -42,6 +43,11 @@ async function approvedEstimate(db: Db, roId: string) {
 /** 작업 지시서 만들기. 이미 있으면 그것을 돌려준다 */
 export async function createWorkOrder(db: Db, actor: Actor, roId: string, now = new Date()) {
   mustBoss(actor);
+  return makeWorkOrder(db, actor.id, roId, now);
+}
+
+/** 지시서 만들기 공통. actorId 가 null 이면 고객 승인 때 앱이 자동으로 만든 것(간소화 simple.work_order_auto) */
+async function makeWorkOrder(db: Db, actorId: string | null, roId: string, now: Date) {
   const [r] = await db.select().from(repairOrder).where(eq(repairOrder.id, roId));
   if (!r) throw new WorkError("없는 수리 건입니다");
   const e = await approvedEstimate(db, roId);
@@ -55,11 +61,74 @@ export async function createWorkOrder(db: Db, actor: Actor, roId: string, now = 
   const filled = fillWorkplaces(steps, await workplaceState(db, r.branchId));
   return db.transaction(async (tx) => {
     const docNo = await branchDocNo(tx, "WO", now, r.branchId);
-    const [w] = await tx.insert(workOrder).values({ docNo, repairOrderId: roId, estimateId: e.id, dueDate: e.dueDate, createdBy: actor.id }).returning({ id: workOrder.id });
+    const [w] = await tx.insert(workOrder).values({ docNo, repairOrderId: roId, estimateId: e.id, dueDate: e.dueDate, createdBy: actorId }).returning({ id: workOrder.id });
     await tx.insert(workStep).values(filled.map((s, i) => ({ ...s, workOrderId: w.id, seq: i + 1 })));
-    await writeAudit(tx, { actorId: actor.id, action: "work.create", entityType: "work_order", entityId: docNo, after: { ro: r.docNo, estimate: e.docNo, steps: steps.map((s) => s.process) } });
+    await writeAudit(tx, { actorId, action: actorId ? "work.create" : "work.auto_create", entityType: "work_order", entityId: docNo, after: { ro: r.docNo, estimate: e.docNo, steps: steps.map((s) => s.process) } });
     return { id: w.id, created: true };
   });
+}
+
+/**
+ * 간소화(simple.work_order_auto, 대표 2026-11-24): 고객이 견적을 승인하면 지시서를 바로 만들고,
+ * 공정마다 남은 공정이 가장 적은 기술자 중 역량 단독 기준(STD-11 6절)을 넘는 사람을 담당으로 넣는다.
+ * 맞는 사람이 없으면 그 공정은 비워 두고 공장장에게 알린다. 수리 건에서 '공장장이 직접 배정'을 골랐으면 하지 않는다.
+ * 고객 승인은 이 일이 실패해도 그대로 남는다(실패하면 공장장 할 일로 넘어감).
+ */
+export async function autoWorkOrder(db: Db, roId: string, now = new Date()) {
+  const today = seoulDate(now);
+  const p = await loadPolicy(db, today);
+  if (p["simple.work_order_auto"] !== 1) return null;
+  const [r] = await db.select({ manual: repairOrder.manualWorkOrder, docNo: repairOrder.docNo, status: repairOrder.status }).from(repairOrder).where(eq(repairOrder.id, roId));
+  if (!r || r.manual || r.status !== "working") return null;
+  try {
+    const { id, created } = await makeWorkOrder(db, null, roId, now);
+    if (!created) return null;
+    const [w] = await db.select({ docNo: workOrder.docNo }).from(workOrder).where(eq(workOrder.id, id));
+    const steps = await db.select().from(workStep).where(eq(workStep.workOrderId, id)).orderBy(asc(workStep.seq));
+    const techs = await usersWithRole(db, "technician");
+    const load = new Map<string, number>();
+    if (techs.length) {
+      const open = await db.select({ a: workStep.assignee }).from(workStep).where(and(inArray(workStep.assignee, techs), isNull(workStep.endedAt)));
+      for (const t of techs) load.set(t, 0);
+      for (const o of open) if (o.a) load.set(o.a, (load.get(o.a) ?? 0) + 1);
+    }
+    const got = new Map<string, string[]>();
+    const left: string[] = [];
+    for (const s of steps) {
+      // 일이 적은 사람부터, 같으면 아이디 순(늘 같은 결과)
+      const order = [...load.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map(([u]) => u);
+      let who: string | null = null;
+      for (const u of order) if (!(await checkAssignment(db, s.process, u, null, today))) { who = u; break; }
+      if (!who) {
+        left.push(processLabel(s.process));
+        continue;
+      }
+      await db.update(workStep).set({ assignee: who }).where(eq(workStep.id, s.id));
+      load.set(who, (load.get(who) ?? 0) + 1);
+      got.set(who, [...(got.get(who) ?? []), processLabel(s.process)]);
+    }
+    await writeAudit(db, { actorId: null, action: "work.auto_assign", entityType: "work_order", entityId: w.docNo, after: { assigned: Object.fromEntries(got), left } });
+    for (const [u, list] of got) await notifyUser(db, u, `작업 배정(자동): ${w.docNo} ${list.join("·")}`, `work-auto-${id}-${u}`, `/work/${id}`);
+    await notifyRole(
+      db,
+      "plant_manager",
+      left.length ? `작업 지시서 자동 생성: ${w.docNo}(${r.docNo}) — 담당을 못 정한 공정 ${left.length}개(${left.join("·")}), 배정해 주세요` : `작업 지시서 자동 생성: ${w.docNo}(${r.docNo}) — 담당 자동 배정 끝, 바꿀 때만 여세요`,
+      `work-auto-${id}`,
+      `/work/${id}`,
+    );
+    return { id, assigned: [...got.values()].reduce((a, l) => a + l.length, 0), left: left.length };
+  } catch {
+    return null;
+  }
+}
+
+/** 수리 건마다: 이 건은 공장장이 직접 지시서를 만들고 배정한다(자동 지시서 끔) */
+export async function setManualWorkOrder(db: Db, actor: Actor, roId: string, manual: boolean, now = new Date()) {
+  mustBoss(actor);
+  const [r] = await db.select({ docNo: repairOrder.docNo }).from(repairOrder).where(eq(repairOrder.id, roId));
+  if (!r) throw new WorkError("없는 수리 건입니다");
+  await db.update(repairOrder).set({ manualWorkOrder: manual, updatedAt: now }).where(eq(repairOrder.id, roId));
+  await writeAudit(db, { actorId: actor.id, action: "work.manual", entityType: "repair_order", entityId: r.docNo, after: { manual } });
 }
 
 async function woRow(db: Db, id: string) {

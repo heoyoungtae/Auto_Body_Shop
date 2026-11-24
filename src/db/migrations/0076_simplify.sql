@@ -1,0 +1,1 @@
+ALTER TABLE "repair_order" ADD COLUMN "manual_work_order" boolean DEFAULT false NOT NULL;

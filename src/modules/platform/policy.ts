@@ -49,6 +49,16 @@ export const DEFAULT_POLICY = {
     min: 0,
     max: 1,
   },
+  // 간소화(설정 › 간소화, 대표 2026-11-24 '진행하라'): 1=켬(간편), 0=끔(표준대로 전부 기록). 처음 값은 간편 모드
+  "simple.work_order_auto": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 고객 승인 때 작업 지시서 자동", clause: "4.1", min: 0, max: 1 },
+  "simple.check_all": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: '모두 이상 없음' 한 번에 체크", clause: "4.1", min: 0, max: 1 },
+  "simple.photo_bulk": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 입고 사진 한 번에 올리기", clause: "2.1", min: 0, max: 1 },
+  "simple.statement_deliver": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 정비명세서 발급·인도 한 화면", clause: "8절", min: 0, max: 1 },
+  "simple.intake_agree_one": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 입고 확인·이동 동의 한 체크", clause: "2.1", min: 0, max: 1 },
+  "simple.estimate_send": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 견적 발급 때 고객 링크 바로 보내기", clause: "3.2", min: 0, max: 1 },
+  "simple.diag_auto": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 진단 확인하면 견적까지 바로", clause: "2.2", min: 0, max: 1 },
+  "simple.journal_quiet": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 특이사항 없는 업무일지 확인 생략", clause: "11", min: 0, max: 1 },
+  "simple.notice_digest": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 급하지 않은 알림 하루 2번 묶기", clause: "-", min: 0, max: 1 },
   "estimate.valid_days": {
     value: 30,
     unit: "일",

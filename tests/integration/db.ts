@@ -1,3 +1,4 @@
+import { SIMPLIFY_KEYS } from "@/modules/platform/simplify";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -21,5 +22,9 @@ export async function seedShop(db: Db) {
     const [row] = await db.select({ id: schema.appUser.id }).from(schema.appUser).where(eq(schema.appUser.loginId, u.loginId));
     ids[u.loginId as keyof typeof ids] = row.id;
   }
+  // 간소화(설정 › 간소화)는 처음 값이 '간편'이지만, 기존 시험은 표준 절차(전부 기록)를 본다. 간소화 시험은 simplify.test.ts 에서 켠다
+  await db.insert(schema.policySetting).values(
+    SIMPLIFY_KEYS.filter((k) => k.startsWith("simple.")).map((key) => ({ key, value: 0, effectiveFrom: "2000-01-01", reason: "시험: 표준 절차", changedBy: ids.owner })),
+  );
   return { ...ids, password: DEMO_PASSWORD };
 }

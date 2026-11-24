@@ -10,6 +10,7 @@ import { writeAudit } from "@/modules/platform/audit";
 import { addBusinessDays } from "@/modules/platform/business-days";
 import { loadShopCalendar } from "@/modules/platform/calendar";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
+import { loadPolicy } from "@/modules/platform/policy";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { PROCESSES } from "@/modules/repair/work-rules";
 import { buildJournal, dayRange, JournalError } from "./service";
@@ -101,7 +102,9 @@ export async function closeEntry(db: Db, actor: Actor, day: string, input: Entry
   const e = (await getEntry(db, actor.id, day))!;
   if (e.safetyOk === null) throw new JournalError("마감하려면 안전 확인(오늘 다치거나 아차사고가 있었는지)에 답해 주세요");
   const j = await buildJournal(db, actor, actor.id, day);
-  const role = confirmRoleFor(j.user.roles);
+  // 간소화 '특이사항 없는 업무일지 확인 생략': 적은 것이 없고 안전 확인이 '없음'이면 확인 없이 닫는다(대표 2026-11-24)
+  const quiet = !e.notes?.trim() && !e.suggestionText?.trim() && e.safetyOk === true && (await loadPolicy(db, day))["simple.journal_quiet"] === 1;
+  const role = quiet ? null : confirmRoleFor(j.user.roles);
   const snapshot = { entries: j.entries.length, workMinutes: j.workMinutes, stdMinutes: j.stdMinutes, steps: j.steps.length, carry: j.carry.length, firstAt: j.firstAt?.toISOString() ?? null, lastAt: j.lastAt?.toISOString() ?? null };
   await db
     .update(dailyJournal)
