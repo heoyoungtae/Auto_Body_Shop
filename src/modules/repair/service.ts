@@ -163,6 +163,8 @@ export async function signIntake(db: Db, actorId: string, id: string, input: Int
   const photos = await db.select({ slot: roPhoto.slot }).from(roPhoto).where(and(eq(roPhoto.repairOrderId, id), isNull(roPhoto.damageId)));
   let consent = await consentState(db, r.customerId);
   const policy = await loadPolicy(db, seoulDate(now));
+  // 설정에서 고객 서명 생략(정책값 intake.sign_skip=1, 기본)이면 서명 없이 마친다. 서명 그림이 오면 그래도 남긴다
+  const signSkip = policy["intake.sign_skip"] === 1;
   const issues = intakeIssues(
     {
       mileage: r.mileage,
@@ -180,23 +182,24 @@ export async function signIntake(db: Db, actorId: string, id: string, input: Int
       delivered: r.delivered,
       driverName: r.driverName ?? "",
       lastMileage: null, // 저장하면서 이미 확인함(차량 기록이 지금 값으로 바뀜)
+      signSkip,
     },
     policy["intake.min_photos"],
   );
-  if (issues.length) throw new RepairError(`점검 내용은 저장했지만 아직 서명할 수 없습니다: ${issues.map((i) => i.msg).join(" / ")}`);
-  const png = input.signaturePng!;
-  if (sniffImage(png) !== "image/png" || png.length > 400_000) throw new RepairError("서명 그림을 읽지 못했습니다. 서명란을 지우고 다시 받아 주세요");
+  if (issues.length) throw new RepairError(`점검 내용은 저장했지만 아직 점검을 마칠 수 없습니다: ${issues.map((i) => i.msg).join(" / ")}`);
+  const png = input.signaturePng?.length ? input.signaturePng : null;
+  if (png && (sniffImage(png) !== "image/png" || png.length > 400_000)) throw new RepairError("서명 그림을 읽지 못했습니다. 서명란을 지우고 다시 받아 주세요");
   if (!consent.required && input.consentNow) {
-    await changeConsent(db, actorId, r.customerId, { required: true, photo: consent.photo, marketing: consent.marketing, method: "visit", note: `입고 점검 ${r.docNo}에서 서명` });
+    await changeConsent(db, actorId, r.customerId, { required: true, photo: consent.photo, marketing: consent.marketing, method: "visit", note: png ? `입고 점검 ${r.docNo}에서 서명` : `입고 점검 ${r.docNo}에서 확인(고객 서명 생략)` });
     consent = await consentState(db, r.customerId);
   }
-  const path = await storeFile(`ro/${r.docNo}`, png, "png");
+  const path = png ? await storeFile(`ro/${r.docNo}`, png, "png") : null;
   await db.update(repairOrder).set({ status: "checked", signaturePath: path, signedAt: now, updatedAt: now }).where(eq(repairOrder.id, id));
   // 다시 점검으로 도면을 고쳤으면 있던 진단 줄을 새 도면에 맞추고, 처음이면 도면에서 줄을 만든다
   await syncDiagnosis(db, actorId, id, now);
   await seedDiagnosis(db, actorId, id);
   await notifyRole(db, "technician", `손상 진단 대기: ${r.docNo}`, `diag-${r.docNo}`, `/repairs/${id}#diagnosis`);
-  await writeAudit(db, { actorId, action: "repair.intake_signed", entityType: "repair_order", entityId: r.docNo, after: { signer: r.signerName, mileage: r.mileage, photos: photos.length, mileageNow: v?.mileage } });
+  await writeAudit(db, { actorId, action: "repair.intake_signed", entityType: "repair_order", entityId: r.docNo, after: { signer: png ? r.signerName : null, signSkipped: !png, mileage: r.mileage, photos: photos.length, mileageNow: v?.mileage } });
 }
 
 /** 서명 뒤에 고칠 것이 생겼을 때: 서명을 지우고 점검 중으로 되돌린다(견적 시작 전까지만) */

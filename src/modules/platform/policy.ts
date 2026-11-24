@@ -41,6 +41,14 @@ export const DEFAULT_POLICY = {
     label: "입고 사진 최소(8방향)",
     clause: "2.1",
   },
+  "intake.sign_skip": {
+    value: 1,
+    unit: "(1=생략, 0=서명 받음)",
+    label: "입고 고객 서명 생략",
+    clause: "2.1",
+    min: 0,
+    max: 1,
+  },
   "estimate.valid_days": {
     value: 30,
     unit: "일",

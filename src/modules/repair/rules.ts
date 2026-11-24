@@ -112,6 +112,8 @@ export type IntakeSnapshot = {
   delivered: boolean;
   driverName: string;
   lastMileage: number | null;
+  /** 정책값 intake.sign_skip=1: 고객 서명(서명란·서명한 사람)을 받지 않는다 */
+  signSkip?: boolean;
 };
 
 export type Issue = { field: string; msg: string };
@@ -133,6 +135,7 @@ export function intakeIssues(s: IntakeSnapshot, minPhotos: number): Issue[] {
   if (!s.agreeChecked) out.push({ field: "agree", msg: "점검 내용 확인 동의에 체크해야 합니다" });
   if (!s.agreeMove) out.push({ field: "agree", msg: "작업상 차량 이동 동의에 체크해야 합니다" });
   if (!s.consentOk) out.push({ field: "consentNow", msg: "개인정보 필수 동의(F-13-01)가 없습니다. 고객에게 받고 체크해야 합니다" });
+  if (s.signSkip) return out;
   if (!s.signerName.trim()) out.push({ field: "signerName", msg: "서명한 사람 이름을 적어야 합니다" });
   if (!s.signature) out.push({ field: "signature", msg: "서명을 받아야 합니다(서명란에 손가락·펜으로)" });
   return out;

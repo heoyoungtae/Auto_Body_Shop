@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { intakeIssues, type Issue } from "@/modules/repair/rules";
 
-export function IntakeCheck({ photoSlots, minPhotos, consentOk, lastMileage }: { photoSlots: string[]; minPhotos: number; consentOk: boolean; lastMileage: number | null }) {
+export function IntakeCheck({ photoSlots, minPhotos, consentOk, lastMileage, signSkip = false }: { photoSlots: string[]; minPhotos: number; consentOk: boolean; lastMileage: number | null; signSkip?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   useEffect(() => {
@@ -35,6 +35,7 @@ export function IntakeCheck({ photoSlots, minPhotos, consentOk, lastMileage }: {
               delivered: v("arrival") === "driver",
               driverName: v("driverName"),
               lastMileage,
+              signSkip,
             },
             minPhotos,
           ),
@@ -50,7 +51,7 @@ export function IntakeCheck({ photoSlots, minPhotos, consentOk, lastMileage }: {
       form.removeEventListener("change", run);
       form.removeEventListener("assist:restored", run);
     };
-  }, [photoSlots, minPhotos, consentOk, lastMileage]);
+  }, [photoSlots, minPhotos, consentOk, lastMileage, signSkip]);
   const go = (name: string) => {
     const form = box.current?.closest("form");
     const el = form?.querySelector<HTMLElement>(`[name="${name}"]`) ?? document.getElementById(name);
@@ -62,7 +63,7 @@ export function IntakeCheck({ photoSlots, minPhotos, consentOk, lastMileage }: {
     <div ref={box} role="status" aria-live="polite">
       {issues.length ? (
         <div className="rounded-md border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2.5 text-sm">
-          <p className="font-semibold text-[var(--warn)]">아직 서명할 수 없습니다({issues.length}건). 누르면 그 칸으로 갑니다. 중간 저장은 됩니다.</p>
+          <p className="font-semibold text-[var(--warn)]">아직 {signSkip ? "마칠" : "서명할"} 수 없습니다({issues.length}건). 누르면 그 칸으로 갑니다. 중간 저장은 됩니다.</p>
           <ul className="mt-1.5 space-y-1">
             {issues.map((i) => (
               <li key={i.field + i.msg}>
@@ -74,7 +75,7 @@ export function IntakeCheck({ photoSlots, minPhotos, consentOk, lastMileage }: {
           </ul>
         </div>
       ) : (
-        <p className="rounded-md border border-[var(--line)] bg-[var(--ok-soft)] px-3 py-2 text-sm text-[var(--ok)]">모두 갖췄습니다. 서명 받고 마칠 수 있습니다.</p>
+        <p className="rounded-md border border-[var(--line)] bg-[var(--ok-soft)] px-3 py-2 text-sm text-[var(--ok)]">모두 갖췄습니다. {signSkip ? "점검을 마칠" : "서명 받고 마칠"} 수 있습니다.</p>
       )}
     </div>
   );

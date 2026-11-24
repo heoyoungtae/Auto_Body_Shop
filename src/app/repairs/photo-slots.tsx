@@ -1,9 +1,10 @@
 "use client";
-// 입고 사진(F-02-01 첨부): 자리마다 찍기·올리기. 휴대폰에서는 바로 카메라가 열린다.
+// 입고 사진(F-02-01 첨부): 자리마다 '찍기'(카메라·PC 웹캠)와 '올리기'(사진첩·PC 폴더) 둘 다 된다.
 // 올리기 전에 이 화면에서 긴 변 1600px WEBP(안 되면 JPG)로 줄여 보낸다(통신·저장 공간 절약).
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { DIRECTION_SLOTS, MULTI_SLOTS, PHOTO_SLOT_LABEL, PHOTO_SLOTS, type PhotoSlot } from "@/modules/repair/rules";
+import { PhotoPick } from "../photo-pick";
 import { removePhotoAction, uploadPhotoAction } from "./actions";
 
 export type PhotoView = { id: string; slot: PhotoSlot; path: string };
@@ -28,17 +29,18 @@ export function PhotoSlots({ roId, photos, readOnly = false, minPhotos }: { roId
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const inputs = useRef<Record<string, HTMLInputElement | null>>({});
   const bySlot = (s: PhotoSlot) => photos.filter((p) => p.slot === s);
   const dirDone = DIRECTION_SLOTS.filter((s) => bySlot(s).length).length;
   const need = Math.min(minPhotos, DIRECTION_SLOTS.length);
 
-  const upload = async (slot: PhotoSlot, files: FileList | null) => {
-    if (!files?.length) return;
+  const upload = async (slot: PhotoSlot, files: File[]) => {
+    if (!files.length) return;
+    // 한 장 자리(방향·계기판)에 여러 장을 고르면 마지막 한 장만 남으므로 첫 장만 올린다
+    if (!MULTI_SLOTS.includes(slot)) files = files.slice(0, 1);
     setError(null);
     setBusy(slot);
     try {
-      for (const f of Array.from(files)) {
+      for (const f of files) {
         const { blob, width, height } = await shrink(f);
         const fd = new FormData();
         fd.set("id", roId);
@@ -54,8 +56,6 @@ export function PhotoSlots({ roId, photos, readOnly = false, minPhotos }: { roId
       setError(e instanceof Error ? e.message : "올리지 못했습니다");
     } finally {
       setBusy(null);
-      const el = inputs.current[slot];
-      if (el) el.value = "";
     }
   };
   const remove = async (p: PhotoView) => {
@@ -110,23 +110,13 @@ export function PhotoSlots({ roId, photos, readOnly = false, minPhotos }: { roId
                 <div className="grid aspect-[4/3] place-items-center rounded bg-[var(--bg)] text-[var(--muted)]">사진 없음</div>
               )}
               {!readOnly && (
-                <>
-                  <input
-                    type="file"
-                    data-assist="upload"
-                    ref={(el) => {
-                      inputs.current[slot] = el;
-                    }}
-                    accept="image/*"
-                    capture="environment"
-                    multiple={multi}
-                    className="hidden"
-                    onChange={(e) => upload(slot, e.currentTarget.files)}
-                  />
-                  <button type="button" disabled={busy != null} onClick={() => inputs.current[slot]?.click()} className="mt-1 min-h-9 w-full rounded border border-[var(--line-strong)] px-2 hover:bg-[var(--accent-soft)] disabled:opacity-50">
-                    {busy === slot ? "올리는 중…" : list.length ? (multi ? "더 찍기" : "다시 찍기") : "찍기·올리기"}
-                  </button>
-                </>
+                <PhotoPick
+                  multiple={multi}
+                  disabled={busy != null}
+                  busyLabel={busy === slot ? "올리는 중…" : null}
+                  shootLabel={list.length ? (multi ? "더 찍기" : "다시 찍기") : "찍기"}
+                  onFiles={(f) => upload(slot, f)}
+                />
               )}
             </li>
           );

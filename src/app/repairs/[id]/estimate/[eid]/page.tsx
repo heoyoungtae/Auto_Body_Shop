@@ -220,12 +220,12 @@ export default async function EstimatePage({ params, searchParams }: { params: P
         <div className="space-y-4 xl:col-span-2">
           <Card title="견적 머리" help={{ kind: "panel", id: "est.header" }}>
             {draft ? (
-              <AssistForm id={`est-h-${eid}`} action={estimateAction} fresh={freshHead} className="space-y-3">
+              <AssistForm id={`est-h-${eid}`} domId={`est-h-form-${eid}`} action={estimateAction} fresh={freshHead} className="space-y-3">
                 <Hidden roId={roId} id={eid} intent="header" />
                 <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
                   <SelectField help="est.kind" name="kind" defaultValue={e.kind} options={opts(ESTIMATE_KIND)} from={`수리 건 ${e.ro.docNo}`} />
                   <SelectField help="est.paintGrade" name="paintGrade" defaultValue={e.paintGrade} options={opts(PAINT_GRADES)} />
-                  <DateField help="est.registeredOn" name="registeredOn" defaultValue={v.registeredOn ?? ""} from={v.registeredOn ? "차량 기록" : undefined} quick={[]} required />
+                  <DateField help="est.registeredOn" name="registeredOn" defaultValue={v.registeredOn ?? ""} from={v.registeredOn ? "차량 기록" : undefined} quick={[]} />
                   <DateField help="est.dueDate" name="dueDate" defaultValue={e.dueDate ?? ""} quick={["tomorrow", "week"]} />
                 </div>
                 <TextAreaField help="est.note" name="note" rows={2} defaultValue={e.note ?? undefined} />
@@ -353,10 +353,13 @@ export default async function EstimatePage({ params, searchParams }: { params: P
                   <p className="rounded-md border border-[var(--line)] bg-[var(--ok-soft)] px-3 py-2 text-[var(--ok)]">검토를 요청할 수 있습니다.</p>
                 ))}
               {draft && (
-                <form action={estimateAction}>
-                  <Hidden roId={roId} id={eid} intent="submit" />
-                  <SubmitButton>검토 요청</SubmitButton>
-                </form>
+                <>
+                  {/* 견적 머리 양식을 함께 보낸다: 머리 칸(등록년월일 등)에 넣고 '머리 저장'을 안 눌러도 먼저 저장한 뒤 검토를 요청한다 */}
+                  <SubmitButton form={`est-h-form-${eid}`} name="then" value="submit">
+                    검토 요청
+                  </SubmitButton>
+                  {!v.registeredOn && <p className="text-xs text-[var(--muted)]">등록년월일은 선택 칸입니다. 비어 있으면 견적서 그 칸이 빈칸으로 나갑니다.</p>}
+                </>
               )}
               {e.status === "review" &&
                 (canReview ? (

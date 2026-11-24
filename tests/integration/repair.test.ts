@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
-import { consultation, roPhoto, vehicle } from "@/db/schema";
+import { consultation, policySetting, roPhoto, vehicle } from "@/db/schema";
 import { createConsultation, consentState, type ConsultInput } from "@/modules/customer/service";
 import { myTodos } from "@/modules/dashboard/todo";
 import { DIRECTION_SLOTS } from "@/modules/repair/rules";
@@ -112,6 +112,8 @@ describe("접수·입고(STD-02)", () => {
   });
 
   it("서명: 사진·서명이 모자라면 막고, 갖추면 잠근다. 동의가 없으면 그 자리에서 받는다. 다시 점검하면 풀린다", async () => {
+    // 고객 서명을 받는 설정(정책값 intake.sign_skip=0)
+    await db.insert(policySetting).values({ key: "intake.sign_skip", value: 0, effectiveFrom: "2026-11-01", reason: "시험", changedBy: ids.owner });
     const c = await createConsultation(db, ids.advisor, consult({ consent: undefined, requestConsent: true }), now);
     const { id } = await startRepair(db, ids.advisor, c.id, now);
     await expect(signIntake(db, ids.advisor, id, { ...intake(), signaturePng: PNG, consentNow: true }, now)).rejects.toThrow(/외관 사진이 0\/8장/);
@@ -135,6 +137,18 @@ describe("접수·입고(STD-02)", () => {
     await reopenIntake(db, ids.advisor, id, "주행거리 오기", now);
     const back = await getRepair(db, id);
     expect([back.status, back.signedAt, back.agreeChecked]).toEqual(["intake", null, false]);
+  });
+
+  it("고객 서명 생략(정책값 처음 값): 서명 없이 점검을 마치고, 동의 체크·사진은 그대로 확인한다", async () => {
+    const c = await createConsultation(db, ids.advisor, consult({ consent: undefined, requestConsent: true }), now);
+    const { id } = await startRepair(db, ids.advisor, c.id, now);
+    for (const s of [...DIRECTION_SLOTS, "dash"]) await addPhoto(db, ids.advisor, id, s, WEBP);
+    await expect(signIntake(db, ids.advisor, id, { ...intake(), signaturePng: null, consentNow: false }, now)).rejects.toThrow(/필수 동의/);
+    await signIntake(db, ids.advisor, id, { ...intake(), signerName: "", signaturePng: null, consentNow: true }, now);
+    const r = await getRepair(db, id);
+    expect(r.status).toBe("checked");
+    expect(r.signedAt).toBeTruthy();
+    expect(r.signaturePath).toBeNull();
   });
 
   it("파일 경로는 보관 폴더 밖으로 나가지 못한다", () => {
