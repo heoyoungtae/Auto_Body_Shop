@@ -106,6 +106,15 @@ describe("근로계약서 흐름", () => {
     expect((await listDocuments(db, tech2())).length).toBe(0);
   });
 
+  it("고정 연장근로수당: 저장할 때 금액을 정해 고정하고, 직원 등록 전에는 5명 이상(1.5배)으로 본다", async () => {
+    const { doc } = await saveContract(db, acct(), ids.tech1, terms({ fixedOtHours: 20 }), undefined, now);
+    const t = doc.terms as ContractTerms;
+    expect(t.fixedOtHours).toBe(20);
+    expect(t.fixedOtAmount).toBe(Math.floor((Math.floor(2_500_000 / 209) * 20 * 1.5) / 10) * 10);
+    const { doc: d2 } = await saveContract(db, acct(), ids.tech2, terms({ fixedOtHours: 0 }), undefined, now);
+    expect((d2.terms as ContractTerms).fixedOtAmount).toBeUndefined();
+  });
+
   it("서약서는 하나씩, 퇴직 확인서는 반납 항목을 다 확인해야 서명한다", async () => {
     await saveProfile(db, acct(), ids.tech1, { ...profile, leftOn: "2026-12-31", leftReason: "개인 사정" }, now);
     const j = await createPledge(db, acct(), ids.tech1, "pledge_join", {}, now);

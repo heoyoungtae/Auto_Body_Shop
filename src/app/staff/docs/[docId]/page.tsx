@@ -240,6 +240,11 @@ function ContractBody({ t, party, shop, date, signPath, seal }: { t: ContractTer
             <p>
               - 기타 급여(제수당 등): {box(allow.length > 0)} 있음 {box(!allow.length)} 없음 {allow.map((a) => `${a.name} ${won(a.amount)}`).join(", ")}
             </p>
+            {t.fixedOtHours && t.fixedOtAmount ? (
+              <p>
+                - 고정 연장근로수당: 월 {won(t.fixedOtAmount)}. 이는 월 {t.fixedOtHours}시간의 평일 연장근로에 대한 수당(통상시급 × {t.fixedOtHours}시간 × 가산)이며, 실제 연장근로에 따른 법정 수당이 이보다 많으면 그 차액을 그 달 임금과 함께 더 지급하고, 적더라도 감액하지 않는다. 휴일·야간 근로수당은 따로 지급하며, 연장근로는 근로자 동의와 사전 승인을 받아 한다. 이 수당은 통상임금에 넣지 않는다.
+              </p>
+            ) : null}
             <p>- 임금 지급일: 매월 {t.payDay}일(휴일의 경우는 전일 지급)</p>
             <p>
               - 지급 방법: {box(t.payMethod === "direct")} {PAY_METHODS.direct} {box(t.payMethod === "account")} {PAY_METHODS.account}

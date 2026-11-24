@@ -31,6 +31,7 @@ function termsOf(form: FormData): ContractTerms {
     payMethod: s("payMethod") as ContractTerms["payMethod"],
     insurances: form.getAll("insurances").map(String),
     extra: s("extra"),
+    fixedOtHours: num("fixedOtHours"),
   };
 }
 

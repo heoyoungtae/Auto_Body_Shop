@@ -18,6 +18,8 @@ import { can } from "@/modules/auth/permissions";
 import { getEntry } from "@/modules/journal/entry";
 import { pendingOrders } from "@/modules/staff/attendance";
 import { dayStatus, loadPunchConfig, missingDays, teamToday } from "@/modules/staff/punch";
+import { fixedOtHoursOf } from "@/modules/staff/documents";
+import { closedReason } from "@/modules/platform/business-days";
 
 /** 근태·휴가·연장근로 신청서(F-11-04, STD-11 4절) */
 export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string; m?: string; d?: string; fix?: string }> }) {
@@ -42,6 +44,11 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     owner ? loadPunchConfig(db) : Promise.resolve(null),
     orderer ? db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(appUser.name) : Promise.resolve([]),
   ]);
+  // 고정 연장근로수당(포괄 약정)을 받는 직원: 이달 승인된 평일 연장 vs 약정 시간
+  const fixH = await fixedOtHoursOf(db, user.id, today);
+  const otMonth = mine
+    .filter((r) => r.data.leaveKind === "overtime" && ["confirmed", "checked"].includes(r.doc.status) && r.data.fromDate.slice(0, 7) === today.slice(0, 7) && closedReason(cal, r.data.fromDate) == null)
+    .reduce((s, r) => s + (r.data.hours ?? 0), 0);
   const journalClosed = journal?.status === "closed" || journal?.status === "confirmed";
   const prev = addDaysIso(mFrom, -1).slice(0, 7);
   const next = addDaysIso(mTo, 1).slice(0, 7);
@@ -107,6 +114,20 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
             <p className="text-sm text-[var(--muted)]">근로자 명부에 입사일이 없어 연차를 계산하지 못합니다. 회계 담당에게 명부 작성을 요청하세요. 연차·반차 외의 근태는 지금도 신청할 수 있습니다.</p>
           )}
         </Card>
+
+        {fixH > 0 && (
+          <Card title="이달 연장(고정 연장근로수당)" help={{ kind: "panel", id: "leave.fixedOt" }}>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-[var(--line)]">
+              <div className={`h-full ${otMonth > fixH ? "bg-[var(--warn)]" : "bg-[var(--accent)]"}`} style={{ width: `${Math.min(100, (otMonth / fixH) * 100)}%` }} />
+            </div>
+            <p className="mt-2 text-sm">
+              승인된 평일 연장 <b>{Math.round(otMonth * 100) / 100}시간</b> / 약정 {fixH}시간
+            </p>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              약정 시간만큼의 연장수당은 매달 고정으로 받습니다(덜 일해도 그대로). 약정을 넘긴 시간은 급여에서 차액으로 더 받습니다. 최종 인정은 승인 시간 중 실제 출퇴근과 겹친 시간입니다. 연장은 지금처럼 미리 신청합니다.
+            </p>
+          </Card>
+        )}
 
         <Card title="근태 신청서 쓰기" help={{ kind: "panel", id: "leave.new" }}>
           <AssistForm id="leave-new" action={requestLeaveAction} className="space-y-3">

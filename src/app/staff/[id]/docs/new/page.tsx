@@ -1,3 +1,4 @@
+import { isLegal5 } from "@/modules/staff/headcount";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -47,6 +48,7 @@ export default async function NewStaffDocPage({ params, searchParams }: { params
       source = d.docNo;
     } else ({ terms, source } = await contractDefaults(db, user, id));
     const pol = await loadPolicy(db);
+    const legal5 = await isLegal5(db, terms.startOn || undefined);
     return (
       <>
         <PageTitle help="staff.docNew" sub={`고용노동부 표준근로계약서 항목입니다. ${source}에서 값을 불러왔습니다. 저장하면 ${user.roles.includes("owner") ? "직원에게 서명 요청이 갑니다" : "대표가 확인한 뒤 직원이 서명합니다"}.`} actions={back}>
@@ -57,7 +59,7 @@ export default async function NewStaffDocPage({ params, searchParams }: { params
           <AssistForm id={`contract-${id}`} draft action={saveContractAction} className="space-y-5">
             <input type="hidden" name="userId" value={id} />
             {edit && <input type="hidden" name="docId" value={edit} />}
-            <ContractFields t={terms} source={source} minWage={pol["wage.minimum_hourly"]} legal5={pol["hr.headcount_5plus"] === 1} />
+            <ContractFields t={terms} source={source} minWage={pol["wage.minimum_hourly"]} legal5={legal5} fixedOtMax={pol["pay.fixed_ot_max_hours"]} />
             <SubmitButton>저장</SubmitButton>
           </AssistForm>
         </Card>

@@ -1,5 +1,6 @@
 // 근태·휴가·연장근로 신청서(F-11-04, STD-11 4절)와 재직증명서 발급 신청.
 // 신청은 전자결재 문서로 올리고(별도 표 없음), 연차 사용량·주 연장근로는 확정·진행 중 문서에서 센다.
+import { isLegal5 } from "./headcount";
 import { can } from "@/modules/auth/permissions";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -46,7 +47,7 @@ export async function leaveBalance(db: Db, userId: string, on = seoulDate()) {
   const p = await hiredOnOf(db, userId);
   if (!p?.hiredOn) return null;
   const pol = await loadPolicy(db, on);
-  const legal = pol["hr.headcount_5plus"] === 1;
+  const legal = await isLegal5(db, on);
   const ent = legal ? annualEntitlement(p.hiredOn, on) : smallShopEntitlement(p.hiredOn, on, pol["leave.small_annual_days"]);
   let used = 0;
   let pending = 0;

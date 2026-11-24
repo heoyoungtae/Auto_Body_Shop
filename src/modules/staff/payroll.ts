@@ -1,6 +1,7 @@
 // 급여대장·임금명세서(F-11-05), STD-11 5절
 // 1 계산(회계: 서명한 근로계약서 + 확정 근태) → 2 대표 승인(전결: 전액 대표) → 3 지급일 지급 기록 → 4 명세서 앱 교부.
 // 급여 자료는 대표·회계 담당만 보고, 직원은 자기 명세서만 본다(STD-13).
+import { isLegal5 } from "./headcount";
 import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import {
@@ -63,7 +64,8 @@ async function run(db: Db, id: string) {
 async function payPolicy(db: Db, on: string): Promise<PayPolicy> {
   const p = await loadPolicy(db, on);
   return {
-    legal5: p["hr.headcount_5plus"] === 1,
+    legal5: await isLegal5(db, on),
+    fixedOtReviewMonths: p["pay.fixed_ot_review_months"],
     minWage: p["wage.minimum_hourly"],
     pensionRate: p["ins.pension_rate"],
     healthRate: p["ins.health_rate"],
@@ -262,6 +264,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
       pol,
       ...k,
       otTaxfreeUsed: used.get(u.id) ?? 0,
+      prevFixedOt: prev?.fixedOt ?? null,
     });
     const waiting = pending.filter(({ d }) => d.drafterId === u.id).length;
     if (waiting)

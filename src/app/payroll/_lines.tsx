@@ -53,6 +53,12 @@ export function SlipLines({ d }: { d: SlipData }) {
         {d.att.holiday + d.att.holidayOver8}시간 · 결근 {d.att.absentDays}일 ·
         무급 병가 {d.att.sickDays}일 · 지각·조퇴·외출 {d.att.shortHours}시간
       </p>
+      {d.fixedOt && (
+        <p className="rounded-md border border-[var(--line)] px-2 py-1 text-xs">
+          고정 연장근로수당: 약정 월 {d.fixedOt.hours}시간 · 이달 인정 연장 {d.fixedOt.actual}시간(법정 수당 {won(d.fixedOt.legal)}) →{" "}
+          {d.fixedOt.diff ? <b>차액 {won(d.fixedOt.diff)} 더 지급</b> : "차액 없음(약정보다 덜 일해도 고정 수당은 그대로)"}
+        </p>
+      )}
       {table("지급", d.pays, d.gross)}
       {table("공제", d.deducts, d.deductTotal)}
       <p className="text-right text-base font-semibold">

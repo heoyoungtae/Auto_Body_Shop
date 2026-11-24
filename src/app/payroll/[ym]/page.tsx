@@ -95,6 +95,11 @@ export default async function PayrollRunPage({
                     지급 {won(d.gross)} · 공제 {won(d.deductTotal)} · 실지급{" "}
                     <b>{won(d.net)}</b> · 통상시급 {won(d.hourly)}
                   </span>
+                  {d.fixedOt && (
+                    <Badge tone={d.fixedOt.diff ? "warn" : undefined}>
+                      연장 {d.fixedOt.actual}/{d.fixedOt.hours}시간{d.fixedOt.diff ? ` · 차액 ${won(d.fixedOt.diff)}` : ""}
+                    </Badge>
+                  )}
                   {d.warnings.length > 0 && (
                     <Badge tone="warn">확인 {d.warnings.length}</Badge>
                   )}

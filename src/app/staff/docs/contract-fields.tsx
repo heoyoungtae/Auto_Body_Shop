@@ -1,7 +1,7 @@
 "use client";
 // 근로계약서 칸(표준근로계약서 항목 순서). 적는 동안 하루·주 근로시간, 시간당 임금, 법 위반·주의 사항을 바로 보여 준다.
 import { useEffect, useRef, useState } from "react";
-import { checkContract, CONTRACT_TYPES, INSURANCES, PAY_METHODS, PAY_TYPES, WEEKDAYS, type ContractTerms } from "@/modules/staff/contract-rules";
+import { checkContract, fixedOtPay, CONTRACT_TYPES, INSURANCES, PAY_METHODS, PAY_TYPES, WEEKDAYS, type ContractTerms } from "@/modules/staff/contract-rules";
 import { TIME_OPTIONS } from "@/modules/staff/leave-rules";
 import { CheckGroup, DateField, NumberField, SelectField, TextAreaField, TextField } from "../../_input";
 
@@ -33,19 +33,22 @@ export function readTerms(form: HTMLFormElement | HTMLElement): ContractTerms {
     payMethod: v("payMethod") as ContractTerms["payMethod"],
     insurances: all("insurances"),
     extra: v("extra"),
+    fixedOtHours: num("fixedOtHours"),
   };
 }
 
-export function ContractFields({ t, source, minWage, legal5 }: { t: ContractTerms; source: string; minWage: number; legal5: boolean }) {
+export function ContractFields({ t, source, minWage, legal5, fixedOtMax = 52 }: { t: ContractTerms; source: string; minWage: number; legal5: boolean; fixedOtMax?: number }) {
   const root = useRef<HTMLDivElement>(null);
-  const [r, setR] = useState(() => checkContract(t, { minWage, legal5 }));
+  const [r, setR] = useState(() => checkContract(t, { minWage, legal5, fixedOtMax }));
   const [payType, setPayType] = useState(t.payType);
+  const [cur, setCur] = useState(t);
   const read = () =>
     setTimeout(() => {
       if (!root.current) return;
       const x = readTerms(root.current);
       setPayType(x.payType);
-      setR(checkContract(x, { minWage, legal5 }));
+      setCur(x);
+      setR(checkContract(x, { minWage, legal5, fixedOtMax }));
     }, 0);
   useEffect(() => {
     const form = root.current?.closest("form");
@@ -100,6 +103,18 @@ export function ContractFields({ t, source, minWage, legal5 }: { t: ContractTerm
         <div className="grid gap-3 md:grid-cols-3">
           <NumberField help="lc.payDay" name="payDay" required defaultValue={t.payDay} unit="일(매월)" min={1} max={31} />
           <SelectField help="lc.payMethod" name="payMethod" required defaultValue={t.payMethod} options={opts(PAY_METHODS)} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <NumberField help="lc.fixedOtHours" name="fixedOtHours" defaultValue={t.fixedOtHours || null} unit="시간/월" min={0} max={fixedOtMax} />
+          <p className="self-end pb-2 text-sm md:col-span-2">
+            {cur.fixedOtHours ? (
+              <>
+                고정 연장근로수당 <b>월 {won(fixedOtPay(cur, legal5))}</b> = 통상시급 {won(n.hourly)} × {cur.fixedOtHours}시간 × {legal5 ? 1.5 : 1} · 주 약 {Math.round((cur.fixedOtHours / 4.345) * 10) / 10}시간
+              </>
+            ) : (
+              <span className="text-[var(--muted)]">비우면 연장은 실제 시간만큼 계산합니다(지금 방식)</span>
+            )}
+          </p>
         </div>
         <p className="text-sm text-[var(--muted)]">
           시간당 {n.hourly ? won(n.hourly) : "—"} (최저임금 {won(minWage)}){payType === "monthly" && n.monthHours ? ` · 최저 월 ${won(minWage * n.monthHours)}` : ""}

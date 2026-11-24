@@ -16,7 +16,8 @@ import { loadPolicy } from "@/modules/platform/policy";
 import { loadShopInfo, shopAddressLine } from "@/modules/platform/shop";
 import { storeFile } from "@/modules/platform/storage";
 import { seoulDate } from "@/modules/platform/time";
-import { checkContract, DOC_KINDS, LEAVE_CHECKS, PLEDGE_VERSION, type ContractTerms, type DocKind, type PledgeTerms } from "./contract-rules";
+import { isLegal5 } from "./headcount";
+import { checkContract, fixedOtPay, DOC_KINDS, LEAVE_CHECKS, PLEDGE_VERSION, type ContractTerms, type DocKind, type PledgeTerms } from "./contract-rules";
 import { RULES_VERSION } from "./work-rules-text";
 import { concurrentJobs, contractDuties, JD_VERSION, jobByTitle, JOBS } from "./job-rules";
 import { rolesOf } from "@/modules/approval/line";
@@ -38,7 +39,7 @@ async function nameOf(db: Db, userId: string) {
 
 async function annualText(db: Db, on: string) {
   const pol = await loadPolicy(db, on);
-  return pol["hr.headcount_5plus"] === 1 ? "근로기준법에서 정하는 바에 따라 부여함" : `사내 규정에 따라 입사일 기준 1년마다 ${pol["leave.small_annual_days"]}일 부여함(상시 5명 미만 사업장)`;
+  return (await isLegal5(db, on)) ? "근로기준법에서 정하는 바에 따라 부여함" : `사내 규정에 따라 입사일 기준 1년마다 ${pol["leave.small_annual_days"]}일 부여함(상시 5명 미만 사업장)`;
 }
 
 /** 새 계약서 기본값: 같은 직원의 마지막 계약서 → 없으면 명부·사업장 설정·정책값 */
@@ -83,7 +84,8 @@ export async function contractDefaults(db: Db, actor: Actor, userId: string): Pr
 
 export async function contractCheck(db: Db, t: ContractTerms) {
   const pol = await loadPolicy(db, ISO.test(t.startOn) ? t.startOn : seoulDate());
-  return checkContract(t, { minWage: pol["wage.minimum_hourly"], legal5: pol["hr.headcount_5plus"] === 1 });
+  const on = ISO.test(t.startOn) ? t.startOn : seoulDate();
+  return checkContract(t, { minWage: pol["wage.minimum_hourly"], legal5: await isLegal5(db, on), fixedOtMax: pol["pay.fixed_ot_max_hours"] });
 }
 
 /** 근로계약서 저장(새로 쓰기 또는 서명 전 고치기). 대표가 쓰면 바로 서명 대기, 회계가 쓰면 대표 확인 대기 */
@@ -94,6 +96,12 @@ export async function saveContract(db: Db, actor: Actor, userId: string, terms: 
   const r = await contractCheck(db, t);
   if (r.errors.length) throw new DocError(r.errors.join(" / "));
   t.annualText = await annualText(db, t.startOn);
+  // 고정 연장근로수당: 저장할 때 금액을 정해 고정(서명본에 그대로 적힘)
+  if (t.fixedOtHours && t.fixedOtHours > 0) t.fixedOtAmount = fixedOtPay(t, await isLegal5(db, t.startOn));
+  else {
+    delete t.fixedOtHours;
+    delete t.fixedOtAmount;
+  }
   const approved = can(actor, "contract.approve");
   let row: Row;
   if (docId) {
@@ -332,4 +340,17 @@ export async function getDocument(db: Db, actor: Actor, docId: string) {
   }
   const check = d.kind === "contract" ? await contractCheck(db, d.terms as ContractTerms) : null;
   return { d, party, shop, check };
+}
+
+/** 그날 효력 있는 서명한 근로계약서의 고정 연장 약정 시간(없으면 0) — 출퇴근 화면 '이달 연장' 막대 */
+export async function fixedOtHoursOf(db: Db, userId: string, on = seoulDate()) {
+  const rows = await db
+    .select({ terms: staffDocument.terms })
+    .from(staffDocument)
+    .where(and(eq(staffDocument.userId, userId), eq(staffDocument.kind, "contract"), eq(staffDocument.status, "signed")));
+  const t = rows
+    .map((r) => r.terms as ContractTerms)
+    .filter((x) => x.startOn <= on && (!x.endOn || x.endOn >= on))
+    .sort((a, b) => b.startOn.localeCompare(a.startOn))[0];
+  return t?.fixedOtHours ?? 0;
 }
