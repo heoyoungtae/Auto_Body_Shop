@@ -16,6 +16,7 @@ import { HomeLink, MyMenu } from "./my/my-nav";
 import { MenuButton, NavProvider, Sidebar } from "./_sidebar";
 import { APP_NAME, APP_SHORT_NAME, APP_THEME_COLOR } from "@/modules/platform/brand";
 import { brandSize, brandUrl, loadBrand } from "@/modules/platform/brand-assets";
+import { hiddenHrefs } from "@/modules/platform/features";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -59,7 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // 새 비밀번호를 정하기 전(임시 비밀번호로 들어옴)에는 메뉴·알림을 보이지 않는다
   const user = me?.mustChangePassword ? null : me;
   const db = await getDb();
-  const [unread, brand] = await Promise.all([user ? unreadCount(db, user.id) : 0, loadBrand(db)]);
+  const [unread, brand, hidden] = await Promise.all([user ? unreadCount(db, user.id) : 0, loadBrand(db), user ? hiddenHrefs(db) : Promise.resolve([] as string[])]);
   const [logoW, logoH] = brandSize(brand, "logo-light");
   return (
     <html lang="ko">
@@ -122,7 +123,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             </header>
             <div className="flex">
-              {user && <Sidebar roles={user.roles} unread={unread} />}
+              {user && <Sidebar roles={user.roles} unread={unread} hidden={hidden} />}
               <main className="min-w-0 flex-1 px-4 py-6 lg:px-6">{children}</main>
             </div>
             {/* 새 알림: 홈 화면 앱 첫 실행 때 알림 받기 묻기, 열려 있을 때 클랙슨 소리(대표 지시 2026-11-21) */}

@@ -2,7 +2,7 @@ import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { getRepair } from "@/modules/repair/service";
-import { statementOf } from "@/modules/repair/inspect";
+import { statementOf, needDeliverSign } from "@/modules/repair/inspect";
 import { DELIVERY_NOTICES, PAY_METHODS } from "@/modules/repair/inspect-rules";
 import { RO_STATUS_LABEL } from "@/modules/repair/rules";
 import { loadPolicy } from "@/modules/platform/policy";
@@ -37,6 +37,9 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
   const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
   const snap = (st?.snapshot ?? {}) as { warranty?: { kind: string; until: string }[]; legalFreeDays?: number; byPayer?: { insurance: number; general: number } };
 
+  // 간소화 '출고 인수 서명 생략': 자비 건 본인 인수면 서명 없이, 대리인을 고르면 서명란이 나온다
+  const sign = needDeliverSign(policy, r, false);
+  const pad = <SignaturePad hint="인수하는 분이 차량 상태를 확인하고 이 칸에 서명합니다" />;
   // 설명·수납·받는 사람 칸(인도). 간소화 '정비명세서 발급·인도 한 화면'이면 명세서 발급 칸과 한 양식에 둔다
   const handover = (
     <>
@@ -60,7 +63,15 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
           options={opts(biz ? PAY_METHODS : Object.fromEntries(Object.entries(PAY_METHODS).filter(([k]) => k !== "credit")))}
         />
       </ShowWhen>
-      <ShowWhen field="receiver" initial="self" cases={{ proxy: <TextField help="dl.proxyNote" name="proxyNote" required /> }}>
+      <ShowWhen field="receiver" initial="self" cases={{
+          proxy: (
+            <>
+              <TextField help="dl.proxyNote" name="proxyNote" required />
+              {!sign && pad}
+            </>
+          ),
+        }}
+      >
         <SelectField
           help="dl.receiver"
           name="receiver"
@@ -124,7 +135,7 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
                 <input type="hidden" name="intent" value="issue_deliver" />
                 <NumberField help="dl.mileageOut" name="mileageOut" unit="km" min={r.mileage ?? 0} defaultValue={r.mileage} from={r.mileage != null ? "입고 점검" : undefined} required />
                 {handover}
-                <SignaturePad hint="인수하는 분이 차량 상태를 확인하고 이 칸에 서명합니다" />
+                {sign && pad}
                 <SubmitButton>정비명세서 발급하고 출고</SubmitButton>
               </AssistForm>
             </Card>
@@ -140,13 +151,13 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
             </Card>
           )}
           {ready && desk && st && (
-            <Card title="3. 설명·수납·인수 서명" help={{ kind: "panel", id: "dl.handover" }}>
+            <Card title={sign ? "3. 설명·수납·인수 서명" : "3. 설명·수납·인수"} help={{ kind: "panel", id: "dl.handover" }}>
               <AssistForm id={`dld-${id}`} action={deliveryAction} className="space-y-4">
                 <input type="hidden" name="roId" value={id} />
                 <input type="hidden" name="intent" value="deliver" />
                 {handover}
-                <SignaturePad hint="인수하는 분이 차량 상태를 확인하고 이 칸에 서명합니다" />
-                <SubmitButton>인수 서명 받고 출고</SubmitButton>
+                {sign && pad}
+                <SubmitButton>{sign ? "인수 서명 받고 출고" : "출고"}</SubmitButton>
               </AssistForm>
             </Card>
           )}

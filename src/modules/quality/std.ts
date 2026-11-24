@@ -71,6 +71,11 @@ export function bodyMark(t: string) {
  * 이미 들어간 서버는 여기 적은 절이 예전 초안 그대로(표시값 같음)일 때만 std-seed.json 새 본문으로 바꾼다. 앱에서 고친 절은 건드리지 않는다.
  */
 export const DRAFT_PATCHES: Record<string, string[]> = {
+  "p:STD-05:8": ["ae11cdcd"],
+  "p:STD-03:3": ["869b070b"],
+  "a:B": ["3877e046"],
+  "o:5.3": ["471dd16c"],
+  "o:3.2": ["ed3b889b"],
   // 내 차 수첩(고객용 차계부) 반영 2026-11-21
   "o:13.1": ["df0b9024", "be27d963"],
   "o:13.2": ["5a1a34e"],
@@ -105,12 +110,12 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "p:STD-Q:2": ["a6ad0636"],
   "p:STD-01:4": ["36087479"],
   "p:STD-02:5": ["d9f25568", "a61ba0af"],
-  "p:STD-03:4": ["fb8860fd"],
+  "p:STD-03:4": ["fb8860fd", "effcf91d"],
   "p:STD-04:2": ["c7b717fb"],
   "p:STD-04:5": ["91555ae"],
   "p:STD-04:6": ["165a6e1"],
   "p:STD-05:4": ["fdff88f6"],
-  "p:STD-05:5": ["2313db16"],
+  "p:STD-05:5": ["2313db16", "14757cc9"],
   "p:STD-06:4": ["fc7376e1"],
   "p:STD-08:2": ["6d55420a"],
   "p:STD-08:10": ["bf6a03e9"],
@@ -121,8 +126,8 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "f:F-03-01": ["a8e853c0"],
   "f:F-03-02": ["5fc88fb8"],
   "f:F-04-01": ["fe1e92ec", "39583c93"],
-  "f:F-05-01": ["c5c3a3c8"],
-  "f:F-05-02": ["9627a2d1"],
+  "f:F-05-01": ["c5c3a3c8", "c5cbf2fb"],
+  "f:F-05-02": ["9627a2d1", "e8bfa0be"],
   "f:F-11-02": ["883a7f11"],
   "f:F-13-02": ["e498eeef"],
   "f:F-13-03": ["4e74e776"],

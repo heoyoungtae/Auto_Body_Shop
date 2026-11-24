@@ -73,7 +73,7 @@ const groupOf = (h: string | undefined) =>
   h ? MENU.find((g) => g.items.some((i) => i.href === h && !i.also))?.id : undefined;
 const FAV_MAX = 8;
 
-export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
+export function Sidebar({ roles, unread, hidden = [] }: { roles: Role[]; unread: number; hidden?: string[] }) {
   const path = usePathname();
   // ?f=warranty 같은 조건도 봐야 '보증 수리'와 '만족도·불만'을 가른다
   const search = useSearchParams().toString();
@@ -121,7 +121,9 @@ export function Sidebar({ roles, unread }: { roles: Role[]; unread: number }) {
     }, 50);
     return () => clearTimeout(t);
   }, [current, here]);
+  // 설정 › 간소화 '안 쓰는 기능 끄기'로 숨긴 메뉴는 메뉴·메뉴 찾기에서 뺀다
   const allowed = (i: MenuItem) =>
+    !(i.href && hidden.includes(i.href)) &&
     (!i.roles || i.roles.some((r) => roles.includes(r))) &&
     (!i.perm || i.perm.some((k) => can({ roles }, k)));
   const visible = (i: MenuItem) => allowed(i) && (future || i.href);

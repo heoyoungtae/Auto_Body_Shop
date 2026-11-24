@@ -61,6 +61,10 @@ export const DEFAULT_POLICY = {
   "simple.diag_auto": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 진단 확인하면 견적까지 바로", clause: "2.2", min: 0, max: 1 },
   "simple.journal_quiet": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 특이사항 없는 업무일지 확인 생략", clause: "11", min: 0, max: 1 },
   "simple.notice_digest": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 급하지 않은 알림 하루 2번 묶기", clause: "-", min: 0, max: 1 },
+  "simple.qc_quick": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 최종 검사 '전부 합격'·도막 측정 생략", clause: "5절", min: 0, max: 1 },
+  "simple.deliver_sign_skip": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 출고 인수 서명 생략", clause: "8.4", min: 0, max: 1 },
+  "simple.estimate_small": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 소액 견적 내부 검토 생략", clause: "3절", min: 0, max: 1 },
+  "estimate.small_won": { value: 500000, unit: "원 이하", label: "소액 견적(내부 검토 생략) 기준", clause: "부록 B", min: 0, max: 5000000 },
   "estimate.valid_days": {
     value: 30,
     unit: "일",

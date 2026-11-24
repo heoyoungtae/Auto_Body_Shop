@@ -9,6 +9,7 @@ import { changeBands, DelegationError, isDelegationTask, type Band } from "@/mod
 import { writeAudit } from "@/modules/platform/audit";
 import { changePolicy } from "@/modules/platform/policy";
 import { applySimplifyMode, setSimple } from "@/modules/platform/simplify";
+import { setFeature } from "@/modules/platform/features";
 import { applyCandidate, dismissCandidate } from "@/modules/money/law-watch";
 import { recordCheck } from "@/modules/platform/policy-check";
 import { isPolicyGroup } from "@/modules/platform/policy-meta";
@@ -51,6 +52,10 @@ export async function simplifyAction(form: FormData) {
     } else if (intent === "simple" || intent === "standard") {
       const n = await applySimplifyMode(db, user.id, intent);
       msg = n ? `${intent === "simple" ? "간편 모드로" : "표준(전부 기록)으로"} ${n}개 항목을 바꿨습니다` : "이미 그 모드입니다";
+    } else if (intent === "feature") {
+      const on = s(form, "on") === "1";
+      const changed = await setFeature(db, user.id, s(form, "key"), on);
+      msg = changed ? (on ? "메뉴에 다시 보입니다" : "메뉴에서 숨겼습니다. 기록은 그대로 남고 다시 켜면 돌아옵니다") : "이미 그 상태입니다";
     }
   } catch (e) {
     redirect(errorUrl("/settings/simplify", userMessage(e)));

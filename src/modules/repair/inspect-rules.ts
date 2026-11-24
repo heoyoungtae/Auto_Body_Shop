@@ -17,17 +17,17 @@ export const INSPECT_ITEMS = [
 ] as const;
 export type InspectKey = (typeof INSPECT_ITEMS)[number]["key"];
 
-/** 이 수리에서 물어야 할 항목(한 공정도 없으면 해당 없음) */
-export function itemsFor(processes: string[]) {
-  return INSPECT_ITEMS.filter((i) => !("need" in i) || i.need.some((p) => processes.includes(p)));
+/** 이 수리에서 물어야 할 항목(한 공정도 없으면 해당 없음). skipFilm=간소화로 도막 두께 측정을 묻지 않음(자비 건) */
+export function itemsFor(processes: string[], skipFilm = false) {
+  return INSPECT_ITEMS.filter((i) => (!("need" in i) || i.need.some((p) => processes.includes(p))) && !(skipFilm && i.key === "film"));
 }
 
 export type InspectInput = { passed: string[]; gapMm: number | null; filmUm: number[]; failNote: string };
-type Limits = { gapMm: number; filmMin: number; filmMax: number; photos: number };
+type Limits = { gapMm: number; filmMin: number; filmMax: number; photos: number; skipFilm?: boolean };
 
 /** 판정: 체크 안 한 항목, 정책값을 벗어난 측정값은 불합격. 사진 장수 부족도 불합격 */
 export function judge(processes: string[], input: InspectInput, photos: number, lim: Limits) {
-  const items = itemsFor(processes);
+  const items = itemsFor(processes, lim.skipFilm);
   const fails: { key: string; why: string }[] = [];
   for (const i of items) if (!input.passed.includes(i.key)) fails.push({ key: i.key, why: `${i.group} ${i.label}` });
   const has = (k: string) => items.some((i) => i.key === k);
