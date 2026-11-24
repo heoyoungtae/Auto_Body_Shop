@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
 import { simplifyOverview } from "@/modules/platform/simplify";
+import { FEATURES, featuresOff } from "@/modules/platform/features";
 import { requireUser } from "../../_lib/session";
 import { Badge, Card, ErrorBox, Notice, PageTitle } from "../../_ui";
 import { SubmitButton } from "../../_submit";
@@ -11,7 +12,9 @@ export default async function SimplifyPage({ searchParams }: { searchParams: Pro
   const { error, notice } = await searchParams;
   const user = await requireUser();
   const owner = user.roles.includes("owner");
-  const { items, mode } = await simplifyOverview(await getDb());
+  const db = await getDb();
+  const { items, mode } = await simplifyOverview(db);
+  const off = await featuresOff(db);
   const onCount = items.filter((i) => i.value === 1).length;
   return (
     <>
@@ -90,6 +93,32 @@ export default async function SimplifyPage({ searchParams }: { searchParams: Pro
           </li>
         ))}
       </ol>
+      <div className="mt-4">
+        <Card title="안 쓰는 기능 끄기" help={{ kind: "panel", id: "simplify.features" }}>
+          <p className="mb-3 text-sm text-[var(--muted)]">끄면 사이드 메뉴와 메뉴 찾기에서 숨깁니다. 기록은 지우지 않고, 다시 켜면 그대로 돌아옵니다. 법정 서류·수리 흐름에 꼭 필요한 화면은 목록에 없어 끌 수 없습니다.</p>
+          <ul className="divide-y divide-[var(--line)] text-sm">
+            {FEATURES.map((f) => {
+              const on = !off.includes(f.key);
+              return (
+                <li key={f.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span className="min-w-0 flex-1">
+                    <b>{f.title}</b> <Badge tone={on ? "ok" : "neutral"}>{on ? "씀" : "꺼 둠"}</Badge>
+                    <span className="block text-xs text-[var(--muted)]">{f.note}</span>
+                  </span>
+                  {owner && (
+                    <form action={simplifyAction}>
+                      <input type="hidden" name="intent" value="feature" />
+                      <input type="hidden" name="key" value={f.key} />
+                      <input type="hidden" name="on" value={on ? "0" : "1"} />
+                      <SubmitButton variant="secondary">{on ? "끄기" : "다시 켜기"}</SubmitButton>
+                    </form>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      </div>
       {!owner && <p className="mt-4 text-sm text-[var(--muted)]">간소화는 대표만 켜고 끕니다.</p>}
     </>
   );

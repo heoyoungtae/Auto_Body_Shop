@@ -163,6 +163,13 @@ export async function submitEstimate(db: Db, actor: Actor, id: string, now = new
   const g = await getEstimate(db, id);
   const issues = estimateIssues(g.lines, { registeredOn: g.vehicle.registeredOn, mileage: g.ro.mileage });
   if (issues.length) throw new EstimateError(issues.map((i) => i.msg).join(" / "));
+  // 간소화 '소액 견적 내부 검토 생략'(simple.estimate_small): 기준 이하면 검토 없이 바로 발급할 수 있게(STD-03 3절·부록 B)
+  const pol = await loadPolicy(db, seoulDate(now));
+  if (pol["simple.estimate_small"] === 1 && e.totalWon <= pol["estimate.small_won"]) {
+    await db.update(estimate).set({ status: "approved", reviewedBy: null, reviewedAt: now, updatedAt: now }).where(eq(estimate.id, id));
+    await writeAudit(db, { actorId: actor.id, action: "estimate.small_skip", entityType: "estimate", entityId: e.docNo, after: { total: e.totalWon, limit: pol["estimate.small_won"] } });
+    return null;
+  }
   const role = await resolveApprover(db, "estimate", e.totalWon, actor.roles, seoulDate(now));
   await db.update(estimate).set({ status: "review", updatedAt: now }).where(eq(estimate.id, id));
   await writeAudit(db, { actorId: actor.id, action: "estimate.submit", entityType: "estimate", entityId: e.docNo, after: { total: e.totalWon, reviewer: role } });

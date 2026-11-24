@@ -15,7 +15,11 @@ import { checkValue, groupSteps, PROCESSES, splitMinutes, type Process } from "@
 import { repairOrder } from "@/db/schema";
 import { closeEntry } from "@/modules/journal/entry";
 import { bulkPlan } from "@/app/repairs/photo-slots";
-import { approvedRepair, WEBP } from "./flow";
+import { approvedRepair, estimating, WEBP } from "./flow";
+import { itemsFor, judge } from "@/modules/repair/inspect-rules";
+import { needDeliverSign } from "@/modules/repair/inspect";
+import { createEstimate, getEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
+import { FEATURES, hiddenHrefs, setFeature } from "@/modules/platform/features";
 import { seedShop, testDb } from "./db";
 
 beforeAll(() => {
@@ -213,5 +217,54 @@ describe("공정 3묶음·사진 묶음당 1장", () => {
     await assignGroup(db, boss(), id, "prep", { assignee: ids.tech1, planDate: "" }, now);
     await expect(addStepPhoto(db, tech(), w.steps[0].id, WEBP, now)).rejects.toThrow(/시작한 공정/);
     await startStep(db, tech(), w.steps[0].id, now);
+  });
+});
+
+describe("3묶음: 검사·출고·소액 견적·기능 끄기", () => {
+  it("최종 검사: 켜면 자비 건은 도막 두께를 묻지 않는다", async () => {
+    expect(itemsFor(["paint"]).map((i) => i.key)).toContain("film");
+    expect(itemsFor(["paint"], true).map((i) => i.key)).not.toContain("film");
+    const lim = { gapMm: 2, filmMin: 80, filmMax: 250, photos: 0 };
+    const passed = itemsFor(["paint"], true).map((i) => i.key);
+    expect(judge(["paint"], { passed, gapMm: null, filmUm: [], failNote: "" }, 0, { ...lim, skipFilm: true }).pass).toBe(true);
+    expect(judge(["paint"], { passed, gapMm: null, filmUm: [], failNote: "" }, 0, lim).pass).toBe(false);
+  });
+
+  it("출고 인수 서명: 켜도 대리인·보험 건은 서명", async () => {
+    const p = await loadPolicy(db);
+    expect(needDeliverSign(p, { insurance: "self" }, false)).toBe(true); // 시험 seed 는 끔
+    await turnOn("simple.deliver_sign_skip");
+    const on = await loadPolicy(db);
+    expect(needDeliverSign(on, { insurance: "self" }, false)).toBe(false);
+    expect(needDeliverSign(on, { insurance: "self" }, true)).toBe(true);
+    expect(needDeliverSign(on, { insurance: "own" }, false)).toBe(true);
+  });
+
+  it("소액 견적: 기준 이하면 검토 요청 없이 검토 끝, 넘으면 전결 규정대로", async () => {
+    const advisor = { id: ids.advisor, roles: ["advisor" as const] };
+    await turnOn("simple.estimate_small");
+    const roId = await estimating(db, ids, now);
+    const { id } = await createEstimate(db, advisor, roId, now);
+    const e = await getEstimate(db, id);
+    for (const l of e.lines.filter((x) => x.category === "part")) await saveLine(db, advisor, id, { id: l.id, payer: l.payer, category: "part", name: l.name, partCode: "D", partNo: "", qty: 1, unitWon: 180_000, laborMinutes: null, laborWon: null, note: "" }, now);
+    await saveEstimateHeader(db, advisor, id, { kind: e.kind, paintGrade: "metallic", dueDate: "2026-11-13", note: "", registeredOn: "2021-03-15" }, now);
+    const total = (await getEstimate(db, id)).totalWon;
+    // 기준(50만 원)보다 크면 검토 요청
+    if (total > 500_000) {
+      await db.insert(policySetting).values({ key: "estimate.small_won", value: total, effectiveFrom: "2000-01-02", reason: "시험", changedBy: ids.owner });
+    }
+    expect(await submitEstimate(db, advisor, id, now)).toBeNull();
+    expect((await getEstimate(db, id)).status).toBe("approved");
+  });
+
+  it("기능 끄기: 숨긴 메뉴 주소, 다시 켜면 돌아옴, 목록 밖은 못 끔", async () => {
+    expect(await hiddenHrefs(db)).toEqual([]);
+    expect(await setFeature(db, ids.owner, "gifts", false)).toBe(true);
+    expect(await setFeature(db, ids.owner, "gifts", false)).toBe(false);
+    expect(await hiddenHrefs(db)).toEqual(["/gifts/send", "/gifts", "/settings/gift"]);
+    await setFeature(db, ids.owner, "gifts", true);
+    expect(await hiddenHrefs(db)).toEqual([]);
+    await expect(setFeature(db, ids.owner, "estimates", false)).rejects.toThrow(/끌 수 없는/);
+    expect(FEATURES.flatMap((f) => f.hrefs)).not.toContain("/estimates");
   });
 });

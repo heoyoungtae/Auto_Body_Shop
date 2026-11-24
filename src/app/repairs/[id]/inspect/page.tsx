@@ -23,7 +23,7 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
   const open = rounds.find((r) => !r.result) ?? null;
   const canInspect = can(user, "inspect.do");
   const worked = ctx.workers.includes(user.id);
-  const items = itemsFor(ctx.processes);
+  const items = itemsFor(ctx.processes, ctx.limits.skipFilm);
   const L = ctx.limits;
 
   return (
@@ -79,13 +79,13 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
                     <input type="hidden" name="roId" value={id} />
                     <input type="hidden" name="inspectionId" value={open.id} />
                     <input type="hidden" name="intent" value="judge" />
-                    <CheckGroup help="qc.passed" name="passed" options={items.map((i) => ({ value: i.key, label: `${i.group}: ${i.label} — ${i.pass}` }))} />
+                    <CheckGroup help="qc.passed" name="passed" options={items.map((i) => ({ value: i.key, label: `${i.group}: ${i.label} — ${i.pass}` }))} allLabel={ctx.quick ? "전부 합격" : undefined} />
                     <div className="grid gap-3 md:grid-cols-2">
                       {items.some((i) => i.key === "gap") && <TextField help="qc.gapMm" name="gapMm" inputMode="decimal" />}
                       {items.some((i) => i.key === "film") && <TextField help="qc.filmUm" name="filmUm" />}
                     </div>
                     <p className="text-xs text-[var(--muted)]">
-                      기준: 간극 좌우 차 {L.gapMm}mm 이내 · 도막 {L.filmMin}~{L.filmMax}μm · 사진 {L.photos}장 이상(설정 › 정책값). 체크하지 않은 항목이나 기준 밖의 값이 있으면 불합격입니다.
+                      기준: 간극 좌우 차 {L.gapMm}mm 이내 · {L.skipFilm ? "도막 두께 측정 생략(간소화, 자비 건)" : `도막 ${L.filmMin}~${L.filmMax}μm`} · 사진 {L.photos}장 이상(설정 › 정책값). 체크하지 않은 항목이나 기준 밖의 값이 있으면 불합격입니다.
                     </p>
                     <TextAreaField help="qc.failNote" name="failNote" rows={2} />
                     <SubmitButton>판정 저장</SubmitButton>

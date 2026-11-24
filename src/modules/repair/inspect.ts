@@ -15,7 +15,7 @@ import { writeAudit } from "@/modules/platform/audit";
 import { branchDocNo, nextDocNo } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole } from "@/modules/platform/notify";
-import { loadPolicy } from "@/modules/platform/policy";
+import { loadPolicy, type Policy } from "@/modules/platform/policy";
 import { shopMissing } from "@/modules/platform/shop";
 import { userSignature } from "@/modules/auth/signature";
 import { inspectorIssue } from "@/modules/staff/service";
@@ -92,12 +92,18 @@ export async function removeInspectionPhoto(db: Db, actor: Actor, inspectionId: 
   await removeStored(path);
 }
 
+/** 간소화 '최종 검사 전부 합격·도막 측정 생략'(simple.qc_quick): 자비 건만 도막 두께를 묻지 않는다(보험 건은 표준대로) */
+const skipFilm = (p: Policy, r: { insurance: string }) => p["simple.qc_quick"] === 1 && r.insurance === "self";
+
+/** 인수 서명이 필요한가. 간소화 '출고 인수 서명 생략'(simple.deliver_sign_skip)이 켜져 있어도 대리인·보험 건은 받는다 */
+export const needDeliverSign = (p: Policy, r: { insurance: string }, proxy: boolean) => !(p["simple.deliver_sign_skip"] === 1 && r.insurance === "self" && !proxy);
+
 /** 판정. 합격이면 출고 대기, 불합격이면 재작업 공정을 만들고 작업으로 되돌린다 */
 export async function judgeInspection(db: Db, actor: Actor, inspectionId: string, input: InspectInput, now = new Date()) {
   const i = await openInspection(db, actor, inspectionId);
   const r = await roRow(db, i.repairOrderId);
   const p = await loadPolicy(db, seoulDate(now));
-  const res = judge(await processesOf(db, i.workOrderId), input, i.photos.length, { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"] });
+  const res = judge(await processesOf(db, i.workOrderId), input, i.photos.length, { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) });
   if (!res.pass && !input.failNote.trim()) throw new InspectError(`불합격입니다(${res.fails.map((f) => f.why).join(" / ")}). 결함 위치와 내용을 적어 주세요`);
   await db.transaction(async (tx) => {
     await tx
@@ -136,7 +142,7 @@ export async function inspectionContext(db: Db, roId: string, now = new Date()) 
   const w = await currentWo(db, roId);
   const steps = await db.select().from(workStep).where(eq(workStep.workOrderId, w.id)).orderBy(asc(workStep.seq));
   const p = await loadPolicy(db, seoulDate(now));
-  return { ro: r, wo: w, steps, processes: [...new Set(steps.map((s) => s.process))], workers: [...new Set(steps.flatMap((s) => [s.assignee, s.endedBy]).filter((x): x is string => !!x))], limits: { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"] } };
+  return { ro: r, wo: w, steps, processes: [...new Set(steps.map((s) => s.process))], workers: [...new Set(steps.flatMap((s) => [s.assignee, s.endedBy]).filter((x): x is string => !!x))], limits: { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) }, quick: p["simple.qc_quick"] === 1 };
 }
 
 // ── 출고
@@ -250,8 +256,12 @@ export async function deliver(db: Db, actor: Actor, roId: string, input: Deliver
   if (!input.receiverName.trim()) throw new InspectError("인수하는 분의 이름을 적어 주세요");
   if (input.proxy && !input.proxyNote.trim()) throw new InspectError("대리인이면 위임 확인 방법(고객 문자·전화 확인 등)을 적어 주세요");
   const png = input.signaturePng;
-  if (!png?.length || sniffImage(png) !== "image/png" || png.length > 400_000) throw new InspectError("인수 서명을 받아 주세요");
-  const sig = await storeFile(`ro/${r.docNo}`, png, "png");
+  const signNeeded = needDeliverSign(await loadPolicy(db, seoulDate(now)), r, input.proxy);
+  let sig: string | null = null;
+  if (png?.length || signNeeded) {
+    if (!png?.length || sniffImage(png) !== "image/png" || png.length > 400_000) throw new InspectError("인수 서명을 받아 주세요");
+    sig = await storeFile(`ro/${r.docNo}`, png, "png");
+  }
   await db.transaction(async (tx) => {
     await tx
       .update(repairStatement)
