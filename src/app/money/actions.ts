@@ -205,8 +205,8 @@ export async function monthAction(form: FormData) {
     const db = await getDb();
     const intent = s("intent");
     if (intent === "prepare") {
-      await prepareMonth(db, user, ym, s("note"));
-      msg = "월 마감을 대표에게 올렸습니다";
+      const r = await prepareMonth(db, user, ym, s("note"));
+      msg = r === "self" ? "월 마감을 올리면서 승인했습니다(간소화: 본인 결재). 이 달 날짜로는 더 적지 않습니다" : "월 마감을 대표에게 올렸습니다";
     } else {
       await decideMonth(db, user, ym, intent === "approve", s("returnNote"));
       msg =

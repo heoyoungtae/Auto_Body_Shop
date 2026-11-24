@@ -25,6 +25,7 @@ import { writeAudit } from "@/modules/platform/audit";
 import { actorBranch } from "@/modules/platform/docno";
 import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
+import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { EXPENSE_FORM, listExpenses, payables } from "./expense";
 import { accruedIn, balancesAt } from "./payable";
@@ -142,6 +143,41 @@ export async function closeDay(
       `close-diff-${day}`,
       `/money/close?day=${day}`,
     );
+}
+
+/**
+ * 간소화 '일일 마감 자동'(simple.day_close_auto, 매일 아침 작업): 어제까지 마감 안 한 날 중 현금 전표가 없는 날은
+ * 카드 단말기 합계를 카드 전표 합계로 보고 자동 마감한다. 현금을 받은 날은 세어 봐야 하므로 지금처럼 사람이 마감한다
+ */
+export async function autoCloseDays(db: Db, now = new Date()) {
+  const today = seoulDate(now);
+  if ((await loadPolicy(db, today))["simple.day_close_auto"] !== 1) return "일일 마감 자동 꺼짐";
+  const pairs = await db
+    .selectDistinct({ d: payment.receivedOn, b: payment.branchId })
+    .from(payment)
+    .where(and(gte(payment.receivedOn, "2000-01-01"), lte(payment.receivedOn, today)));
+  let n = 0;
+  for (const p of pairs) {
+    if (p.d >= today || (await dayClose(db, p.d, p.b))) continue;
+    const t = await dayTotals(db, p.d, p.b);
+    if (t.cash !== 0 || t.rows.some((r) => r.method === "cash")) continue;
+    await db.insert(dailyClose).values({
+      branchId: p.b,
+      day: p.d,
+      cardWon: t.card,
+      cashWon: 0,
+      transferWon: t.transfer,
+      cardTerminalWon: t.card,
+      cashCountedWon: 0,
+      diffWon: 0,
+      note: "자동 마감(간소화: 현금 없음, 카드 단말기 합계는 카드 전표 합계로 봄)",
+      closedBy: null,
+      closedAt: now,
+    });
+    await writeAudit(db, { actorId: null, action: "close.day_auto", entityType: "daily_close", entityId: p.d, after: { card: t.card, transfer: t.transfer } });
+    n++;
+  }
+  return `일일 마감 자동 ${n}일`;
 }
 
 /** 최근 일일 마감 기록 */
@@ -541,6 +577,11 @@ export async function prepareMonth(
       expenses: s.expenses.paid,
     },
   });
+  // 간소화 '결재권자 본인 건 바로 승인'(simple.self_approve): 대표가 올리면 올리는 순간 승인
+  if ((await loadPolicy(db, seoulDate(now)))["simple.self_approve"] === 1 && can(actor, "money.close_approve")) {
+    await decideMonth(db, actor, ym, true, "", now);
+    return "self" as const;
+  }
   await notifyRole(
     db,
     "owner",

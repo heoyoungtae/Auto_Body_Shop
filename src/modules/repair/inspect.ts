@@ -3,8 +3,8 @@
 // 합격하면 출고 대기. 정비명세서는 승인한 견적 줄로 만들고, 고객 인수 서명을 받으면 출고된다.
 import { makeLink } from "@/modules/carbook/link";
 import { branchShopInfo } from "@/modules/platform/branch";
-import { rolesFor } from "@/modules/auth/permissions";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { can, rolesFor } from "@/modules/auth/permissions";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, customer, estimate, estimateLine, inspection, repairOrder, repairStatement, vehicle, workOrder, workStep } from "@/db/schema";
 import type { Role } from "@/modules/auth/roles";
@@ -24,7 +24,10 @@ import { addDays, seoulDate } from "@/modules/platform/time";
 import { totals } from "./estimate-rules";
 import { afterCreditDelivery, creditCheck } from "@/modules/money/credit";
 import { DELIVERY_NOTICES, judge, legalFreeDays, PAY_METHODS, type InspectInput } from "./inspect-rules";
-import { processLabel } from "./work-rules";
+import { processLabel, STEP_GROUPS } from "./work-rules";
+import { receiptView, recordPayment } from "@/modules/money/receipts";
+import { isPayInMethod, isReceiptKind, receiptProblem, type PayInMethod } from "@/modules/money/rules";
+import { assertOpenDay } from "@/modules/money/lock";
 
 export class InspectError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -66,6 +69,17 @@ export async function startInspection(db: Db, actor: Actor, roId: string, indepe
   return { id: i.id, created: true };
 }
 
+/** 이 검사자가 지난번 적은 '직접 검사 사유'(다음 검사 때 미리 채워 다시 치지 않게). 없으면 기본 문구 */
+export async function lastIndependenceNote(db: Db, inspectorId: string) {
+  const [r] = await db
+    .select({ note: inspection.independenceNote })
+    .from(inspection)
+    .where(and(eq(inspection.inspector, inspectorId), isNotNull(inspection.independenceNote)))
+    .orderBy(desc(inspection.startedAt))
+    .limit(1);
+  return r?.note ?? "검사 인원이 부족해 작업에 참여한 공장장이 직접 검사함(작업과 따로 항목마다 다시 확인)";
+}
+
 async function openInspection(db: Db, actor: Actor, inspectionId: string) {
   const [i] = await db.select().from(inspection).where(eq(inspection.id, inspectionId));
   if (!i) throw new InspectError("없는 검사입니다");
@@ -95,6 +109,14 @@ export async function removeInspectionPhoto(db: Db, actor: Actor, inspectionId: 
 /** 간소화 '최종 검사 전부 합격·도막 측정 생략'(simple.qc_quick): 자비 건만 도막 두께를 묻지 않는다(보험 건은 표준대로) */
 const skipFilm = (p: Policy, r: { insurance: string }) => p["simple.qc_quick"] === 1 && r.insurance === "self";
 
+/** 간소화 '최종 검사 사진에 마무리 공정 사진 인정'(simple.qc_photo_reuse): 자비 건만, 마무리 묶음(연마·보정·조립)에서 찍은 사진 장수 */
+async function reusedPhotos(db: Db, p: Policy, r: { insurance: string }, workOrderId: string) {
+  if (p["simple.qc_photo_reuse"] !== 1 || r.insurance !== "self") return 0;
+  const finish = STEP_GROUPS.find((g) => g.key === "finish")!.processes as readonly string[];
+  const rows = await db.select({ process: workStep.process, photos: workStep.photos }).from(workStep).where(eq(workStep.workOrderId, workOrderId));
+  return rows.filter((x) => finish.includes(x.process)).reduce((a, x) => a + x.photos.length, 0);
+}
+
 /** 인수 서명이 필요한가. 간소화 '출고 인수 서명 생략'(simple.deliver_sign_skip)이 켜져 있어도 대리인·보험 건은 받는다 */
 export const needDeliverSign = (p: Policy, r: { insurance: string }, proxy: boolean) => !(p["simple.deliver_sign_skip"] === 1 && r.insurance === "self" && !proxy);
 
@@ -103,7 +125,7 @@ export async function judgeInspection(db: Db, actor: Actor, inspectionId: string
   const i = await openInspection(db, actor, inspectionId);
   const r = await roRow(db, i.repairOrderId);
   const p = await loadPolicy(db, seoulDate(now));
-  const res = judge(await processesOf(db, i.workOrderId), input, i.photos.length, { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) });
+  const res = judge(await processesOf(db, i.workOrderId), input, i.photos.length + (await reusedPhotos(db, p, r, i.workOrderId)), { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) });
   if (!res.pass && !input.failNote.trim()) throw new InspectError(`불합격입니다(${res.fails.map((f) => f.why).join(" / ")}). 결함 위치와 내용을 적어 주세요`);
   await db.transaction(async (tx) => {
     await tx
@@ -142,7 +164,7 @@ export async function inspectionContext(db: Db, roId: string, now = new Date()) 
   const w = await currentWo(db, roId);
   const steps = await db.select().from(workStep).where(eq(workStep.workOrderId, w.id)).orderBy(asc(workStep.seq));
   const p = await loadPolicy(db, seoulDate(now));
-  return { ro: r, wo: w, steps, processes: [...new Set(steps.map((s) => s.process))], workers: [...new Set(steps.flatMap((s) => [s.assignee, s.endedBy]).filter((x): x is string => !!x))], limits: { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) }, quick: p["simple.qc_quick"] === 1 };
+  return { ro: r, wo: w, steps, processes: [...new Set(steps.map((s) => s.process))], workers: [...new Set(steps.flatMap((s) => [s.assignee, s.endedBy]).filter((x): x is string => !!x))], limits: { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) }, quick: p["simple.qc_quick"] === 1, reused: await reusedPhotos(db, p, r, w.id) };
 }
 
 // ── 출고
@@ -162,7 +184,7 @@ export async function sendReadyNotice(db: Db, actor: Actor, roId: string, now = 
   const p = await phoneForNotice(db, r.customerId);
   // 내 차 수첩 링크(그 수리 건만 보는 로그인, 90일). 링크의 비밀 부분은 발송 기록에 남기지 않는다
   const link = await makeLink(db, r.customerId, roId, now);
-  const res = await sendNotice(db, { key: "ready_notice", to: p.to, vars: { 고객명: p.name, 차량번호: v.plateNo, 작업내용: what, 수첩링크: link.url }, purpose: "수리 완료 안내", customerName: p.name, ref: r.docNo, sentBy: actor.id, secret: link.token }, f);
+  const res = await sendNotice(db, { key: "ready_notice", to: p.to, vars: { 고객명: p.name, 차량번호: v.plateNo, 작업내용: what, 수첩링크: link.url }, purpose: "수리 완료 안내", customerName: p.name, ref: r.docNo, sentBy: actor.id, secret: link.token, push: { customerId: r.customerId, url: `/my` } }, f);
   if (res.ok) await db.update(repairOrder).set({ readyNoticeAt: now, updatedAt: now }).where(eq(repairOrder.id, roId));
   return res;
 }
@@ -232,7 +254,7 @@ function addMonths(date: string, months: number) {
   return dt.toISOString().slice(0, 10);
 }
 
-export type DeliverInput = { payMethod: string; notices: string[]; receiverName: string; proxy: boolean; proxyNote: string; signaturePng: Uint8Array | null; /** 외상 경고(한도·연체)를 보고 출고하기로 확인함 */ creditOk?: boolean };
+export type DeliverInput = { /** 간소화 '출고 때 입금 전표 자동': 현금·이체 증빙과 승인 번호(카드는 카드 전표) */ receiptKind?: string; receiptNo?: string; payMethod: string; notices: string[]; receiverName: string; proxy: boolean; proxyNote: string; signaturePng: Uint8Array | null; /** 외상 경고(한도·연체)를 보고 출고하기로 확인함 */ creditOk?: boolean };
 
 /** 인도: 안내 확인 4가지, 수납, 인수 서명(대리인이면 위임 확인) → 출고 */
 export async function deliver(db: Db, actor: Actor, roId: string, input: DeliverInput, now = new Date()) {
@@ -255,8 +277,21 @@ export async function deliver(db: Db, actor: Actor, roId: string, input: Deliver
   if (missing.length) throw new InspectError(`안내 확인 ${missing.length}개가 비었습니다. 고객에게 설명하고 체크해 주세요`);
   if (!input.receiverName.trim()) throw new InspectError("인수하는 분의 이름을 적어 주세요");
   if (input.proxy && !input.proxyNote.trim()) throw new InspectError("대리인이면 위임 확인 방법(고객 문자·전화 확인 등)을 적어 주세요");
+  const pol = await loadPolicy(db, seoulDate(now));
+  // 간소화 '출고 때 입금 전표 자동'(simple.deliver_payment): 카드·현금·이체로 받았으면 남은 금액 전부를 입금 전표로 함께 적는다.
+  // 증빙이 빠졌으면(현금영수증 의무 등) 출고 전에 막아 두 번 일하지 않게 한다
+  const autoPay = autoPayPlan(pol, input, actor);
+  if (autoPay) {
+    const v = await receiptView(db, roId);
+    autoPay.amount = Math.max(0, v.remain);
+    if (autoPay.amount > 0) {
+      const prob = receiptProblem(input.payMethod as PayInMethod, autoPay.kind, autoPay.amount, autoPay.no, pol["tax.cash_receipt_must"]);
+      if (prob) throw new InspectError(prob);
+      await assertOpenDay(db, seoulDate(now), v.ro.branchId);
+    }
+  }
   const png = input.signaturePng;
-  const signNeeded = needDeliverSign(await loadPolicy(db, seoulDate(now)), r, input.proxy);
+  const signNeeded = needDeliverSign(pol, r, input.proxy);
   let sig: string | null = null;
   if (png?.length || signNeeded) {
     if (!png?.length || sniffImage(png) !== "image/png" || png.length > 400_000) throw new InspectError("인수 서명을 받아 주세요");
@@ -272,6 +307,19 @@ export async function deliver(db: Db, actor: Actor, roId: string, input: Deliver
   await writeAudit(db, { actorId: actor.id, action: "repair.deliver", entityType: "repair_order", entityId: r.docNo, after: { statement: s.docNo, pay: input.payMethod, proxy: input.proxy } });
   if (input.payMethod === "credit") await afterCreditDelivery(db, roId, r.docNo, s.id, r.customerId, creditWarn, now);
   if (input.payMethod === "receivable") await notifyRole(db, "accounting", `미수 출고: ${r.docNo} ${s.totalWon.toLocaleString("ko-KR")}원 — 수납을 챙기세요(STD-12)`, `ar-${r.docNo}`, `/repairs/${roId}/delivery`);
+  if (autoPay && autoPay.amount > 0) {
+    const p = await recordPayment(db, actor, roId, { method: input.payMethod, amountWon: autoPay.amount, receivedOn: seoulDate(now), receiptKind: autoPay.kind, receiptNo: autoPay.no, payerName: input.receiverName, note: "출고 때 함께 적음(간소화)" }, now);
+    return { payment: { docNo: p.docNo, amount: autoPay.amount } };
+  }
+  return { payment: null };
+}
+
+/** 출고 때 입금 전표를 함께 적을지와 증빙. 카드는 카드 전표, 현금·이체는 고른 증빙(처음 값 현금영수증) */
+export function autoPayPlan(pol: Policy, input: Pick<DeliverInput, "payMethod" | "receiptKind" | "receiptNo">, actor: Actor) {
+  if (pol["simple.deliver_payment"] !== 1 || !isPayInMethod(input.payMethod) || !can(actor, "money.receive")) return null;
+  const kind = input.payMethod === "card" ? "card_slip" : (input.receiptKind ?? "cash_receipt");
+  if (!isReceiptKind(kind)) throw new InspectError("고객에게 준 증빙을 골라 주세요");
+  return { kind, no: (input.receiptNo ?? "").trim(), amount: 0 };
 }
 
 export async function statementOf(db: Db, roId: string) {

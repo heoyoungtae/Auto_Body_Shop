@@ -596,6 +596,21 @@ export const PAGE_HELP = {
       "표준서와 다른 간소화는 표준서 본문에 '설정에서 켜면 …'으로 함께 적혀 있어, 켜도 표준서 위반이 아닙니다.",
     ],
   },
+  "money.recurring": {
+    title: "정기 결의",
+    purpose: "임차료·전기·통신·보험료처럼 매달 같은 곳에 나가는 돈을 매달 새 결의서로 쓰지 않게 합니다(간소화 '매달 나가는 돈 정기 결의', 대표 2026-11-24).",
+    who: "대표가 등록하고(등록이 곧 승인), 공장장·회계 담당·대표가 매달 결의를 올립니다.",
+    steps: [
+      "대표가 무엇에·누구에게·얼마를·매달 며칠에 내는지 한 번 등록합니다.",
+      "낼 날 3일 전부터 할 일에 '정기 지출 결의'가 뜹니다. 이번 달 청구서 금액으로 고쳐 '이번 달 결의 올리기'를 누릅니다.",
+      "금액이 지난번과 20% 안이고 등록 승인이 1년 안이면 대표 결재 단계는 등록 승인으로 갈음합니다. 아니면 지금처럼 결재를 받습니다.",
+    ],
+    tips: [
+      "결의서·결재 기록은 그대로 남고, 갈음한 결재에는 '정기 결의 — 등록 때 승인' 의견이 붙습니다.",
+      "증빙(세금계산서 등)은 받으면 결의서에 붙입니다. 붙여야 지급됩니다.",
+      "1년마다 대표가 다시 등록(고치기)하면 승인이 새로워집니다.",
+    ],
+  },
   "settings.punch": {
     title: "출퇴근 장소(와이파이)",
     purpose:
@@ -3537,6 +3552,7 @@ export const ROUTE_HELP: Record<string, PageHelpKey> = {
   "/settings/gift": "settings.gift",
   "/settings/punch": "settings.punch",
   "/settings/simplify": "settings.simplify",
+  "/money/expenses/recurring": "money.recurring",
   "/settings/tv": "settings.tv",
   "/settings/insurers": "settings.insurers",
   "/claims/aos-paid": "claims.aosPaid",

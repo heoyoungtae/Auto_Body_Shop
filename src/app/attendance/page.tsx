@@ -65,7 +65,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
       <ErrorBox message={error} />
       {notice && <Notice>{notice}</Notice>}
       <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <TodayCard st={st} isToday={day === today} journalClosed={journalClosed} />
+        <TodayCard st={st} isToday={day === today} journalClosed={journalClosed} punchClose={pol["simple.punch_close"] === 1} />
         <div className="space-y-4">
           <OrdersCard orders={orders} />
           <FixCard missing={missing} pick={fix} />

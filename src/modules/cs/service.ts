@@ -335,16 +335,29 @@ export async function sendDueSurveys(db: Db, now = new Date(), f: typeof fetch =
     .innerJoin(vehicle, eq(vehicle.id, repairOrder.vehicleId))
     .where(and(isNotNull(repairStatement.deliveredAt), lte(repairStatement.deliveredAt, upto), gte(repairStatement.deliveredAt, from), notInArray(repairOrder.id, done)));
   let ok = 0;
+  let skipped = 0;
   const seen = new Set<string>();
+  // 간소화 '만족도 설문 표본'(simple.survey_sample): 같은 손님은 6개월에 한 번만 묻는다
+  const sample = pol["simple.survey_sample"] === 1;
+  const asked = new Set<string>();
+  if (sample) {
+    const since = new Date(now.getTime() - 183 * 86_400_000);
+    for (const x of await db.select({ c: survey.customerId }).from(survey).where(gte(survey.sentAt, since))) if (x.c) asked.add(x.c);
+  }
   for (const r of due) {
     if (seen.has(r.roId)) continue;
     seen.add(r.roId);
+    if (sample && r.customerId && asked.has(r.customerId)) {
+      skipped++;
+      continue;
+    }
+    if (r.customerId) asked.add(r.customerId);
     const token = randomToken(24);
     let sentOk = false;
     let err: string | null = null;
     try {
       const p = await phoneForNotice(db, r.customerId);
-      const res = await sendNotice(db, { key: "survey", to: p.to, vars: { 고객명: p.name, 차량번호: r.plateNo, 설문링크: `${appUrl()}/survey/${token}` }, purpose: "만족도 설문", customerName: p.name, ref: r.roNo, sentBy: null }, f);
+      const res = await sendNotice(db, { key: "survey", to: p.to, vars: { 고객명: p.name, 차량번호: r.plateNo, 설문링크: `${appUrl()}/survey/${token}` }, purpose: "만족도 설문", customerName: p.name, ref: r.roNo, sentBy: null, push: { customerId: r.customerId, url: `/survey/${token}` } }, f);
       sentOk = res.ok;
       err = res.ok ? null : (res.error ?? "발송 실패");
     } catch (e) {
@@ -353,7 +366,7 @@ export async function sendDueSurveys(db: Db, now = new Date(), f: typeof fetch =
     await db.insert(survey).values({ tokenHash: sha256(token), repairOrderId: r.roId, statementId: r.stId, customerId: r.customerId, sentAt: now, sentOk, sendError: err }).onConflictDoNothing();
     if (sentOk) ok++;
   }
-  return `만족도 설문 ${ok}/${seen.size}건 발송`;
+  return `만족도 설문 ${ok}/${seen.size - skipped}건 발송${skipped ? ` · 6개월 안에 물어본 손님이라 생략 ${skipped}건` : ""}`;
 }
 
 async function surveyByToken(db: Db, token: string) {

@@ -17,6 +17,7 @@ import { SignaturePad } from "../../signature-pad";
 import { deliveryAction } from "../../qc-actions";
 import { claimView } from "@/modules/repair/claims";
 import { creditCheck } from "@/modules/money/credit";
+import { RECEIPT_KINDS } from "@/modules/money/rules";
 
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
 
@@ -39,6 +40,13 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
 
   // 간소화 '출고 인수 서명 생략': 자비 건 본인 인수면 서명 없이, 대리인을 고르면 서명란이 나온다
   const sign = needDeliverSign(policy, r, false);
+  const autoPay = policy["simple.deliver_payment"] === 1 && can(user, "money.receive");
+  const cashReceipt = (
+    <>
+      <SelectField help="dl.receiptKind" name="receiptKind" defaultValue="cash_receipt" options={opts(Object.fromEntries(Object.entries(RECEIPT_KINDS).filter(([k]) => k !== "card_slip")))} />
+      <TextField help="dl.receiptNo" name="receiptNo" />
+    </>
+  );
   const pad = <SignaturePad hint="인수하는 분이 차량 상태를 확인하고 이 칸에 서명합니다" />;
   // 설명·수납·받는 사람 칸(인도). 간소화 '정비명세서 발급·인도 한 화면'이면 명세서 발급 칸과 한 양식에 둔다
   const handover = (
@@ -47,11 +55,11 @@ export default async function DeliveryPage({ params, searchParams }: { params: P
       <ShowWhen
         field="payMethod"
         initial={r.insurance !== "self" ? "insurance" : biz ? "credit" : ""}
-        cases={
-          biz?.warnings.length
-            ? { credit: <CheckGroup help="dl.creditOk" name="creditOk" options={[{ value: "ok", label: "경고를 확인하고 외상 출고(대표에게 알림)" }]} /> }
-            : {}
-        }
+        cases={{
+          ...(biz?.warnings.length ? { credit: <CheckGroup help="dl.creditOk" name="creditOk" options={[{ value: "ok", label: "경고를 확인하고 외상 출고(대표에게 알림)" }]} /> } : {}),
+          // 간소화 '출고 때 입금 전표 자동': 현금·이체면 증빙을 여기서 받아 입금 전표까지 한 번에 적는다(카드는 카드 전표)
+          ...(autoPay ? { cash: cashReceipt, transfer: cashReceipt } : {}),
+        }}
       >
         <SelectField
           help="dl.payMethod"

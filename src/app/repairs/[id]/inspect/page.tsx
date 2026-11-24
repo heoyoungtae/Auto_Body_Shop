@@ -1,7 +1,7 @@
 import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import { getDb } from "@/db/runtime";
-import { inspectionContext, inspectionsOf } from "@/modules/repair/inspect";
+import { inspectionContext, inspectionsOf, lastIndependenceNote } from "@/modules/repair/inspect";
 import { itemsFor } from "@/modules/repair/inspect-rules";
 import { RO_STATUS_LABEL } from "@/modules/repair/rules";
 import { processLabel } from "@/modules/repair/work-rules";
@@ -23,6 +23,8 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
   const open = rounds.find((r) => !r.result) ?? null;
   const canInspect = can(user, "inspect.do");
   const worked = ctx.workers.includes(user.id);
+  // 직접 검사 사유는 지난번 적은 문장을 미리 채운다(고칠 수 있음)
+  const selfNote = worked ? await lastIndependenceNote(db, user.id) : "";
   const items = itemsFor(ctx.processes, ctx.limits.skipFilm);
   const L = ctx.limits;
 
@@ -56,7 +58,7 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
                 <AssistForm id={`qs-${id}`} action={inspectAction} className="space-y-3">
                   <input type="hidden" name="roId" value={id} />
                   <input type="hidden" name="intent" value="start" />
-                  {worked && <TextAreaField help="qc.independenceNote" name="independenceNote" rows={2} required />}
+                  {worked && <TextAreaField help="qc.independenceNote" name="independenceNote" rows={2} required defaultValue={selfNote} />}
                   <p className="text-sm text-[var(--muted)]">이 차의 공정: {ctx.processes.map(processLabel).join(" · ")}</p>
                   <SubmitButton>검사 시작</SubmitButton>
                 </AssistForm>
@@ -71,7 +73,7 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
                 <div className="space-y-4">
                   <div>
                     <p className="mb-1 text-sm font-medium">
-                      작업 후 사진 <span className={open.photos.length >= L.photos ? "text-[var(--ok)]" : "text-[var(--warn)]"}>{open.photos.length}/{L.photos}장</span> — 입고 때와 같은 각도로
+                      작업 후 사진 <span className={open.photos.length + ctx.reused >= L.photos ? "text-[var(--ok)]" : "text-[var(--warn)]"}>{open.photos.length + ctx.reused}/{L.photos}장</span>{ctx.reused > 0 && ` (마무리 공정 사진 ${ctx.reused}장 인정, 간소화)`} — 입고 때와 같은 각도로
                     </p>
                     <PhotoStrip fields={{ roId: id, inspectionId: open.id }} upload={uploadInspectionPhotoAction} remove={removeInspectionPhotoAction} photos={open.photos} editable label="작업 후" />
                   </div>

@@ -2,7 +2,7 @@
 // 보기는 전 직원(제한 걸린 절은 그 역할·대표만), 본문 변경은 문서 개정 요청서(F-Q-05) 결재로만, 열람 제한은 품질 담당·대표가 정한다.
 import { and, asc, count, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { docRegister, stdSection, training } from "@/db/schema";
+import { appConfig, docRegister, stdSection, training } from "@/db/schema";
 import type { DocRow } from "@/modules/approval/service";
 import { can } from "@/modules/auth/permissions";
 import { isRole, type Role } from "@/modules/auth/roles";
@@ -71,6 +71,18 @@ export function bodyMark(t: string) {
  * 이미 들어간 서버는 여기 적은 절이 예전 초안 그대로(표시값 같음)일 때만 std-seed.json 새 본문으로 바꾼다. 앱에서 고친 절은 건드리지 않는다.
  */
 export const DRAFT_PATCHES: Record<string, string[]> = {
+  "p:STD-12:5": ["a28d1482"],
+  "p:STD-11:5": ["241c0a6d"],
+  "p:STD-06:7": ["30859b89"],
+  "p:STD-07:5": ["e1ddb712"],
+  "p:STD-Q:11": ["b9a5c3"],
+  "p:STD-12:7": ["7822bad1"],
+  "p:STD-10:5": ["cfdf8c5"],
+  "p:STD-08:14": ["20160e29"],
+  "p:STD-08:8": ["dd7637e7"],
+  "p:STD-12:4": ["9a7cb543"],
+  "p:STD-00:5": ["73f59c8e"],
+  "o:1.2": ["75cf8379"],
   "p:STD-05:8": ["ae11cdcd"],
   "p:STD-03:3": ["869b070b"],
   "a:B": ["3877e046"],
@@ -108,14 +120,14 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "a:D": ["7d9454ed", "eb9ec44a"],
   "p:STD-00:2": ["23f8cf4c"],
   "p:STD-Q:2": ["a6ad0636"],
-  "p:STD-01:4": ["36087479"],
+  "p:STD-01:4": ["36087479", "8a6b9d9b"],
   "p:STD-02:5": ["d9f25568", "a61ba0af"],
   "p:STD-03:4": ["fb8860fd", "effcf91d"],
   "p:STD-04:2": ["c7b717fb"],
   "p:STD-04:5": ["91555ae"],
   "p:STD-04:6": ["165a6e1"],
   "p:STD-05:4": ["fdff88f6"],
-  "p:STD-05:5": ["2313db16", "14757cc9"],
+  "p:STD-05:5": ["2313db16", "14757cc9", "e5521fe0"],
   "p:STD-06:4": ["fc7376e1"],
   "p:STD-08:2": ["6d55420a"],
   "p:STD-08:10": ["bf6a03e9"],
@@ -150,7 +162,7 @@ export const DRAFT_PATCHES: Record<string, string[]> = {
   "f:F-11-01": ["d839e94b"],
   "f:F-11-05": ["95055d63"],
   // 연차 사용 촉진 자동·연말 정산(대표 2026-11-25)
-  "p:STD-11:7": ["e4cb267d"],
+  "p:STD-11:7": ["e4cb267d", "92121c07"],
 };
 
 /** 초안에서 바뀐 절 제목: 예전 제목 그대로일 때만 std-seed.json 새 제목으로 바꾼다 */
@@ -374,7 +386,8 @@ export async function revisionsNeedingTraining(db: Db) {
   const recent = await recentRevisions(db);
   if (!recent.length) return [];
   const trs = await db.select({ createdAt: training.createdAt }).from(training).where(eq(training.kind, "std_rev"));
-  const lastTr = trs.map((t) => seoulDate(t.createdAt)).sort().at(-1) ?? "";
+  const done = await noTrainingUpto(db);
+  const lastTr = [...trs.map((t) => seoulDate(t.createdAt)), done].sort().at(-1) ?? "";
   const byDoc = new Map<string, { docNo: string; rev: string | null; on: string; labels: string[]; key: string }>();
   for (const r of recent) {
     if (!r.revisedOn || r.revisedOn <= lastTr) continue;
@@ -383,6 +396,27 @@ export async function revisionsNeedingTraining(db: Db) {
     else byDoc.set(r.docNo, { docNo: r.docNo, rev: r.rev, on: r.revisedOn, labels: [sectionLabel(r)], key: r.key });
   }
   return [...byDoc.values()];
+}
+
+const NO_TR_KEY = "std_rev_no_training";
+/** '문구만 고침, 교육 불필요'로 닫은 날(그날까지의 개정은 교육 할 일을 띄우지 않음) */
+async function noTrainingUpto(db: Db) {
+  const [r] = await db.select({ data: appConfig.data }).from(appConfig).where(eq(appConfig.key, NO_TR_KEY));
+  const upto = (r?.data as { upto?: unknown } | undefined)?.upto;
+  return typeof upto === "string" ? upto : "";
+}
+
+/** 개정 교육 할 일 한 번에 닫기: 지금까지 고친 것은 문구만 고쳐 교육이 필요 없다고 남긴다(감사 로그) */
+export async function dismissRevisionTraining(db: Db, actor: Actor, now = new Date()) {
+  if (!can(actor, "training.manage")) throw new StdError("교육 계획은 대표·공장장·안전환경 담당이 정합니다");
+  const pending = await revisionsNeedingTraining(db);
+  const data = { upto: seoulDate(now) };
+  await db
+    .insert(appConfig)
+    .values({ key: NO_TR_KEY, data, updatedBy: actor.id, updatedAt: now })
+    .onConflictDoUpdate({ target: appConfig.key, set: { data, updatedBy: actor.id, updatedAt: now } });
+  await writeAudit(db, { actorId: actor.id, action: "std.no_training", entityType: "std", entityId: data.upto, after: { docs: pending.map((p) => `${p.docNo} ${p.rev ?? ""}`.trim()) } });
+  return pending.length;
 }
 
 export { chOf };

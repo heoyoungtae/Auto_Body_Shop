@@ -72,7 +72,7 @@ export async function sendPush(db: Db, customerId: string, msg: { title: string;
   const subs = await db.select().from(carbookPush).where(eq(carbookPush.customerId, customerId));
   if (!subs.length) return { ok: false, sent: 0 };
   const v = await vapidKeys(db);
-  const [box] = await db.insert(carbookInbox).values({ customerId, title: msg.title.slice(0, 80), body: msg.body.slice(0, 1000), url: msg.url.startsWith("/my") ? msg.url : "/my", createdAt: now }).returning({ id: carbookInbox.id });
+  const [box] = await db.insert(carbookInbox).values({ customerId, title: msg.title.slice(0, 80), body: msg.body.slice(0, 1000), url: msg.url.startsWith("/my") || msg.url.startsWith("/survey/") ? msg.url : "/my", createdAt: now }).returning({ id: carbookInbox.id });
   let sent = 0;
   for (const sub of subs) {
     try {

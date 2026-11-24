@@ -5,7 +5,7 @@ import { getDb } from "@/db/runtime";
 import { appUser } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import { CHECK_KINDS, dueState, DUE_LABEL, DUE_TONE, EQ_KINDS, EQ_STATUS, FAIL_CAUSES, FAIL_STATUS, isEqKind, LUBE_COLORS, LUBE_METHODS, LUBE_STATES, MARK_SHORT, ZONES } from "@/modules/equipment/rules";
-import { getEquipment } from "@/modules/equipment/service";
+import { getEquipment, runLogDraft } from "@/modules/equipment/service";
 import { loadPolicy } from "@/modules/platform/policy";
 import { seoulDate } from "@/modules/platform/time";
 import { PROCESSES } from "@/modules/repair/work-rules";
@@ -36,6 +36,8 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
   const users = await db.select({ id: appUser.id, name: appUser.name }).from(appUser).where(eq(appUser.active, true)).orderBy(appUser.name);
   const av = await assetView(db, "equipment", id);
   const nm = (u: string | null | undefined) => (u ? (names.get(u) ?? "-") : "-");
+  // 간소화 '부스 운전 일지 자동 채움': 그날 도장 공정·도료 사용·지난 일지로 칸을 미리 채운다(차압은 비워 둠)
+  const draft = pol["simple.booth_log_auto"] === 1 && kind.log.length ? await runLogDraft(db, id, today) : {};
   const todayDone = checks.some((c) => c.kind === "daily" && c.checkDate === today);
   const pointCode = new Map(points.map((p) => [p.id, p.code]));
   const row = (k: string, v: React.ReactNode) => (
@@ -263,8 +265,9 @@ export default async function EquipmentDetailPage({ params, searchParams }: { pa
               <AssistForm id={`run-${id}`} action={runLogAction} className="mb-3 grid gap-3 sm:grid-cols-2">
                 <input type="hidden" name="id" value={id} />
                 <DateField help="run.date" name="date" defaultValue={today} quick={["today"]} />
+                {Object.keys(draft).length > 0 && <p className="text-xs text-[var(--muted)] sm:col-span-2">오늘 도장 공정·도료 사용·지난 일지로 미리 채웠습니다. 다르면 고치고, 필터 차압은 직접 읽어 적으세요.</p>}
                 {kind.log.map((f) =>
-                  f.num ? <NumberField key={f.key} help="run.value" label={f.label} name={`log_${f.key}`} unit={f.unit} /> : f.time ? <TextField key={f.key} help="run.time" type="time" label={f.label} name={`log_${f.key}`} /> : <TextField key={f.key} help="run.text" label={f.label} name={`log_${f.key}`} />,
+                  f.num ? <NumberField key={f.key} help="run.value" label={f.label} name={`log_${f.key}`} unit={f.unit} defaultValue={draft[f.key] ? Number(draft[f.key]) : undefined} /> : f.time ? <TextField key={f.key} help="run.time" type="time" label={f.label} name={`log_${f.key}`} defaultValue={draft[f.key]} /> : <TextField key={f.key} help="run.text" label={f.label} name={`log_${f.key}`} defaultValue={draft[f.key]} />,
                 )}
                 <div className="sm:col-span-2">
                   <TextField help="run.abnormal" name="abnormal" />

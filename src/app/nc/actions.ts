@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { UserError } from "@/modules/platform/errors";
-import { addNcPhoto, closeNc, openNc, planNc, recordNcAction, removeNcPhoto, verifyNc } from "@/modules/quality/nc";
+import { addNcPhoto, closeNc, openNc, planNc, recordNcAction, removeNcPhoto, verifyNc, quickCloseNc } from "@/modules/quality/nc";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
 const str = (form: FormData) => (k: string) => String(form.get(k) ?? "").trim();
@@ -51,6 +51,9 @@ export async function ncAction(form: FormData) {
       const recurred = s("recurred") === "1";
       await verifyNc(db, user, id, { effectOn: s("effectOn"), recurred, effectNote: s("effectNote") });
       msg = recurred ? "재발로 확인했습니다. 시정 조치를 고쳐 다시 진행합니다" : "효과를 확인했습니다. 종결할 수 있습니다";
+    } else if (intent === "quick") {
+      await quickCloseNc(db, user, id, { rootCause: s("rootCause"), actionDone: s("actionDone") });
+      msg = "수정으로 끝내고 종결했습니다(원인 분석·효과 확인 생략, 판단은 기록에 남음)";
     } else if (intent === "close") {
       await closeNc(db, user, id);
       msg = "종결했습니다";

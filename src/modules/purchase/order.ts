@@ -1,6 +1,7 @@
 // 발주·입고 검수(STD-07 5·6절, F-07-02)
 // 수리 건 부품: 고객이 승인한 견적의 부품 줄로 발주서를 저절로 만든다(5.1). 도료·소모품: 안전 재고 아래면 재고 화면에서 만든다(5.2).
 // 작성(공장장) → 승인(전결 '발주·외주': 금액별) → 발주서 보내기(승인 전에는 못 보냄) → 납기 회신 → 입고 검수(합격분 재고·차량 연결, 불합격분 반품 대기) → 세금계산서 연결.
+import { loadPolicy } from "@/modules/platform/policy";
 import { and, asc, desc, eq, inArray, isNotNull, ne, notInArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { isPayTerm } from "@/modules/money/rules";
@@ -245,8 +246,33 @@ export async function submitOrder(db: Db, actor: Actor, id: string, emergency: b
   const role = await resolveApprover(db, "purchase", t.total, actor.roles, seoulDate(now));
   await db.update(purchaseOrder).set({ status: "review", approverRole: role, submittedAt: now, returnNote: null, note: emergency && s.status !== "registered" ? [o.note, "긴급 사용(미등록 업체 1회)"].filter(Boolean).join("\n") : o.note, updatedAt: now }).where(eq(purchaseOrder.id, id));
   await writeAudit(db, { actorId: actor.id, action: "purchase.submit", entityType: "purchase_order", entityId: o.docNo, after: { total: t.total, approver: role, supplier: s.name, emergency: s.status !== "registered" } });
+  // 간소화 '결재권자 본인 건 바로 승인'(simple.self_approve): 승인자가 올린 사람 자신(대표)이면 올리는 순간 승인
+  if ((await loadPolicy(db, seoulDate(now)))["simple.self_approve"] === 1 && actor.roles.includes("owner")) {
+    await approveOrder(db, actor, id, true, "", now);
+    return "self" as const;
+  }
+  // 간소화 '고객 승인 견적 부품 발주는 승인 생략'(simple.po_from_estimate): 줄마다 고객이 승인한 견적 줄 안(같은 부품 구분, 수량·단가 이하)이면 바로 승인
+  if ((await loadPolicy(db, seoulDate(now)))["simple.po_from_estimate"] === 1 && (await withinEstimate(db, o, lines))) {
+    await db.update(purchaseOrder).set({ status: "approved", approvedBy: null, approvedAt: now, updatedAt: now }).where(eq(purchaseOrder.id, id));
+    await writeAudit(db, { actorId: actor.id, action: "purchase.estimate_approve", entityType: "purchase_order", entityId: o.docNo, after: { total: t.total, estimateId: o.estimateId } });
+    return "estimate" as const;
+  }
   await notifyRole(db, role, `발주 승인 요청: ${o.docNo} ${s.name} ${won(t.total)}`, `po-review-${id}-${now.getTime()}`, `/purchases/${id}`);
   return role;
+}
+
+/** 수리 발주의 모든 줄이 고객이 승인한 견적 부품 줄 안인가(같은 부품 구분, 수량·단가가 견적 이하) */
+async function withinEstimate(db: Db, o: typeof purchaseOrder.$inferSelect, lines: (typeof purchaseLine.$inferSelect)[]) {
+  if (o.kind !== "repair" || !o.estimateId || !lines.length) return false;
+  const [e] = await db.select({ status: estimate.status }).from(estimate).where(eq(estimate.id, o.estimateId));
+  if (!e || (e.status !== "accepted" && e.status !== "partial")) return false;
+  const ids = lines.map((l) => l.estimateLineId).filter((x): x is string => !!x);
+  if (ids.length !== lines.length) return false;
+  const est = new Map((await db.select().from(estimateLine).where(inArray(estimateLine.id, ids))).map((x) => [x.id, x]));
+  return lines.every((l) => {
+    const x = est.get(l.estimateLineId!);
+    return !!x && x.estimateId === o.estimateId && x.approved && x.category === "part" && (x.partCode ?? "") === (l.partCode ?? "") && l.qty <= x.qty && l.unitWon <= x.unitWon;
+  });
 }
 
 async function mustApprover(db: Db, actor: Actor, role: Role, createdBy: string | null, what: string, total: number) {

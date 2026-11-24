@@ -29,6 +29,14 @@ export const FEATURES: Feature[] = [
   { key: "suggestions", title: "개선 제안", hrefs: ["/suggestions"], note: "ISO 9001 10.3 지속적 개선 근거가 줄어듭니다. 부적합·시정 조치는 그대로 씁니다." },
   { key: "five_s", title: "3정5S 점검", hrefs: ["/five-s"], note: "표준서 STD-08의 3정5S 점검 기록이 끊깁니다(심사 때 다른 기록으로 보여야 함)." },
   { key: "lube_pm", title: "설비 윤활·예방정비", hrefs: ["/equipment/lube", "/equipment/pm"], note: "표준서 STD-08 설비 보전 기록이 끊깁니다. 일상 점검·교정은 그대로 남습니다." },
+  { key: "outsource", title: "외주 작업", hrefs: ["/outsource"], note: "외주를 맡기지 않을 때 끕니다. 표준서 STD-07 외주 관리 기록이 없게 됩니다." },
+  { key: "corr", title: "공문·수발신", hrefs: ["/corr"], note: "공문을 주고받지 않을 때 끕니다. 받은 공문은 기록 보관함에 파일로 둡니다." },
+  { key: "iso_mgmt", title: "내부 심사·경영검토·조직 상황", hrefs: ["/audits", "/qms/review", "/qms/context"], note: "ISO 인증 심사를 받을 때는 다시 켜야 합니다(ISO 9001 4.1·9.2·9.3 기록)." },
+  { key: "risks", title: "리스크·기회", hrefs: ["/risks"], note: "ISO 인증 심사를 받을 때는 다시 켜야 합니다(ISO 9001 6.1 기록). 안전 위험성평가는 따로 있어 그대로 합니다." },
+  { key: "doc_review", title: "문서 정기 검토 할 일", hrefs: ["/qms/docs?f=review"], note: "절차서·지침서 연 1회 정기 검토 할 일·알림만 멈춥니다. 문서 목록은 그대로 씁니다(STD-Q 7절)." },
+  { key: "branches", title: "지점·작업장", hrefs: ["/settings/branches", "/settings/workplaces"], note: "한 곳에서만 일할 때 끕니다. 이미 만든 지점·작업장 기록은 그대로 남습니다." },
+  { key: "bulk_sms", title: "단체 문자", hrefs: ["/messages/send"], note: "여러 손님에게 한꺼번에 보내는 문자만 숨깁니다. 예약·출고 안내 같은 건별 문자는 그대로 갑니다." },
+  { key: "depreciation", title: "감가상각 대장", hrefs: ["/money/depreciation"], note: "감가상각은 세무 대리인이 계산할 때 끕니다. 비품·설비 대장의 취득 기록은 그대로 남습니다." },
 ];
 
 const KEY = "features_off";
@@ -44,6 +52,13 @@ export async function featuresOff(db: Db): Promise<string[]> {
 export async function hiddenHrefs(db: Db): Promise<string[]> {
   const off = await featuresOff(db);
   return FEATURES.filter((f) => off.includes(f.key)).flatMap((f) => f.hrefs);
+}
+
+/** 이 주소(할 일·알림의 링크)가 꺼 둔 기능의 화면인가. 경로만 보고(?·# 뒤는 무시) 같거나 그 아래면 숨김. ?가 붙은 항목은 그 조건 화면만(앞부분이 같으면) */
+export function linkHidden(link: string | null | undefined, hidden: string[]): boolean {
+  if (!link || !hidden.length) return false;
+  const path = link.split(/[?#]/)[0];
+  return hidden.some((h) => (h.includes("?") ? link.startsWith(h) : path === h || path.startsWith(`${h}/`)));
 }
 
 /** 기능 하나 켜기·끄기. 권한(대표) 확인은 부르는 쪽에서 */

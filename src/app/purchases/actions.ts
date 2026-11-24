@@ -80,7 +80,7 @@ export async function orderAction(form: FormData) {
           msg = "줄을 지웠습니다";
         } else if (intent === "submit") {
           const role = await submitOrder(db, user, id, s("emergency") === "1");
-          msg = `승인을 요청했습니다(${role === "owner" ? "대표" : "공장장"} 승인)`;
+          msg = role === "self" ? "승인자가 본인이라 올리면서 승인했습니다(간소화). 발주서를 보내세요" : role === "estimate" ? "고객이 승인한 견적 안의 부품이라 승인 없이 바로 승인됐습니다(간소화). 발주서를 보내세요" : `승인을 요청했습니다(${role === "owner" ? "대표" : "공장장"} 승인)`;
         } else if (intent === "approve") {
           const ok = s("ok") === "1";
           await approveOrder(db, user, id, ok, s("decideNote"));
