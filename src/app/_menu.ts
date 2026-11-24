@@ -360,6 +360,7 @@ export const MENU: MenuGroup[] = [
         href: "/money/expenses",
         std: "STD-12",
       },
+      { label: "정기 결의", perm: ["expense.draft"], href: "/money/expenses/recurring", std: "STD-12" },
       {
         label: "외상매입금·미지급금",
         perm: ["expense.draft", "expense.pay"],

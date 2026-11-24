@@ -59,6 +59,7 @@ import { creditTodos } from "@/modules/money/credit";
 import { portalTodos } from "@/modules/partner/service";
 import { bankTodos } from "@/modules/bank/service";
 import { expenseTodos } from "@/modules/money/expense";
+import { recurringTodos } from "@/modules/money/recurring";
 import { closeTodos } from "@/modules/money/close";
 import { goalTodos } from "@/modules/quality/goals";
 import { contextTodos, mgmtReviewTodos } from "@/modules/quality/qms";
@@ -519,13 +520,14 @@ export async function myTodos(
     }
   }
 
-  // 3정5S: 내 구역 일일 점검, 공장장은 매월 첫 주 월간 평가
+  // 3정5S: 내 구역 일일 점검(간소화 '주 1회'면 금요일부터 주간 점검), 공장장은 매월 첫 주 월간 평가
+  const pol5s = (await loadPolicy(db, today))["simple.five_s_weekly"] === 1;
   if (open)
     for (const z of await myZonesToday(db, user.id, today))
       out.push({
         key: `5s-${z.code}`,
         when: "today",
-        what: `3정5S 일일 점검: ${z.code} ${z.name}`,
+        what: `3정5S ${pol5s ? "주간" : "일일"} 점검: ${z.code} ${z.name}`,
         detail: "작업 끝에 체크하고 사진 1장",
         href: `/five-s/${z.code}`,
         action: "점검하기",
@@ -695,6 +697,7 @@ export async function myTodos(
     ...(await creditTodos(db, user, today)),
     ...(await portalTodos(db, user)),
     ...(await expenseTodos(db, user, today)),
+    ...(await recurringTodos(db, user, today)),
     ...(await bankTodos(db, user, today)),
     ...(await closeTodos(db, user, today)),
     ...(await goalTodos(db, user, today)),

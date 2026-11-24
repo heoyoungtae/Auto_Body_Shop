@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
 import { answerOrder, orderOvertime, requestCertificate, requestLeave } from "@/modules/staff/attendance";
 import { punchIn, punchOut, savePunchConfig } from "@/modules/staff/punch";
+import { quickClose } from "@/modules/journal/entry";
+import { seoulDate } from "@/modules/platform/time";
 import { errorUrl, noticeUrl, requestMeta, requireUser, userMessage } from "../_lib/session";
 
 export async function requestLeaveAction(form: FormData) {
@@ -57,6 +59,22 @@ export async function punchOutAction() {
   try {
     const st = await punchOut(await getDb(), user, (await requestMeta()).ip ?? null);
     msg = `${st.outText ?? hmNow()} 퇴근했습니다`;
+    if (st.overstay) msg += ". 승인 없이 늦게 남았습니다. 아래에서 사후 연장 신청을 올려 주세요(안 올리면 수당에 들어가지 않습니다)";
+  } catch (e) {
+    redirect(errorUrl("/attendance", userMessage(e)));
+  }
+  redirect(noticeUrl("/attendance", msg));
+}
+
+/** 간소화 '퇴근 누르면 업무일지 마감까지': 안전 확인 '없음'으로 일지를 마감하고 바로 퇴근 */
+export async function punchCloseAction() {
+  const user = await requireUser();
+  let msg = "";
+  try {
+    const db = await getDb();
+    await quickClose(db, user, seoulDate());
+    const st = await punchOut(db, user, (await requestMeta()).ip ?? null);
+    msg = `업무일지를 마감하고 ${st.outText ?? hmNow()} 퇴근했습니다`;
     if (st.overstay) msg += ". 승인 없이 늦게 남았습니다. 아래에서 사후 연장 신청을 올려 주세요(안 올리면 수당에 들어가지 않습니다)";
   } catch (e) {
     redirect(errorUrl("/attendance", userMessage(e)));

@@ -3974,6 +3974,8 @@ export const FIELD_HELP = {
     detail:
       "세금계산서의 세액을 적습니다. 공급가의 10%와 10원 넘게 다르면 저장하지 않습니다.",
   },
+  "equip.allOk": { label: "이상 없는 설비", hint: "문제 있는 설비는 체크를 끄고 따로 점검" },
+  "recur.day": { label: "매달 낼 날", hint: "1~28일. 이날 3일 전부터 할 일에 뜹니다" },
   "exp.purpose": {
     label: "용도",
     hint: "무엇을 왜 사는지·내는지",

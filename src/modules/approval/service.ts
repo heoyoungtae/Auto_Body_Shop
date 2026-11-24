@@ -40,7 +40,7 @@ export function onConfirmed(formCode: string, hook: Hook) {
   confirmHooks.set(formCode, [...(confirmHooks.get(formCode) ?? []), hook]);
 }
 
-const stateOf = (d: DocRow): DocState => ({
+export const stateOf = (d: DocRow): DocState => ({
   status: d.status as DocumentStatus,
   steps: d.steps as ResolvedStep[],
   flags: d.flags as DocumentFlag[],

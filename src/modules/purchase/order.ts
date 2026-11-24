@@ -251,8 +251,28 @@ export async function submitOrder(db: Db, actor: Actor, id: string, emergency: b
     await approveOrder(db, actor, id, true, "", now);
     return "self" as const;
   }
+  // 간소화 '고객 승인 견적 부품 발주는 승인 생략'(simple.po_from_estimate): 줄마다 고객이 승인한 견적 줄 안(같은 부품 구분, 수량·단가 이하)이면 바로 승인
+  if ((await loadPolicy(db, seoulDate(now)))["simple.po_from_estimate"] === 1 && (await withinEstimate(db, o, lines))) {
+    await db.update(purchaseOrder).set({ status: "approved", approvedBy: null, approvedAt: now, updatedAt: now }).where(eq(purchaseOrder.id, id));
+    await writeAudit(db, { actorId: actor.id, action: "purchase.estimate_approve", entityType: "purchase_order", entityId: o.docNo, after: { total: t.total, estimateId: o.estimateId } });
+    return "estimate" as const;
+  }
   await notifyRole(db, role, `발주 승인 요청: ${o.docNo} ${s.name} ${won(t.total)}`, `po-review-${id}-${now.getTime()}`, `/purchases/${id}`);
   return role;
+}
+
+/** 수리 발주의 모든 줄이 고객이 승인한 견적 부품 줄 안인가(같은 부품 구분, 수량·단가가 견적 이하) */
+async function withinEstimate(db: Db, o: typeof purchaseOrder.$inferSelect, lines: (typeof purchaseLine.$inferSelect)[]) {
+  if (o.kind !== "repair" || !o.estimateId || !lines.length) return false;
+  const [e] = await db.select({ status: estimate.status }).from(estimate).where(eq(estimate.id, o.estimateId));
+  if (!e || (e.status !== "accepted" && e.status !== "partial")) return false;
+  const ids = lines.map((l) => l.estimateLineId).filter((x): x is string => !!x);
+  if (ids.length !== lines.length) return false;
+  const est = new Map((await db.select().from(estimateLine).where(inArray(estimateLine.id, ids))).map((x) => [x.id, x]));
+  return lines.every((l) => {
+    const x = est.get(l.estimateLineId!);
+    return !!x && x.estimateId === o.estimateId && x.approved && x.category === "part" && (x.partCode ?? "") === (l.partCode ?? "") && l.qty <= x.qty && l.unitWon <= x.unitWon;
+  });
 }
 
 async function mustApprover(db: Db, actor: Actor, role: Role, createdBy: string | null, what: string, total: number) {

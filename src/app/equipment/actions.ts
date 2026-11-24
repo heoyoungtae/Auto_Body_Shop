@@ -8,6 +8,7 @@ import {
   addPmItem,
   addRunLog,
   approvePlan,
+  checkAllOk,
   closeFailure,
   createPlan,
   disposeEquipment,
@@ -110,6 +111,15 @@ export async function checkAction(form: FormData) {
     const r = await recordCheck(await getDb(), user, id, { kind, date: s("date"), marks: Array.from({ length: n }, (_, i) => s(`m${i}`)), notes: Array.from({ length: n }, (_, i) => s(`n${i}`)), note: s("note") });
     if (r.failureId) return [`/equipment/failures/${r.failureId}`, "× 항목이 있어 설비를 '사용 금지'로 바꾸고 고장 기록을 열었습니다. 공장장에게 알렸습니다. 조치 내용을 적어 주세요"];
     return [`/equipment/${id}`, `점검을 저장했습니다${r.warn.length ? ` · △ 주의: ${r.warn.join(", ")} — 조치 후 사용` : ""}`];
+  });
+}
+
+/** 간소화 '모두 이상 없음': 오늘 일상 점검을 고른 설비마다 한 번에 */
+export async function checkAllOkAction(form: FormData) {
+  const user = await requireUser();
+  await run("/equipment", async () => {
+    const n = await checkAllOk(await getDb(), user, form.getAll("eq").map(String));
+    return ["/equipment", n ? `설비 ${n}대의 오늘 일상 점검을 모두 이상 없음(○)으로 적었습니다` : "적을 설비가 없습니다(이미 점검했거나 고르지 않음)"];
   });
 }
 

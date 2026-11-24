@@ -4,7 +4,7 @@
 import { makeLink } from "@/modules/carbook/link";
 import { branchShopInfo } from "@/modules/platform/branch";
 import { can, rolesFor } from "@/modules/auth/permissions";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, customer, estimate, estimateLine, inspection, repairOrder, repairStatement, vehicle, workOrder, workStep } from "@/db/schema";
 import type { Role } from "@/modules/auth/roles";
@@ -24,7 +24,7 @@ import { addDays, seoulDate } from "@/modules/platform/time";
 import { totals } from "./estimate-rules";
 import { afterCreditDelivery, creditCheck } from "@/modules/money/credit";
 import { DELIVERY_NOTICES, judge, legalFreeDays, PAY_METHODS, type InspectInput } from "./inspect-rules";
-import { processLabel } from "./work-rules";
+import { processLabel, STEP_GROUPS } from "./work-rules";
 import { receiptView, recordPayment } from "@/modules/money/receipts";
 import { isPayInMethod, isReceiptKind, receiptProblem, type PayInMethod } from "@/modules/money/rules";
 import { assertOpenDay } from "@/modules/money/lock";
@@ -69,6 +69,17 @@ export async function startInspection(db: Db, actor: Actor, roId: string, indepe
   return { id: i.id, created: true };
 }
 
+/** 이 검사자가 지난번 적은 '직접 검사 사유'(다음 검사 때 미리 채워 다시 치지 않게). 없으면 기본 문구 */
+export async function lastIndependenceNote(db: Db, inspectorId: string) {
+  const [r] = await db
+    .select({ note: inspection.independenceNote })
+    .from(inspection)
+    .where(and(eq(inspection.inspector, inspectorId), isNotNull(inspection.independenceNote)))
+    .orderBy(desc(inspection.startedAt))
+    .limit(1);
+  return r?.note ?? "검사 인원이 부족해 작업에 참여한 공장장이 직접 검사함(작업과 따로 항목마다 다시 확인)";
+}
+
 async function openInspection(db: Db, actor: Actor, inspectionId: string) {
   const [i] = await db.select().from(inspection).where(eq(inspection.id, inspectionId));
   if (!i) throw new InspectError("없는 검사입니다");
@@ -98,6 +109,14 @@ export async function removeInspectionPhoto(db: Db, actor: Actor, inspectionId: 
 /** 간소화 '최종 검사 전부 합격·도막 측정 생략'(simple.qc_quick): 자비 건만 도막 두께를 묻지 않는다(보험 건은 표준대로) */
 const skipFilm = (p: Policy, r: { insurance: string }) => p["simple.qc_quick"] === 1 && r.insurance === "self";
 
+/** 간소화 '최종 검사 사진에 마무리 공정 사진 인정'(simple.qc_photo_reuse): 자비 건만, 마무리 묶음(연마·보정·조립)에서 찍은 사진 장수 */
+async function reusedPhotos(db: Db, p: Policy, r: { insurance: string }, workOrderId: string) {
+  if (p["simple.qc_photo_reuse"] !== 1 || r.insurance !== "self") return 0;
+  const finish = STEP_GROUPS.find((g) => g.key === "finish")!.processes as readonly string[];
+  const rows = await db.select({ process: workStep.process, photos: workStep.photos }).from(workStep).where(eq(workStep.workOrderId, workOrderId));
+  return rows.filter((x) => finish.includes(x.process)).reduce((a, x) => a + x.photos.length, 0);
+}
+
 /** 인수 서명이 필요한가. 간소화 '출고 인수 서명 생략'(simple.deliver_sign_skip)이 켜져 있어도 대리인·보험 건은 받는다 */
 export const needDeliverSign = (p: Policy, r: { insurance: string }, proxy: boolean) => !(p["simple.deliver_sign_skip"] === 1 && r.insurance === "self" && !proxy);
 
@@ -106,7 +125,7 @@ export async function judgeInspection(db: Db, actor: Actor, inspectionId: string
   const i = await openInspection(db, actor, inspectionId);
   const r = await roRow(db, i.repairOrderId);
   const p = await loadPolicy(db, seoulDate(now));
-  const res = judge(await processesOf(db, i.workOrderId), input, i.photos.length, { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) });
+  const res = judge(await processesOf(db, i.workOrderId), input, i.photos.length + (await reusedPhotos(db, p, r, i.workOrderId)), { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) });
   if (!res.pass && !input.failNote.trim()) throw new InspectError(`불합격입니다(${res.fails.map((f) => f.why).join(" / ")}). 결함 위치와 내용을 적어 주세요`);
   await db.transaction(async (tx) => {
     await tx
@@ -145,7 +164,7 @@ export async function inspectionContext(db: Db, roId: string, now = new Date()) 
   const w = await currentWo(db, roId);
   const steps = await db.select().from(workStep).where(eq(workStep.workOrderId, w.id)).orderBy(asc(workStep.seq));
   const p = await loadPolicy(db, seoulDate(now));
-  return { ro: r, wo: w, steps, processes: [...new Set(steps.map((s) => s.process))], workers: [...new Set(steps.flatMap((s) => [s.assignee, s.endedBy]).filter((x): x is string => !!x))], limits: { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) }, quick: p["simple.qc_quick"] === 1 };
+  return { ro: r, wo: w, steps, processes: [...new Set(steps.map((s) => s.process))], workers: [...new Set(steps.flatMap((s) => [s.assignee, s.endedBy]).filter((x): x is string => !!x))], limits: { gapMm: p["inspect.gap_mm"], filmMin: p["inspect.film_min_um"], filmMax: p["inspect.film_max_um"], photos: p["inspect.after_photos"], skipFilm: skipFilm(p, r) }, quick: p["simple.qc_quick"] === 1, reused: await reusedPhotos(db, p, r, w.id) };
 }
 
 // ── 출고

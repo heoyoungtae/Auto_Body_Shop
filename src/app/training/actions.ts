@@ -1,4 +1,5 @@
 "use server";
+import { dismissRevisionTraining } from "@/modules/quality/std";
 // 교육 기록(F-11-03) 화면의 서버 동작
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/runtime";
@@ -27,6 +28,18 @@ function input(form: FormData): TrainingInput {
     target: s("target"),
     organizerId: s("organizerId"),
   };
+}
+
+/** '문구만 고침, 교육 불필요': 지금까지 표준서 개정의 교육 할 일을 한 번에 닫는다 */
+export async function dismissRevTrainingAction() {
+  const user = await requireUser();
+  let n = 0;
+  try {
+    n = await dismissRevisionTraining(await getDb(), user);
+  } catch (e) {
+    redirect(errorUrl("/training/new?kind=std_rev", userMessage(e)));
+  }
+  redirect(noticeUrl("/training", `표준서 개정 ${n}건을 '문구만 고침, 교육 불필요'로 닫았습니다`));
 }
 
 export async function createTrainingAction(form: FormData) {

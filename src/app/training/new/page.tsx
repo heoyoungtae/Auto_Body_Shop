@@ -7,7 +7,8 @@ import { AssistForm } from "../../_assist";
 import { requireUser } from "../../_lib/session";
 import { SubmitButton } from "../../_submit";
 import { Card, ErrorBox, PageTitle } from "../../_ui";
-import { createTrainingAction } from "../actions";
+import { createTrainingAction, dismissRevTrainingAction } from "../actions";
+import { revisionsNeedingTraining } from "@/modules/quality/std";
 import { TrainingFields } from "../_form";
 
 /** 교육 계획 올리기: 연간 계획 한 줄 또는 수시 교육(채용 시·작업 변경·OJT) */
@@ -18,7 +19,9 @@ export default async function NewTrainingPage({
 }) {
   const q = await searchParams;
   const user = await requireUser();
-  const users = (await listUsers(await getDb())).filter((u) => u.active);
+  const db = await getDb();
+  const users = (await listUsers(db)).filter((u) => u.active);
+  const revs = q.kind === "std_rev" && can(user, "training.manage") ? await revisionsNeedingTraining(db) : [];
   const who = q.who ? users.find((u) => u.id === q.who) : undefined;
   const year = Number(seoulDate().slice(0, 4));
   return (
@@ -35,6 +38,22 @@ export default async function NewTrainingPage({
         교육 계획 올리기
       </PageTitle>
       <ErrorBox message={q.error} />
+      {revs.length > 0 && (
+        <Card title="교육이 필요한 개정인지 먼저 보기" help={{ kind: "panel", id: "tr.stdrev" }}>
+          <ul className="mb-3 list-disc pl-5 text-sm">
+            {revs.map((r) => (
+              <li key={r.docNo}>
+                {r.docNo} {r.rev ?? ""} ({r.on}) · {r.labels.slice(0, 4).join(", ")}
+                {r.labels.length > 4 ? ` 외 ${r.labels.length - 4}곳` : ""}
+              </li>
+            ))}
+          </ul>
+          <p className="mb-2 text-xs text-[var(--muted)]">글자·문구만 고쳐 일하는 방법이 바뀌지 않았으면 교육 없이 닫습니다. 닫은 날과 문서는 감사 로그에 남습니다. 방법이 바뀌었으면 아래에서 교육 계획을 올리세요.</p>
+          <form action={dismissRevTrainingAction}>
+            <SubmitButton variant="secondary">문구만 고침, 교육 불필요(모두 닫기)</SubmitButton>
+          </form>
+        </Card>
+      )}
       {can(user, "training.manage") ? (
         <Card
           title={who ? `${who.name} 채용 시 교육` : "교육 계획(F-11-03 계획란)"}

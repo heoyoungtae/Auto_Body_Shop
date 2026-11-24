@@ -116,6 +116,18 @@ export async function closeEntry(db: Db, actor: Actor, day: string, input: Entry
   return { status: role ? ("closed" as const) : ("confirmed" as const), safetyOk: e.safetyOk };
 }
 
+/**
+ * 간소화 '퇴근 누르면 업무일지 마감까지'(simple.punch_close): 적어 둔 칸은 그대로 두고 안전 확인 '없음'으로 마감한다.
+ * 다치거나 아차사고가 있었으면 이 단추를 쓰지 않고 업무일지에서 적는다
+ */
+export async function quickClose(db: Db, actor: Actor, day: string, now = new Date()) {
+  if ((await loadPolicy(db, day))["simple.punch_close"] !== 1) throw new JournalError("간소화 '퇴근 때 업무일지 마감'이 꺼져 있습니다. 업무일지를 마감하고 퇴근해 주세요");
+  const cur = await getEntry(db, actor.id, day);
+  if (cur && (cur.status === "closed" || cur.status === "confirmed")) return { status: cur.status as JournalStatus };
+  if (cur?.safetyOk === false) throw new JournalError("업무일지 안전 확인이 '있음'입니다. 업무일지에서 내용을 확인하고 마감해 주세요");
+  return closeEntry(db, actor, day, { notes: cur?.notes ?? "", tomorrow: cur?.tomorrow ?? "", offApp: cur?.offApp ?? [], suggestionText: cur?.suggestionText ?? "", safety: "yes", safetyNote: "" }, now);
+}
+
 /** 마감 뒤 덧붙이기(본인). 고치지 않고 더하기만 */
 export async function addAddendum(db: Db, actor: Actor, day: string, text: string, now = new Date()) {
   const e = await getEntry(db, actor.id, day);
