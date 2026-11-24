@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/runtime";
 import { appUser } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
-import { getNc } from "@/modules/quality/nc";
+import { getNc, quickCloseBlock } from "@/modules/quality/nc";
 import { NC_SOURCES, NC_STATUS, NC_TONE, ROOT_CAUSES, type NcStatus } from "@/modules/quality/rules";
 import { seoulDate } from "@/modules/platform/time";
 import { addDays } from "@/modules/platform/time";
@@ -41,6 +41,8 @@ export default async function NcPage({ params, searchParams }: { params: Promise
   const { n, names } = r;
   const nm = (u: string | null) => (u ? (names.get(u) ?? "-") : "-");
   const handler = can(user, "nc.handle");
+  // 간소화 '가벼운 부적합 수정으로 끝': 쓸 수 있는 건만 단추를 보인다
+  const quickOk = handler && !(await quickCloseBlock(db, n));
   const isAssignee = n.assigneeId === user.id;
   const closed = n.status === "closed";
   const today = seoulDate();
@@ -91,6 +93,19 @@ export default async function NcPage({ params, searchParams }: { params: Promise
             <PhotoStrip fields={{ id, kind: "issue" }} upload={uploadNcPhotoAction} remove={removeNcPhotoAction} photos={n.photos} editable={!closed && (handler || isAssignee || n.foundBy === user.id)} label="발생" />
           </div>
         </Card>
+
+        {quickOk && (
+          <Card title="가벼운 건: 수정으로 끝" help={{ kind: "panel", id: "nc.quick" }}>
+            <AssistForm id={`nc-quick-${id}`} action={ncAction} className="space-y-3">
+              <input type="hidden" name="id" value={id} />
+              <input type="hidden" name="intent" value="quick" />
+              <RadioRow help="nc.rootCause" name="rootCause" required options={Object.entries(ROOT_CAUSES).map(([value, label]) => ({ value, label }))} />
+              <TextAreaField help="nc.actionDone" name="actionDone" rows={2} required />
+              <p className="text-xs text-[var(--muted)]">바로 고쳐 끝난 가벼운 건만 씁니다. 원인 분석·조치 담당·효과 확인을 건너뛰고 한 번에 종결하며, '재발 방지 조치 불필요' 판단이 기록에 남습니다. 같은 일이 또 생기면 아래 정식 절차로 하세요.</p>
+              <SubmitButton variant="secondary">수정으로 끝내고 종결</SubmitButton>
+            </AssistForm>
+          </Card>
+        )}
 
         <Card title="원인 분석·시정 조치" help={{ kind: "panel", id: "nc.plan" }}>
           {handler && (n.status === "open" || n.status === "planned") ? (

@@ -71,6 +71,12 @@ export const DEFAULT_POLICY = {
   "simple.punch_close": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 퇴근 때 업무일지 마감", clause: "7.1", min: 0, max: 1 },
   "simple.five_s_weekly": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 3정5S 점검 주 1회", clause: "14.1", min: 0, max: 1 },
   "simple.day_close_auto": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 일일 마감 자동(현금 없는 날)", clause: "12.4", min: 0, max: 1 },
+  "simple.nc_quick": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 가벼운 부적합 '수정으로 끝' 한 번에 종결", clause: "10.2", min: 0, max: 1 },
+  "simple.qc_photo_reuse": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 최종 검사 사진에 마무리 공정 사진 인정(자비 건)", clause: "5.5", min: 0, max: 1 },
+  "simple.recurring_expense": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 매달 나가는 돈 정기 결의", clause: "12.2", min: 0, max: 1 },
+  "simple.po_from_estimate": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 고객 승인 견적 부품 발주는 승인 생략", clause: "5.4", min: 0, max: 1 },
+  "simple.survey_sample": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 만족도 설문은 같은 손님 6개월에 한 번", clause: "6.3", min: 0, max: 1 },
+  "simple.std_rev_quiet": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 개업 전 표준서 개정 교육 할 일 숨김", clause: "5절", min: 0, max: 1 },
   "simple.estimate_small": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 소액 견적 내부 검토 생략", clause: "3절", min: 0, max: 1 },
   "estimate.small_won": { value: 500000, unit: "원 이하", label: "소액 견적(내부 검토 생략) 기준", clause: "부록 B", min: 0, max: 5000000 },
   "estimate.valid_days": {

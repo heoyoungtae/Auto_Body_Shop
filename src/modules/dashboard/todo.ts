@@ -59,6 +59,7 @@ import { creditTodos } from "@/modules/money/credit";
 import { portalTodos } from "@/modules/partner/service";
 import { bankTodos } from "@/modules/bank/service";
 import { expenseTodos } from "@/modules/money/expense";
+import { recurringTodos } from "@/modules/money/recurring";
 import { closeTodos } from "@/modules/money/close";
 import { goalTodos } from "@/modules/quality/goals";
 import { contextTodos, mgmtReviewTodos } from "@/modules/quality/qms";
@@ -696,6 +697,7 @@ export async function myTodos(
     ...(await creditTodos(db, user, today)),
     ...(await portalTodos(db, user)),
     ...(await expenseTodos(db, user, today)),
+    ...(await recurringTodos(db, user, today)),
     ...(await bankTodos(db, user, today)),
     ...(await closeTodos(db, user, today)),
     ...(await goalTodos(db, user, today)),

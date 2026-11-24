@@ -1,6 +1,6 @@
 // 부적합·시정 조치(F-Q-10, STD-Q Q.9): 발행 → 원인 분석·시정 계획 → 조치 → 효과 확인 → 종결
 // 누구나 발행한다. 검사 불합격·설비 고장·교정 불합격·5S 미달은 그 화면에서 저절로 발행되고 출처·관련 건이 채워진다.
-import { and, asc, desc, eq, inArray, lt, ne } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, nonconformance } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
@@ -12,7 +12,7 @@ import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
-import { DEFAULT_DUE_DAYS, isNcSource, NC_SOURCES, planIssues, type NcSource } from "./rules";
+import { DEFAULT_DUE_DAYS, isNcSource, NC_SOURCES, planIssues, ROOT_CAUSES, type NcSource } from "./rules";
 
 export class NcError extends UserError {}
 type Actor = { id: string; roles: Role[] };
@@ -145,6 +145,61 @@ export async function closeNc(db: Db, actor: Actor, id: string, now = new Date()
   if (n.major && !can(actor, "nc.approve")) throw new NcError("중대 부적합은 대표가 승인해 종결합니다");
   await db.update(nonconformance).set({ status: "closed", closedBy: actor.id, closedAt: now, updatedAt: now }).where(eq(nonconformance.id, id));
   await writeAudit(db, { actorId: actor.id, action: "nc.close", entityType: "nonconformance", entityId: n.docNo });
+}
+
+/** 간소화 '수정으로 끝'에 쓸 수 없는 출처(고객 불만·사고·개인정보·내부심사·법규는 늘 정식 절차) */
+const QUICK_NO: NcSource[] = ["complaint", "accident", "privacy", "audit", "legal"];
+/** 같은 출처가 90일 안에 이만큼 있으면 정식 절차(원인 분석·효과 확인) */
+const QUICK_REPEAT = 3;
+
+/** 이 부적합을 '수정으로 끝'으로 닫을 수 없는 까닭(없으면 null) */
+export async function quickCloseBlock(db: Db, n: typeof nonconformance.$inferSelect, now = new Date()) {
+  if ((await loadPolicy(db, seoulDate(now)))["simple.nc_quick"] !== 1) return "간소화 '가벼운 부적합 수정으로 끝'이 꺼져 있습니다";
+  if (n.status !== "open") return "발행 단계(원인 분석 전)에서만 씁니다";
+  if (n.major) return "중대 부적합은 정식 절차로 처리합니다";
+  if (QUICK_NO.includes(n.source as NcSource)) return `${NC_SOURCES[n.source as NcSource]}은(는) 정식 절차로 처리합니다`;
+  const since = new Date(now.getTime() - 90 * 86_400_000);
+  const [{ c }] = await db.select({ c: count() }).from(nonconformance).where(and(eq(nonconformance.source, n.source), gte(nonconformance.occurredAt, since)));
+  if (c >= QUICK_REPEAT) return `같은 유형(${NC_SOURCES[n.source as NcSource]})이 90일 안에 ${c}번이라 원인 분석이 필요합니다`;
+  return null;
+}
+
+/**
+ * 간소화 '가벼운 부적합은 수정으로 끝'(simple.nc_quick): 바로 고쳐 끝난 가벼운 건은 원인·한 일만 적고 한 번에 종결한다
+ * (ISO 9001 10.2는 시정 조치 필요 여부를 판단하면 됨: '수정만, 재발 방지 조치 불필요'로 판단을 남긴다)
+ */
+export async function quickCloseNc(db: Db, actor: Actor, id: string, input: { rootCause: string; actionDone: string }, now = new Date()) {
+  if (!handler(actor)) throw new NcError("종결은 품질 담당·공장장이 합니다");
+  const n = await ncRow(db, id);
+  const block = await quickCloseBlock(db, n, now);
+  if (block) throw new NcError(block);
+  if (!(input.rootCause in ROOT_CAUSES)) throw new NcError("원인을 골라 주세요");
+  const done = clean(input.actionDone);
+  if (!done) throw new NcError("어떻게 고쳤는지 적어 주세요");
+  if (n.source === "five_s" && !n.actionPhotos.length) throw new NcError("5S 미달은 개선 후 사진을 올려야 끝낼 수 있습니다(STD-08 14.3)");
+  const today = seoulDate(now);
+  await db
+    .update(nonconformance)
+    .set({
+      rootCause: input.rootCause,
+      corrective: "수정만(가벼운 건, 재발 방지 조치 불필요로 판단)",
+      assigneeId: actor.id,
+      dueOn: today,
+      plannedBy: actor.id,
+      plannedAt: now,
+      actionDone: done,
+      actionAt: now,
+      effectOn: today,
+      recurred: false,
+      effectNote: "수정으로 끝(간소화): 고친 자리 확인",
+      effectBy: actor.id,
+      status: "closed",
+      closedBy: actor.id,
+      closedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(nonconformance.id, id));
+  await writeAudit(db, { actorId: actor.id, action: "nc.quick_close", entityType: "nonconformance", entityId: n.docNo, after: { rootCause: input.rootCause } });
 }
 
 /** 사진: 발행 사진(내용)은 발견자·담당자가, 개선 후 사진(조치)은 조치 담당이 */

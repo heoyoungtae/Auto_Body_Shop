@@ -345,6 +345,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "docs.edit": "문서 목록 고침",
   "docs.retire": "문서 폐기",
   "std.roles": "표준서 열람 제한 바꿈",
+  "std.no_training": "표준서 개정 교육 불필요로 닫음",
+  "nc.quick_close": "부적합 수정으로 끝(간소화)",
   "docs.seed": "문서 목록 처음 채움",
   "context.save": "조직 상황 저장",
   "context.confirm": "조직 상황 확정",

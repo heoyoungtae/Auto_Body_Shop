@@ -14,6 +14,8 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyRole, notifyUser } from "@/modules/platform/notify";
 import { DOC_TYPES, MAX_DOC_BYTES, sniffDoc, storeFile } from "@/modules/platform/storage";
 import { addDays, seoulDate } from "@/modules/platform/time";
+import { loadPolicy } from "@/modules/platform/policy";
+import { loadTaxProfile } from "@/modules/money/tax-profile";
 import {
   creditSec,
   DEFAULT_PASS_SCORE,
@@ -326,7 +328,10 @@ export async function learnTodos(db: Db, actor: Actor, today: string): Promise<T
     const byTr = new Map<string, { title: string; names: string[] }>();
     for (const p of late) byTr.set(p.trainingId, { title: p.title, names: [...(byTr.get(p.trainingId)?.names ?? []), p.name] });
     for (const [tid, v] of byTr) out.push({ key: `tr-late-${tid}`, when: "late", what: `교육 시한 지남: ${v.title} ${v.names.length}명`, detail: v.names.slice(0, 5).join(", "), href: `/training/${tid}`, action: "독려하기" });
-    for (const r of await revisionsNeedingTraining(db)) out.push({ key: `std-rev-tr-${r.docNo}-${r.rev ?? r.on}`, when: "soon", what: `표준서 개정 교육 계획: ${r.docNo} ${r.rev ?? ""}`, detail: `${r.on} 고친 곳: ${r.labels.slice(0, 3).join(", ")}${r.labels.length > 3 ? ` 외 ${r.labels.length - 3}곳` : ""}`, href: "/training/new?kind=std_rev", action: "계획하기" });
+    // 간소화 '개업 전 표준서 개정 교육 할 일 숨김'(simple.std_rev_quiet): 개업일(사업자등록증) 전이면 수시로 고치는 중이라 띄우지 않는다
+    const opened = (await loadTaxProfile(db)).openedOn;
+    const quiet = (await loadPolicy(db, today))["simple.std_rev_quiet"] === 1 && (!opened || opened > today);
+    if (!quiet) for (const r of await revisionsNeedingTraining(db)) out.push({ key: `std-rev-tr-${r.docNo}-${r.rev ?? r.on}`, when: "soon", what: `표준서 개정 교육 계획: ${r.docNo} ${r.rev ?? ""}`, detail: `${r.on} 고친 곳: ${r.labels.slice(0, 3).join(", ")}${r.labels.length > 3 ? ` 외 ${r.labels.length - 3}곳` : ""}`, href: "/training/new?kind=std_rev", action: "계획하기" });
     for (const m of await manualsNeedingRevision(db)) out.push({ key: `tm-rev-${m.id}-${m.changed.map((c) => c.rev).join("")}`, when: "soon", what: `사내 교재 개정 필요: ${m.no} ${m.title}`, detail: `근거 표준서 개정: ${m.changed.map((c) => `${c.no} ${c.was}→${c.rev}`).join(", ")}`, href: `/training/manuals/${m.id}`, action: "고치기" });
     const broken = await db.select({ id: trainingMaterial.id, title: trainingMaterial.title, trainingId: trainingMaterial.trainingId }).from(trainingMaterial).where(eq(trainingMaterial.linkOk, false));
     for (const b of broken) out.push({ key: `tr-link-${b.id}`, when: "soon", what: `교육 자료 링크 끊김: ${b.title}`, detail: "주소를 새로 찾아 바꿔 주세요", href: `/training/${b.trainingId}`, action: "바꾸기" });
