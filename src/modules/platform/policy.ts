@@ -67,6 +67,10 @@ export const DEFAULT_POLICY = {
   "simple.self_approve": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 결재권자 본인 건 바로 승인", clause: "0장 5절", min: 0, max: 1 },
   "simple.push_first": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 손님 안내는 앱 푸시 먼저", clause: "-", min: 0, max: 1 },
   "simple.reminder_skip": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 예약 확인 직후 전날 안내 생략", clause: "1.2", min: 0, max: 1 },
+  "simple.booth_log_auto": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 부스 운전 일지 자동 채움", clause: "5절", min: 0, max: 1 },
+  "simple.punch_close": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 퇴근 때 업무일지 마감", clause: "7.1", min: 0, max: 1 },
+  "simple.five_s_weekly": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 3정5S 점검 주 1회", clause: "14.1", min: 0, max: 1 },
+  "simple.day_close_auto": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 일일 마감 자동(현금 없는 날)", clause: "12.4", min: 0, max: 1 },
   "simple.estimate_small": { value: 1, unit: "(1=켬, 0=끔)", label: "간소화: 소액 견적 내부 검토 생략", clause: "3절", min: 0, max: 1 },
   "estimate.small_won": { value: 500000, unit: "원 이하", label: "소액 견적(내부 검토 생략) 기준", clause: "부록 B", min: 0, max: 5000000 },
   "estimate.valid_days": {

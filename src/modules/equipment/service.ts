@@ -1,7 +1,7 @@
 // 설비 관리(STD-08): 설비 대장·점검·윤활·운전 일지·고장·교정·예방정비
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { appUser, equipment, fiveSZone, workplace, equipmentCalibration, equipmentCheck, equipmentFailure, equipmentRunLog, lubeLog, lubePoint, pmItem, pmPlan, pmTask, type CheckItem, type CheckResult } from "@/db/schema";
+import { appUser, equipment, fiveSZone, workplace, equipmentCalibration, equipmentCheck, equipmentFailure, equipmentRunLog, lubeLog, lubePoint, pmItem, pmPlan, pmTask, workStep, stockMove, stockItem, type CheckItem, type CheckResult } from "@/db/schema";
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { writeAudit } from "@/modules/platform/audit";
@@ -250,6 +250,61 @@ export async function recordCheck(db: Db, actor: Actor, equipmentId: string, inp
   }
   await writeAudit(db, { actorId: actor.id, action: "equipment.check", entityType: "equipment", entityId: e.no, after: { kind: input.kind, date, ok: out.ok } });
   return { id: c.id, ok: out.ok, failureId, warn: out.warn.map((w) => w.item) };
+}
+
+/**
+ * 간소화 '모두 이상 없음'(simple.check_all): 오늘 일상 점검을 고른 설비마다 모든 항목 ○(양호)로 한 번에 적는다.
+ * 문제가 있는 설비는 고르지 말고 그 설비 점검 화면에서 따로 적는다. 오늘 이미 점검한 설비는 건너뛴다
+ */
+export async function checkAllOk(db: Db, actor: Actor, equipmentIds: string[], now = new Date()) {
+  must(actor, "equip.check", "설비 점검은 기술자·공장장·안전환경·품질 담당이 합니다");
+  if ((await loadPolicy(db, seoulDate(now)))["simple.check_all"] !== 1) throw new EquipError("간소화 '모두 이상 없음'이 꺼져 있습니다. 설비마다 점검 화면에서 적어 주세요");
+  const done = await checkedToday(db, seoulDate(now));
+  let n = 0;
+  for (const id of [...new Set(equipmentIds)]) {
+    if (done.has(id)) continue;
+    const e = await eqRow(db, id);
+    if (!e.checkDaily || e.status !== "in_use" || !e.dailyItems.length) continue;
+    await recordCheck(db, actor, id, { kind: "daily", marks: e.dailyItems.map(() => "o"), notes: [], note: "모두 이상 없음(한 번에)" }, now);
+    n++;
+  }
+  return n;
+}
+
+/** 리터로 셀 수 있는 단위면 1단위가 몇 L인지 */
+const LITERS: Record<string, number> = { L: 1, l: 1, "ℓ": 1, 리터: 1, mL: 0.001, ml: 0.001, "㎖": 0.001 };
+
+/**
+ * 간소화 '부스 운전 일지 자동 채움'(simple.booth_log_auto): 운전 일지 칸을 그날 기록으로 미리 채운다.
+ * 가동·종료 = 그날 도장·건조 공정의 처음 시작·마지막 끝, 온도·건조 시간·필터 상태 = 지난 일지 값, 도료 사용량 = 그날 도료 사용(L).
+ * 사람이 보고 다르면 고친다. 필터 차압은 늘 직접 읽어 적는다(비워 둠)
+ */
+export async function runLogDraft(db: Db, equipmentId: string, date: string) {
+  const e = await eqRow(db, equipmentId);
+  const out: Record<string, string> = {};
+  if (e.kind !== "booth") return out;
+  const from = new Date(`${date}T00:00:00+09:00`);
+  const to = new Date(`${date}T23:59:59.999+09:00`);
+  const steps = await db
+    .select({ s: workStep.startedAt, e: workStep.endedAt })
+    .from(workStep)
+    .where(and(inArray(workStep.process, ["paint", "dry"]), gte(workStep.startedAt, from), lte(workStep.startedAt, to)));
+  const hm = (d: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+  const starts = steps.map((x) => x.s).filter((x): x is Date => !!x).sort((a, b) => +a - +b);
+  const ends = steps.map((x) => x.e).filter((x): x is Date => !!x).sort((a, b) => +a - +b);
+  if (starts.length) out.start = hm(starts[0]);
+  if (ends.length) out.end = hm(ends[ends.length - 1]);
+  const [prev] = await db.select({ data: equipmentRunLog.data }).from(equipmentRunLog).where(eq(equipmentRunLog.equipmentId, equipmentId)).orderBy(desc(equipmentRunLog.logDate), desc(equipmentRunLog.createdAt)).limit(1);
+  const pd = (prev?.data ?? {}) as Record<string, string>;
+  for (const k of ["boothTemp", "dryTemp", "dryMin", "filterState"]) if (pd[k]) out[k] = pd[k];
+  const used = await db
+    .select({ qty: stockMove.qty, unit: stockItem.unit })
+    .from(stockMove)
+    .innerJoin(stockItem, eq(stockItem.id, stockMove.itemId))
+    .where(and(eq(stockItem.kind, "paint"), lt(stockMove.qty, 0), gte(stockMove.at, from), lte(stockMove.at, to), inArray(stockMove.reason, ["use", "repair_use"])));
+  const liters = used.reduce((a, u) => a + (LITERS[u.unit.trim()] ? -u.qty * LITERS[u.unit.trim()] : 0), 0);
+  if (liters > 0) out.paintL = String(Math.round(liters * 10) / 10);
+  return out;
 }
 
 async function openFailure(db: Db, actor: Actor, e: typeof equipment.$inferSelect, input: { symptom: string; checkId?: string; occurredAt?: Date }, now: Date) {

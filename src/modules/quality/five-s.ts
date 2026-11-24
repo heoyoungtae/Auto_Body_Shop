@@ -12,7 +12,7 @@ import { UserError } from "@/modules/platform/errors";
 import { notifyUser } from "@/modules/platform/notify";
 import { loadPolicy } from "@/modules/platform/policy";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, removeStored, sniffImage, storeFile } from "@/modules/platform/storage";
-import { seoulDate } from "@/modules/platform/time";
+import { addDays, seoulDate } from "@/modules/platform/time";
 import { issueNc } from "./nc";
 import { DAILY_ITEMS, dailyRate, FIVE_S, FIVE_S_ZONES, isZone, scoreIssues, scoreTotal } from "./rules";
 
@@ -155,6 +155,17 @@ const monthsBack = (ym: string, n: number) =>
     return `${y}-${pad((((m % 12) + 12) % 12) + 1)}`;
   });
 
+/** 그 주 월요일(YYYY-MM-DD) */
+export function mondayOf(date: string) {
+  const wd = new Date(`${date}T00:00:00Z`).getUTCDay(); // 0=일
+  return addDays(date, -((wd + 6) % 7));
+}
+/** 그 주 금요일이 지났거나 오늘인가(주 1회 점검은 금요일부터 할 일) */
+const fridayOrLater = (date: string) => {
+  const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return wd === 5 || wd === 6 || wd === 0;
+};
+
 /** 3정5S 화면: 구역별 오늘 점검, 이달 점검률, 월간 점수와 6개월 추이 */
 export async function fiveSBoard(db: Db, today = seoulDate()) {
   const zones = await listZones(db);
@@ -165,8 +176,12 @@ export async function fiveSBoard(db: Db, today = seoulDate()) {
   const months = monthsBack(ym, 6);
   const monthly = await db.select().from(fiveSMonthly).where(inArray(fiveSMonthly.ym, months));
   const pol = await loadPolicy(db);
+  // 간소화 '3정5S 점검 주 1회'(simple.five_s_weekly): 점검률은 주 단위(이번 주는 금요일부터 셈)
+  const weekly = pol["simple.five_s_weekly"] === 1;
+  const weeks = [...new Set(days.filter((d) => mondayOf(d) !== mondayOf(today) || fridayOrLater(today)).map(mondayOf))];
   return {
     ym,
+    weekly,
     months,
     threshold: pol["five_s.nc_threshold"],
     cleanupMinutes: pol["five_s.cleanup_minutes"],
@@ -175,17 +190,22 @@ export async function fiveSBoard(db: Db, today = seoulDate()) {
       return {
         ...z,
         today: mine.find((d) => d.checkDate === today) ?? null,
-        rate: dailyRate(mine.filter((d) => days.includes(d.checkDate)).length, days.length),
+        rate: weekly
+          ? dailyRate(new Set(mine.map((d) => mondayOf(d.checkDate)).filter((w) => weeks.includes(w))).size, weeks.length)
+          : dailyRate(mine.filter((d) => days.includes(d.checkDate)).length, days.length),
         scores: Object.fromEntries(monthly.filter((m) => m.zone === z.code).map((m) => [m.ym, m])),
       };
     }),
   };
 }
 
-/** 구역 담당 할 일: 오늘 점검 안 한 내 구역 */
+/** 구역 담당 할 일: 오늘 점검 안 한 내 구역. 간소화 '주 1회'면 금요일부터, 이번 주에 점검 안 한 구역만 */
 export async function myZonesToday(db: Db, userId: string, today = seoulDate()) {
   const zones = (await listZones(db)).filter((z) => z.ownerId === userId || z.deputyId === userId);
   if (!zones.length) return [];
-  const done = new Set((await db.select({ z: fiveSDaily.zone }).from(fiveSDaily).where(eq(fiveSDaily.checkDate, today))).map((r) => r.z));
+  const weekly = (await loadPolicy(db, today))["simple.five_s_weekly"] === 1;
+  if (weekly && !fridayOrLater(today)) return [];
+  const since = weekly ? mondayOf(today) : today;
+  const done = new Set((await db.select({ z: fiveSDaily.zone }).from(fiveSDaily).where(and(gte(fiveSDaily.checkDate, since), lte(fiveSDaily.checkDate, today)))).map((r) => r.z));
   return zones.filter((z) => !done.has(z.code));
 }

@@ -10,7 +10,7 @@ import { AssistForm } from "../_assist";
 import { CheckGroup, DateField, SelectField, TextAreaField } from "../_input";
 import { SubmitButton } from "../_submit";
 import { Badge, buttonClass, Card, Empty } from "../_ui";
-import { answerOrderAction, orderOvertimeAction, punchInAction, punchOutAction, requestLeaveAction, savePunchConfigAction } from "./actions";
+import { answerOrderAction, orderOvertimeAction, punchCloseAction, punchInAction, punchOutAction, requestLeaveAction, savePunchConfigAction } from "./actions";
 
 /** 미리 채운 근태 신고서(지각·조퇴·사후 연장·휴일근로·정정): 숨은 칸 + 사유만 적는다 */
 function QuickLeave({ id, kind, day, from, to, reason, children, button }: { id: string; kind: string; day: string; from: string; to: string; reason?: string; children: ReactNode; button: string }) {
@@ -28,7 +28,7 @@ function QuickLeave({ id, kind, day, from, to, reason, children, button }: { id:
   );
 }
 
-export function TodayCard({ st, isToday, journalClosed }: { st: DayStatus; isToday: boolean; journalClosed: boolean }) {
+export function TodayCard({ st, isToday, journalClosed, punchClose = false }: { st: DayStatus; isToday: boolean; journalClosed: boolean; punchClose?: boolean }) {
   const title = isToday ? "오늘 출퇴근" : `${st.day} 출퇴근`;
   return (
     <Card title={title} help={{ kind: "panel", id: "punch.today" }}>
@@ -62,6 +62,15 @@ export function TodayCard({ st, isToday, journalClosed }: { st: DayStatus; isTod
               <form action={punchOutAction}>
                 <SubmitButton>퇴근</SubmitButton>
               </form>
+            ) : punchClose ? (
+              <>
+                <form action={punchCloseAction}>
+                  <SubmitButton>퇴근(다친 일·아차사고 없음)</SubmitButton>
+                </form>
+                <Link href={`/journal?d=${st.day}#close`} className={buttonClass("secondary")}>
+                  특이사항 적고 퇴근
+                </Link>
+              </>
             ) : (
               <Link href={`/journal?d=${st.day}#close`} className={buttonClass()}>
                 업무일지 마감하고 퇴근

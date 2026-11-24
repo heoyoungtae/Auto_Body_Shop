@@ -497,6 +497,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "report.monthly": "월간 경영보고서 결재 올림",
   "bank.unlink": "통장 거래 연결 풀기",
   "close.day": "일일 마감",
+  "close.day_auto": "일일 마감 자동(간소화)",
   "close.month_submit": "월 마감 올림",
   "close.month_approve": "월 마감 승인",
   "close.month_return": "월 마감 반려",

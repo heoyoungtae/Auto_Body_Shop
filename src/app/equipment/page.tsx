@@ -6,6 +6,8 @@ import { listEquipment, listOpenFailures, todayBoard } from "@/modules/equipment
 import { seoulDate } from "@/modules/platform/time";
 import { requireUser } from "../_lib/session";
 import { Badge, buttonClass, Card, Empty, ErrorBox, Notice, PageTitle } from "../_ui";
+import { SubmitButton } from "../_submit";
+import { checkAllOkAction } from "./actions";
 
 /** 설비 대장(F-08-01) + 오늘 현황 */
 export default async function EquipmentPage({ searchParams }: { searchParams: Promise<{ f?: string; all?: string; error?: string; notice?: string }> }) {
@@ -144,6 +146,21 @@ export default async function EquipmentPage({ searchParams }: { searchParams: Pr
                     </Link>
                   ))}
                 </div>
+                {b.pol["simple.check_all"] === 1 && can(user, "equip.check") && b.unchecked.length > 0 && (
+                  <form action={checkAllOkAction} className="mt-2 rounded border border-[var(--line)] p-2">
+                    <p className="mb-1 text-xs text-[var(--muted)]">이상 없는 설비만 두고, 문제 있는 설비는 체크를 끄고 그 설비 점검 화면에서 따로 적으세요.</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                      {b.unchecked.map((e) => (
+                        <label key={e.id} className="flex items-center gap-1">
+                          <input type="checkbox" name="eq" value={e.id} defaultChecked /> {e.name}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="mt-2">
+                      <SubmitButton variant="secondary">고른 설비 모두 이상 없음</SubmitButton>
+                    </div>
+                  </form>
+                )}
               </li>
               <li>
                 <Link href="/equipment/lube" className="text-[var(--accent)]">
