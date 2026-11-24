@@ -20,6 +20,7 @@ import { userSignature } from "@/modules/auth/signature";
 import { addDays, seoulDate } from "@/modules/platform/time";
 import { buildLines, estimateIssues, isLineCategory, isPartCode, totals, type EstimateKind } from "./estimate-rules";
 import { gradeWon, isPaintGrade, laborWon, usesGradeCoef, type PaintGrade } from "./labor";
+import { laborForRo } from "./insurers";
 import { loadLabor } from "./labor-store";
 
 export class EstimateError extends UserError {}
@@ -63,7 +64,8 @@ export async function createEstimate(db: Db, actor: Actor, roId: string, now = n
   const damages = await db.select().from(roDamage).where(eq(roDamage.repairOrderId, roId)).orderBy(asc(roDamage.seq));
   const kind: EstimateKind = r.insurance === "self" ? "general" : "insurance";
   const grade: PaintGrade = v.options.includes("paint3") ? "tricoat" : "metallic";
-  const table = await loadLabor(db, seoulDate(now));
+  // 보험 건은 보험사 목록의 계약 시간당 공임(있으면)으로 계산한다
+  const table = await laborForRo(db, roId, now);
   const lines = buildLines(damages, table, grade, kind, c?.partsPref);
   return db.transaction(async (tx) => {
     const docNo = await branchDocNo(tx, "ES", now, r.branchId);
@@ -115,7 +117,7 @@ export async function saveLine(db: Db, actor: Actor, estimateId: string, input: 
   const isPart = input.category === "part";
   if (isPart && !isPartCode(input.partCode)) throw new EstimateError("부품 코드(A·B·C·D·F)를 골라 주세요");
   if (input.qty < 1 || input.qty > 99) throw new EstimateError("수량은 1~99입니다");
-  const t = await loadLabor(db, seoulDate(now));
+  const t = await laborForRo(db, e.repairOrderId, now);
   // 기준표에서 고른 줄은 코드를 남긴다(도장 등급을 바꾸면 다시 계산, 통계). 빈 값이면 손으로 적은 줄
   const code = input.laborCode === undefined ? undefined : !isPart && input.laborCode && t[input.laborCode] != null ? input.laborCode : null;
   const minutes = isPart ? 0 : (input.laborMinutes ?? 0);

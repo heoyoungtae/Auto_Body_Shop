@@ -7,6 +7,7 @@ const ITEMS: { href: string; title: string; body: string; help: PageHelpKey }[] 
   { help: "settings.shop", href: "/settings/shop", title: "사업장 정보", body: "업체명·대표자·사업자등록번호·정비업 등록번호·주소. 법정 견적서·정비명세서에 찍힙니다." },
   { help: "settings.brand", href: "/settings/brand", title: "로고·앱 아이콘", body: "공업사 로고와 앱 아이콘 PNG. 로그인 화면·브라우저 탭·휴대폰 홈 화면 아이콘에 쓰입니다." },
   { help: "settings.labor", href: "/settings/labor", title: "공임 기준표(F-03-01)", body: "시간당 공임, 작업별 표준 시간, 패널당 도장 단가와 도장 등급 계수. 견적이 이 표로 계산됩니다." },
+  { help: "settings.insurers", href: "/settings/insurers", title: "보험사·AOS", body: "보험사·공제조합·렌터카 목록, 보험사별 계약 시간당 공임·부품 할인율·보상 담당자, AOS 사용 여부." },
   { help: "settings.bodyParts", href: "/settings/body-parts", title: "차 부위·세부 부위", body: "차 그림의 부위 안에서 쓰는 세부 부품 이름. 기본 목록에 없는 부품을 더하면 진단 화면 목록에 나옵니다." },
   { help: "settings.branches", href: "/settings/branches", title: "본점·지점", body: "본점과 지점 목록, 직원의 소속 지점과 지점별 역할. 지점이 하나뿐이면 다른 화면은 그대로입니다." },
   { help: "settings.workplaces", href: "/settings/workplaces", title: "작업장", body: "같은 부지 안의 판금동·도장 부스·세차장·창고 목록. 공정 배정·설비 위치·5S 구역이 이 목록을 씁니다." },

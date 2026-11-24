@@ -89,6 +89,7 @@ export const MENU: MenuGroup[] = [
         href: "/claims",
         std: "STD-03.6",
       },
+      { label: "AOS 지급 엑셀 맞추기", perm: ["claim.money"], href: "/claims/aos-paid" },
     ],
   },
   {
@@ -420,6 +421,7 @@ export const MENU: MenuGroup[] = [
       { label: "권한표", perm: ["settings.edit"], href: "/settings/permissions" },
       { label: "로그인 계정", perm: ["account.manage"], href: "/settings/users" },
       { label: "차 부위·세부 부위", perm: ["diag.confirm"], href: "/settings/body-parts" },
+      { label: "보험사·AOS", perm: ["claim.desk", "settings.edit"], href: "/settings/insurers" },
       { section: "바깥 연결", label: "문자 발송 서비스", perm: ["settings.edit"], href: "/settings/messaging" },
       { label: "카카오 알림톡", perm: ["settings.edit"], href: "/settings/kakao" },
       { label: "기프티콘 공급사", perm: ["settings.edit"], href: "/settings/gift" },

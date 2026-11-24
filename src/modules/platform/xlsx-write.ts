@@ -99,7 +99,7 @@ function crc32(b: Buffer) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function zip(files: [string, Buffer][]): Buffer {
+export function zip(files: [string, Buffer][]): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
