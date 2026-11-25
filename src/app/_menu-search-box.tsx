@@ -44,8 +44,11 @@ export function MenuSearch({
   future,
   onWake,
   fav = [],
+  switchedOff = () => false,
   children,
 }: {
+  /** 설정 › 간소화에서 꺼 둔 기능의 화면인가(못 찾은 까닭을 '권한 없음'과 나눠 알린다) */
+  switchedOff?: (i: MenuItem) => boolean;
   /** ★자주 쓰는 메뉴(최근 메뉴보다 앞에 보인다) */
   fav?: string[];
   /** 이 사람에게 보이는 메뉴인가(권한표·역할) */
@@ -101,7 +104,9 @@ export function MenuSearch({
   }, [q, focus, recent, fav, future, allowed]);
   const openable = hits.filter((h) => h.href);
   // 맞는 메뉴는 있지만 권한이 없어 숨긴 경우(못 찾은 까닭을 알려 준다)
-  const hidden = q.trim() && !hits.length && searchMenu(q).some((h) => !allowed(h));
+  const missed = q.trim() && !hits.length ? searchMenu(q) : [];
+  const offHit = missed.some((h) => switchedOff(h));
+  const hidden = !offHit && missed.some((h) => !allowed(h));
   const searching = !!q.trim();
   // 칸만 눌렀을 때: 자주 쓰는 메뉴가 없어도 고르는 법을 알려 주려고 연다
   const listOpen = searching || focus;
@@ -196,7 +201,7 @@ export function MenuSearch({
         <div className="px-2 pt-2">
           {searching && (
             <p className="px-2 pb-1 text-xs text-[var(--muted)]" aria-live="polite">
-              {hits.length || found.length ? `${hits.length + found.length}개 · Enter로 열기` : hidden ? "내 권한으로 열 수 있는 메뉴가 없습니다. 필요하면 대표에게 권한을 요청하세요." : "맞는 메뉴가 없습니다"}
+              {hits.length || found.length ? `${hits.length + found.length}개 · Enter로 열기` : offHit ? "설정 › 간소화에서 꺼 둔 기능입니다. 대표가 다시 켜면 메뉴에 돌아옵니다." : hidden ? "내 권한으로 열 수 있는 메뉴가 없습니다. 필요하면 대표에게 권한을 요청하세요." : "맞는 메뉴가 없습니다"}
             </p>
           )}
           {!searching && !hits.some((h) => h.pin) && (

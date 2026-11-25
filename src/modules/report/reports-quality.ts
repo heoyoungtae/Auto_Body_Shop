@@ -1,4 +1,6 @@
 // 품질보고서: 품질 월보·재작업/부적합 분석·고객 만족/불만/보증·경영검토 입력 자료(ISO 9001 9.3).
+import { hiddenHrefs } from "@/modules/platform/features";
+import { linkHidden } from "@/modules/platform/features-link";
 import { and, eq, gte, isNotNull, lt, lte, ne } from "drizzle-orm";
 import { appUser, auditFinding, complaint, inspection, nonconformance, riskItem, supplierEval, survey, workStep } from "@/db/schema";
 import { CATEGORIES } from "@/modules/cs/rules";
@@ -183,6 +185,8 @@ export const review: Builder = async (c) => {
   const openRisks = risks.filter((r) => r.status !== "closed" && r.status !== "done");
   const sv = await c.db.select({ scores: survey.scores }).from(survey).where(and(gte(survey.answeredAt, start), lte(survey.answeredAt, end)));
   const row = (item: string, v: string | number | null, href: string, std: string): Row => ({ cells: [std, item, v], href });
+  // 설정 › 간소화에서 꺼 둔 기능(품질목표·리스크·개선 제안)의 줄은 뺀다
+  const hidden = await hiddenHrefs(c.db);
   const fv = groupBy(findings, (x) => x.v);
   return {
     kpis: [],
@@ -204,7 +208,7 @@ export const review: Builder = async (c) => {
           row("설비 고장", `${f.failures}건`, "/reports/equipment", "d)"),
           row("사고·아차사고", `${s.accidents}건 · ${s.near}건`, "/reports/safety", "c) 4)"),
           row("개선 제안·채택", `${f.suggestions}건 · ${f.adopted}건`, "/suggestions", "f)"),
-        ],
+        ].filter((r) => !linkHidden(r.href, hidden)),
         total: false,
         note: "경영검토 화면에서 이 기간을 고르고 각 항목의 판단과 조치를 적습니다.",
       },

@@ -7,6 +7,7 @@ import { appUser, competency, staffDocument, staffProfile, training, trainingAtt
 import { can } from "@/modules/auth/permissions";
 import type { Role } from "@/modules/auth/roles";
 import { addDays } from "@/modules/platform/time";
+import { hiddenHrefs, linkHidden } from "@/modules/platform/features";
 import { jdAckStatus, myJobTitles, rulesAckStatus } from "./documents";
 import { JOBS, jobByTitle } from "./job-rules";
 import { SKILLS } from "./rules";
@@ -78,6 +79,11 @@ export async function onboardingOf(db: Db, userId: string): Promise<Onboarding |
     items.push(it("first_level", lv >= 1, `/staff/competency?u=${userId}`, `${names} 현재 ${lv ? `${lv}단계` : "없음"}`));
     items.push(it("solo", lv >= 2, `/staff/competency?u=${userId}`, `${names} 2단계가 되면 혼자 배정됩니다`));
   }
+  // 설정 › 간소화에서 꺼 둔 기능(취업규칙·직무기술서 확인 서명)의 항목은 점검표에서 뺀다. 다시 켜면 돌아온다
+  const hidden = await hiddenHrefs(db);
+  const shown = items.filter((i) => !linkHidden(i.href, hidden));
+  items.length = 0;
+  items.push(...shown);
   const done = items.filter((i) => i.done).length;
   return { userId, name: u.name, hiredOn: u.hiredOn, job: job?.title ?? u.job ?? "", items, done, total: items.length, late: [] };
 }

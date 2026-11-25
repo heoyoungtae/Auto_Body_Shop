@@ -20,6 +20,7 @@ import { CHANNEL_LABEL, INSURANCE_LABEL } from "@/modules/customer/rules";
 import { rangeSummary } from "@/modules/money/close";
 import { customerReceivables, insurerReceivables } from "@/modules/money/receipts";
 import { seoulDate } from "@/modules/platform/time";
+import { featureOff } from "@/modules/platform/features";
 import { computeGoalSpan, spanOf, targetsFor } from "@/modules/quality/goals";
 import { GOAL_KEYS, GOALS, goalOk } from "@/modules/quality/qms-rules";
 import { LINE_CATEGORIES } from "@/modules/repair/estimate-rules";
@@ -67,15 +68,17 @@ export const summary: Builder = async (c) => {
     const iar = (await insurerReceivables(c.db, c.now)).filter((r) => r.days > 30);
     if (iar.length) warn.push({ cells: ["청구 30일 넘은 보험사 미수", iar.length, sum(iar, (r) => r.claimedWon)], href: "/reports/ar", tone: "warn" });
   }
-  // 품질목표 미달
-  const targets = await targetsFor(c.db, Number(c.p.from.slice(0, 4)));
-  const miss: string[] = [];
-  for (const k of GOAL_KEYS) {
-    const v = await computeGoalSpan(c.db, spanOf(c.p.from, c.p.to), k, c.now);
-    if (goalOk(k, v.value, targets[k]) === false) miss.push(GOALS[k].label);
+  // 품질목표 미달(설정 › 간소화에서 품질목표를 꺼 두면 뺀다)
+  if (!(await featureOff(c.db, "goals"))) {
+    const targets = await targetsFor(c.db, Number(c.p.from.slice(0, 4)));
+    const miss: string[] = [];
+    for (const k of GOAL_KEYS) {
+      const v = await computeGoalSpan(c.db, spanOf(c.p.from, c.p.to), k, c.now);
+      if (goalOk(k, v.value, targets[k]) === false) miss.push(GOALS[k].label);
+    }
+    kpis.push(m("goalMiss", "품질목표 미달", "건", miss.length, null, { better: "down", href: "/reports/quality", note: miss.slice(0, 3).join(", ") || undefined, now: false }));
+    if (miss.length) warn.push({ cells: [`품질목표 미달: ${miss.join(", ")}`, miss.length, null], href: "/reports/quality", tone: "danger" });
   }
-  kpis.push(m("goalMiss", "품질목표 미달", "건", miss.length, null, { better: "down", href: "/reports/quality", note: miss.slice(0, 3).join(", ") || undefined, now: false }));
-  if (miss.length) warn.push({ cells: [`품질목표 미달: ${miss.join(", ")}`, miss.length, null], href: "/reports/quality", tone: "danger" });
 
   const [acc, accq] = await both(c, async (p) => {
     const { start, end } = tsRange(p);

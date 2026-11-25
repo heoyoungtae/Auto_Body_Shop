@@ -26,6 +26,8 @@ export type ReportDef = {
   phase?: string;
   /** 왜 아직 안 되는지(흐린 카드에 보임) */
   wait?: string;
+  /** 이 기능(설정 › 간소화 '안 쓰는 기능 끄기')을 끄면 보고서도 숨긴다 */
+  feature?: string;
 };
 
 const R = (d: Omit<ReportDef, "perm"> & { perm?: PermKey }): ReportDef => ({ perm: FAMILIES[d.family].perm, ...d });
@@ -44,10 +46,10 @@ export const REPORTS: ReportDef[] = [
   R({ id: "ap", no: 11, family: "acct", title: "매입채무·지급 예정", desc: "업체별 외상매입금·미지급금 잔액과 지급 예정일", std: "STD-12 12.3" }),
   R({ id: "vat", no: 12, family: "acct", title: "부가세 집계", desc: "매출세액(세금계산서·카드·현금영수증)과 매입세액, 신고 참고용", std: "STD-12" }),
   R({ id: "ledger", no: 13, family: "acct", title: "계정별 원장", desc: "계정별 기간 합계와 그 계정의 전표", std: "STD-12" }),
-  R({ id: "quality", no: 14, family: "quality", title: "품질 월보", desc: "품질목표별 실적·달성 여부, 미달 목표", std: "STD-Q Q.3" }),
+  R({ id: "quality", no: 14, family: "quality", title: "품질 월보", desc: "품질목표별 실적·달성 여부, 미달 목표", std: "STD-Q Q.3", feature: "goals" }),
   R({ id: "rework", no: 15, family: "quality", title: "재작업·부적합 분석", desc: "검사 한 번에 합격률, 재작업, 부적합 원인·출처별, 시정조치 지연", std: "STD-05·Q.9" }),
   R({ id: "customer", no: 16, family: "quality", title: "고객 만족·불만·보증", desc: "설문 점수·응답률, 불만 유형·처리 기간, 보증 수리·보상", std: "STD-06" }),
-  R({ id: "review", no: 17, family: "quality", title: "경영검토 입력 자료", desc: "ISO 9.3 경영검토에 넣을 자료를 기간별로 자동 묶음", std: "STD-Q Q.10" }),
+  R({ id: "review", no: 17, family: "quality", title: "경영검토 입력 자료", desc: "ISO 9.3 경영검토에 넣을 자료를 기간별로 자동 묶음", std: "STD-Q Q.10", feature: "iso_mgmt" }),
   R({ id: "stock", no: 18, family: "stock", title: "재고현황", desc: "기준일의 품목별 수량·금액, 안전재고 미달, 유효기간 임박", std: "STD-07" }),
   R({ id: "stockledger", no: 19, family: "stock", title: "재고 수불부", desc: "기초·입고·출고·조정·기말, 수량과 금액", std: "STD-07" }),
   R({ id: "turnover", no: 20, family: "stock", title: "재고회전율·장기 재고", desc: "회전율·회전일수, 90일 넘게 안 쓴 품목, 재고감모·실사 차이", std: "STD-07" }),
@@ -59,9 +61,12 @@ export const REPORTS: ReportDef[] = [
 
 export const reportById = (id: string) => REPORTS.find((r) => r.id === id);
 
-type Who = { roles: readonly Role[] };
+/** off = 꺼 둔 기능 키(설정 › 간소화). 주면 그 기능의 보고서를 뺀다 */
+type Who = { roles: readonly Role[]; off?: readonly string[] };
+/** 꺼 둔 기능의 보고서인가 */
+export const reportSwitchedOff = (u: Who, r: ReportDef) => !!r.feature && !!u.off?.includes(r.feature);
 /** 이 사람이 볼 수 있는 보고서 */
-export const canReport = (u: Who, r: ReportDef) => can(u, r.perm);
+export const canReport = (u: Who, r: ReportDef) => can(u, r.perm) && !reportSwitchedOff(u, r);
 /** 보고서 센터를 열 수 있나(보고서 하나라도 볼 수 있으면) */
 export const canAnyReport = (u: Who) => REPORTS.some((r) => canReport(u, r));
 /** 보고서 권한 키 전부(메뉴 표시용) */

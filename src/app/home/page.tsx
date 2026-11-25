@@ -4,6 +4,7 @@ import { can } from "@/modules/auth/permissions";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { getDb } from "@/db/runtime";
+import { featuresOff } from "@/modules/platform/features";
 import { inbox, myDrafts } from "@/modules/approval/service";
 import { CHANNEL_LABEL, seoulParts } from "@/modules/customer/rules";
 import {
@@ -77,6 +78,11 @@ export default async function HomePage({
   const ids = panelsFor(user.roles);
   const has = (p: PanelId) => ids.includes(p);
   const punch = await todayRow(db, user.id, seoulDate());
+  // 설정 › 간소화에서 꺼 둔 기능의 줄·칸은 대시보드에서도 뺀다
+  const off = await featuresOff(db);
+  const lubeOff = off.includes("lube_pm");
+  const fiveSOff = off.includes("five_s");
+  const goalsOff = off.includes("goals");
   const [todos, day, todo, mine, notes, intake, due, consents, month] =
     await Promise.all([
       myTodos(db, user),
@@ -158,19 +164,25 @@ export default async function HomePage({
               : []),
             { k: "상담", v: `${kpi.consults}건` },
             { k: "입고·출고", v: `${kpi.intake}·${kpi.delivered}대` },
-            {
-              k: "목표 미달",
-              v: `${kpi.goalMiss}개`,
-              tone: kpi.goalMiss ? "danger" : undefined,
-            },
+            ...(goalsOff
+              ? []
+              : [
+                  {
+                    k: "목표 미달",
+                    v: `${kpi.goalMiss}개`,
+                    tone: kpi.goalMiss ? ("danger" as const) : undefined,
+                  },
+                ]),
           ]}
         />
-        <p className="mt-2 text-xs text-[var(--muted)]">
-          목표 미달은 이번 달 지금까지 기록으로 본 품질목표 지표 수입니다.{" "}
-          <Link href="/qms/goals" className="text-[var(--accent)]">
-            관리표
-          </Link>
-        </p>
+        {!goalsOff && (
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            목표 미달은 이번 달 지금까지 기록으로 본 품질목표 지표 수입니다.{" "}
+            <Link href="/qms/goals" className="text-[var(--accent)]">
+              관리표
+            </Link>
+          </p>
+        )}
       </Card>
     ),
     work: wb && (
@@ -624,9 +636,15 @@ export default async function HomePage({
           <b className={eqBoard.stopped.length ? "text-[var(--danger)]" : ""}>
             {eqBoard.stopped.length}
           </b>
-          대 · 윤활 예정 <b>{eqBoard.lubeDue.length}</b>곳 · 예방정비{" "}
-          <b>{eqBoard.pmDue.length}</b>건
+          대
+          {!lubeOff && (
+            <>
+              {" "}
+              · 윤활 예정 <b>{eqBoard.lubeDue.length}</b>곳 · 예방정비 <b>{eqBoard.pmDue.length}</b>건
+            </>
+          )}
         </p>
+        {!fiveSOff && (
         <p className="mt-1 text-sm">
           이번 달 5S:{" "}
           {fs.zones.some((z) => z.scores[fs.ym]) ? (
@@ -648,6 +666,7 @@ export default async function HomePage({
             <span className="text-[var(--muted)]">아직 평가 전</span>
           )}
         </p>
+        )}
       </Card>
     ),
     notes: (
@@ -720,7 +739,7 @@ export default async function HomePage({
   if (consents && !consents.length) quiet.consent = { href: "/consults", note: "기다리는 고객 없음" };
   if (!todo.length) quiet.todo = { href: "/approvals", note: "처리할 결재 없음" };
   if (ncs && !ncs.length && !qcWait!.some((r) => r.status === "inspecting")) quiet.quality = { href: "/nc", note: "열린 부적합·검사 대기 없음" };
-  if (eqBoard && !eqBoard.unchecked.length && !eqBoard.stopped.length && !eqBoard.lubeDue.length && !eqBoard.pmDue.length) quiet.equipment = { href: "/equipment", note: "오늘 점검 끝" };
+  if (eqBoard && !eqBoard.unchecked.length && !eqBoard.stopped.length && (lubeOff || (!eqBoard.lubeDue.length && !eqBoard.pmDue.length))) quiet.equipment = { href: "/equipment", note: "오늘 점검 끝" };
   if (!notes.length) quiet.notes = { href: "/notifications", note: "새 알림 없음" };
   if (!mine.length) quiet.mine = { href: "/approvals", note: "올린 문서 없음" };
   const shown = ids.filter((id) => !PANELS[id].stage && !quiet[id]);

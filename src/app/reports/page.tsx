@@ -4,6 +4,7 @@ import Link from "next/link";
 import { can } from "@/modules/auth/permissions";
 import { cookies } from "next/headers";
 import { getDb } from "@/db/runtime";
+import { featuresOff } from "@/modules/platform/features";
 import { canAnyReport, FAMILIES, type FamilyId } from "@/modules/report/catalog";
 import { periodOf } from "@/modules/report/period";
 import { runPeek } from "@/modules/report/run";
@@ -25,7 +26,8 @@ const FAMILY_HELP = {
 const toneCls = { ok: "text-[var(--ok)]", danger: "text-[var(--danger)]", neutral: "text-[var(--muted)]" } as const;
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const user = await requireUser();
+  // 설정 › 간소화에서 꺼 둔 기능의 보고서·목록은 뺀다
+  const user = { ...(await requireUser()), off: await featuresOff(await getDb()) };
   if (!canAnyReport(user))
     return (
       <>
@@ -99,7 +101,7 @@ async function FamilyTab({ user, f }: { user: { id: string; roles: import("@/mod
   );
 }
 
-function ListsTab({ user }: { user: { id: string; roles: import("@/modules/auth/roles").Role[] } }) {
+function ListsTab({ user }: { user: { id: string; roles: import("@/modules/auth/roles").Role[]; off?: string[] } }) {
   const lists = listGroups(user);
   return (
     <Card title="대장·전표 현황" help={{ kind: "panel", id: "rep.lists" }}>

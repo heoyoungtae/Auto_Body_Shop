@@ -95,7 +95,14 @@ export default async function SimplifyPage({ searchParams }: { searchParams: Pro
       </ol>
       <div className="mt-4">
         <Card title="안 쓰는 기능 끄기" help={{ kind: "panel", id: "simplify.features" }}>
-          <p className="mb-3 text-sm text-[var(--muted)]">끄면 사이드 메뉴와 메뉴 찾기에서 숨깁니다. 기록은 지우지 않고, 다시 켜면 그대로 돌아옵니다. 법정 서류·수리 흐름에 꼭 필요한 화면은 목록에 없어 끌 수 없습니다.</p>
+          <p className="mb-3 text-sm text-[var(--muted)]">끄면 사이드 메뉴·메뉴 찾기에서 숨기고, 그 기능의 할 일·알림·대시보드 줄·보고서와 자동 발송도 멈춥니다. 기록은 지우지 않고, 다시 켜면 그대로 돌아옵니다. 법정 서류·수리 흐름에 꼭 필요한 화면은 목록에 없어 끌 수 없습니다. &apos;간편 모드에서 끔&apos; 표시는 위 간편 모드 단추를 누르면 함께 꺼집니다.</p>
+          <p className="mb-3 text-sm text-[var(--muted)]">
+            고객용 내 차 수첩은{" "}
+            <Link href="/settings/carbook" className="text-[var(--accent)] hover:underline">
+              설정 › 내 차 수첩
+            </Link>
+            에서 켜고 끕니다.
+          </p>
           <ul className="divide-y divide-[var(--line)] text-sm">
             {FEATURES.map((f) => {
               const on = !off.includes(f.key);
@@ -103,6 +110,7 @@ export default async function SimplifyPage({ searchParams }: { searchParams: Pro
                 <li key={f.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span className="min-w-0 flex-1">
                     <b>{f.title}</b> <Badge tone={on ? "ok" : "neutral"}>{on ? "씀" : "꺼 둠"}</Badge>
+                    {f.simple && <span className="ml-1 text-xs text-[var(--muted)]">간편 모드에서 끔</span>}
                     <span className="block text-xs text-[var(--muted)]">{f.note}</span>
                   </span>
                   {owner && (
