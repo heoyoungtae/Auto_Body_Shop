@@ -14,6 +14,7 @@ import {
 } from "react";
 import type { Role } from "@/modules/auth/roles";
 import { can } from "@/modules/auth/permissions";
+import { linkHidden } from "@/modules/platform/features-link";
 import { MENU, TOP, type MenuItem } from "./_menu";
 import { MenuSearch, rememberRecent } from "./_menu-search-box";
 import { pickActive } from "./_menu-active";
@@ -121,9 +122,10 @@ export function Sidebar({ roles, unread, hidden = [] }: { roles: Role[]; unread:
     }, 50);
     return () => clearTimeout(t);
   }, [current, here]);
-  // 설정 › 간소화 '안 쓰는 기능 끄기'로 숨긴 메뉴는 메뉴·메뉴 찾기에서 뺀다
+  // 설정 › 간소화 '안 쓰는 기능 끄기'로 숨긴 메뉴는 메뉴·메뉴 찾기에서 뺀다. 그 아래 화면(새로 쓰기 등)도 함께
+  const switchedOff = (i: MenuItem) => !!i.href && linkHidden(i.href, hidden);
   const allowed = (i: MenuItem) =>
-    !(i.href && hidden.includes(i.href)) &&
+    !switchedOff(i) &&
     (!i.roles || i.roles.some((r) => roles.includes(r))) &&
     (!i.perm || i.perm.some((k) => can({ roles }, k)));
   const visible = (i: MenuItem) => allowed(i) && (future || i.href);
@@ -167,7 +169,7 @@ export function Sidebar({ roles, unread, hidden = [] }: { roles: Role[]; unread:
           </button>
         </div>
         {/* ★ 자주 쓰는 메뉴는 사이드 메뉴에 따로 두지 않고, 찾기 칸을 누르면 최근에 연 메뉴 위에 나온다(대표 지시 2026-11-23) */}
-        <MenuSearch allowed={allowed} future={future} onWake={wake} fav={fav}>
+        <MenuSearch allowed={allowed} switchedOff={switchedOff} future={future} onWake={wake} fav={fav}>
         <ul className="space-y-0.5 px-2 pt-2 pb-1" data-menu>
           {TOP.filter(allowed).map((i) => (
             <li key={i.label}>

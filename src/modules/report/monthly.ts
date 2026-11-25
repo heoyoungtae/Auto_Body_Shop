@@ -1,5 +1,6 @@
 // 월간 경영보고서(보고서 센터 5단계): 그 달 핵심 숫자(경영 요약·예산 대비·손익·재무상태·현금흐름·채권·채무·재고·품질)를 한 장으로 묶어
 // 회계 담당(또는 대표)이 의견을 붙여 전자결재(MGMT-M)로 올리고 대표가 승인한다. 올린 숫자는 그대로 저장한다(결재받은 숫자가 바뀌지 않게).
+import { featuresOff } from "@/modules/platform/features";
 import { desc, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { approvalDoc, mgmtReport } from "@/db/schema";
@@ -35,10 +36,12 @@ export async function monthlyPack(db: Db, actorId: string, ym: string, now = new
   const p = periodOf("month", `${ym}-01`);
   const q = comparePeriod(p, "prev");
   const out: Section[] = [];
+  const off = await featuresOff(db);
   for (const id of MONTHLY_REPORTS) {
     const def = reportById(id);
     const build = BUILDERS[id];
-    if (!def || def.phase || !build) continue;
+    // 설정 › 간소화에서 꺼 둔 기능의 보고서(품질 월보 등)는 경영보고서에서 뺀다
+    if (!def || def.phase || !build || (def.feature && off.includes(def.feature))) continue;
     try {
       const b = await build({ db, actor: { id: actorId, roles: ["owner"] }, p, q, now, today: seoulDate(now), opt: {} });
       out.push({ id, no: def.no, title: def.title, kpis: b.kpis });

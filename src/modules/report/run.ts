@@ -1,7 +1,9 @@
 // 보고서 실행: 보고서 id → 계산. 화면·엑셀(CSV)이 같은 결과를 쓴다.
 import type { Db } from "@/db/client";
 import { seoulDate } from "@/modules/platform/time";
-import { type ReportDef, canReport, reportById } from "./catalog";
+import { featuresOff, hiddenHrefs } from "@/modules/platform/features";
+import { linkHidden } from "@/modules/platform/features-link";
+import { type ReportDef, canReport, reportById, reportSwitchedOff } from "./catalog";
 import { type Actor, type Builder, type ReportBody, totalRow } from "./kit";
 import { type CompareKind, COMPARE, comparePeriod, type Period, recentPeriods, shortLabel, TREND_COUNT } from "./period";
 import { ap, ar, vat } from "./reports-acct";
@@ -13,7 +15,7 @@ import { bsReport, cashflow, funds, ledger, plReport } from "./reports-books";
 import { budgetReport } from "./reports-plan";
 import type { Unit } from "./service";
 
-export const BUILDERS: Record<string, Builder> = {
+const RAW: Record<string, Builder> = {
   summary,
   sales,
   revenue,
@@ -40,6 +42,19 @@ export const BUILDERS: Record<string, Builder> = {
   equipment: equipmentReport,
 };
 
+/** 설정 › 간소화에서 꺼 둔 기능으로 가는 핵심 숫자(외주 완료, 예방정비 이행률, 품질목표 미달, 통장 실제 잔액 등)는 뺀다.
+ *  표의 줄은 장부 숫자가 섞여 있어 여기서 일괄로 빼지 않고 보고서마다 따로 정한다(경영검토 입력 자료) */
+const withFeatures =
+  (b: Builder): Builder =>
+  async (c) => {
+    const body = await b(c);
+    const hidden = await hiddenHrefs(c.db);
+    if (!hidden.length) return body;
+    return { ...body, kpis: body.kpis.filter((k) => !linkHidden(k.href, hidden)) };
+  };
+
+export const BUILDERS: Record<string, Builder> = Object.fromEntries(Object.entries(RAW).map(([k, b]) => [k, withFeatures(b)]));
+
 export class ReportAccessError extends Error {}
 
 export type RunResult = { def: ReportDef; p: Period; q: Period; cmp: CompareKind; body: ReportBody; trend: { labels: string[]; periods: Period[]; series: { key: string; label: string; unit: Unit; values: number[] }[] } | null };
@@ -48,6 +63,8 @@ export type RunResult = { def: ReportDef; p: Period; q: Period; cmp: CompareKind
 export async function runReport(db: Db, actor: Actor, id: string, p: Period, cmp: CompareKind, now = new Date(), opt: Record<string, string | undefined> = {}): Promise<RunResult> {
   const def = reportById(id);
   if (!def || def.phase || !BUILDERS[id]) throw new ReportAccessError("아직 만들지 않은 보고서입니다");
+  const off = await featuresOff(db);
+  if (reportSwitchedOff({ ...actor, off }, def)) throw new ReportAccessError("설정 › 간소화에서 꺼 둔 기능의 보고서입니다");
   if (!canReport(actor, def)) throw new ReportAccessError("이 보고서를 볼 권한이 없습니다");
   const q = comparePeriod(p, cmp);
   const body = await BUILDERS[id]({ db, actor, p, q, now, today: seoulDate(now), opt });
@@ -74,7 +91,7 @@ export async function runReport(db: Db, actor: Actor, id: string, p: Period, cmp
 /** 보고서 센터 카드 미리보기: 핵심 숫자 앞 2개(추이 계산 없이). 권한 없거나 안 만든 보고서·오류면 빈 목록 */
 export async function runPeek(db: Db, actor: Actor, id: string, p: Period, now = new Date()) {
   const def = reportById(id);
-  if (!def || def.phase || !BUILDERS[id] || !canReport(actor, def)) return [];
+  if (!def || def.phase || !BUILDERS[id] || !canReport({ ...actor, off: await featuresOff(db) }, def)) return [];
   try {
     const body = await BUILDERS[id]({ db, actor, p, q: comparePeriod(p, "prev"), now, today: seoulDate(now) });
     return body.kpis.slice(0, 2);

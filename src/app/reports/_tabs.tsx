@@ -5,9 +5,12 @@ import { MENU } from "@/app/_menu";
 import { can } from "@/modules/auth/permissions";
 import { canReport, FAMILIES, type FamilyId, type ReportDef, REPORTS } from "@/modules/report/catalog";
 import type { Role } from "@/modules/auth/roles";
+import { FEATURES } from "@/modules/platform/features";
+import { linkHidden } from "@/modules/platform/features-link";
 
 export type TabId = FamilyId | "lists";
-type Who = { id: string; roles: Role[] };
+/** off = 꺼 둔 기능 키(설정 › 간소화). 그 기능의 보고서·목록 화면을 뺀다 */
+type Who = { id: string; roles: Role[]; off?: readonly string[] };
 
 /** 탭 이름(짧게) */
 export const TAB_LABEL: Record<TabId, string> = { mgmt: "경영", acct: "회계", quality: "품질", stock: "재고·구매", people: "인사·안전·설비", lists: "대장·전표" };
@@ -17,8 +20,9 @@ export const isTab = (s: unknown): s is TabId => typeof s === "string" && s in T
 
 /** 이 사람이 볼 수 있는 대장·전표 목록 화면(메뉴 묶음별) */
 export function listGroups(user: Who) {
+  const hidden = FEATURES.filter((f) => user.off?.includes(f.key)).flatMap((f) => f.hrefs);
   return MENU.filter((g) => g.id !== "settings" && g.id !== "me")
-    .map((g) => ({ g, items: g.items.filter((i) => i.href && (!i.roles || i.roles.some((r) => user.roles.includes(r))) && (!i.perm || i.perm.some((k) => can(user, k)))) }))
+    .map((g) => ({ g, items: g.items.filter((i) => i.href && !linkHidden(i.href, hidden) && (!i.roles || i.roles.some((r) => user.roles.includes(r))) && (!i.perm || i.perm.some((k) => can(user, k)))) }))
     .filter((x) => x.items.length);
 }
 

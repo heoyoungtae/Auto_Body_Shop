@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { reportSnapshot } from "@/db/schema";
 import { seoulDate } from "@/modules/platform/time";
+import { featuresOff } from "@/modules/platform/features";
 import { REPORTS } from "./catalog";
 import type { Metric } from "./service";
 import type { RTable } from "./kit";
@@ -17,9 +18,11 @@ export async function saveMonthSnapshots(db: Db, actorId: string, ym: string, no
   const p = periodOf("month", `${ym}-01`);
   const q = comparePeriod(p, "prev");
   const saved: string[] = [];
+  const off = await featuresOff(db);
   for (const def of REPORTS) {
     const build = BUILDERS[def.id];
-    if (def.phase || !build) continue;
+    // 설정 › 간소화에서 꺼 둔 기능의 보고서는 저장하지 않는다
+    if (def.phase || !build || (def.feature && off.includes(def.feature))) continue;
     try {
       const b = await build({ db, actor: { id: actorId, roles: ["owner"] }, p, q, now, today: seoulDate(now), opt: {} });
       const body: SavedBody = { kpis: b.kpis, tables: b.tables, notes: b.notes };

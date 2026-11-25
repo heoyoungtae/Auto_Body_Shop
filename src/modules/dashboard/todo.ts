@@ -1,6 +1,6 @@
 // 내 할 일 — 역할과 지금 기록을 보고 '내가 처리해야 할 것'을 판단해 모은다(사용자 지시 2026-11-08).
 // 대시보드(현황)와 달리 하나하나가 처리할 일이고, 누르면 그 일을 하는 화면으로 간다. 따로 입력하는 값은 없다.
-import { hiddenHrefs, linkHidden } from "@/modules/platform/features";
+import { featuresOff, hiddenHrefs, linkHidden, RULES_DUTY_HEADCOUNT, staffHeadcount } from "@/modules/platform/features";
 import type { Db } from "@/db/client";
 import { inbox, myDrafts } from "@/modules/approval/service";
 import type { Role } from "@/modules/auth/roles";
@@ -697,7 +697,8 @@ export async function myTodos(
     ...(await assetTodos(db, user, today)),
     ...(await receiptTodos(db, user, today)),
     ...(await creditTodos(db, user, today)),
-    ...(await portalTodos(db, user)),
+    // 테크베이를 꺼 두면 이미 받은 주문의 '진행 상태 등록'도 멈춘다(수리 건 화면으로 가는 링크라 주소로는 못 거른다)
+    ...((await featuresOff(db)).includes("techbay") ? [] : await portalTodos(db, user)),
     ...(await expenseTodos(db, user, today)),
     ...(await recurringTodos(db, user, today)),
     ...(await bankTodos(db, user, today)),
@@ -769,6 +770,19 @@ export async function myTodos(
         href: "/settings/kakao",
         action: "검수 표시",
       });
+    }
+    // 취업규칙을 꺼 둔 채 직원이 10명이 되면 작성·신고 의무가 생긴다(근로기준법 제93조)
+    if ((await featuresOff(db)).includes("rules")) {
+      const n = await staffHeadcount(db);
+      if (n >= RULES_DUTY_HEADCOUNT)
+        out.push({
+          key: "rules-duty",
+          when: "today",
+          what: `직원이 ${n}명이라 취업규칙 작성·신고 의무가 생겼습니다`,
+          detail: "설정 › 간소화에서 '취업규칙 확인 서명'을 다시 켜고, 직원 확인 서명을 받은 뒤 고용노동부에 신고하세요(근로기준법 제93조)",
+          href: "/settings/simplify",
+          action: "다시 켜기",
+        });
     }
     const missing = shopMissing(await loadShopInfo(db));
     if (missing.length)

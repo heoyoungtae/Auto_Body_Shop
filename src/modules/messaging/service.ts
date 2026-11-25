@@ -1,5 +1,6 @@
 // 문자관리 설정·시험 발송·이력. 비밀 키는 암호화해 저장하고 화면에는 '저장됨' 여부만 돌려준다.
 // 권한(대표) 확인은 화면 계층에서 한다.
+import { featureOff } from "@/modules/platform/features";
 import { APP_NAME } from "@/modules/platform/brand";
 import { desc, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
@@ -778,7 +779,8 @@ export async function sendNotice(
     }
   }
   const kakao = await kakaoOverview(db);
-  const ready = kakao.templates.find((t) => t.key === e.key)?.ready;
+  // 설정 › 간소화에서 카카오 알림톡을 꺼 두면 알림톡을 켜 두었어도 문자로 보낸다
+  const ready = !(await featureOff(db, "kakao")) && kakao.templates.find((t) => t.key === e.key)?.ready;
   const sendKakao = ADAPTERS[p.id].sendKakao;
   let r: { ok: boolean; error?: string };
   let channel: string;

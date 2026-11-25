@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db/runtime";
-import { canReport, FAMILIES, reportById } from "@/modules/report/catalog";
+import { canReport, FAMILIES, reportById, reportSwitchedOff } from "@/modules/report/catalog";
+import { featuresOff } from "@/modules/platform/features";
 import { totalRow } from "@/modules/report/kit";
 import { COMPARE, isCompare, periodFromQuery, PERIOD_KINDS } from "@/modules/report/period";
 import { runReport } from "@/modules/report/run";
@@ -25,10 +26,25 @@ const toneCls = { danger: "text-[var(--danger)]", warn: "text-[var(--warn,#b4530
 export default async function ReportPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ k?: string; at?: string; from?: string; to?: string; c?: string; acct?: string; saved?: string }> }) {
   const { id } = await params;
   const q = await searchParams;
-  const user = await requireUser();
+  const user = { ...(await requireUser()), off: await featuresOff(await getDb()) };
   const def = reportById(id);
   if (!def) notFound();
   const fam = FAMILIES[def.family];
+  if (reportSwitchedOff(user, def))
+    return (
+      <>
+        <PageTitle help="reports.view" sub={def.desc}>
+          {def.no}. {def.title}
+        </PageTitle>
+        <p className="text-sm text-[var(--muted)]">
+          설정 › 간소화에서 꺼 둔 기능의 보고서입니다. 대표가{" "}
+          <Link href="/settings/simplify" className="text-[var(--accent)]">
+            설정 › 간소화
+          </Link>
+          에서 다시 켜면 볼 수 있습니다. 꺼 둔 동안의 기록은 지우지 않았습니다.
+        </p>
+      </>
+    );
   if (!canReport(user, def))
     return (
       <>

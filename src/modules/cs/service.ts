@@ -1,5 +1,6 @@
 // 보증·고객 불만 처리(STD-06 5~7절): 불만 처리부 F-06-02, 만족도 설문 F-06-01
 // 누구나 접수 → 상담원 접수 안내 → 품질 담당 현물 확인·판정 → 상담원 고객 동의 → (보증 수리·보상) → 만족 확인·종결
+import { featureOff } from "@/modules/platform/features";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, notInArray } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { appUser, complaint, customer, nonconformance, repairOrder, repairStatement, survey, vehicle } from "@/db/schema";
@@ -323,6 +324,8 @@ export async function complaintsFor(db: Db, roId: string) {
 
 /** 7.1 출고 뒤 정해진 날 설문 링크 보내기(매일 작업). 2주 넘게 지난 출고는 보내지 않는다 */
 export async function sendDueSurveys(db: Db, now = new Date(), f: typeof fetch = fetch) {
+  // 설정 › 간소화에서 만족도 설문을 꺼 두면 보내지 않는다. 다시 켜도 2주 넘게 지난 출고에는 보내지 않아 한꺼번에 몰리지 않는다
+  if (await featureOff(db, "survey")) return "만족도 설문: 꺼 둠";
   const pol = await loadPolicy(db);
   const d = pol["survey.delay_days"];
   const upto = new Date(now.getTime() - d * 86_400_000);

@@ -1,8 +1,9 @@
 // 5. 손익분기·예산 대비(보고서 센터 5단계). 자동 분개(4단계) 실적을 연간 예산(대표가 연초에 적음)과 견준다.
 // 손익분기: 매출원가는 매출 따라 늘고(변동비), 판관비·영업외 순비용은 매출과 상관없이 나간다(고정비)고 본다. 손익분기 매출 = 고정비 ÷ (1 − 매출원가율).
+import { featureOff } from "@/modules/platform/features";
 import { actualVals, BUDGET_ROWS, type BudgetVals, budgetRange, derived, zeroVals, BUDGET_KEYS } from "@/modules/acct/budget";
 import { buildJournal, type JEntry, sumBy } from "@/modules/acct/journal";
-import { type Builder, type Row, m, pct, round1 } from "./kit";
+import { type Builder, type Row, type RTable, m, pct, round1 } from "./kit";
 
 const ymEnd = (ym: string) => {
   const [y, mo] = ym.split("-").map(Number);
@@ -59,6 +60,13 @@ export const budgetReport: Builder = async (c) => {
   // 진행 중인 기간은 실적이 오늘까지이므로 예산도 오늘까지 날수만큼 견준다
   const running = c.p.from <= c.today && c.today < c.p.to;
   const [bud, budQ] = await Promise.all([budgetFor(c.db, running ? { from: c.p.from, to: c.today } : c.p), budgetFor(c.db, c.q)]);
+  // 설정 › 간소화에서 '연간 예산'을 꺼 두면 손익분기만 보인다(예산 줄·칸·안내를 뺀다)
+  const budOff = await featureOff(c.db, "budget");
+  if (budOff) {
+    bud.has = false;
+    budQ.has = false;
+    bud.byYm.clear();
+  }
   const be = breakEven(a);
   const beQ = breakEven(b);
   const da = derived(a);
@@ -96,13 +104,14 @@ export const budgetReport: Builder = async (c) => {
 
   const notes: string[] = [];
   if (running && bud.has) notes.push(`진행 중인 기간이라 예산도 오늘(${c.today})까지 날수만큼만 견줍니다. 달별 표의 예산은 그 달 전체입니다.`);
-  if (!bud.has) notes.push("이 기간 예산이 없습니다. 돈 › 연간 예산에서 적으면 예산 대비가 나옵니다.");
+  if (!bud.has && !budOff) notes.push("이 기간 예산이 없습니다. 돈 › 연간 예산에서 적으면 예산 대비가 나옵니다.");
+  if (budOff) notes.push("연간 예산을 꺼 두어(설정 › 간소화) 손익분기만 봅니다.");
   notes.push("관리용 계산입니다. 매출원가(부품·도료·소모품·외주)는 매출 따라 늘고, 인건비·임차료·그 밖의 판관비·영업외 순비용은 고정비로 봅니다.");
 
   return {
     kpis: [
-      m("sales", "매출액", "원", a.sales, b.sales, { better: "up", target: target(bud.v.sales), ok: bud.has ? a.sales >= bud.v.sales : null, note: bud.has ? `예산 ${bud.v.sales.toLocaleString("ko-KR")}원` : "예산 없음", href: "/reports/pl" }),
-      m("salesAch", "매출 예산 달성률", "%", bud.has ? round1(pct(a.sales, bud.v.sales)) : null, budQ.has ? round1(pct(b.sales, budQ.v.sales)) : null, { better: "up", target: bud.has ? 100 : undefined, ok: bud.has ? a.sales >= bud.v.sales : null }),
+      m("sales", "매출액", "원", a.sales, b.sales, { better: "up", target: target(bud.v.sales), ok: bud.has ? a.sales >= bud.v.sales : null, note: bud.has ? `예산 ${bud.v.sales.toLocaleString("ko-KR")}원` : budOff ? undefined : "예산 없음", href: "/reports/pl" }),
+      ...(budOff ? [] : [m("salesAch", "매출 예산 달성률", "%", bud.has ? round1(pct(a.sales, bud.v.sales)) : null, budQ.has ? round1(pct(b.sales, budQ.v.sales)) : null, { better: "up", target: bud.has ? 100 : undefined, ok: bud.has ? a.sales >= bud.v.sales : null })]),
       m("op", "영업이익", "원", da.op, dq.op, { better: "up", target: target(dBud.op), ok: bud.has ? da.op >= dBud.op : null }),
       m("fixed", "고정비", "원", be.fixed, beQ.fixed, { better: "down", note: "인건비 + 임차료 + 그 밖의 판관비 + 영업외 순비용" }),
       m("cmPct", "공헌이익률", "%", be.cm == null ? null : round1(be.cm * 100), beQ.cm == null ? null : round1(beQ.cm * 100), { better: "up", note: "1 − 매출원가 ÷ 매출. 매출 1원에 고정비를 갚는 몫" }),
@@ -110,7 +119,7 @@ export const budgetReport: Builder = async (c) => {
       m("bepPct", "손익분기 대비 매출", "%", be.bep ? round1(pct(a.sales, be.bep)) : null, beQ.bep ? round1(pct(b.sales, beQ.bep)) : null, { better: "up", target: 100, ok: be.bep ? a.sales >= be.bep : null, note: "100% 넘으면 이익" }),
     ],
     tables: [
-      {
+      ...(budOff ? [] : [{
         key: "budgetTable",
         title: "예산 대비 실적",
         help: "rep.t.budgetTable",
@@ -118,13 +127,15 @@ export const budgetReport: Builder = async (c) => {
         rows,
         total: false,
         note: bud.has ? "비용 줄은 예산보다 많이 쓰면, 매출·이익 줄은 예산보다 적으면 색이 바뀝니다. 한 주·하루를 보면 그 달 예산을 날수로 나눠 견줍니다." : undefined,
-      },
+      } satisfies RTable]),
       {
         key: "bepMonths",
         title: "달별 손익분기",
         help: "rep.t.bepMonths",
-        cols: [{ label: "달" }, { label: "매출 예산", unit: "원", num: true }, { label: "매출 실적", unit: "원", num: true }, { label: "손익분기 매출", unit: "원", num: true }, { label: "영업이익 예산", unit: "원", num: true }, { label: "영업이익 실적", unit: "원", num: true }],
-        rows: monthRows,
+        cols: budOff
+          ? [{ label: "달" }, { label: "매출 실적", unit: "원", num: true }, { label: "손익분기 매출", unit: "원", num: true }, { label: "영업이익 실적", unit: "원", num: true }]
+          : [{ label: "달" }, { label: "매출 예산", unit: "원", num: true }, { label: "매출 실적", unit: "원", num: true }, { label: "손익분기 매출", unit: "원", num: true }, { label: "영업이익 예산", unit: "원", num: true }, { label: "영업이익 실적", unit: "원", num: true }],
+        rows: budOff ? monthRows.map((r) => ({ ...r, cells: [r.cells[0], r.cells[2], r.cells[3], r.cells[5]] })) : monthRows,
         total: false,
         note: "매출 실적이 손익분기 매출보다 적은 달은 색이 바뀝니다.",
       },

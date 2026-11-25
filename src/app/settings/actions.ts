@@ -9,7 +9,7 @@ import { changeBands, DelegationError, isDelegationTask, type Band } from "@/mod
 import { writeAudit } from "@/modules/platform/audit";
 import { changePolicy } from "@/modules/platform/policy";
 import { applySimplifyMode, setSimple } from "@/modules/platform/simplify";
-import { setFeature } from "@/modules/platform/features";
+import { applyFeatureMode, setFeature } from "@/modules/platform/features";
 import { applyCandidate, dismissCandidate } from "@/modules/money/law-watch";
 import { recordCheck } from "@/modules/platform/policy-check";
 import { isPolicyGroup } from "@/modules/platform/policy-meta";
@@ -51,7 +51,9 @@ export async function simplifyAction(form: FormData) {
       msg = changed ? `${on ? "켰습니다" : "껐습니다"}. 오늘부터 적용됩니다` : "이미 그 값입니다";
     } else if (intent === "simple" || intent === "standard") {
       const n = await applySimplifyMode(db, user.id, intent);
-      msg = n ? `${intent === "simple" ? "간편 모드로" : "표준(전부 기록)으로"} ${n}개 항목을 바꿨습니다` : "이미 그 모드입니다";
+      // 안 쓰는 기능 끄기의 나묶음(간편 모드 권장 6가지)도 함께(대표 결정 2026-11-25)
+      const f = await applyFeatureMode(db, user.id, intent);
+      msg = n || f ? `${intent === "simple" ? "간편 모드로" : "표준(전부 기록)으로"} ${n}개 항목${f ? `과 기능 ${f}가지` : ""}를 바꿨습니다` : "이미 그 모드입니다";
     } else if (intent === "feature") {
       const on = s(form, "on") === "1";
       const changed = await setFeature(db, user.id, s(form, "key"), on);

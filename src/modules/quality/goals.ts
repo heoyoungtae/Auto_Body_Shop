@@ -1,5 +1,6 @@
 // 품질목표 관리표(F-Q-02, 총람 Q.3). 지표는 앱 기록에서 저절로 계산하고(다시 입력하지 않음), 매월 5일 앞달분을 고정한다.
 // 2개월 연속 미달이면 부적합(Q.9)을 저절로 발행한다. 분기마다 대표가 검토 서명한다.
+import { featureOff } from "@/modules/platform/features";
 import { and, eq, gte, inArray, isNotNull, lte, ne } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import {
@@ -493,6 +494,8 @@ export async function snapshotMonth(db: Db, ym: string, now = new Date()) {
 /** 매일 작업: 5일부터 앞달 집계를 고정한다 */
 export async function goalDailyJob(db: Db, now = new Date()) {
   const today = seoulDate(now);
+  // 설정 › 간소화에서 품질목표를 꺼 두면 달마다 고정·부적합 자동 생성을 하지 않는다. 다시 켜면 그다음 달 초부터 지난달을 고정한다
+  if (await featureOff(db, "goals")) return "품질목표: 꺼 둠";
   if (Number(today.slice(8)) < GOAL_SNAPSHOT_DAY) return "품질목표: 5일 전";
   const ym = prevMonth(today.slice(0, 7));
   const r = await snapshotMonth(db, ym, now);
