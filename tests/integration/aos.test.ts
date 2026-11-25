@@ -6,12 +6,14 @@ import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "@/db/client";
 import { estimateLine, repairOrder, vehicle } from "@/db/schema";
+import { aosLinesTotal, importAosEstimate, loadAosEstimate, parseAosEstimate, uploadAosEstimate } from "@/modules/repair/aos-estimate";
+import { createEstimate } from "@/modules/repair/estimate";
 import { applyAosPaid, loadAosUpload, matchAosPaid, parseAosPaid, uploadAosPaid } from "@/modules/repair/aos-paid";
 import { splitClaims, adjustedFromLines } from "@/modules/repair/claim-rules";
 import { addClaimNote, claimTodos, claimView, markAos, markRequested, saveClaimInfo, saveScope, submitClaim } from "@/modules/repair/claims";
 import { getEstimate } from "@/modules/repair/estimate";
 import { insurerByName, laborForRo, saveInsurer, setAosEnabled } from "@/modules/repair/insurers";
-import { approvedRepair } from "./flow";
+import { approvedRepair, estimating } from "./flow";
 import { seedShop, testDb } from "./db";
 
 beforeAll(() => {
@@ -53,6 +55,13 @@ describe("AOS 지급 엑셀 읽기", () => {
       [4, "", "34나5678", 500_000, "2026-11-08", ""],
     ]);
     expect(() => parseAosPaid([["이름", "금액"]])).toThrow(/제목 줄/);
+    // AOS '보험청구현황' 엑셀 모양(실제 표본): 청구·지급 칸이 함께 있고 지급 전인 줄은 지급금액이 비어 있다
+    const status = parseAosPaid([
+      ["번호", "작성일자", "보험사", "접수번호", "담보", "담당자", "차량번호", "차량명", "소유자", "청구금액", "청구일자", "지급금액", "승인율", "지급일자", "상태"],
+      [1, "2026-11-19", "삼성", "20261102-02167", "자차", "신중구", "160오5153", "V60", "", 1391493, "2026-11-23", 1177860, "84.65%", "2026-11-24", "종결"],
+      [2, "2026-10-01", "DB", "202608902651", "대물", "김병관", "207우5447", "그랜저", "이규현", 1298548, "2026-10-26", null, null, null, "종결"],
+    ]);
+    expect(status.map((r) => [r.claimNo, r.plate, r.paidWon, r.paidOn])).toEqual([["20261102-02167", "160오5153", 1_177_860, "2026-11-24"]]);
   });
 });
 
@@ -131,5 +140,64 @@ describe("보험 청구 AOS 1·2묶음", () => {
     await db.update(repairOrder).set({ insurance: "own", insurer: ins.name }).where(eq(repairOrder.id, roId));
     const t = await laborForRo(db, roId, now);
     expect([t.RATE, t._insurerRate]).toEqual([41_000, 41_000]);
+  });
+});
+
+// AOS 견적서(내역서) 엑셀 모양(대표가 올린 실제 표본에서 따옴: 제목 줄이 쪽마다 되풀이되고, 도장 줄의 부품가격은 재료비)
+const AOS_EST = [
+  ["보험 수리비 견적서(내역서)"],
+  ["보험사명", "", "", "렌터카공제", "", "", "", "공장상호", "제이모터스"],
+  ["접수번호", "", "", "2611220286"],
+  ["차량번호", "", "", "128주5131", "", "", "", "탈부착 M/H", "", "", "", "", "36000"],
+  ["소 계", "1018000"],
+  ["No", "", "작업항목 및 부품명", "", "", "", "", "", "", "", "작업", "", "", "H.Q %", "", "", "", "", "", "", "부품코드", "", "", "", "부품가격", "", "", "공 임", "", "", "비고"].map((c, i) => (i === 27 ? "공임" : c)),
+  [1, "", "프런트범퍼커버", "", "", "", "", "", "", "", "탈착", "", "", 0.69, "", "", "", "", "", "", "", "", "", "", "", "", "", 24840],
+  [2, "", "프런트범퍼커버", "", "", "", "", "", "", "", "수리", "", "", 2.5, "", "", "", "", "", "", "", "", "", "", "", "", "", 90000],
+  [3, "U", "하단및 가니시류 재사용", "", "", "", "", "", "", "", "", "", "", 1, "", "", "", "", "", "", "", "", "", "", 80000, "", "", 0],
+  ["이 내역서의 부품가격은 참고가격이므로 확인하시기 바랍니다."],
+  ["No", "", "작업항목 및 부품명", "", "", "", "", "", "", "", "작업", "", "", "H.Q %", "", "", "", "", "", "", "부품코드", "", "", "", "부품가격", "", "", "공임", "", "", "비고"],
+  [4, "", "프런트범퍼(어퍼) 표면보수", "", "", "", "", "", "", "", "도장", "", "", 1.84, "", "", "", "", "", "", "", "", "", "", 60300, "", "", 66240],
+  [5, "", "가열건조비", "", "", "", "", "", "", "", "도장", "", "", 1, "", "", "", "", "", "", "", "", "", "", "", "", "", 15869],
+  [6, "", "빈 줄", "", "", "", "", "", "", "", "", "", "", 1],
+];
+const AOS_EST_TOTAL = 24840 + 90000 + 80000 + 60300 + 66240 + 15869;
+
+describe("AOS 견적서 엑셀", () => {
+  it("줄을 읽는다: 공임은 시간·금액 그대로, 부품은 부품번호·단가, 도장 재료비는 따로", () => {
+    const grid = AOS_EST.map((r) => r.map((c) => (c === "" ? null : (c as string | number))));
+    grid[4] = ["소 계", AOS_EST_TOTAL]; // 소계 라벨 오른쪽 첫 숫자
+    const r = parseAosEstimate(grid, "견적.xls");
+    expect(r.head).toMatchObject({ insurer: "렌터카공제", claimNo: "2611220286", plate: "128주5131", rateWon: 36_000, subtotal: AOS_EST_TOTAL });
+    expect(r.lines.map((l) => [l.category, l.name, l.unitWon, l.laborMinutes, l.laborWon])).toEqual([
+      ["detach", "프런트범퍼커버 탈착", 0, 41, 24_840],
+      ["sheet", "프런트범퍼커버 수리", 0, 150, 90_000],
+      ["part", "하단및 가니시류 재사용", 80_000, 0, 0],
+      ["paint", "프런트범퍼(어퍼) 표면보수 도장", 0, 110, 66_240],
+      ["etc", "프런트범퍼(어퍼) 표면보수 재료비", 0, 0, 60_300],
+      ["paint", "가열건조비 도장", 0, 60, 15_869],
+    ]);
+    expect(r.skipped).toHaveLength(1);
+    expect(aosLinesTotal(r.lines)).toBe(AOS_EST_TOTAL);
+    expect(() => parseAosEstimate([["이름", "금액"]])).toThrow(/견적서/);
+  });
+
+  it("올린 줄을 견적 초안에 더하고, 본인 것만 한 번 넣는다", async () => {
+    const advisor = { id: ids.advisor, roles: ["advisor" as const] };
+    const roId = await estimating(db, ids, now);
+    const { id } = await createEstimate(db, advisor, roId, now);
+    const before = (await getEstimate(db, id)).lines.length;
+    const csv = AOS_EST.map((r) => r.map((c) => String(c)).join(",")).join("\n");
+    await expect(importAosEstimate(db, advisor, id, now)).rejects.toThrow(/올려/);
+    expect(await uploadAosEstimate(db, advisor, id, { bytes: new TextEncoder().encode(csv), fileName: "견적.csv" }, now)).toBe(6);
+    expect((await loadAosEstimate(db, advisor.id, id))?.lines).toHaveLength(6);
+    expect(await loadAosEstimate(db, ids.manager, id)).toBeNull();
+    const r = await importAosEstimate(db, advisor, id, now);
+    expect(r).toMatchObject({ added: 6, before, total: AOS_EST_TOTAL });
+    const e = await getEstimate(db, id);
+    expect(e.lines).toHaveLength(before + 6);
+    const paint = e.lines.find((l) => l.name === "가열건조비 도장")!;
+    expect([paint.category, paint.laborWon]).toEqual(["paint", 15_869]);
+    expect(e.lines.find((l) => l.name === "하단및 가니시류 재사용")).toMatchObject({ category: "part", partCode: "A", unitWon: 80_000 });
+    expect(await loadAosEstimate(db, advisor.id, id)).toBeNull();
   });
 });

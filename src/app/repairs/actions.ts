@@ -6,6 +6,7 @@ import { getDb } from "@/db/runtime";
 import { addDamagePhoto, addPhoto, confirmDiagnosis, removeDamagePhoto, removeDamage, removePhoto, reopenDiagnosis, reopenIntake, saveDamage, saveIntake, signIntake, startRepair, TechbayCheckNeeded, type DamageInput, type IntakeInput } from "@/modules/repair/service";
 import { parseCells } from "@/modules/repair/body-map";
 import { createEstimate, issueEstimate, removeLine, reviewEstimate, saveEstimateHeader, saveLine, submitEstimate } from "@/modules/repair/estimate";
+import { clearAosEstimate, importAosEstimate, uploadAosEstimate } from "@/modules/repair/aos-estimate";
 import { approveInStore, recordInsurerApproval, sendApprovalLink } from "@/modules/repair/estimate-approval";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
@@ -265,7 +266,18 @@ export async function estimateAction(form: FormData) {
     if (intent === "header") await saveEstimateHeader(db, user, id, { kind: s("kind"), paintGrade: s("paintGrade"), dueDate: s("dueDate"), note: s("note"), registeredOn: s("registeredOn") });
     else if (intent === "line")
       await saveLine(db, user, id, { id: s("lineId") || undefined, payer: s("payer"), category: s("category"), name: s("name"), partCode: s("partCode"), partNo: s("partNo"), qty: n("qty") ?? 1, unitWon: n("unitWon") ?? 0, laborMinutes: n("laborMinutes"), laborWon: n("laborWon"), note: s("lineNote"), laborCode: form.has("laborCode") ? s("laborCode") : undefined });
-    else if (intent === "removeLine") {
+    else if (intent === "aosUpload") {
+      const f = form.get("file");
+      if (!(f instanceof File) || !f.size) throw new UserError("올릴 AOS 견적서 엑셀을 골라 주세요");
+      const n = await uploadAosEstimate(db, user, id, { bytes: new Uint8Array(await f.arrayBuffer()), fileName: f.name });
+      msg = `${f.name}에서 ${n}줄을 읽었습니다. 아래 '견적 내용' 위의 확인 칸에서 맞는지 보고 '견적에 넣기'를 누르세요`;
+    } else if (intent === "aosImport") {
+      const r = await importAosEstimate(db, user, id);
+      msg = `AOS 견적서 ${r.added}줄(합계 ${r.total.toLocaleString("ko-KR")}원, 부가세 별도)을 견적에 넣었습니다. 부품 구분(A·B·C·D·F)을 확인해 주세요`;
+    } else if (intent === "aosClear") {
+      await clearAosEstimate(db, user);
+      msg = "올린 AOS 견적서를 지웠습니다";
+    } else if (intent === "removeLine") {
       await removeLine(db, user, id, s("lineId"));
       msg = "항목을 지웠습니다";
     } else if (intent === "submit") {
