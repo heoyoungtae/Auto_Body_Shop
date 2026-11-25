@@ -7,6 +7,9 @@ import { rolesOf } from "@/modules/approval/line";
 import { ROLE_LABEL } from "@/modules/auth/roles";
 import { shopMissing } from "@/modules/platform/shop";
 import { getEstimate } from "@/modules/repair/estimate";
+import { aosLinesTotal, loadAosEstimate } from "@/modules/repair/aos-estimate";
+import { aosEnabled } from "@/modules/repair/insurers";
+import { SheetFile } from "../../../../money/bank/sheet-file";
 import { listDamage, listDamagePhotos } from "@/modules/repair/service";
 import { EstimateMap } from "../../../estimate-map";
 import { carOf } from "@/modules/repair/body-map";
@@ -111,6 +114,7 @@ function Approval({ e, roId, canWrite, today, zones }: { e: Est; roId: string; c
 }
 
 const opts = (o: Record<string, string>) => Object.entries(o).map(([value, label]) => ({ value, label }));
+const wonT = (n: number | null | undefined) => (n == null ? "—" : `${n.toLocaleString("ko-KR")}원`);
 const won = (n: number) => n.toLocaleString("ko-KR");
 type Line = Awaited<ReturnType<typeof getEstimate>>["lines"][number];
 
@@ -180,6 +184,8 @@ export default async function EstimatePage({ params, searchParams }: { params: P
   const reviewer = await resolveApprover(db, "estimate", e.totalWon, e.createdBy ? await rolesOf(db, e.createdBy) : []);
   const canReview = e.status === "review" && (user.roles.includes(reviewer) || user.roles.includes("owner"));
   const missingShop = shopMissing(shop);
+  const aosOn = draft && (await aosEnabled(db));
+  const aosUp = aosOn ? await loadAosEstimate(db, user.id, eid) : null;
   const pick = draft ? await pickList(db, e.paintGrade as PaintGrade) : { items: [], rate: 0 };
   const v = e.vehicle;
   const today = seoulDate();
@@ -242,6 +248,65 @@ export default async function EstimatePage({ params, searchParams }: { params: P
             )}
           </Card>
 
+          {aosOn && (
+            <Card title="AOS 견적서 엑셀로 채우기" help={{ kind: "panel", id: "est.aos" }}>
+              {aosUp ? (
+                <div className="space-y-3">
+                  <p className="text-sm">
+                    {aosUp.fileName} · {aosUp.lines.length}줄 · 합계 {wonT(aosLinesTotal(aosUp.lines))}(부가세 별도)
+                    {aosUp.head.subtotal != null && (aosUp.head.subtotal === aosLinesTotal(aosUp.lines) ? <Badge tone="ok">AOS 소계와 같음</Badge> : <Badge tone="warn">AOS 소계 {wonT(aosUp.head.subtotal)}와 다름</Badge>)}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    AOS 접수번호 {aosUp.head.claimNo || "—"} {aosUp.head.claimNo && aosUp.head.claimNo !== e.ro.claimNo && "(수리 건의 접수번호와 다름)"} · 차량 {aosUp.head.plate || "—"} {aosUp.head.plate && aosUp.head.plate !== v.plateNo.replace(/\s/g, "") && "(이 수리 건의 차량번호와 다름)"} · AOS 시간당 공임 {wonT(aosUp.head.rateWon)}
+                  </p>
+                  <div className="max-h-72 overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-xs text-[var(--muted)]">
+                        <tr>
+                          <th className="py-1 pr-2">구분</th>
+                          <th className="py-1 pr-2">항목</th>
+                          <th className="py-1 pr-2 text-right">부품</th>
+                          <th className="py-1 pr-2 text-right">공임</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--line)]">
+                        {aosUp.lines.map((l, i) => (
+                          <tr key={i}>
+                            <td className="py-1 pr-2">{LINE_CATEGORIES[l.category]}</td>
+                            <td className="py-1 pr-2">
+                              {l.name}
+                              {l.partNo && <span className="ml-1 text-xs text-[var(--muted)]">{l.partNo}</span>}
+                            </td>
+                            <td className="py-1 pr-2 text-right tabular-nums">{l.unitWon ? wonT(l.qty * l.unitWon) : ""}</td>
+                            <td className="py-1 pr-2 text-right tabular-nums">{l.laborWon ? wonT(l.laborWon) : ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {e.lines.length > 0 && <p className="text-xs text-[var(--warn)]">이 견적에는 이미 {e.lines.length}줄이 있습니다. 넣으면 그 뒤에 더해지니, 같은 일을 두 번 적지 않게 확인해 주세요.</p>}
+                  {aosUp.skipped.length > 0 && <p className="text-xs text-[var(--muted)]">건너뛴 줄: {aosUp.skipped.join(" / ")}</p>}
+                  <div className="flex flex-wrap gap-2">
+                    <form action={estimateAction}>
+                      <Hidden roId={roId} id={eid} intent="aosImport" />
+                      <SubmitButton>견적에 넣기</SubmitButton>
+                    </form>
+                    <form action={estimateAction}>
+                      <Hidden roId={roId} id={eid} intent="aosClear" />
+                      <SubmitButton variant="secondary">올린 파일 지우기</SubmitButton>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                <AssistForm id={`est-aos-${eid}`} action={estimateAction} className="space-y-3" guard={false}>
+                  <Hidden roId={roId} id={eid} intent="aosUpload" />
+                  <SheetFile help="aosEst.file" />
+                  <p className="text-xs text-[var(--muted)]">AOS 견적서(내역서) 화면에서 엑셀로 저장한 파일을 올리면 탈착·판금·도장 공임, 부품, 도장 재료비를 읽어 견적 줄로 넣습니다. AOS가 낸 금액 그대로입니다.</p>
+                  <SubmitButton>올려서 읽어 보기</SubmitButton>
+                </AssistForm>
+              )}
+            </Card>
+          )}
           <Card title="견적 내용" help={{ kind: "panel", id: "est.lines" }}>
             <EstimateMap damages={damages} photos={damagePhotos} scope={`est-lines-${e.id}`} car={carOf(e.vehicle)} />
             <div className="overflow-x-auto" id={`est-lines-${e.id}`}>
