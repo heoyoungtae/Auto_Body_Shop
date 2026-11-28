@@ -5,8 +5,9 @@ import { can } from "@/modules/auth/permissions";
 import { seoulDate } from "@/modules/platform/time";
 import { BANKS, maskAccount } from "@/modules/purchase/rules";
 import { loadPolicy } from "@/modules/platform/policy";
+import { payLimits } from "@/modules/help/pay-items";
 import { getRun, withholdingSummary } from "@/modules/staff/payroll";
-import { RUN_STATUS, type RunStatus } from "@/modules/staff/payroll-rules";
+import { ALLOWANCE_TF, allowanceTf, EXTRA_TF, RUN_STATUS, type AllowanceTf, type RunStatus } from "@/modules/staff/payroll-rules";
 import { AssistForm } from "../../_assist";
 import { CheckGroup, DateField, SelectField, TextField } from "../../_input";
 import { requireUser } from "../../_lib/session";
@@ -124,7 +125,7 @@ export default async function PayrollRunPage({
                       {d.bank.holder}
                     </p>
                   )}
-                  <SlipLines d={d} />
+                  <SlipLines d={d} limits={payLimits(pol)} />
                   <EmployerLines d={d} />
                   <Link
                     href={`/payroll/slip/${s.id}`}
@@ -197,6 +198,21 @@ export default async function PayrollRunPage({
                         ]}
                         defaultChecked={d.production ? ["1"] : []}
                       />
+                      {(() => {
+                        const kinds = [...new Set(d.pays.filter((p) => p.code.startsWith("fix:")).map((p) => allowanceTf(p.name)).filter((k): k is AllowanceTf => !!k))];
+                        if (!kinds.length) return null;
+                        return (
+                          <div className="md:col-span-2">
+                            <CheckGroup
+                              help="pay.tfOk"
+                              name="tfOk"
+                              options={kinds.map((k) => ({ value: k, label: `${ALLOWANCE_TF[k].label}: ${ALLOWANCE_TF[k].ok}` }))}
+                              defaultChecked={d.tfOk ?? []}
+                            />
+                            <input type="hidden" name="tfOkShown" value="1" />
+                          </div>
+                        );
+                      })()}
                       <TextField
                         help="pay.bank"
                         name="payBank"
@@ -243,10 +259,11 @@ export default async function PayrollRunPage({
                             <SelectField
                               help="pay.extraKind"
                               name={`extraKind${i}`}
-                              defaultValue={e?.kind ?? "pay"}
+                              defaultValue={e ? (e.kind === "pay" && (e.tf || e.taxable === false) ? `tf:${e.tf ?? "other"}` : e.kind) : "pay"}
                               options={[
-                                { value: "pay", label: "기타 지급" },
+                                { value: "pay", label: "기타 지급(과세)" },
                                 { value: "deduct", label: "기타 공제" },
+                                ...Object.entries(EXTRA_TF).map(([k, v]) => ({ value: `tf:${k}`, label: `비과세: ${v.label}` })),
                               ]}
                             />
                             <TextField
@@ -258,6 +275,10 @@ export default async function PayrollRunPage({
                                 "포상금",
                                 "지난달 정산",
                                 "가불 공제",
+                                "출산지원금",
+                                "결혼 축하금",
+                                "숙직비",
+                                "출장 여비",
                               ].map((v) => ({ value: v }))}
                             />
                             <TextField

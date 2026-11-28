@@ -642,6 +642,27 @@ export const DEFAULT_POLICY = {
     clause: "11.5",
     min: 0,
   },
+  "tax.ot_exempt_prev_gross": {
+    value: 37_000_000,
+    unit: "원(직전 연도 총급여, 이하)",
+    label: "생산직 연장수당 비과세 직전 연도 총급여 기준",
+    clause: "11.5",
+    min: 0,
+  },
+  "tax.group_ins_exempt": {
+    value: 700_000,
+    unit: "원(연)",
+    label: "단체 보장성보험료 비과세 연 한도",
+    clause: "11.5",
+    min: 0,
+  },
+  "tax.discount_exempt": {
+    value: 2_400_000,
+    unit: "원(연)",
+    label: "직원 할인 비과세 연 한도",
+    clause: "11.5",
+    min: 0,
+  },
   "ins.durunuri_pay_cap": {
     value: 2_700_000,
     unit: "원(월 보수, 미만)",

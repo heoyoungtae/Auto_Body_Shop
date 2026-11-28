@@ -34,8 +34,12 @@ import {
   monthRange,
   payDateFor,
   summarizeAttendance,
+  ALLOWANCE_TF,
+  isExtraTf,
+  type AllowanceTf,
   type AttLeave,
   type Extra,
+  type TfUsed,
   type PayBank,
   type PayPolicy,
   type SlipData,
@@ -79,6 +83,9 @@ export async function payPolicy(db: Db, on: string): Promise<PayPolicy> {
     childcareExempt: p["tax.childcare_exempt"],
     otExemptPayCap: p["tax.ot_exempt_pay_cap"],
     otExemptAnnual: p["tax.ot_exempt_annual"],
+    otExemptPrevGross: p["tax.ot_exempt_prev_gross"],
+    groupInsExempt: p["tax.group_ins_exempt"],
+    discountExempt: p["tax.discount_exempt"],
     employmentEmployerRate: p["ins.employment_employer_rate"],
     accidentRate: p["ins.accident_rate"],
     taxTable: {
@@ -188,23 +195,37 @@ type Kept = {
   extras: Extra[];
   production: boolean;
   bank: PayBank | null;
+  tfOk?: AllowanceTf[];
 };
 
-/** 같은 해 앞 달 급여대장에서 생산직 연장수당 비과세로 본 금액(사람별) */
-async function otTaxfreeUsed(db: Db, ym: string) {
-  const runs = await db.select().from(payrollRun);
-  const ids = runs
-    .filter((r) => r.ym.slice(0, 4) === ym.slice(0, 4) && r.ym < ym)
-    .map((r) => r.id);
-  const used = new Map<string, number>();
-  if (!ids.length) return used;
-  const rows = await db.select().from(payslip).where(inArray(payslip.runId, ids));
+/**
+ * 앞 달 급여대장에서 사람별로 모은 값: 같은 해 생산직 연장수당 비과세·단체보험·직원 할인 비과세(연 한도),
+ * 그동안 준 출산지원금 횟수, 지난해 총급여(비과세 뺌, 생산직 비과세 직전 연도 총급여 조건)
+ */
+async function taxfreeUsed(db: Db, ym: string) {
+  const year = ym.slice(0, 4);
+  const lastYear = String(Number(year) - 1);
+  const runs = (await db.select().from(payrollRun)).filter((r) => r.ym < ym);
+  const yearOf = new Map(runs.map((r) => [r.id, r.ym.slice(0, 4)]));
+  const ot = new Map<string, number>();
+  const tf = new Map<string, TfUsed>();
+  const prevGross = new Map<string, number>();
+  if (!runs.length) return { ot, tf, prevGross };
+  const rows = await db.select().from(payslip).where(inArray(payslip.runId, runs.map((r) => r.id)));
   for (const r of rows) {
     const d = readSlip(r.dataEnc);
-    if (d.otTaxfree)
-      used.set(r.userId, (used.get(r.userId) ?? 0) + d.otTaxfree);
+    const y = yearOf.get(r.runId);
+    const u = tf.get(r.userId) ?? {};
+    u.birthCount = (u.birthCount ?? 0) + d.extras.filter((e) => e.kind === "pay" && e.tf === "birth").length;
+    if (y === year) {
+      if (d.otTaxfree) ot.set(r.userId, (ot.get(r.userId) ?? 0) + d.otTaxfree);
+      u.groupIns = (u.groupIns ?? 0) + (d.tfExtra?.groupIns ?? 0);
+      u.discount = (u.discount ?? 0) + (d.tfExtra?.discount ?? 0);
+    }
+    tf.set(r.userId, u);
+    if (y === lastYear) prevGross.set(r.userId, (prevGross.get(r.userId) ?? 0) + Math.max(0, d.gross - d.taxfree));
   }
-  return used;
+  return { ot, tf, prevGross };
 }
 
 async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
@@ -214,7 +235,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
   const { done, pending } = await monthLeaves(db, ym);
   const actual = await actualDays(db, m.from, m.to);
   const last = await lastSlips(db, ym);
-  const used = await otTaxfreeUsed(db, ym);
+  const used = await taxfreeUsed(db, ym);
   const targets = await payrollTargets(db, ym);
   const slips: { userId: string; data: SlipData }[] = [];
   const skipped: string[] = [];
@@ -254,6 +275,7 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
       extras: [],
       production: prev?.production ?? false,
       bank: prev?.bank ?? null,
+      tfOk: prev?.tfOk,
     };
     const data = computeSlip({
       name: u.name,
@@ -264,7 +286,9 @@ async function computeAll(db: Db, ym: string, kept: Map<string, Kept>) {
       att,
       pol,
       ...k,
-      otTaxfreeUsed: used.get(u.id) ?? 0,
+      otTaxfreeUsed: used.ot.get(u.id) ?? 0,
+      tfUsed: used.tf.get(u.id),
+      prevYearGross: used.prevGross.get(u.id) ?? null,
       prevFixedOt: prev?.fixedOt ?? null,
       leavePay: await leavePayFor(db, u.id, m, u.leftOn),
     });
@@ -389,6 +413,7 @@ async function keptOf(db: Db, runId: string) {
           extras: d.extras,
           production: d.production ?? false,
           bank: d.bank ?? null,
+          tfOk: d.tfOk,
         },
       ];
     }),
@@ -458,6 +483,8 @@ export async function setSlipInputs(
     withholdRate?: number;
     extras: Extra[];
     production?: boolean;
+    /** 비과세 조건을 확인한 고정 수당 종류(식대·자가운전·보육) */
+    tfOk?: AllowanceTf[];
     /** 급여 계좌. 계좌번호가 비면 전에 넣은 번호를 그대로 둔다. 은행이 비면 지운다 */
     bank?: { name: string; account: string; holder: string };
   },
@@ -497,7 +524,7 @@ export async function setSlipInputs(
       name: e.name.trim(),
       amount: e.amount,
       reason: e.reason.trim(),
-      taxable: e.taxable !== false,
+      ...(e.kind !== "deduct" && e.tf && isExtraTf(e.tf) ? { tf: e.tf, taxable: false } : { taxable: e.taxable !== false }),
     });
   }
   const d = readSlip(s.dataEnc);
@@ -530,6 +557,7 @@ export async function setSlipInputs(
         extras,
         production: input.production ?? d.production ?? false,
         bank,
+        tfOk: input.tfOk ? input.tfOk.filter((k) => k in ALLOWANCE_TF) : d.tfOk,
       },
     ],
   ]);

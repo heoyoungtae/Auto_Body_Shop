@@ -20,8 +20,48 @@ export type Extra = {
   name: string;
   amount: number;
   reason: string;
+  /** false = 비과세(예전 자료·기타). tf 가 있으면 그 종류의 한도·조건을 따른다 */
   taxable?: boolean;
+  /** 법에 정한 비과세 종류(기타 지급만) */
+  tf?: ExtraTf;
 };
+
+/**
+ * 고정 수당의 비과세 종류(소득세법 제12조 제3호, 시행령 제12조·제17조의2). 이름으로 고른다.
+ * 조건(식사 현물 제공 없음 등)은 급여 화면에서 사람별로 확인(tfOk)해야 비과세로 본다.
+ */
+export const ALLOWANCE_TF = {
+  meal: { label: "식대", ok: "회사가 식사를 현물로 주지 않습니다(점심을 주면 식대는 과세)" },
+  car: { label: "자가운전보조금", ok: "직원 본인(배우자 공동) 명의 차를 직접 운전해 업무에 쓰고, 그 출장 교통비는 따로 받지 않습니다" },
+  childcare: { label: "출산·보육수당", ok: "직원(배우자)이 출산했거나 6세 이하 자녀가 있습니다(자녀 수와 상관없이 1명당 월 한도)" },
+} as const;
+export type AllowanceTf = keyof typeof ALLOWANCE_TF;
+/** 수당 이름으로 비과세 종류를 고른다. 교통비·차량 없는 직원의 차량비는 과세(자가운전 조건이 안 맞음) */
+export function allowanceTf(name: string): AllowanceTf | null {
+  if (/식대|식비|중식|석식|점심/.test(name)) return "meal";
+  if (/자가운전|차량|유류/.test(name)) return "car";
+  if (/보육|출산|육아/.test(name)) return "childcare";
+  return null;
+}
+
+/**
+ * 기타 지급의 비과세 종류. cap = 정책값 연 한도 키, inKind = 현물(돈으로 주지 않음 → 같은 금액을 공제 줄로 빼 실수령은 그대로)
+ * 근거: 소득세법 제12조 제3호(출산지원금·단체보험·종업원 할인), 시행령 제12조(실비변상: 숙직료·여비), 시행규칙 제10조(경조금)
+ */
+export const EXTRA_TF = {
+  birth: { label: "출산지원금(전액 비과세)", note: "자녀 출생일 뒤 2년 안, 같은 출산에 2번까지. 대표의 친족인 직원은 해당 없음" },
+  condolence: { label: "직원 경조금(사회통념 범위)", note: "경조금 기준표 안의 금액" },
+  duty: { label: "숙직·일직료(실비)", note: "사규로 정한 실비 범위만" },
+  travel: { label: "출장 여비(실비 정산)", note: "업무 출장의 교통·숙박비를 영수증·사규로 정산한 금액. 출퇴근 교통비는 과세" },
+  groupIns: { label: "단체 보장성보험료(현물, 연 한도)", note: "직원이 보험금 받는 단체 보장성보험의 회사 납부액", inKind: true },
+  discount: { label: "직원 할인(현물, 연 한도)", note: "직원 차를 할인해 고쳐 준 금액. 시가의 20%와 연 한도 중 큰 금액까지", inKind: true },
+  other: { label: "기타 비과세", note: "법에 정한 비과세인지 세무사에게 확인" },
+} as const;
+export type ExtraTf = keyof typeof EXTRA_TF;
+export const isExtraTf = (s: string): s is ExtraTf => s in EXTRA_TF;
+
+/** 같은 해 앞 달까지 비과세로 본 금액(연 한도용)과 그동안 준 출산지원금 횟수 */
+export type TfUsed = { groupIns?: number; discount?: number; birthCount?: number };
 export type PayBank = { name: string; account: string; holder: string };
 export type AttLeave = {
   leaveKind: string;
@@ -73,6 +113,10 @@ export type SlipData = {
   production?: boolean;
   /** 이달 생산직 연장수당 비과세로 본 금액(연 한도 누적용) */
   otTaxfree?: number;
+  /** 비과세 조건을 확인한 고정 수당 종류. 없음 = 아직 확인 전(예전 자료, 이름만 보고 비과세) */
+  tfOk?: AllowanceTf[];
+  /** 이달 기타 지급 비과세(종류별, 연 한도 누적용) */
+  tfExtra?: Partial<Record<ExtraTf, number>>;
   /** 급여 받을 계좌(명세서 전체가 암호화되어 저장됨). 다음 달로 이어진다 */
   bank?: PayBank | null;
   insurances: string[];
@@ -114,6 +158,11 @@ export type PayPolicy = {
   /** 생산직 연장수당 비과세: 월정액급여 기준·연 한도 */
   otExemptPayCap: number;
   otExemptAnnual: number;
+  /** 생산직 비과세: 직전 연도 총급여 기준(이하) */
+  otExemptPrevGross?: number;
+  /** 단체 보장성보험료·직원 할인 비과세 연 한도 */
+  groupInsExempt?: number;
+  discountExempt?: number;
   /** 고용보험 회사 몫(실업급여 + 고용안정·직업능력개발), ÷1000 % */
   employmentEmployerRate: number;
   /** 산재보험료율(업종 요율 + 출퇴근재해), ÷1000 %. 0이면 고지서 금액을 따로 봄 */
@@ -253,6 +302,12 @@ export function computeSlip(input: {
   production?: boolean;
   /** 같은 해 앞 달까지 생산직 연장수당 비과세로 본 금액 */
   otTaxfreeUsed?: number;
+  /** 직전 연도 앱 급여대장의 총급여(비과세 뺌). null·없음 = 기록 없음(회계 담당이 확인) */
+  prevYearGross?: number | null;
+  /** 비과세 조건을 확인한 고정 수당 종류(없음 = 확인 전) */
+  tfOk?: AllowanceTf[];
+  /** 같은 해 앞 달까지 기타 비과세 사용액·출산지원금 횟수 */
+  tfUsed?: TfUsed;
   bank?: PayBank | null;
   /** 지난달 명세서의 고정 연장 정산(연속 달 수 이어 세기) */
   prevFixedOt?: FixedOt | null;
@@ -283,23 +338,43 @@ export function computeSlip(input: {
         ? `시급 ${won(t.basePay)} × 월 ${n.monthHours}시간(주휴 포함)${prorate ? ` × ${days}/${m.days}일` : ""}`
         : `월 ${won(t.basePay)}${prorate ? ` × ${days}/${m.days}일(일할)` : ""}`,
   });
+  // 고정 수당 비과세: 종류별 월 한도는 한 사람에 한 번(같은 종류 수당이 두 줄이어도 합쳐서 한도 안)
+  const tfCap: Record<AllowanceTf, number> = { meal: pol.mealExempt, car: pol.carExempt, childcare: pol.childcareExempt };
+  const tfLeft = { ...tfCap };
+  /** 월정액급여 판정용: 일할하지 않은 금액 기준 비과세 */
+  const tfLeftFull = { ...tfCap };
+  let fixedTaxfreeFull = 0;
+  const unconfirmed = new Set<AllowanceTf>();
   for (const a of t.allowances) {
     const amount = Math.round(a.amount * ratio);
-    const cap = /식대|식비/.test(a.name)
-      ? pol.mealExempt
-      : /차량|자가운전/.test(a.name)
-        ? pol.carExempt
-        : /보육|출산/.test(a.name)
-          ? pol.childcareExempt
-          : 0;
+    const kind = allowanceTf(a.name);
+    let taxfree: number | undefined;
+    let note = "";
+    if (kind) {
+      const ok = input.tfOk ? input.tfOk.includes(kind) : true;
+      if (!input.tfOk) unconfirmed.add(kind);
+      if (ok) {
+        const f = Math.min(amount, tfLeft[kind]);
+        tfLeft[kind] -= f;
+        const ff = Math.min(a.amount, tfLeftFull[kind]);
+        tfLeftFull[kind] -= ff;
+        fixedTaxfreeFull += ff;
+        taxfree = f || undefined;
+        if (f < amount) note = ` · ${ALLOWANCE_TF[kind].label} 비과세 월 ${won(tfCap[kind])} 넘는 ${won(amount - f)}은 과세`;
+      } else note = ` · ${ALLOWANCE_TF[kind].label} 비과세 조건 확인 안 함 → 과세`;
+    }
     pays.push({
       code: `fix:${a.name}`,
       name: a.name,
       amount,
-      calc: `고정 수당 월 ${won(a.amount)}${prorate ? ` × ${days}/${m.days}일` : ""}`,
-      taxfree: cap ? Math.min(amount, cap) : undefined,
+      calc: `고정 수당 월 ${won(a.amount)}${prorate ? ` × ${days}/${m.days}일` : ""}${note}`,
+      taxfree,
     });
   }
+  if (unconfirmed.size)
+    warnings.push(
+      `${[...unconfirmed].map((k) => ALLOWANCE_TF[k].label).join("·")}를 이름만 보고 비과세로 계산했습니다. 이 직원 칸의 '비과세 조건 확인'을 체크해 저장하세요(조건이 안 맞으면 체크하지 않으면 과세)`,
+    );
   const mult = pol.legal5 ? 1.5 : 1;
   const otLegal = Math.round(hourly * att.overtime * mult);
   const fixH = t.fixedOtHours ?? 0;
@@ -401,43 +476,80 @@ export function computeSlip(input: {
       });
     } else warnings.push(`${lp.reason}은 연차 사용 촉진(1·2차)을 기간 안에 다 해 보상하지 않습니다(근로기준법 제61조). 촉진 기록은 '연차 촉진' 화면에 있습니다`);
   }
-  for (const e of input.extras.filter((e) => e.kind === "pay"))
-    pays.push({
-      code: "extra",
-      name: e.name,
-      amount: e.amount,
-      calc: e.reason,
-      taxfree: e.taxable === false ? e.amount : undefined,
-    });
+  // 기타 지급 비과세: 종류별 연 한도(단체보험·직원 할인), 출산지원금 2번 확인, 현물은 공제 줄로 빼 실수령 그대로
+  const tfExtra: Partial<Record<ExtraTf, number>> = {};
+  const inKind: PayLine[] = [];
+  const used = input.tfUsed ?? {};
+  let birthCount = used.birthCount ?? 0;
+  for (const e of input.extras.filter((e) => e.kind === "pay")) {
+    const tf: ExtraTf | undefined = e.tf ?? (e.taxable === false ? "other" : undefined);
+    let taxfree: number | undefined;
+    let calc = e.reason;
+    if (tf) {
+      const yearCap = tf === "groupIns" ? pol.groupInsExempt : tf === "discount" ? pol.discountExempt : undefined;
+      const prior = tf === "groupIns" ? (used.groupIns ?? 0) : tf === "discount" ? (used.discount ?? 0) : 0;
+      const left = yearCap != null ? Math.max(0, yearCap - prior - (tfExtra[tf] ?? 0)) : e.amount;
+      taxfree = Math.min(e.amount, left);
+      tfExtra[tf] = (tfExtra[tf] ?? 0) + taxfree;
+      calc += ` · ${EXTRA_TF[tf].label}`;
+      if (taxfree < e.amount) {
+        calc += ` · 연 한도 ${won(yearCap ?? 0)} 넘는 ${won(e.amount - taxfree)}은 과세`;
+        warnings.push(`'${e.name}' 중 ${won(e.amount - taxfree)}은 ${EXTRA_TF[tf].label} 연 한도를 넘어 과세했습니다`);
+      }
+      if (tf === "birth") {
+        birthCount += 1;
+        if (birthCount > 2)
+          warnings.push(`출산지원금을 이 직원에게 ${birthCount}번째 줍니다. 같은 출산에 2번까지만 비과세이니, 같은 자녀라면 과세로 바꾸세요`);
+      }
+      if (tf === "other")
+        warnings.push(`'${e.name}'을 기타 비과세로 넣었습니다. 법에 정한 비과세가 아니면 과세입니다(세무사 확인)`);
+      if ("inKind" in EXTRA_TF[tf] && EXTRA_TF[tf].inKind)
+        inKind.push({ code: "inkind", name: `${e.name}(현물로 받음)`, amount: e.amount, calc: "돈으로 주지 않은 금액이라 실수령에서 뺍니다(신고용으로만 지급에 넣음)" });
+      taxfree = taxfree || undefined;
+    }
+    pays.push({ code: "extra", name: e.name, amount: e.amount, calc, taxfree });
+  }
   // 생산직 연장·야간·휴일 수당 비과세(소득세법 시행령 제17조): 월정액급여 기준 이하, 연 한도 안에서
+  // 고정 연장근로수당은 실제로 일한 시간분(이달 인정 연장의 법정 수당)까지만 연장근로 대가로 본다.
+  // 덜 일한 달에 보장해 준 나머지는 연장근로를 "하여 받는" 급여가 아니라 과세하고, 월정액급여에도 넣는다
+  // (국세청: 실제 연장 여부와 관계없이 정액으로 주는 시간외수당은 비과세 아님) [세무사 확인]
+  const fixPay = pays.find((p) => p.code === "fixot");
+  const fixWorked = fixPay ? Math.min(fixPay.amount, otLegal) : 0;
+  const fixUnworkedFull = fixedOt ? Math.max(0, (t.fixedOtAmount ?? 0) - Math.min(t.fixedOtAmount ?? 0, otLegal)) : 0;
   let otTaxfree = 0;
   if (input.production) {
-    const monthlyFixed =
-      baseFull +
-      t.allowances.reduce((s2, a) => s2 + a.amount, 0) -
-      pays
-        .filter((p) => p.code.startsWith("fix:"))
-        .reduce((s2, p) => s2 + (p.taxfree ?? 0), 0);
-    if (monthlyFixed <= pol.otExemptPayCap) {
+    const monthlyFixed = baseFull + t.allowances.reduce((s2, a) => s2 + a.amount, 0) - fixedTaxfreeFull + fixUnworkedFull;
+    const prevCap = pol.otExemptPrevGross ?? 0;
+    const prevOver = prevCap > 0 && input.prevYearGross != null && input.prevYearGross > prevCap;
+    if (prevOver)
+      warnings.push(
+        `생산직으로 표시했지만 지난해 앱 급여대장의 총급여 ${won(input.prevYearGross ?? 0)}가 ${won(prevCap)}를 넘어 연장수당을 과세했습니다(소득세법 시행령 제17조)`,
+      );
+    else if (monthlyFixed <= pol.otExemptPayCap) {
       let left = Math.max(0, pol.otExemptAnnual - (input.otTaxfreeUsed ?? 0));
+      const prevNote = input.prevYearGross == null ? " · 지난해 총급여는 앱 기록이 없어 회계 담당 확인" : "";
       for (const p of pays) {
         if (!["fixot", "ot", "hol", "night"].includes(p.code) || left <= 0) continue;
-        const f = Math.min(p.amount, left);
+        const room = p.code === "fixot" ? fixWorked : p.amount;
+        const f = Math.min(room, left);
+        if (p.code === "fixot" && room < p.amount)
+          p.calc += ` · 실제로 안 일한 시간분 ${won(p.amount - room)}은 연장근로 대가가 아니라 과세`;
+        if (f <= 0) continue;
         p.taxfree = f;
-        p.calc += ` · 생산직 비과세 ${won(f)}`;
+        p.calc += ` · 생산직 비과세 ${won(f)}${prevNote}`;
         left -= f;
         otTaxfree += f;
       }
-      const otAll = pays
+      const otRoom = pays
         .filter((p) => ["fixot", "ot", "hol", "night"].includes(p.code))
-        .reduce((s2, p) => s2 + p.amount, 0);
-      if (otAll > otTaxfree)
+        .reduce((s2, p) => s2 + (p.code === "fixot" ? fixWorked : p.amount), 0);
+      if (otRoom > otTaxfree)
         warnings.push(
           `생산직 연장수당 비과세 연 한도 ${won(pol.otExemptAnnual)}를 다 썼습니다. 넘는 금액은 과세합니다`,
         );
     } else
       warnings.push(
-        `생산직으로 표시했지만 월정액급여 ${won(monthlyFixed)}가 ${won(pol.otExemptPayCap)}를 넘어 연장수당을 과세했습니다`,
+        `생산직으로 표시했지만 월정액급여 ${won(monthlyFixed)}${fixUnworkedFull ? `(실제로 안 일한 고정 연장수당 ${won(fixUnworkedFull)} 포함)` : ""}가 ${won(pol.otExemptPayCap)}를 넘어 연장수당을 과세했습니다`,
       );
   }
   if (att.absentDays)
@@ -510,6 +622,7 @@ export function computeSlip(input: {
     amount: floor10(tax * 0.1),
     calc: "소득세 × 10%",
   });
+  deducts.push(...inKind);
   for (const e of input.extras.filter((e) => e.kind === "deduct"))
     deducts.push({
       code: "extra",
@@ -566,8 +679,8 @@ export function computeSlip(input: {
   employer.push({
     code: "severance",
     name: "퇴직급여 적립(참고)",
-    amount: floor10(Math.max(0, gross) / 12),
-    calc: `이달 지급 총액 ${won(gross)} ÷ 12 (1년 이상 근무하면 줄 퇴직금 몫)`,
+    amount: floor10(Math.max(0, gross - inKind.reduce((s, x) => s + x.amount, 0)) / 12),
+    calc: `이달 지급 총액 ${won(gross)}${inKind.length ? "(현물 뺌)" : ""} ÷ 12 (1년 이상 근무하면 줄 퇴직금 몫)`,
   });
   const employerTotal = employer.reduce((s, e) => s + e.amount, 0);
   return {
@@ -589,6 +702,8 @@ export function computeSlip(input: {
     incomeTaxSource: source,
     production: input.production || undefined,
     otTaxfree: otTaxfree || undefined,
+    tfOk: input.tfOk,
+    tfExtra: Object.keys(tfExtra).length ? tfExtra : undefined,
     fixedOt,
     bank: input.bank ?? null,
     family: input.family,
@@ -644,7 +759,8 @@ export function grossForNet(input: {
       ym: "2026-01",
       hiredOn: null,
       leftOn: null,
-      att: zero,
+      // 고정 연장은 약정 시간만큼 일한다고 보고 계산(실제로 안 일한 몫은 과세라서 0시간으로 두면 실수령이 낮게 나옴)
+      att: { ...zero, overtime: t.fixedOtHours && t.fixedOtHours > 0 ? t.fixedOtHours : 0 },
       pol,
       incomeTax: 0,
       incomeTaxSource: "auto",

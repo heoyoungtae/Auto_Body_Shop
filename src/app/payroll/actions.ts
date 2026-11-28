@@ -11,7 +11,7 @@ import {
   setSlipInputs,
   submitPayroll,
 } from "@/modules/staff/payroll";
-import type { Extra } from "@/modules/staff/payroll-rules";
+import { isExtraTf, type AllowanceTf, type Extra } from "@/modules/staff/payroll-rules";
 import { errorUrl, noticeUrl, requireUser, userMessage } from "../_lib/session";
 
 const str = (form: FormData) => (k: string) => String(form.get(k) ?? "").trim();
@@ -48,13 +48,17 @@ export async function payrollAction(form: FormData) {
       const r = await recalcPayroll(db, user, id);
       msg = `다시 계산했습니다${r.skipped.length ? `(계약서 없음: ${r.skipped.join(", ")})` : ""}`;
     } else if (intent === "slip") {
-      const extras: Extra[] = [0, 1, 2].map((i) => ({
-        kind: s(`extraKind${i}`) === "deduct" ? "deduct" : "pay",
-        name: s(`extraName${i}`),
-        amount: int(s(`extraAmount${i}`)),
-        reason: s(`extraReason${i}`),
-        taxable: s(`extraTaxfree${i}`) !== "1",
-      }));
+      const extras: Extra[] = [0, 1, 2].map((i) => {
+        const k = s(`extraKind${i}`);
+        const tf = k.startsWith("tf:") ? k.slice(3) : "";
+        return {
+          kind: k === "deduct" ? "deduct" : "pay",
+          name: s(`extraName${i}`),
+          amount: int(s(`extraAmount${i}`)),
+          reason: s(`extraReason${i}`),
+          ...(tf && isExtraTf(tf) ? { tf, taxable: false } : { taxable: true }),
+        };
+      });
       await setSlipInputs(db, user, s("slipId"), {
         incomeTax: s("incomeTax") === "" ? null : int(s("incomeTax")),
         family: int(s("family")) || 1,
@@ -62,6 +66,7 @@ export async function payrollAction(form: FormData) {
         withholdRate: int(s("withholdRate")) || 100,
         extras,
         production: form.getAll("production").includes("1"),
+        tfOk: s("tfOkShown") ? (form.getAll("tfOk").map(String) as AllowanceTf[]) : undefined,
         bank: {
           name: s("payBank"),
           account: s("payAccount"),
