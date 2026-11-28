@@ -9,6 +9,7 @@ import { FIELD_HELP, type FieldHelpKey } from "@/modules/help/fields";
 import { DELEGATION_HELP, GLOSSARY, POLICY_HELP } from "@/modules/help/glossary";
 import { PAGE_HELP, type PageHelpKey } from "@/modules/help/pages";
 import { PANEL_HELP, type PanelHelpKey } from "@/modules/help/panels";
+import { PAY_ITEM_TAX, type PayItemKey, type PayItemTax } from "@/modules/help/pay-items";
 import { helpForPath } from "@/modules/help/route-help";
 import type { DelegationTask } from "@/modules/platform/delegation";
 import type { PolicyKey } from "@/modules/platform/policy";
@@ -19,7 +20,9 @@ export type HelpTopic =
   | { kind: "field"; id: FieldHelpKey; label?: string }
   | { kind: "policy"; id: PolicyKey; title: string; note?: string }
   | { kind: "delegation"; id: DelegationTask; title: string }
-  | { kind: "term"; id: string };
+  | { kind: "term"; id: string }
+  /** 임금명세서 줄: 과세/비과세·한도·근거. limit 은 정책값을 채운 한도 글 */
+  | { kind: "pay"; id: PayItemKey; limit?: string };
 
 type Ctx = { show: (t: HelpTopic) => void; current: HelpTopic | null };
 const HelpCtx = createContext<Ctx>({ show: () => {}, current: null });
@@ -267,6 +270,33 @@ function Body({ topic, onTerm }: { topic: HelpTopic; onTerm: (id: string) => voi
           <Terms ids={["전결", "결재선"]} onTerm={onTerm} />
         </>
       );
+    case "pay": {
+      const h: PayItemTax = PAY_ITEM_TAX[topic.id];
+      return (
+        <>
+          <p className="text-xs text-[var(--muted)]">급여 항목</p>
+          <h2 className="mb-2 text-base font-bold">{h.title}</h2>
+          <p>
+            <b>{h.tax}</b>
+            {(topic.limit ?? h.limit) && <> · 한도 {topic.limit ?? h.limit}</>}
+          </p>
+          {h.when && (
+            <>
+              <H>조건</H>
+              <ul className="list-disc space-y-1 pl-5">
+                {h.when.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {h.note && <p className="mt-2">{h.note}</p>}
+          <H>법적 근거</H>
+          <p>{h.basis}</p>
+          <p className="mt-3 text-xs text-[var(--muted)]">한도 금액은 정책값(설정 › 정책값 › 세무 한도)에서 옵니다. 세무사 검토 전 내용입니다.</p>
+        </>
+      );
+    }
     case "term":
       return (
         <>

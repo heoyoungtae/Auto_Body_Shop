@@ -1,9 +1,19 @@
 // 임금명세서 줄(지급·공제, 계산 방법) — 급여대장·명세서 같이 씀(근로기준법 제48조 기재 사항)
+import { PAY_ITEM_TAX, payItemKey } from "@/modules/help/pay-items";
 import type { SlipData } from "@/modules/staff/payroll-rules";
+import { HelpButton } from "../_help-drawer";
 
 const won = (n: number) => `${n.toLocaleString("ko-KR")}원`;
 
-export function SlipLines({ d }: { d: SlipData }) {
+/** limits: 도움말 한도에 채울 정책값(키 → 원) */
+export function SlipLines({ d, limits = {} }: { d: SlipData; limits?: Record<string, number> }) {
+  const help = (p: SlipData["pays"][number], side: "pay" | "deduct") => {
+    const id = payItemKey(p, d, side);
+    const h = PAY_ITEM_TAX[id] as { limit?: string; limitKey?: string };
+    const v = h.limitKey ? limits[h.limitKey] : undefined;
+    const limit = h.limit && v != null ? h.limit.replace("{v}", won(v)) : h.limit?.replace(" {v}", "");
+    return <HelpButton topic={{ kind: "pay", id, limit }} name={`${p.name} 과세·비과세`} />;
+  };
   const table = (title: string, rows: SlipData["pays"], total: number) => (
     <table className="w-full text-sm">
       <thead>
@@ -20,6 +30,7 @@ export function SlipLines({ d }: { d: SlipData }) {
             className="border-t border-[var(--line)] align-top"
           >
             <td className="py-1 pr-2">
+              <span className="print:hidden">{help(p, title === "공제" ? "deduct" : "pay")}</span>{" "}
               {p.name}
               {p.taxfree ? (
                 <span className="text-xs text-[var(--muted)]">

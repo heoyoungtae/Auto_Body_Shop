@@ -23,8 +23,8 @@ const CFG = "law.watch";
 
 /** 지켜보는 법령과, 바뀌면 확인할 정책값 */
 export const WATCHED_LAWS: { name: string; keys: string[] }[] = [
-  { name: "소득세법", keys: ["tax.childcare_exempt", "tax.ot_exempt_annual", "tax.cash_receipt_must"] },
-  { name: "소득세법 시행령", keys: ["tax.table_pension_rate", "tax.child_one", "tax.child_two", "tax.child_more", "tax.ot_exempt_pay_cap", "tax.car_exempt", "tax.meal_exempt"] },
+  { name: "소득세법", keys: ["tax.childcare_exempt", "tax.meal_exempt", "tax.discount_exempt", "tax.ot_exempt_annual", "tax.cash_receipt_must"] },
+  { name: "소득세법 시행령", keys: ["tax.table_pension_rate", "tax.child_one", "tax.child_two", "tax.child_more", "tax.ot_exempt_pay_cap", "tax.ot_exempt_prev_gross", "tax.ot_exempt_annual", "tax.group_ins_exempt", "tax.car_exempt"] },
   { name: "조세특례제한법", keys: [] },
   { name: "법인세법", keys: ["money.entertain_base", "tax.car_dep_cap"] },
   { name: "법인세법 시행령", keys: ["money.event_client_max", "tax.simple_receipt_max", "tax.car_expense_cap", "asset.immediate_max"] },
